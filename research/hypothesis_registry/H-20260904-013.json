@@ -7,8 +7,8 @@
  "expected_direction": "if the effect is real it persists across snapshots at roughly -0.02 low / +0.02 tail; if the market's tighter tail is correct, realised settlement rates on high rungs come in below the model price",
  "test_plan": "Accumulate across every 2026 snapshot until at least 300 ladders, then test with ladder-clustered standard errors. Separately, at season end, compare realised settlement rates on the top third of each ladder against both prices. Benjamini-Hochberg at q=0.10 across the three ladder positions.",
  "dataset": "market-data shadow ledger market_implied.json.gz + observations",
- "result": "Snapshot 20260904T174955Z: low -0.0199 +- 0.0139, middle +0.0052 +- 0.0077, tail +0.0183 +- 0.0116 (30 ladders). NOT significant; largest effect 1.6 SE.",
+ "result": "Snapshot 20260904T174955Z: low -0.0199 +- 0.0139, middle +0.0052 +- 0.0077, tail +0.0183 +- 0.0116 (30 ladders). NOT significant; largest effect 1.6 SE. Efficiency-map support re-measured on TRADABLE books (width <= 0.10) at 54% coverage: receiving_yards tail bias -0.0413 +- 0.0196 (was -0.0755 +- 0.0303 on all books), receptions tail -0.0461 +- 0.0194. Direction holds, magnitude roughly halves, and the NO-side net return is -0.0023 +- 0.0197, not the +0.0258 first reported.",
  "oos_result": null,
  "status": "REGISTERED_PROSPECTIVE",
- "notes": "Naive unclustered standard errors would have put the tail effect at z=2.95. The clustered version is the honest one and it is 1.57."
+ "notes": "Naive unclustered standard errors would have put the tail effect at z=2.95. The clustered version is the honest one and it is 1.57. The strongest evidence for this hypothesis is now research/tail_calibration, which measures the model's tail against settled outcomes with no market prices involved (z = -8 to -15 on 1.4M rungs) and so cannot be contaminated by book width at all."
 }
