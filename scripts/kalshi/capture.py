@@ -93,7 +93,8 @@ def fingerprint(m):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--rps", type=float, default=5.0)
+    ap.add_argument("--rps", type=float, default=4.0)
+    ap.add_argument("--max-trade-tickers", type=int, default=400)
     ap.add_argument("--book-window-hours", type=float, default=BOOK_WINDOW_HOURS)
     ap.add_argument("--max-books", type=int, default=2500)
     ap.add_argument("--force-daily", action="store_true")
@@ -103,6 +104,7 @@ def main():
     day_dir = os.path.join(OUT_ROOT, t_start.strftime("%Y-%m-%d")); os.makedirs(day_dir, exist_ok=True)
     state_path = os.path.join(OUT_ROOT, "state.json")
     state = json.load(open(state_path)) if os.path.exists(state_path) else {"fingerprints": {}, "trades_cursor_ts": None, "last_daily_run": None}
+    state.setdefault("volume", {}); state.setdefault("trade_cursor", {})
     reg = json.load(open(REG_PATH))["series"]
     sched, sched_src = load_schedule(os.path.join(OUT_ROOT, "schedule_cache.csv"))
     c = KalshiClient(rps=a.rps)
@@ -115,6 +117,7 @@ def main():
     trades_f = open(os.path.join(day_dir, f"{run_id}.trades.jsonl"), "w")
     n_quotes = n_unchanged = n_books = n_live = n_trades = 0
     book_candidates = []
+    trade_candidates = []
     seen_now = set()
     for tk, rec in reg.items():
         tier = rec.get("tier", "LIGHT")
@@ -150,6 +153,15 @@ def main():
                 state["fingerprints"][m["ticker"]] = fp
             else:
                 n_unchanged += 1
+            # trade tape: only tickers whose volume moved since the last observation (exchange-wide tape is too big)
+            try:
+                vol = float(m.get("volume_fp") or 0)
+            except ValueError:
+                vol = 0.0
+            prev_vol = state["volume"].get(m["ticker"])
+            if prev_vol is not None and vol > prev_vol:
+                trade_candidates.append((-(vol - prev_vol), m["ticker"]))
+            state["volume"][m["ticker"]] = vol
             if tier == "FULL_MICROSTRUCTURE" and minutes_to_kick is not None and minutes_to_kick <= a.book_window_hours * 60:
                 book_candidates.append((minutes_to_kick, m["ticker"], row["pregame"]))
     # order books: closest kickoffs first, capped per run
@@ -163,23 +175,27 @@ def main():
         else:
             live_f.write(json.dumps(obs, separators=(",", ":")) + "\n"); n_live += 1
     manifest["books_requested"] = min(len(book_candidates), a.max_books); manifest["books_candidates"] = len(book_candidates)
-    # trades: global tape since last cursor (bounded), keep NFL series
-    min_ts = state.get("trades_cursor_ts") or int((t_start - timedelta(minutes=30)).timestamp())
-    trades, complete, info = c.trades(min_ts=min_ts, limit=1000, max_pages=40)
-    manifest["trades"] = {"fetched": len(trades), "complete": complete, "min_ts": min_ts}
-    max_seen = min_ts
-    for t in trades:
-        series = (t.get("ticker") or "").split("-")[0]
-        try:
-            ts = int(datetime.fromisoformat(t["created_time"].replace("Z", "+00:00")).timestamp())
-        except Exception:
-            ts = None
-        if ts and ts > max_seen:
-            max_seen = ts
-        if series in reg:
+    # trades: per ticker, only where volume moved, since that ticker's own cursor (largest volume change first)
+    trade_candidates.sort()
+    n_trade_tickers = 0; incomplete_trades = 0
+    for _, ticker in trade_candidates[: a.max_trade_tickers]:
+        min_ts = state["trade_cursor"].get(ticker) or int((t_start - timedelta(hours=24)).timestamp())
+        trades, complete, info = c.trades(ticker=ticker, min_ts=min_ts, limit=1000, max_pages=5)
+        n_trade_tickers += 1
+        max_seen = min_ts
+        for t in trades:
+            try:
+                ts_ = int(datetime.fromisoformat(t["created_time"].replace("Z", "+00:00")).timestamp())
+            except Exception:
+                ts_ = None
+            if ts_ and ts_ > max_seen:
+                max_seen = ts_
             trades_f.write(json.dumps({"run_id": run_id, **t}, separators=(",", ":")) + "\n"); n_trades += 1
-    if complete:
-        state["trades_cursor_ts"] = max_seen
+        if complete:
+            state["trade_cursor"][ticker] = max_seen + 1
+        else:
+            incomplete_trades += 1
+    manifest["trades"] = {"tickers_with_volume_change": len(trade_candidates), "tickers_fetched": n_trade_tickers, "incomplete": incomplete_trades}
     # markets that vanished from `open` since last run (closed/settled): drop fingerprint so a reappearance is written
     for tk in list(state["fingerprints"]):
         if tk not in seen_now and not do_daily:
