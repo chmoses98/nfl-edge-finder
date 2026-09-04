@@ -19,4 +19,5 @@ Every hypothesis is written down before it is tested. Status is one of PROPOSED,
 | `H-20260904-013` | REGISTERED_PROSPECTIVE | mean (model - market) probability by ladder position, centre removed,  | if the effect is real it persists across snapshots at roughly -0.02 low / +0.02  |
 | `H-20260904-014` | REGISTERED_PROSPECTIVE | residual of realised total minus the Kalshi-implied total at the same  | If the market underprices forecast wind, high-forecast-wind games settle under t |
 | `H-20260904-015` | REGISTERED_PROSPECTIVE | calibration bias on rungs the model prices below 0.20, and aggregate B | Bias on p<0.20 rungs shrinks by roughly 75-80% (retrospectively -0.0095 to -0.00 |
-| `H-20260904-016` | REGISTERED_PROSPECTIVE | realised settlement rate minus closing midpoint, and NO-side net retur | The calibration bias persists on 2026 settled markets at roughly the same magnit |
+| `H-20260904-016` | REJECTED | realised settlement rate minus closing midpoint, and NO-side net retur | The calibration bias persists on 2026 settled markets at roughly the same magnit |
+| `H-20260904-017` | REGISTERED_PROSPECTIVE | realised settlement rate minus closing midpoint on player props, and N | The YES-side overpricing persists on 2026 settled props at roughly 2-5 points an |

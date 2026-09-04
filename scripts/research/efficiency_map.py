@@ -27,6 +27,13 @@ import polars as pl
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "research", "efficiency_map"); os.makedirs(OUT, exist_ok=True)
 IN_GLOB = sys.argv[1] if len(sys.argv) > 1 else "/home/user/_md/data/kalshi/backfill/horizons/*.jsonl"
+# Calibration against the midpoint is only meaningful where the midpoint is near a real price. On a book
+# quoted 23 bid / 62 ask the midpoint is an arithmetic artefact of where a maker parked an empty quote, and
+# "the contract settled above the midpoint" says nothing about the market being wrong. Measured on this
+# sample it inverts conclusions: receptions at 0.35-0.50 look UNDERpriced by +0.083 on all books and
+# OVERpriced by -0.053 on the 84% of books quoted within 10 cents. Every calibration figure is therefore
+# computed on tradable books by default; MAX_WIDTH=1.0 reproduces the contaminated version.
+MAX_WIDTH = float(os.environ.get("EFFMAP_MAX_WIDTH", "0.10"))
 HORIZONS = ["T-168h", "T-72h", "T-48h", "T-24h", "T-12h", "T-6h", "T-3h", "T-90m", "T-30m", "T-0"]
 
 
@@ -41,6 +48,7 @@ def load():
     rows = []
     n_empty_book = 0
     n_no_kickoff = 0
+    n_too_wide = 0
     for f in glob.glob(IN_GLOB):
         for line in open(f):
             r = json.loads(line)
@@ -64,6 +72,9 @@ def load():
                 if sn.get("book_empty") or (bid <= 0.0 and ask >= 1.0):
                     n_empty_book += 1      # no market at that instant; not a 100-cent spread
                     continue
+                if (ask - bid) > MAX_WIDTH:
+                    n_too_wide += 1
+                    continue
                 rows.append({"ticker": r["ticker"], "cluster": r.get("game_id") or r["ticker"], "family": cell_fam, "base_family": fam, "stat": stat,
                              "horizon": h, "y": y, "bid": bid, "ask": ask, "mid": (bid + ask) / 2.0,
                              "width": ask - bid, "vol": sn.get("vol") or 0.0, "oi": sn.get("oi") or 0.0,
@@ -71,6 +82,7 @@ def load():
                              "anchor_kind": r["anchor_kind"], "season": r.get("season"),
                              "final_volume": r.get("final_volume") or 0.0})
     print(f"quoted snapshots {len(rows)}; empty-book skipped {n_empty_book}; "
+          f"wider than {MAX_WIDTH:.2f} skipped {n_too_wide}; "
           f"markets dropped for having no kickoff anchor {n_no_kickoff}")
     return pl.DataFrame(rows)
 

@@ -15,94 +15,71 @@ Every number is measured on **executable** prices: `ask` is what a YES buyer pay
 receives. Midpoints appear only where the midpoint itself is the object of study. Returns are net of the
 Kalshi taker fee, `ceil(0.07·p·(1−p)·100)/100`. Standard errors are **clustered on game** — both sides of a
 game are one outcome and a twelve-rung player ladder is one performance, so unclustered errors here run
-1.5–2× too small. Multiplicity is handled by Benjamini–Hochberg at q = 0.10 across all 136 calibration cells.
+1.5–2× too small. Multiplicity is handled by Benjamini–Hochberg at q = 0.10 across all 195 calibration cells. Calibration is
+computed only on books quoted within 10 cents (`EFFMAP_MAX_WIDTH`) — see the correction below for why that
+is not an optional refinement.
 
 The FDR budget is deliberately **not** spent on "is the mean execution return non-zero". That is the
 overround, it is nearly deterministic, and testing it returns p ≈ 0 for almost every cell while saying only
 that a market maker charges a spread. It is reported as a cost table instead.
 
-## The headline: large, real miscalibrations — and not one of them is tradable
+## A correction: two findings reported at 54% were artefacts of untradable books
 
-**29 of 219 calibration cells survive Benjamini–Hochberg at q = 0.10** (up from 7 of 136 at 16% coverage).
-Both findings reported at 16% replicated and strengthened:
+An earlier version of this file reported two headline results — a first-touchdown longshot bias reaching
+−0.181 ± 0.026, and receptions at 0.35–0.50 *underpriced* by +0.111 ± 0.016. Both were computed against the
+quoted midpoint across all books. **Both invert or vanish once the sample is restricted to books a trader
+could actually cross.**
 
-| cell | 16% coverage | 54% coverage |
+The mechanism is the one this platform already documented for the live ledger and then walked straight into.
+In the receptions 0.35–0.50 bucket the median spread is 7 cents but the **mean** bid is 0.234 against a mean
+ask of 0.624: a minority of enormously wide books drags the mean. On such a book the midpoint is not an
+estimate of anything, it is an arithmetic artefact of where a maker parked an empty quote, and "the contract
+settled above the midpoint" is not evidence that the market was wrong.
+
+| cell (closing price) | all books | tradable books (≤ 0.10 wide) |
 |---|---|---|
-| FIRST_TD_SCORER, 0.10–0.20 at close | −0.0716 ± 0.0219 (44 games) | **−0.0586 ± 0.0160** (130 games) |
-| PLAYER_STAT receptions, 0.35–0.50 at T−6h | +0.0874 ± 0.0283 (57 games) | **+0.1111 ± 0.0160** (146 games) |
+| receptions 0.35–0.50 | **+0.083** ± 0.017 | **−0.053** ± 0.018 |
+| FIRST_TD_SCORER 0.10–0.20 | **−0.059** ± 0.016 | **+0.006** ± 0.029 |
+| FIRST_TD_SCORER 0.20–0.35 | **−0.181** ± 0.026 | too few narrow-book quotes to report |
 
-The first-touchdown-scorer market shows a clean, monotone longshot bias across five adjacent price buckets:
+FDR survivors fall from 29 of 219 to **9 of 195**. 84.4% of closing quotes are within 10 cents, so the
+discarded 15.6% was overturning conclusions drawn from the other 84%. Every calibration figure below is now
+computed on tradable books by default (`EFFMAP_MAX_WIDTH`, default 0.10).
 
-| closing price | n | games | mid | realised | bias |
-|---|---|---|---|---|---|
-| 0.00–0.02 | 518 | 170 | 0.011 | 0.012 | +0.0009 ± 0.0047 |
-| 0.02–0.05 | 917 | 182 | 0.030 | 0.044 | +0.0132 ± 0.0061 |
-| 0.05–0.10 | 489 | 171 | 0.068 | 0.086 | +0.0179 ± 0.0118 |
-| 0.10–0.20 | 297 | 130 | 0.149 | 0.091 | **−0.0586 ± 0.0160** |
-| 0.20–0.35 | 66 | 43 | 0.226 | **0.045** | **−0.1810 ± 0.0258** |
+## The headline: player props are overpriced, consistently, and it is still not tradable
 
-Contracts quoted at 22.6 cents settle 4.5% of the time. That is an **18-point** miscalibration, the largest
-in the study, at seven standard errors.
+On tradable books the noisy family-by-family picture collapses into one coherent result. Player props are
+**overpriced on the YES side**, and increasingly so as the price rises:
 
-And it is worth **nothing**. Selling those contracts — the correct side — nets **−0.0089 ± 0.0260** after the
-Kalshi taker fee. Checked across every family and price bucket with game-clustered standard errors, **not one
-has a positive net return**:
-
-| family, price bucket | n | games | mid | realised | NO-side net after fees |
-|---|---|---|---|---|---|
-| FIRST_TD_SCORER 0.20–0.35 | 66 | 43 | 0.226 | 0.045 | −0.0089 ± 0.0260 |
-| FIRST_TD_SCORER 0.10–0.20 | 297 | 130 | 0.149 | 0.091 | −0.0463 ± 0.0150 |
-| PLAYER_STAT 0.80–0.90 | 692 | 148 | 0.842 | 0.806 | −0.0109 ± 0.0166 |
-| PLAYER_STAT 0.65–0.80 | 1837 | 185 | 0.717 | 0.682 | −0.0215 ± 0.0135 |
-| PLAYER_STAT 0.50–0.65 | 2964 | 190 | 0.560 | 0.518 | −0.0336 ± 0.0150 |
-| TEAM_TOTAL 0.80–0.90 | 50 | 23 | 0.848 | 0.780 | +0.0128 ± 0.0790 |
-
-The only non-negative figure anywhere is TEAM_TOTAL 0.80–0.90 at +0.013 ± 0.079 — 0.16 standard errors, on
-50 contracts across 23 games, in the family with the second-widest book.
-
-That is the central result of the whole map. **A large, highly significant miscalibration is not a tradable
-one.** An 18-point pricing error at z = 7 nets less than zero once the spread and fee are paid. Any search
-procedure that ranks by miscalibration and stops there will find exactly these markets and lose money in
-them.
-
-Player props also show a consistent **favourite overpricing** that the 16% sample could only hint at: three
-adjacent buckets above 0.50 all negative at 2.2–3.0 SE (0.50–0.65: −0.0424 ± 0.0141; 0.65–0.80:
-−0.0352 ± 0.0134; 0.80–0.90: −0.0358 ± 0.0165). Props quoted above a coin flip settle roughly 3.5–4 points
-less often than priced. The NO side of all three still loses after costs.
-
-## Favourite/longshot structure at the close (bias = observed − midpoint, clustered SE)
-
-| family | price bucket | n | games | mid | observed | bias |
+| closing price | n | games | mid | realised | bias | NO-side net after fees |
 |---|---|---|---|---|---|---|
-| FIRST_TD_SCORER | 0.02–0.05 | 299 | 61 | 0.030 | 0.057 | +0.0269 ± 0.0114 |
-| FIRST_TD_SCORER | 0.10–0.20 | 93 | 44 | 0.147 | 0.075 | **−0.0716 ± 0.0219** |
-| PLAYER_STAT | 0.20–0.35 | 1378 | 60 | 0.269 | 0.261 | −0.0083 ± 0.0166 |
-| PLAYER_STAT | 0.35–0.50 | 1162 | 60 | 0.424 | 0.421 | −0.0028 ± 0.0198 |
-| PLAYER_STAT | 0.50–0.65 | 950 | 59 | 0.561 | 0.525 | −0.0359 ± 0.0257 |
-| PLAYER_STAT | 0.65–0.80 | 624 | 58 | 0.716 | 0.675 | −0.0414 ± 0.0233 |
-| PLAYER_STAT | 0.80–0.90 | 250 | 55 | 0.842 | 0.796 | −0.0465 ± 0.0323 |
-| TOTAL | 0.35–0.50 | 77 | 49 | 0.420 | 0.312 | −0.1085 ± 0.0580 |
+| 0.20–0.35 | 3354 | 193 | 0.269 | 0.254 | −0.0147 ± 0.0103 | −0.0287 ± 0.0103 |
+| 0.35–0.50 | 2880 | 190 | 0.426 | 0.397 | −0.0284 ± 0.0128 | −0.0145 ± 0.0128 |
+| 0.50–0.65 | 2615 | 184 | 0.562 | 0.514 | **−0.0485 ± 0.0147** | +0.0044 ± 0.0147 |
+| 0.65–0.80 | 1684 | 168 | 0.717 | 0.679 | **−0.0380 ± 0.0144** | −0.0087 ± 0.0144 |
+| 0.80–0.90 | 650 | 145 | 0.843 | 0.802 | **−0.0412 ± 0.0171** | −0.0001 ± 0.0170 |
 
-Player props are well calibrated through the middle of the price range and drift **negative at the top**:
-contracts quoted above 0.50 settle 3.6 to 4.7 points less often than priced, consistently in sign across four
-adjacent buckets though individually only 1.4–1.8 SE. Aggregating those four buckets is the obvious next test
-and is deliberately left for the full sample rather than run now on a favourable subset.
+Five adjacent buckets, every one negative, three of them at 2.4–3.3 SE, on 199 games. Nine of the 9 cells
+surviving FDR are player-prop or first-TD cells and all but one point the same way. This is a real property
+of the exchange's player markets, not a subgroup that happened to look good.
 
-## Player ladder tails
+**And selling them still loses.** Pooled across every bucket at or above 0.20: **−0.0126 ± 0.0104** on the NO
+side after the Kalshi taker fee. The best single bucket, 0.50–0.65, is +0.0044 ± 0.0147 — 0.3 standard errors
+from zero. A 3–5 point pricing error against a 5–7 cent spread nets nothing.
 
-| stat | rung bucket | n | games | mid | observed | bias | NO net |
-|---|---|---|---|---|---|---|---|
-| receiving_yards | low | 519 | 56 | 0.528 | 0.528 | +0.0002 ± 0.0308 | −0.0831 |
-| receiving_yards | middle | 945 | 57 | 0.368 | 0.366 | −0.0017 ± 0.0238 | −0.0520 |
-| receiving_yards | **tail** | 416 | 57 | 0.337 | 0.262 | **−0.0755 ± 0.0303** | +0.0258 ± 0.0308 |
-| rushing_yards | tail | 190 | 51 | 0.355 | 0.316 | −0.0395 ± 0.0508 | −0.0088 |
-| passing_yards | middle | 335 | 56 | 0.309 | 0.343 | +0.0343 ± 0.0437 | −0.0781 |
+That is the map's central result, and it is now supported by a coherent effect rather than by whichever
+extreme cells survived multiplicity correction:
 
-The high rungs of receiving-yards ladders are overpriced by 7.5 points. This is the **same direction** as the
-independent finding in `research/market_shape/RESULTS.md`, where the model held more upper-tail probability
-than the market on live ladders — meaning the market's tail is if anything too *fat*, not too thin, and the
-model's flatter tail is pointed the wrong way. That is a coherent story from two different data sources and
-it is registered as `H-20260904-013`, not claimed.
+**Spreads and totals are efficient; player props are consistently overpriced; and the spread is wider than
+the error in every single case.**
+
+Game markets confirm the first half: SPREAD and TOTAL calibration biases on tradable books are all within
+about one standard error of zero at every price bucket (largest: SPREAD 0.20–0.35 at +0.022 ± 0.022).
+
+This also bears directly on `H-20260904-011`. The shadow model prices player props about 0.019 below the
+market after the availability haircut, and the direction of that gap is **correct** — on tradable 2025 books
+the market did settle below its own quotes. Whether 0.019 is the right magnitude is still open, and is still
+not worth anything after costs.
 
 ## Does efficiency vary with liquidity? Yes — but not the way edge-hunting assumes
 

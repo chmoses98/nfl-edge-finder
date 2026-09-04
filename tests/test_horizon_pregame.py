@@ -39,3 +39,19 @@ def test_efficiency_map_filters_non_kickoff_anchors():
     src = open(os.path.join(ROOT, "scripts", "research", "efficiency_map.py")).read()
     assert 'r.get("anchor_kind") != "kickoff"' in src, \
         "the efficiency map must drop close_time-anchored rows or its T-0 is post-game"
+
+
+def test_efficiency_map_restricts_calibration_to_tradable_books():
+    """Calibration against a midpoint is meaningless where there is no book around it.
+
+    Measured on the 2025 backfill: receptions at 0.35-0.50 look UNDERpriced by +0.083 across all books and
+    OVERpriced by -0.053 on the 84% quoted within 10 cents, and a 'first-touchdown longshot bias' of
+    -0.181 +- 0.026 disappears entirely. The width restriction is not an optional refinement -- without it
+    15.6% of quotes overturn the conclusions drawn from the other 84.4%.
+    """
+    src = open(os.path.join(ROOT, "scripts", "research", "efficiency_map.py")).read()
+    assert "MAX_WIDTH" in src, "the efficiency map must bound quoted width before measuring calibration"
+    assert '(ask - bid) > MAX_WIDTH' in src, "width filter must be applied when loading quotes"
+    import re
+    m = re.search(r'EFFMAP_MAX_WIDTH", "([0-9.]+)"', src)
+    assert m and float(m.group(1)) <= 0.10, "default width bound must keep the midpoint near a real price"
