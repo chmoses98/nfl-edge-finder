@@ -1,0 +1,62 @@
+name: Kalshi NFL Capture
+
+# Prospective market capture. Read-only public GETs, change-suppressed, published
+# to the orphan branch `market-data` (see docs/KALSHI_CAPTURE.md). GitHub cron is
+# best-effort (the CFB project measured very poor delivery); the conductor input
+# lets an external scheduler or a chained run dispatch this workflow.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      trigger_source:
+        description: 'who dispatched (EXTERNAL_SCHEDULE / MANUAL / CHAIN)'
+        required: false
+        default: 'MANUAL'
+      force_daily:
+        description: 'include DAILY-tier series in this run'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-write
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore capture state from market-data branch
+        run: |
+          git fetch --depth=1 origin market-data || true
+          if git rev-parse --verify origin/market-data >/dev/null 2>&1; then
+            mkdir -p data/kalshi/capture
+            git show origin/market-data:data/kalshi/capture/state.json > data/kalshi/capture/state.json 2>/dev/null || echo '{"fingerprints":{},"trades_cursor_ts":null,"last_daily_run":null}' > data/kalshi/capture/state.json
+            git show origin/market-data:data/kalshi/capture/schedule_cache.csv > data/kalshi/capture/schedule_cache.csv 2>/dev/null || true
+          fi
+      - name: Capture
+        id: capture
+        continue-on-error: true
+        env:
+          TRIGGER_SOURCE: ${{ github.event_name == 'schedule' && 'GITHUB_SCHEDULE' || github.event.inputs.trigger_source }}
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.force_daily }}" = "true" ]; then ARGS="--force-daily"; fi
+          python3 scripts/kalshi/capture.py $ARGS
+      - name: Publish
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/capture --message "kalshi capture $(date -u +'%Y-%m-%dT%H:%M:%SZ') (${{ github.event_name }})"
+      - name: Surface partial capture
+        if: steps.capture.outcome != 'success'
+        run: echo "::warning::capture reported PARTIAL universe or error (see manifest)"; exit 1

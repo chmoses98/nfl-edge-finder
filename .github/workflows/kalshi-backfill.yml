@@ -1,0 +1,70 @@
+name: Kalshi NFL Historical Backfill
+
+# Resumable backfill from Kalshi's historical tier. Each run spends a request
+# budget, publishes to `market-data`, and re-dispatches itself while work remains
+# (bounded by `max_chain`).
+
+on:
+  workflow_dispatch:
+    inputs:
+      budget:
+        description: 'HTTP request budget for this run'
+        required: false
+        default: '14000'
+      stage:
+        description: 'markets | detail | all'
+        required: false
+        default: 'all'
+      series:
+        description: 'optional comma list of series tickers'
+        required: false
+        default: ''
+      chain:
+        description: 'remaining self-dispatches allowed'
+        required: false
+        default: '6'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: market-data-write
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore backfill state and market lists from market-data branch
+        run: |
+          git fetch --depth=1 origin market-data || true
+          if git rev-parse --verify origin/market-data >/dev/null 2>&1; then
+            git checkout origin/market-data -- data/kalshi/backfill 2>/dev/null || true
+            git reset -q
+          fi
+          ls data/kalshi/backfill 2>/dev/null || echo "no prior backfill state"
+      - name: Backfill
+        id: backfill
+        continue-on-error: true
+        run: |
+          set +e
+          python3 scripts/kalshi/backfill.py --budget "${{ github.event.inputs.budget }}" --stage "${{ github.event.inputs.stage }}" --series "${{ github.event.inputs.series }}"
+          echo "rc=$?" >> $GITHUB_OUTPUT
+      - name: Publish
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --message "kalshi backfill $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: Chain next run if work remains
+        if: steps.backfill.outputs.rc == '3' && github.event.inputs.chain != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NEXT=$(( ${{ github.event.inputs.chain }} - 1 ))
+          gh workflow run kalshi-backfill.yml --ref main -f budget="${{ github.event.inputs.budget }}" -f stage="${{ github.event.inputs.stage }}" -f series="${{ github.event.inputs.series }}" -f chain="$NEXT"
