@@ -16,3 +16,4 @@ Every hypothesis is written down before it is tested. Status is one of PROPOSED,
 | `H-20260904-010` | REGISTERED_PROSPECTIVE | Brier and log loss of P(Y >= k) at listed Kalshi rungs, player statist | shadow-0.3.0 beats the shadow-0.2.0 feature set on 2026 rungs by roughly the ret |
 | `H-20260904-011` | REGISTERED_PROSPECTIVE | realised settlement rate of player-prop contracts versus the model pri | If the market carries YES-side juice, realised settlement rates fall between the |
 | `H-20260904-012` | REGISTERED_PROSPECTIVE | correlation between |model - mid| and quoted width across snapshots, a | The correlation persists across every 2026 snapshot, and contracts selected on m |
+| `H-20260904-013` | REGISTERED_PROSPECTIVE | mean (model - market) probability by ladder position, centre removed,  | if the effect is real it persists across snapshots at roughly -0.02 low / +0.02  |

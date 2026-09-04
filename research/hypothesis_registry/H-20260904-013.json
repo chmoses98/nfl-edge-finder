@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-013",
+ "date_proposed": "2026-09-04",
+ "rationale": "On 30 player ladders with a quoted width under 10 cents, after removing each ladder's own centre disagreement, the model holds less probability on the likely rungs (-0.020) and more in the upper tail (+0.018) than the market's own implied survival. If real, this is a property of the distribution families rather than of any player, and it would mean the model systematically overprices long-shot rungs -- exactly the rungs where a naive edge search would concentrate.",
+ "features": "model P(Y >= k) vs market-implied monotone survival on shared rungs, ladder position normalised to [0,1]",
+ "target": "mean (model - market) probability by ladder position, centre removed, clustered on ladder",
+ "expected_direction": "if the effect is real it persists across snapshots at roughly -0.02 low / +0.02 tail; if the market's tighter tail is correct, realised settlement rates on high rungs come in below the model price",
+ "test_plan": "Accumulate across every 2026 snapshot until at least 300 ladders, then test with ladder-clustered standard errors. Separately, at season end, compare realised settlement rates on the top third of each ladder against both prices. Benjamini-Hochberg at q=0.10 across the three ladder positions.",
+ "dataset": "market-data shadow ledger market_implied.json.gz + observations",
+ "result": "Snapshot 20260904T174955Z: low -0.0199 +- 0.0139, middle +0.0052 +- 0.0077, tail +0.0183 +- 0.0116 (30 ladders). NOT significant; largest effect 1.6 SE.",
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "Naive unclustered standard errors would have put the tail effect at z=2.95. The clustered version is the honest one and it is 1.57."
+}
