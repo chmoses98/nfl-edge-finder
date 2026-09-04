@@ -86,6 +86,33 @@ def main():
     print(f"  families: {dict(sorted(fams.items(), key=lambda x: -x[1]))}")
     out["__top50_by_mid_distance__"] = {"median_width": float(np.median([r["yes_ask"] - r["yes_bid"] for r in top])),
                                         "inside_spread": ins / max(len(top), 1), "families": dict(fams)}
+    # ---- how much of the apparent disagreement sits where the model is KNOWN to be miscalibrated?
+    # research/tail_calibration measured the bias walk-forward on 1.4M rungs: about -0.010 where the model
+    # prices below 0.20 and -0.005 between 0.20 and 0.35. Reporting the raw disagreement count without this
+    # invites acting on a defect we have already measured.
+    def tail_bias(p):
+        return 0.010 if p < 0.20 else (0.005 if p < 0.35 else 0.0)
+
+    props = [r for r in sup if r.get("family") == "PLAYER_STAT" and r.get("model_event_probability") is not None]
+    if props:
+        yes = [r for r in props if r["model_contract_value"] > r["yes_ask"] + taker_fee(r["yes_ask"])]
+        no = [r for r in props if (1 - r["model_contract_value"]) > (1 - r["yes_bid"]) + taker_fee(1 - r["yes_bid"])]
+        adj = 0
+        for r in yes:
+            p_ = r["model_event_probability"]
+            scale = r["model_contract_value"] / max(p_, 1e-9)
+            if r["model_contract_value"] - tail_bias(p_) * scale > r["yes_ask"] + taker_fee(r["yes_ask"]):
+                adj += 1
+        share = np.mean([r["model_event_probability"] < 0.20 for r in yes]) if yes else 0.0
+        print(f"\nPLAYER_STAT disagreements that clear the far side after fees: "
+              f"{len(yes)} YES-side, {len(no)} NO-side (of {len(props)})")
+        print(f"  {share:.0%} of the YES-side sit below model p=0.20, where the model is measured to run "
+              f"about 0.010 too high (research/tail_calibration)")
+        print(f"  subtracting that measured bias: {len(yes)} -> {adj} YES-side disagreements")
+        print("  This is a diagnostic, not a correction: the frozen model is unchanged (see H-20260904-015).")
+        out["__player_stat_disagreement__"] = {"yes_side": len(yes), "no_side": len(no),
+                                               "yes_side_after_measured_tail_bias": adj,
+                                               "yes_side_share_below_0_20": float(share)}
     if a.json_out:
         json.dump(out, open(a.json_out, "w"), indent=1, default=float)
     return 0

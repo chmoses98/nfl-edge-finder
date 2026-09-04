@@ -48,6 +48,24 @@ Whether the remaining −0.019 is market juice on the YES side or model bias **c
 prospective quotes alone**. It needs the 2025 settled ladders, where model prices, closing quotes and
 realised outcomes can all be compared on the same contracts — which is what the horizon backfill is for.
 
+## A third of the apparent YES-side disagreement is a defect we have already measured
+
+Of 452 supported player-prop contracts, 23 have a model price that clears the ask after fees ("the market is
+too cheap") and 144 clear the bid ("too rich"). **48% of the YES-side ones sit below model p = 0.20**, the
+band where `research/tail_calibration` measured the model running about 0.010 too high on 1.4M rungs across
+1,871 games.
+
+Subtracting that measured bias takes the YES-side count from **23 to 14** — 39% of them were the model's own
+known tail defect showing up as an opportunity. The NO-side count moves the other way, and that direction
+happens to agree with the 2025 efficiency map, where the market's own long-shot rungs were overpriced. Both
+model and market appear too fat in the tail, the model more so. That does not make the NO side tradable: the
+efficiency map found NO-side net returns still negative after the spread nearly everywhere, the one exception
+being 0.8 SE from zero.
+
+`scripts/shadow/ledger_report.py` now prints this on every snapshot. It is a diagnostic, not a correction —
+the frozen Week-1 model is unchanged, and the calibrator is registered for prospective comparison as
+`H-20260904-015` rather than quietly switched on.
+
 ## Support states are doing their job
 
 10,663 of 12,408 observations are UNSUPPORTED_MODEL: season-long awards, draft, transaction, business and
