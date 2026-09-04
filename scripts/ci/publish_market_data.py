@@ -32,7 +32,7 @@ def main():
     ap.add_argument("--message", required=True)
     ap.add_argument("--branch", default="market-data")
     ap.add_argument("--repo", default=os.getcwd())
-    ap.add_argument("--attempts", type=int, default=5)
+    ap.add_argument("--attempts", type=int, default=8)
     a = ap.parse_args()
     repo = os.path.abspath(a.repo)
     src = os.path.join(repo, a.src)

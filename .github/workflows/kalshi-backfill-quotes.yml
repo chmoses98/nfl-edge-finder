@@ -49,15 +49,22 @@ jobs:
           git reset -q
           CHUNK=0
           while [ $(date +%s) -lt $END ]; do
-            git fetch --depth=1 origin market-data || true
             mkdir -p data/kalshi/backfill/horizons
-            git show origin/market-data:data/kalshi/backfill/horizons/state_${{ matrix.shard }}.json > data/kalshi/backfill/horizons/state_${{ matrix.shard }}.json 2>/dev/null || echo '{"done":{},"runs":[]}' > data/kalshi/backfill/horizons/state_${{ matrix.shard }}.json
-            git show origin/market-data:data/kalshi/backfill/horizons/${{ matrix.shard }}.jsonl > data/kalshi/backfill/horizons/${{ matrix.shard }}.jsonl 2>/dev/null || true
+            # Seed from the branch ONLY on the first chunk. Re-seeding every chunk means a failed publish
+            # silently discards that chunk's work and the shard re-fetches the same markets forever -- which
+            # is exactly what two shards did for 40 minutes while the other four made progress.
+            if [ "$CHUNK" = "0" ]; then
+              git fetch --depth=1 origin market-data || true
+              git show origin/market-data:data/kalshi/backfill/horizons/state_${{ matrix.shard }}.json > data/kalshi/backfill/horizons/state_${{ matrix.shard }}.json 2>/dev/null || echo '{"done":{},"runs":[]}' > data/kalshi/backfill/horizons/state_${{ matrix.shard }}.json
+              git show origin/market-data:data/kalshi/backfill/horizons/${{ matrix.shard }}.jsonl > data/kalshi/backfill/horizons/${{ matrix.shard }}.jsonl 2>/dev/null || true
+            fi
             set +e
             python3 scripts/kalshi/backfill_quotes.py --shard ${{ matrix.shard }} --shards ${{ github.event.inputs.shards || '6' }} --budget ${{ github.event.inputs.budget || '5000' }}
             RC=$?
             set -e
-            python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill/horizons --message "quote backfill shard ${{ matrix.shard }} chunk $CHUNK $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "::warning::publish failed (chunk $CHUNK)"
+            # Stagger publishes so six shards plus the capture conductor do not all contend for the branch.
+            sleep $(( ${{ matrix.shard }} * 17 ))
+            python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill/horizons --message "quote backfill shard ${{ matrix.shard }} chunk $CHUNK $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "::warning::publish failed (chunk $CHUNK); local state kept, will republish next chunk"
             CHUNK=$((CHUNK+1))
             if [ "$RC" = "0" ]; then echo "shard ${{ matrix.shard }} complete"; break; fi
             if [ "$RC" != "3" ]; then echo "::error::shard ${{ matrix.shard }} script failed rc=$RC"; exit 1; fi
