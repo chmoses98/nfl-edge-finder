@@ -3,11 +3,11 @@
 Reproduce: `python3 scripts/research/efficiency_map.py '<horizons glob>'`
 Artifacts: `results.json` (current), `results_partial_16pct.json`, `results_cached_subset.json`.
 
-**Status: INTERIM, on a biased sample.** 8,603 kickoff-anchored markets across 10 families and 67,408
-executable quote snapshots — but that is 16% of the 54,364-market universe, and it is **not a random 16%**.
-The backfill processes markets newest-first, so what has landed is weighted toward late-season and playoff
-games, and toward four of six shards. Everything below must be re-run on the full set before it is believed.
-Nothing here is an edge.
+**Status: INTERIM but replicated.** **26,671 kickoff-anchored markets, 204,256 executable quote snapshots**
+— 54% of the 54,364-market universe, up from the 16% this file first reported, and every headline finding
+below survived the increase with more games behind it. Sharding is `md5(ticker) % 6`, so the missing portion
+is pseudo-random with respect to family and date; what remains biased is the **newest-first ordering within
+each shard**, which still weights the sample toward late-season and playoff games. Nothing here is an edge.
 
 ## Method
 
@@ -21,26 +21,54 @@ The FDR budget is deliberately **not** spent on "is the mean execution return no
 overround, it is nearly deterministic, and testing it returns p ≈ 0 for almost every cell while saying only
 that a market maker charges a spread. It is reported as a cost table instead.
 
-## The headline: the biases are real and the spread eats all of them
+## The headline: large, real miscalibrations — and not one of them is tradable
 
-Seven of 136 calibration tests survive FDR. The two economically interesting ones:
+**29 of 219 calibration cells survive Benjamini–Hochberg at q = 0.10** (up from 7 of 136 at 16% coverage).
+Both findings reported at 16% replicated and strengthened:
 
-| cell | n | games | bias (obs − mid) | clustered SE | z |
+| cell | 16% coverage | 54% coverage |
+|---|---|---|
+| FIRST_TD_SCORER, 0.10–0.20 at close | −0.0716 ± 0.0219 (44 games) | **−0.0586 ± 0.0160** (130 games) |
+| PLAYER_STAT receptions, 0.35–0.50 at T−6h | +0.0874 ± 0.0283 (57 games) | **+0.1111 ± 0.0160** (146 games) |
+
+The first-touchdown-scorer market shows a clean, monotone longshot bias across five adjacent price buckets:
+
+| closing price | n | games | mid | realised | bias |
 |---|---|---|---|---|---|
-| FIRST_TD_SCORER, closing price 0.10–0.20 | 93 | 44 | **−0.0716** | 0.0219 | 3.3 |
-| PLAYER_STAT receptions, 0.35–0.50 (T−6h) | 363 | 57 | **+0.0874** | 0.0283 | 3.1 |
+| 0.00–0.02 | 518 | 170 | 0.011 | 0.012 | +0.0009 ± 0.0047 |
+| 0.02–0.05 | 917 | 182 | 0.030 | 0.044 | +0.0132 ± 0.0061 |
+| 0.05–0.10 | 489 | 171 | 0.068 | 0.086 | +0.0179 ± 0.0118 |
+| 0.10–0.20 | 297 | 130 | 0.149 | 0.091 | **−0.0586 ± 0.0160** |
+| 0.20–0.35 | 66 | 43 | 0.226 | **0.045** | **−0.1810 ± 0.0258** |
 
-First-touchdown-scorer contracts quoted between 10 and 20 cents settle **7.5%** of the time against a 14.7
-cent midpoint — a classic longshot overpricing, and the largest single miscalibration found. Buying those
-costs −0.186 per contract net; the NO side is where the bias points.
+Contracts quoted at 22.6 cents settle 4.5% of the time. That is an **18-point** miscalibration, the largest
+in the study, at seven standard errors.
 
-And yet **no family × horizon cell has a positive expected return from crossing the spread.** The one
-positive number anywhere in the study is the NO side of the receiving-yards tail: **+0.0258 ± 0.0308** —
-0.8 standard errors from zero. Its calibration bias is genuine (−0.0755 ± 0.0303, 2.5 SE: high receiving-yards
-rungs settle 7.5 points less often than quoted) and the quoted spread plus fee still consumes it.
+And it is worth **nothing**. Selling those contracts — the correct side — nets **−0.0089 ± 0.0260** after the
+Kalshi taker fee. Checked across every family and price bucket with game-clustered standard errors, **not one
+has a positive net return**:
 
-That is the central result. **A real, statistically significant miscalibration is not the same as a tradable
-one**, and on this exchange the gap between the two is roughly the width of the book.
+| family, price bucket | n | games | mid | realised | NO-side net after fees |
+|---|---|---|---|---|---|
+| FIRST_TD_SCORER 0.20–0.35 | 66 | 43 | 0.226 | 0.045 | −0.0089 ± 0.0260 |
+| FIRST_TD_SCORER 0.10–0.20 | 297 | 130 | 0.149 | 0.091 | −0.0463 ± 0.0150 |
+| PLAYER_STAT 0.80–0.90 | 692 | 148 | 0.842 | 0.806 | −0.0109 ± 0.0166 |
+| PLAYER_STAT 0.65–0.80 | 1837 | 185 | 0.717 | 0.682 | −0.0215 ± 0.0135 |
+| PLAYER_STAT 0.50–0.65 | 2964 | 190 | 0.560 | 0.518 | −0.0336 ± 0.0150 |
+| TEAM_TOTAL 0.80–0.90 | 50 | 23 | 0.848 | 0.780 | +0.0128 ± 0.0790 |
+
+The only non-negative figure anywhere is TEAM_TOTAL 0.80–0.90 at +0.013 ± 0.079 — 0.16 standard errors, on
+50 contracts across 23 games, in the family with the second-widest book.
+
+That is the central result of the whole map. **A large, highly significant miscalibration is not a tradable
+one.** An 18-point pricing error at z = 7 nets less than zero once the spread and fee are paid. Any search
+procedure that ranks by miscalibration and stops there will find exactly these markets and lose money in
+them.
+
+Player props also show a consistent **favourite overpricing** that the 16% sample could only hint at: three
+adjacent buckets above 0.50 all negative at 2.2–3.0 SE (0.50–0.65: −0.0424 ± 0.0141; 0.65–0.80:
+−0.0352 ± 0.0134; 0.80–0.90: −0.0358 ± 0.0165). Props quoted above a coin flip settle roughly 3.5–4 points
+less often than priced. The NO side of all three still loses after costs.
 
 ## Favourite/longshot structure at the close (bias = observed − midpoint, clustered SE)
 
@@ -88,9 +116,10 @@ Closing quotes bucketed by open interest, with game-clustered standard errors:
 | Q3 | 1886 | 61 | 0.030 | −0.0110 ± 0.0161 | 0.331 | 0.1666 | −0.0515 | −0.0281 |
 | Q4 deepest | 1887 | 61 | 0.020 | −0.0276 ± 0.0191 | 0.330 | 0.1653 | −0.0566 | −0.0008 |
 
-Deep markets are *slightly* better calibrated — Brier 0.165 against 0.176, mean absolute bias 0.330 against
-0.344. That difference is small. What changes enormously is the **cost**: the median spread falls from 6
-cents to 2, and the NO-side net return improves from −0.126 to −0.001.
+Deep markets are *slightly* better calibrated — at 54% coverage, Brier 0.169 in the deepest quartile against
+0.182 with no open interest at all, mean absolute bias 0.337 against 0.354. That difference is small. What
+changes enormously is the **cost**: the median spread falls from 7 cents to 2, and the NO-side net return
+improves from −0.145 to −0.016.
 
 So the thin markets are barely less efficient and dramatically more expensive to trade. The intuition that
 drives people into illiquid corners — "nobody is looking at these, so they must be mispriced" — is roughly
