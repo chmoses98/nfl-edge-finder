@@ -198,8 +198,12 @@ def main():
             if msk.sum() < 40:
                 continue
             fee = np.array([taker_fee(a) for a in ask[msk]])
-            rows.append({"lo": edges[i], "hi": edges[i + 1], "n": int(msk.sum()), "mean_mid": float(mid[msk].mean()),
-                         "obs": float(y[msk].mean()), "yes_ret_net": float(((y[msk] - ask[msk]) - fee).mean())})
+            clb = np.array(d["cluster"].to_list())[msk]
+            resid = y[msk] - mid[msk]
+            rows.append({"lo": edges[i], "hi": edges[i + 1], "n": int(msk.sum()), "games": int(len(set(clb))),
+                         "mean_mid": float(mid[msk].mean()), "obs": float(y[msk].mean()),
+                         "bias": float(resid.mean()), "bias_se": clustered_se(resid, list(clb)),
+                         "yes_ret_net": float(((y[msk] - ask[msk]) - fee).mean())})
         res["by_price_bucket"][fam] = rows
     # movement toward the outcome between horizons (does the price improve as kickoff approaches?)
     piv = {}; piv_cluster = {}
@@ -232,16 +236,24 @@ def main():
         if d.height < 300:
             continue
         th = d["threshold"].to_numpy(); mid = d["mid"].to_numpy(); y = d["y"].to_numpy(); ask = d["ask"].to_numpy()
+        bid_ = d["bid"].to_numpy(); cl_all = np.array(d["cluster"].to_list())
         qs = np.quantile(th, [0.25, 0.5, 0.75])
         rows = []
         for lab, msk in (("low", th <= qs[0]), ("mid", (th > qs[0]) & (th <= qs[2])), ("tail", th > qs[2])):
             if msk.sum() < 50:
                 continue
             fee = np.array([taker_fee(x) for x in ask[msk]])
-            rows.append({"bucket": lab, "n": int(msk.sum()), "mean_mid": float(mid[msk].mean()), "obs": float(y[msk].mean()),
+            no_net = ((1 - y[msk]) - (1 - bid_[msk])) - np.array([taker_fee(1 - bb) for bb in bid_[msk]])
+            yes_net = (y[msk] - ask[msk]) - fee
+            resid = y[msk] - mid[msk]
+            rows.append({"bucket": lab, "n": int(msk.sum()), "games": int(len(set(cl_all[msk]))),
+                         "mean_mid": float(mid[msk].mean()), "obs": float(y[msk].mean()),
                          "brier": float(np.mean((mid[msk] - y[msk]) ** 2)),
-                         "yes_ret_net": float(((y[msk] - ask[msk]) - fee).mean()),
-                         "no_ret_net": float((((1 - y[msk]) - (1 - d["bid"].to_numpy()[msk])) - np.array([taker_fee(1 - bb) for bb in d["bid"].to_numpy()[msk]])).mean())})
+                         "calibration_bias": float(resid.mean()),
+                         "calibration_bias_se": clustered_se(resid, list(cl_all[msk])),
+                         "yes_ret_net": float(yes_net.mean()),
+                         "no_ret_net": float(no_net.mean()),
+                         "no_ret_net_se": clustered_se(no_net, list(cl_all[msk]))})
         res["tails"][stat] = rows
     json.dump(res, open(os.path.join(OUT, "results.json"), "w"), indent=1, default=float)
     # ---- print
@@ -260,7 +272,9 @@ def main():
     for fam, rows in res["by_price_bucket"].items():
         print(f"  {fam}")
         for r in rows:
-            print(f"    [{r['lo']:.2f},{r['hi']:.2f}) n={r['n']:6d} mid={r['mean_mid']:.3f} obs={r['obs']:.3f} YESnet={r['yes_ret_net']:+.4f}")
+            bse = r.get("bias_se") or float("nan")
+            print(f"    [{r['lo']:.2f},{r['hi']:.2f}) n={r['n']:6d} g={r['games']:3d} mid={r['mean_mid']:.3f} "
+                  f"obs={r['obs']:.3f} bias={r['bias']:+.4f}+-{bse:.4f} YESnet={r['yes_ret_net']:+.4f}")
     print("\nPRICE MOVEMENT")
     for k, v in res["movement"].items():
         se = v.get("share_se_clustered")
@@ -270,8 +284,11 @@ def main():
     print("\nPLAYER LADDER TAILS AT THE CLOSE")
     for stat, rows in res["tails"].items():
         for r in rows:
-            print(f"  {stat:16s} {r['bucket']:5s} n={r['n']:5d} mid={r['mean_mid']:.3f} obs={r['obs']:.3f} "
-                  f"brier={r['brier']:.4f} YESnet={r['yes_ret_net']:+.4f} NOnet={r['no_ret_net']:+.4f}")
+            se = r.get("no_ret_net_se") or float("nan")
+            bse = r.get("calibration_bias_se") or float("nan")
+            print(f"  {stat:16s} {r['bucket']:5s} n={r['n']:5d} g={r['games']:3d} mid={r['mean_mid']:.3f} "
+                  f"obs={r['obs']:.3f} bias={r['calibration_bias']:+.4f}+-{bse:.4f} "
+                  f"YESnet={r['yes_ret_net']:+.4f} NOnet={r['no_ret_net']:+.4f}+-{se:.4f}")
 
 
 if __name__ == "__main__":

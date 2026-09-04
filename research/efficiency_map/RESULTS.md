@@ -1,99 +1,118 @@
 # 2025 Kalshi NFL market-efficiency map
 
-**Status: INTERIM.** This covers only the 802 kickoff-anchored markets whose raw candles were already cached
-locally (KXNFLGAME moneylines, KXNFLSPREAD ladders) — 259 games of moneyline and 18 games of spread ladder.
-The full 54k-market backfill is refetching after the parse bug below and this file will be regenerated.
-Nothing here is an edge, and nothing here is close to significant.
-
 Reproduce: `python3 scripts/research/efficiency_map.py '<horizons glob>'`
+Artifacts: `results.json` (current), `results_partial_16pct.json`, `results_cached_subset.json`.
 
-## Two errors found and fixed before any of these numbers were believed
+**Status: INTERIM, on a biased sample.** 8,603 kickoff-anchored markets across 10 families and 67,408
+executable quote snapshots — but that is 16% of the 54,364-market universe, and it is **not a random 16%**.
+The backfill processes markets newest-first, so what has landed is weighted toward late-season and playoff
+games, and toward four of six shards. Everything below must be re-run on the full set before it is believed.
+Nothing here is an edge.
 
-**1. Every price in the first backfill was null.** `snapshot()` read `yes_bid.close_dollars` and `volume_fp`;
-the candlestick endpoint returns `yes_bid.close` and `volume`. The run produced 54,364 rows that were
-structurally valid, carried correct `result` and `anchor_ts`, reported `n_candles > 0`, and contained no
-prices whatsoever. Nothing downstream objected. Guards added: a frozen real-response fixture in
-`tests/test_candle_parsing.py`, and a chunk abort (rc=4) if under 20% of the first 200 markets yield a quote.
+## Method
 
-**2. A fifth of the sample was post-game, and it looked like brilliance.** Horizons are offsets from an
-anchor. Where a market could not be matched to an nflverse kickoff, the anchor fell back to the market's
-*close* time — so its "T-0" quote was taken *after* the game finished. 65% of those quotes sat at settled
-certainty (under 2c or over 98c) versus 0% of kickoff-anchored ones. Including them made closing-price Brier
-fall from 0.218 to 0.171 and made the market look increasingly clairvoyant toward kickoff. The efficiency map
-now drops every non-kickoff anchor (`tests/test_horizon_pregame.py`), and the effect disappears entirely.
+Every number is measured on **executable** prices: `ask` is what a YES buyer pays, `bid` what a YES seller
+receives. Midpoints appear only where the midpoint itself is the object of study. Returns are net of the
+Kalshi taker fee, `ceil(0.07·p·(1−p)·100)/100`. Standard errors are **clustered on game** — both sides of a
+game are one outcome and a twelve-rung player ladder is one performance, so unclustered errors here run
+1.5–2× too small. Multiplicity is handled by Benjamini–Hochberg at q = 0.10 across all 136 calibration cells.
 
-A third, smaller error: `np.sign(0) == 0`, so unchanged quotes were being scored as "moved away from the
-outcome". With a median quote change of a penny that alone pushed the share moving toward the outcome to
-0.367 ± 0.030 — a 4-sigma "finding" that was pure tie-handling. Unchanged quotes are now excluded and counted.
+The FDR budget is deliberately **not** spent on "is the mean execution return non-zero". That is the
+overround, it is nearly deterministic, and testing it returns p ≈ 0 for almost every cell while saying only
+that a market maker charges a spread. It is reported as a cost table instead.
 
-## What the pregame sample actually shows
+## The headline: the biases are real and the spread eats all of them
 
-### Moneyline (KXNFLGAME, 259 games, both sides)
+Seven of 136 calibration tests survive FDR. The two economically interesting ones:
 
-| horizon | n | median width | Brier (mid) |
-|---|---|---|---|
-| T-168h | 476 | 0.030 | 0.2176 |
-| T-72h | 518 | 0.010 | 0.2152 |
-| T-24h | 518 | 0.010 | 0.2154 |
-| T-6h | 518 | 0.010 | 0.2161 |
-| T-90m | 518 | 0.010 | 0.2160 |
-| T-0 | 518 | 0.010 | 0.2150 |
+| cell | n | games | bias (obs − mid) | clustered SE | z |
+|---|---|---|---|---|---|
+| FIRST_TD_SCORER, closing price 0.10–0.20 | 93 | 44 | **−0.0716** | 0.0219 | 3.3 |
+| PLAYER_STAT receptions, 0.35–0.50 (T−6h) | 363 | 57 | **+0.0874** | 0.0283 | 3.1 |
 
-The moneyline is **flat**. Brier at T-0 (0.2150) is indistinguishable from Brier a week out (0.2176), and the
-quoted spread reaches its floor of one cent by T-72h and stays there. On this sample there is no
-"information accumulates toward kickoff" effect to exploit and no widening to trade around.
+First-touchdown-scorer contracts quoted between 10 and 20 cents settle **7.5%** of the time against a 14.7
+cent midpoint — a classic longshot overpricing, and the largest single miscalibration found. Buying those
+costs −0.186 per contract net; the NO side is where the bias points.
 
-### Spread ladders (KXNFLSPREAD, 18 games)
+And yet **no family × horizon cell has a positive expected return from crossing the spread.** The one
+positive number anywhere in the study is the NO side of the receiving-yards tail: **+0.0258 ± 0.0308** —
+0.8 standard errors from zero. Its calibration bias is genuine (−0.0755 ± 0.0303, 2.5 SE: high receiving-yards
+rungs settle 7.5 points less often than quoted) and the quoted spread plus fee still consumes it.
 
-Brier improves 0.157 (T-72h) → 0.144 (T-0) and width tightens 0.030 → 0.010. Eighteen games. This is
-suggestive of the ladders being genuinely less settled early, and it is far too small to lean on — it is
-listed so the full rerun has something to confirm or kill.
+That is the central result. **A real, statistically significant miscalibration is not the same as a tradable
+one**, and on this exchange the gap between the two is roughly the width of the book.
 
-### Calibration — the only question the FDR was spent on
+## Favourite/longshot structure at the close (bias = observed − midpoint, clustered SE)
 
-Whether a contract quoted at *p* settles at rate *p*, by family × horizon × price bucket, with standard
-errors clustered on game (both sides of a game are one outcome; a ladder is one performance).
+| family | price bucket | n | games | mid | observed | bias |
+|---|---|---|---|---|---|---|
+| FIRST_TD_SCORER | 0.02–0.05 | 299 | 61 | 0.030 | 0.057 | +0.0269 ± 0.0114 |
+| FIRST_TD_SCORER | 0.10–0.20 | 93 | 44 | 0.147 | 0.075 | **−0.0716 ± 0.0219** |
+| PLAYER_STAT | 0.20–0.35 | 1378 | 60 | 0.269 | 0.261 | −0.0083 ± 0.0166 |
+| PLAYER_STAT | 0.35–0.50 | 1162 | 60 | 0.424 | 0.421 | −0.0028 ± 0.0198 |
+| PLAYER_STAT | 0.50–0.65 | 950 | 59 | 0.561 | 0.525 | −0.0359 ± 0.0257 |
+| PLAYER_STAT | 0.65–0.80 | 624 | 58 | 0.716 | 0.675 | −0.0414 ± 0.0233 |
+| PLAYER_STAT | 0.80–0.90 | 250 | 55 | 0.842 | 0.796 | −0.0465 ± 0.0323 |
+| TOTAL | 0.35–0.50 | 77 | 49 | 0.420 | 0.312 | −0.1085 ± 0.0580 |
 
-**20 tests, Benjamini-Hochberg at q = 0.10, zero significant.** The largest deviation is
-`GAME_WINNER T-72h [0.35,0.50)`: +0.056 ± 0.044, p = 0.20.
+Player props are well calibrated through the middle of the price range and drift **negative at the top**:
+contracts quoted above 0.50 settle 3.6 to 4.7 points less often than priced, consistently in sign across four
+adjacent buckets though individually only 1.4–1.8 SE. Aggregating those four buckets is the obvious next test
+and is deliberately left for the full sample rather than run now on a favourable subset.
 
-At the close, favourites priced 0.65–0.80 won 66.7% against a 72.3% mid, and dogs priced 0.20–0.35 won 33.0%
-against a 27.6% mid. That is the *reverse* of the classic favourite-longshot bias, it is one finding rather
-than two (the buckets are the same ~100 games seen from both sides), and it is 1.2 standard errors. It is
-noise. It is written down only so the full rerun tests it out of sample rather than rediscovering it.
+## Player ladder tails
 
-### Cost to cross
+| stat | rung bucket | n | games | mid | observed | bias | NO net |
+|---|---|---|---|---|---|---|---|
+| receiving_yards | low | 519 | 56 | 0.528 | 0.528 | +0.0002 ± 0.0308 | −0.0831 |
+| receiving_yards | middle | 945 | 57 | 0.368 | 0.366 | −0.0017 ± 0.0238 | −0.0520 |
+| receiving_yards | **tail** | 416 | 57 | 0.337 | 0.262 | **−0.0755 ± 0.0303** | +0.0258 ± 0.0308 |
+| rushing_yards | tail | 190 | 51 | 0.355 | 0.316 | −0.0395 ± 0.0508 | −0.0088 |
+| passing_yards | middle | 335 | 56 | 0.309 | 0.343 | +0.0343 ± 0.0437 | −0.0781 |
 
-Buying at the ask and holding to settlement loses **2.3–2.7% per contract** at every horizon from T-72h in,
-net of the Kalshi taker fee, and it loses that on *both* sides — the two are near-mirror images because
-within a game the two sides' losses sum to the overround. At T-168h the cost roughly doubles (−5.4%) on the
-wider early book.
+The high rungs of receiving-yards ladders are overpriced by 7.5 points. This is the **same direction** as the
+independent finding in `research/market_shape/RESULTS.md`, where the model held more upper-tail probability
+than the market on live ladders — meaning the market's tail is if anything too *fat*, not too thin, and the
+model's flatter tail is pointed the wrong way. That is a coherent story from two different data sources and
+it is registered as `H-20260904-013`, not claimed.
 
-This is worth stating precisely because it is the hurdle: **a model must beat the market's midpoint by more
-than ~2.5 points of probability before crossing the spread breaks even**, and a naive significance test of
-"is the mean execution return non-zero" returns p ≈ 0 for nearly every cell. That is not an inefficiency
-finding, it is a market maker charging a spread, which is why the FDR budget is not spent there.
+## Price movement is uninformative pregame
 
-### Price movement
-
-| window | markets | unchanged | of those that moved, share toward the outcome | Brier |
+| window | markets | unchanged | of those that moved, toward the outcome | Brier |
 |---|---|---|---|---|
-| T-72h → T-0 | 800 | 12% | 0.516 ± 0.035 | 0.195 → 0.190 |
-| T-24h → T-0 | 800 | 16% | 0.532 ± 0.032 | 0.194 → 0.190 |
-| T-6h → T-0 | 802 | 21% | 0.534 ± 0.033 | 0.194 → 0.190 |
-| T-24h → T-6h | 800 | 30% | 0.525 ± 0.037 | 0.194 → 0.194 |
+| T−72h → T−0 | 3031 | 6% | 0.497 ± 0.016 | 0.176 → 0.167 |
+| T−24h → T−0 | 7587 | 11% | 0.496 ± 0.011 | 0.174 → 0.168 |
+| T−6h → T−0 | 8054 | 16% | 0.476 ± 0.012 | 0.170 → 0.168 |
+| T−24h → T−6h | 7596 | 24% | 0.518 ± 0.014 | 0.174 → 0.169 |
 
-Late movement is weakly informative — about 53% of moves point the right way, roughly one standard error
-above a coin flip, with mean absolute moves of 1–3 cents. Consistent with a market that is already close to
-its final answer three days out.
+Pregame movement points toward the eventual outcome essentially half the time. Brier improves slightly toward
+kickoff, but there is no directional information to follow here.
+
+## Moneyline, on the separately cached subset (259 games)
+
+Flat: Brier 0.2176 at T−168h against 0.2150 at T−0, spread at its one-cent floor from T−72h. Twenty
+calibration tests, zero significant. Crossing costs 2.3–2.7% per contract on both sides at every horizon
+inside T−72h, doubling to 5.4% on the wider week-out book.
+
+## Three errors caught before any of this was believed
+
+1. **Every price in the first backfill was null.** `snapshot()` read `yes_bid.close_dollars` and `volume_fp`;
+   the API returns `yes_bid.close` and `volume`. 54,364 rows, structurally valid, correct `result` and
+   `anchor_ts`, `n_candles > 0`, and no prices at all. Nothing objected. Now pinned by a frozen real response
+   in `tests/test_candle_parsing.py`, plus a chunk abort if under 20% of the first 200 markets yield a quote.
+2. **A fifth of the sample was post-game and looked like brilliance.** Where a market could not be matched to
+   an nflverse kickoff the anchor fell back to the market's *close* time, so its "T−0" was taken after the
+   game. 65% of those quotes sat at settled certainty against 0% of kickoff-anchored ones, pulling closing
+   Brier from 0.215 to 0.171 and making the market look increasingly clairvoyant toward kickoff. Non-kickoff
+   anchors are now dropped (`tests/test_horizon_pregame.py`).
+3. **`np.sign(0) == 0`** scored unchanged quotes as "moved away from the outcome", which alone dragged the
+   toward-outcome share to 0.367 ± 0.030 — a 4-sigma finding that was pure tie-handling.
 
 ## Limitations
 
-* 259 moneyline games and 18 spread games, one season. Player props, totals, team totals and every period
-  market are absent until the refetch lands — and those are the families where the shadow ledger's largest
-  model-market disagreements sit, so this map does not yet speak to them at all.
-* Quotes are candle closes, so the reconstructed book is the book at the end of the minute or hour, not at
-  the instant. Sub-minute execution is not represented.
-* Volume is per-candle and mostly zero on these series, so the liquidity axis (does efficiency vary with
-  liquidity?) is not yet answerable and is deliberately left out rather than reported from near-empty data.
-* No adjustment for the possibility that the cached subset — the two series cached first — is unrepresentative.
+* 16% of the universe, newest-first, four of six shards. Re-run on the full set before citing anything.
+* Quotes are candle closes, so the book is as of the end of the minute or hour, not the instant.
+* Volume is per-candle and mostly zero on these series, so "does efficiency vary with liquidity?" is still
+  unanswerable and is left out rather than reported from near-empty data.
+* Every bias here is measured against the midpoint. The midpoint is not tradable, which is exactly why the
+  net-of-spread columns are carried alongside every one of them.
