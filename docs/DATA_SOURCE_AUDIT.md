@@ -71,6 +71,23 @@ espn 98.7%, pff 96.8%, pfr 91.2%, sleeper/sportradar/rotowire 67.8% (roster-deri
 
 Honest gap: there is no sustainable free source of timestamped sportsbook **player-prop** lines. Kalshi's own price history (captured from now on) becomes the prop reference; the nflverse line covers game markets.
 
+## 3b. Runner-side probe results (2026-09-04 12:11 UTC, `scripts/data/probe_sources.py`, published to market-data `data/kalshi/probes/`)
+
+| source | status from GitHub runner | payload | verdict |
+|---|---|---|---|
+| NWS `api.weather.gov` points + hourly gridpoint forecast | 200 | hourly forecast periods (temperature, wind speed/direction, precipitation probability) | **primary weather** (forecast vintages recorded per capture) |
+| Open-Meteo forecast (wind gusts, precip prob) | 200 | hourly 7-day | **fallback weather**; gusts available here |
+| Open-Meteo *previous-runs* API (lead-time-stratified) | 200 | previous_day1/day3 wind | forecast-vintage backtests from 2024 |
+| Open-Meteo *historical forecast* API (2021+) | 200 | archived hourly forecast for 2025-09-07 | historical forecast archive for H-006 |
+| Sleeper `/v1/players/nfl` (14.6 MB) + `/v1/state/nfl` | 200 | per-player injury_status, injury_body_part, practice_participation, depth_chart_order/position, status, team | **availability feed** (timestamped by our capture) |
+| ESPN `site.api.espn.com` scoreboard, `/injuries` (9 MB, all teams) | 200 (no 403 from this runner) | injury items with status/date/details | availability fallback |
+| ESPN `sports.core.api.espn.com` team injuries, 2026 depth charts | 200 | paginated refs | depth-chart fallback |
+| ESPN `cdn.espn.com/core/nfl/scoreboard?xhr=1` | 200 | scoreboard | schedule/scores fallback |
+| Polymarket gamma `markets?tag=nfl` | 200 | 5 markets | second prediction-market reference (candidate) |
+| `static.www.nfl.com` | 404 | — | not a data endpoint |
+
+All candidates listed as "must be probed from the runner" are reachable and free; collectors for NWS + Sleeper + ESPN injuries are the next Milestone A/C step (daily + T-6h/T-90m windows), each row stamped with retrieval time.
+
 ## 4. Injuries / availability
 
 | source | verified? | notes |
