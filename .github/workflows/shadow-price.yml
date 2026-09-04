@@ -53,7 +53,7 @@ print('opportunity usage rebuilt')
         id: price
         run: |
           python3 scripts/shadow/price_slate.py --market-data /tmp/md \
-            --model-version "${{ github.event.inputs.model_version || 'shadow-0.1.0' }}" \
+            ${{ github.event.inputs.model_version && format('--model-version {0}', github.event.inputs.model_version) || '' }} \
             --out data/shadow/ledger 2>&1 | tail -25
       - name: Publish ledger
         run: |
