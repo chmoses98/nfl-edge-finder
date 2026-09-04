@@ -1,0 +1,453 @@
+{
+ "run_id": "20260904T174955Z",
+ "schema_version": "1.0.0",
+ "written_at": "2026-09-04T17:56:52.846357+00:00",
+ "counts": {
+  "written": 12408,
+  "duplicate": 0
+ },
+ "by_support_state": {
+  "UNSUPPORTED_MODEL": 10663,
+  "UNSUPPORTED_RULES": 402,
+  "SUPPORTED": 1343
+ },
+ "by_family": {
+  "SEASON_LEADER|None": 320,
+  "PERIOD_WINNER|1H": 48,
+  "HALF_FULL_RESULT|1H": 96,
+  "SPREAD|1H": 249,
+  "TOTAL|1H": 217,
+  "PERIOD_WINNER|1Q": 48,
+  "SPREAD|1Q": 172,
+  "TOTAL|1Q": 160,
+  "SEASON_SEED|None": 224,
+  "PERIOD_WINNER|2H": 48,
+  "TOTAL|2H": 217,
+  "PERIOD_WINNER|2Q": 48,
+  "SPREAD|2Q": 170,
+  "TOTAL|2Q": 160,
+  "PERIOD_WINNER|3Q": 48,
+  "SPREAD|3Q": 173,
+  "TOTAL|3Q": 160,
+  "PERIOD_WINNER|4Q": 48,
+  "SPREAD|4Q": 170,
+  "TOTAL|4Q": 160,
+  "CONFERENCE_WINNER|None": 32,
+  "AWARD|None": 825,
+  "SEASON_DIVISION_ORDER|None": 192,
+  "SEASON_DIVISION_STAT|None": 80,
+  "GAME_EVENT|FULL": 52,
+  "SEASON_FANTASY|None": 930,
+  "FIRST_TD_SCORER|FULL": 31,
+  "GAME_WINNER|FULL": 64,
+  "SEASON_MATCHUP|None": 496,
+  "TEAM_STAT|None": 9,
+  "DIVISION_WINNER|None": 32,
+  "PLAYER_STAT|FULL": 458,
+  "MAKE_PLAYOFFS|None": 33,
+  "WEEK_EVENT|None": 32,
+  "SEASON_PLAYER_STAT|None": 1129,
+  "SPREAD|FULL": 404,
+  "TEAM_TOTAL|FULL": 55,
+  "TOTAL|FULL": 304,
+  "SEASON_PLAYER_SPECIAL|None": 306,
+  "PLAYER_AVAILABILITY|None": 23,
+  "WIN_MARGIN_BUCKET|FULL": 112,
+  "SEASON_WINS|None": 547,
+  "TEAM_WINS_BY_WEEK|None": 728,
+  "SUPER_BOWL_WINNER|None": 32,
+  "SPREAD|2H": 249,
+  "FIRST_TD_TEAM|FULL": 48,
+  "SEASON_TEAM_H2H|None": 22,
+  "SEASON_TEAM_EVENT|None": 390,
+  "RACE_TO_N|FULL": 240,
+  "SEASON_TEAM_LEADER|None": 96,
+  "WEEK_LEADER|None": 111,
+  "TOTAL_TD|FULL": 96,
+  "BOTH_TEAMS_SCORE_N|FULL": 64,
+  "GAME_STAT|FULL": 5,
+  "NOT_NFL_OR_UNKNOWN|None": 2,
+  "UNKNOWN_NEEDS_CLASSIFICATION|None": 386,
+  "BOTH_TEAMS_SCORE|1Q": 16,
+  "BOTH_TEAMS_SCORE|2Q": 16,
+  "BOTH_TEAMS_SCORE|3Q": 16,
+  "BOTH_TEAMS_SCORE|4Q": 16,
+  "SEASON_SPECIAL|None": 63,
+  "COACH_EVENT|None": 64,
+  "PLAYER_ROLE_EVENT|None": 177,
+  "DRAFT|None": 39,
+  "TRANSACTION_EVENT|None": 211,
+  "NFL_BUSINESS_EVENT|None": 5,
+  "SUPER_BOWL_EVENT|None": 234
+ },
+ "observations_file": "20260904T174955Z.shadow-0.3.0.observations.jsonl.gz",
+ "snapshot_run_id": "20260904T174955Z",
+ "priced": 1343,
+ "games_with_env": 32,
+ "model_bundle": {
+  "version": "shadow-0.3.0",
+  "artifact_sha": "76facd384b51e817",
+  "target_season": 2026,
+  "train_seasons": [
+   2013,
+   2025
+  ],
+  "config": {
+   "ewma": {
+    "halflife": 6.0,
+    "season_carry": 0.35,
+    "shrink_k": 2.0,
+    "nsims": 4000,
+    "test_seasons": [
+     2020,
+     2021,
+     2022,
+     2023,
+     2024,
+     2025
+    ],
+    "tuning_table": [
+     {
+      "halflife": 3.0,
+      "season_carry": 0.35,
+      "shrink_k": 2.0,
+      "mae_receiving_yards": 24.7008,
+      "mae_targets": 2.3758,
+      "mae_receptions": 1.7441,
+      "mae_rushing_yards": 25.9027,
+      "mae_carries": 4.6409,
+      "mae_passing_yards": 62.1268,
+      "mae_attempts": 7.2958,
+      "mae_passing_tds": 0.9348,
+      "score": 1.0101
+     },
+     {
+      "halflife": 3.0,
+      "season_carry": 0.35,
+      "shrink_k": 5.0,
+      "mae_receiving_yards": 24.9601,
+      "mae_targets": 2.5007,
+      "mae_receptions": 1.767,
+      "mae_rushing_yards": 25.7111,
+      "mae_carries": 4.9071,
+      "mae_passing_yards": 62.3848,
+      "mae_attempts": 7.2673,
+      "mae_passing_tds": 0.9378,
+      "score": 1.0265
+     },
+     {
+      "halflife": 3.0,
+      "season_carry": 0.6,
+      "shrink_k": 2.0,
+      "mae_receiving_yards": 24.5862,
+      "mae_targets": 2.3612,
+      "mae_receptions": 1.7368,
+      "mae_rushing_yards": 25.9568,
+      "mae_carries": 4.63,
+      "mae_passing_yards": 62.1247,
+      "mae_attempts": 7.2987,
+      "mae_passing_tds": 0.9329,
+      "score": 1.008
+     },
+     {
+      "halflife": 3.0,
+      "season_carry": 0.6,
+      "shrink_k": 5.0,
+      "mae_receiving_yards": 24.8015,
+      "mae_targets": 2.4749,
+      "mae_receptions": 1.7579,
+      "mae_rushing_yards": 25.6967,
+      "mae_carries": 4.8823,
+      "mae_passing_yards": 62.2724,
+      "mae_attempts": 7.2578,
+      "mae_passing_tds": 0.9359,
+      "score": 1.0223
+     },
+     {
+      "halflife": 4.0,
+      "season_carry": 0.35,
+      "shrink_k": 2.0,
+      "mae_receiving_yards": 24.6427,
+      "mae_targets": 2.3636,
+      "mae_receptions": 1.7389,
+      "mae_rushing_yards": 25.8708,
+      "mae_carries": 4.614,
+      "mae_passing_yards": 62.0844,
+      "mae_attempts": 7.2832,
+      "mae_passing_tds": 0.9331,
+      "score": 1.0074
+     },
+     {
+      "halflife": 4.0,
+      "season_carry": 0.35,
+      "shrink_k": 5.0,
+      "mae_receiving_yards": 24.8191,
+      "mae_targets": 2.4755,
+      "mae_receptions": 1.7587,
+      "mae_rushing_yards": 25.7404,
+      "mae_carries": 4.8778,
+      "mae_passing_yards": 62.0516,
+      "mae_attempts": 7.2388,
+      "mae_passing_tds": 0.9359,
+      "score": 1.0217
+     },
+     {
+      "halflife": 4.0,
+      "season_carry": 0.6,
+      "shrink_k": 2.0,
+      "mae_receiving_yards": 24.5325,
+      "mae_targets": 2.3512,
+      "mae_receptions": 1.732,
+      "mae_rushing_yards": 25.9885,
+      "mae_carries": 4.6233,
+      "mae_passing_yards": 62.0986,
+      "mae_attempts": 7.2903,
+      "mae_passing_tds": 0.931,
+      "score": 1.0064
+     },
+     {
+      "halflife": 4.0,
+      "season_carry": 0.6,
+      "shrink_k": 5.0,
+      "mae_receiving_yards": 24.66,
+      "mae_targets": 2.4475,
+      "mae_receptions": 1.7494,
+      "mae_rushing_yards": 25.7601,
+      "mae_carries": 4.8492,
+      "mae_passing_yards": 61.9419,
+      "mae_attempts": 7.2269,
+      "mae_passing_tds": 0.9339,
+      "score": 1.0174
+     },
+     {
+      "halflife": 6.0,
+      "season_carry": 0.35,
+      "shrink_k": 2.0,
+      "mae_receiving_yards": 24.5721,
+      "mae_targets": 2.3499,
+      "mae_receptions": 1.7321,
+      "mae_rushing_yards": 26.0054,
+      "mae_carries": 4.6256,
+      "mae_passing_yards": 62.0421,
+      "mae_attempts": 7.2724,
+      "mae_passing_tds": 0.9312,
+      "score": 1.0063
+     },
+     {
+      "halflife": 6.0,
+      "season_carry": 0.35,
+      "shrink_k": 5.0,
+      "mae_receiving_yards": 24.7088,
+      "mae_targets": 2.4505,
+      "mae_receptions": 1.7529,
+      "mae_rushing_yards": 25.7113,
+      "mae_carries": 4.8417,
+      "mae_passing_yards": 61.7333,
+      "mae_attempts": 7.206,
+      "mae_passing_tds": 0.9339,
+      "score": 1.0168
+     },
+     {
+      "halflife": 6.0,
+      "season_carry": 0.6,
+      "shrink_k": 2.0,
+      "mae_receiving_yards": 24.456,
+      "mae_targets": 2.3453,
+      "mae_receptions": 1.7268,
+      "mae_rushing_yards": 26.1683,
+      "mae_carries": 4.6543,
+      "mae_passing_yards": 62.0561,
+      "mae_attempts": 7.2893,
+      "mae_passing_tds": 0.9293,
+      "score": 1.0067
+     },
+     {
+      "halflife": 6.0,
+      "season_carry": 0.6,
+      "shrink_k": 5.0,
+      "mae_receiving_yards": 24.5546,
+      "mae_targets": 2.4199,
+      "mae_receptions": 1.7394,
+      "mae_rushing_yards": 25.7612,
+      "mae_carries": 4.8096,
+      "mae_passing_yards": 61.633,
+      "mae_attempts": 7.1944,
+      "mae_passing_tds": 0.9319,
+      "score": 1.0121
+     },
+     {
+      "halflife": 9.0,
+      "season_carry": 0.35,
+      "shrink_k": 2.0,
+      "mae_receiving_yards": 24.5234,
+      "mae_targets": 2.345,
+      "mae_receptions": 1.7288,
+      "mae_rushing_yards": 26.1645,
+      "mae_carries": 4.6517,
+      "mae_passing_yards": 62.02,
+      "mae_attempts": 7.2703,
+      "mae_passing_tds": 0.9303,
+      "score": 1.0068
+     },
+     {
+      "halflife": 9.0,
+      "season_carry": 0.35,
+      "shrink_k": 5.0,
+      "mae_receiving_yards": 24.6041,
+      "mae_targets": 2.4299,
+      "mae_receptions": 1.7446,
+      "mae_rushing_yards": 25.7478,
+      "mae_carries": 4.8064,
+      "mae_passing_yards": 61.5444,
+      "mae_attempts": 7.1843,
+      "mae_passing_tds": 0.9327,
+      "score": 1.0129
+     },
+     {
+      "halflife": 9.0,
+      "season_carry": 0.6,
+      "shrink_k": 2.0,
+      "mae_receiving_yards": 24.5178,
+      "mae_targets": 2.3484,
+      "mae_receptions": 1.7289,
+      "mae_rushing_yards": 26.4409,
+      "mae_carries": 4.7116,
+      "mae_passing_yards": 62.0498,
+      "mae_attempts": 7.2971,
+      "mae_passing_tds": 0.9289,
+      "score": 1.0102
+     },
+     {
+      "halflife": 9.0,
+      "season_carry": 0.6,
+      "shrink_k": 5.0,
+      "mae_receiving_yards": 24.5072,
+      "mae_targets": 2.3973,
+      "mae_receptions": 1.7322,
+      "mae_rushing_yards": 25.9281,
+      "mae_carries": 4.806,
+      "mae_passing_yards": 61.4511,
+      "mae_attempts": 7.1751,
+      "mae_passing_tds": 0.9304,
+      "score": 1.01
+     }
+    ],
+    "warmup_seasons": [
+     2013,
+     2015
+    ],
+    "tune_seasons": [
+     2016,
+     2019
+    ]
+   },
+   "min_train_season": 2016,
+   "role_features": true
+  },
+  "stat_models": {
+   "attempts": {
+    "family": "normal",
+    "train_rows": 5226
+   },
+   "completions": {
+    "family": "normal",
+    "train_rows": 5226
+   },
+   "passing_yards": {
+    "family": "normal",
+    "train_rows": 5226
+   },
+   "passing_tds": {
+    "family": "poisson",
+    "train_rows": 5226
+   },
+   "interceptions": {
+    "family": "negbin",
+    "train_rows": 5226
+   },
+   "qb_rushing_yards": {
+    "family": "scale_emp_binned",
+    "train_rows": 5226
+   },
+   "targets": {
+    "family": "negbin",
+    "train_rows": 57529
+   },
+   "receptions": {
+    "family": "negbin",
+    "train_rows": 57529
+   },
+   "receiving_yards": {
+    "family": "scale_emp_binned",
+    "train_rows": 57529
+   },
+   "receiving_tds": {
+    "family": "negbin",
+    "train_rows": 57529
+   },
+   "carries": {
+    "family": "negbin",
+    "train_rows": 15546
+   },
+   "rushing_yards": {
+    "family": "scale_emp_binned",
+    "train_rows": 15546
+   },
+   "rushing_tds": {
+    "family": "negbin",
+    "train_rows": 15546
+   },
+   "anytime_td_count": {
+    "family": "negbin",
+    "train_rows": 57529
+   }
+  },
+  "td_model": {
+   "name": "direct_binary",
+   "beta": [
+    -4.317401445522159,
+    0.9953147127819258,
+    1.8813207055764405,
+    -0.06345358346790264,
+    -0.14417640600048334,
+    0.5043041230448928,
+    0.03875600277848192,
+    -1.3429077595832313,
+    -2.0085562059411464,
+    -1.3171349448887906,
+    -0.9917102946836315
+   ],
+   "feats": [
+    "ewma_any_td",
+    "ewma_touches",
+    "ewma_targets",
+    "ewma_carries"
+   ],
+   "ridge": 1.0
+  }
+ },
+ "availability_sources": {
+  "sleeper": {
+   "retrieved_at": "2026-09-04T16:27:06.122691+00:00",
+   "stale_minutes": 82.8,
+   "path": "20260904T162704Z.sleeper.json"
+  },
+  "espn": {
+   "retrieved_at": "2026-09-04T16:27:06.666776+00:00",
+   "stale_minutes": 82.8,
+   "path": "20260904T162704Z.espn_injuries.json"
+  },
+  "roster": {
+   "week": "week1",
+   "n": 2901
+  }
+ },
+ "market_implied_ladders": 49,
+ "confirmed_series": 270,
+ "minutes_since_price_change": {
+  "max": 361.02571650000004,
+  "median": 121.36661416666668
+ },
+ "seconds": 175.478639,
+ "model_version": "shadow-0.3.0"
+}
