@@ -10,8 +10,9 @@ def _bank():
     totals = rng.choice([41.5, 44, 45.5, 47, 49.5], n)
     home = rng.poisson(23, n); away = rng.poisson(21, n)
     result = home - away
+    overtime = (np.abs(result) <= 3) & (rng.random(n) < 0.15)   # synthetic OT games, some of which end tied
     return ResidualBank(result - spreads, home + away - totals, seasons, ref_season=2026, spread_lines=spreads, total_lines=totals,
-                        overtime=(result == 0), results=result, halflife=3.0, rng=rng)
+                        overtime=overtime, results=result, halflife=3.0, rng=rng)
 
 
 def test_scores_are_integer_and_coherent():
