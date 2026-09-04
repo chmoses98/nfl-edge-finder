@@ -8,17 +8,17 @@ walk-forward model probability and a reconstructed closing quote both exist, bot
 actually happened — and then the only question that matters is asked: what would acting on the disagreement
 have paid?
 
-**18,412 matched contracts across 254 games** at full backfill coverage, restricted to books quoted within 10 cents. (An earlier version of this file reported 12,553 contracts over 190 games at 54% coverage; every figure below moved by less than the third decimal.)
+**18,555 matched contracts across 254 games** at complete backfill coverage (all 54,364 markets), restricted to books quoted within 10 cents. (An earlier version of this file reported 12,553 contracts over 190 games at 54% coverage; every figure below moved by less than the third decimal.)
 
 ## The market wins, and it wins everywhere
 
 | | Brier | log loss | mean probability |
 |---|---|---|---|
-| model | 0.19943 | 0.58343 | 0.3685 |
-| **market (closing mid)** | **0.18948** | **0.55762** | 0.3914 |
-| realised | | | 0.3718 |
+| model | 0.19933 | 0.58329 | 0.3672 |
+| **market (closing mid)** | **0.18934** | **0.55732** | 0.3904 |
+| realised | | | 0.3711 |
 
-Brier difference, model minus market, clustered on game: **+0.00994 ± 0.00163** — the market is better by 6.1
+Brier difference, model minus market, clustered on game: **+0.00999 ± 0.00162** — the market is better by 6.2
 standard errors. The model's *mean* probability (0.3685) is closer to the realised base rate (0.3718) than
 the market's (0.3914), and it is still worse contract by contract: the model has the better unconditional
 average and less discrimination, which is exactly what being encompassed looks like.
@@ -78,7 +78,7 @@ settled outcome on both forecasts in logit space, fitted by IRLS with cluster-ro
 
 | arm | intercept | model coefficient b₁ | market coefficient b₂ |
 |---|---|---|---|
-| base | −0.1217 ± 0.0505 | **+0.0000 ± 0.0763 (z = +0.00)** | **+0.9441 ± 0.0717 (z = +13.2)** |
+| base | −0.1205 ± 0.0504 | **−0.0007 ± 0.0756 (z = −0.01)** | **+0.9447 ± 0.0711 (z = +13.3)** |
 | role features | −0.1220 ± 0.0474 | **−0.0031 ± 0.0737 (z = −0.04)** | **+0.9467 ± 0.0708 (z = +13.4)** |
 | opponent defence | −0.1200 ± 0.0517 | **+0.0073 ± 0.0769 (z = +0.10)** | **+0.9378 ± 0.0722 (z = +13.0)** |
 
@@ -134,7 +134,7 @@ it — "the model is missing something obvious" is not the explanation for a 0.0
   (`research/ladder_role`); the gap here is 5.5% relative. Role features would likely close part of it and
   are unlikely on that arithmetic to close all of it. Re-running this head-to-head with `shadow-0.3.0`
   probabilities is the obvious next step and is not done here.
-* 254 games, one season. The horizon backfill is now essentially complete (52,491 of 54,364 markets).
+* 254 games, one season. The horizon backfill is complete: all 54,364 settled archived markets.
 * Restricted to tradable books, which is correct for the calibration comparison and means the result does not
   describe the wide-book segment at all.
 

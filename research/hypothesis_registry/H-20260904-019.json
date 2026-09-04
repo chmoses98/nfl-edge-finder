@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-019",
+ "date_proposed": "2026-09-04",
+ "rationale": "GAME_WINNER is the only family in the complete 2025 efficiency map with a positive expected return after fees. Underdogs quoted 0.20-0.35 settled 0.330 against a 0.276 midpoint (YES net +0.0286) and those quoted 0.35-0.50 settled 0.465 against 0.420 (+0.0189), while favourites at 0.65-0.80 settled 0.667 against 0.723. That is the classic favourite-longshot bias, in the right direction on both sides. It is also only 1.1-1.2 standard errors.",
+ "features": "closing midpoint bucket on moneyline contracts, tradable books",
+ "target": "realised settlement rate minus closing midpoint, and YES-side net return after the Kalshi taker fee, on underdog moneylines",
+ "expected_direction": "If the bias is real, 2026 underdog moneylines quoted between 0.20 and 0.50 settle above their closing midpoint by roughly 4-5 points, with a positive net return after fees. If it is the noise it currently looks like, the 2026 bias is centred on zero.",
+ "test_plan": "Prospective on 2026 settled moneylines, which the shadow ledger already captures at every horizon. Pre-specified primary endpoint: YES-side net return after fees on contracts closing between 0.20 and 0.50, clustered on game, requiring a clustered SE excluding zero. Minimum 250 games before reading the result. Note the two price buckets are the same games mirrored, so they are ONE test, not two.",
+ "dataset": "data/kalshi/backfill/horizons (2025) + market-data shadow ledger 2026",
+ "result": "2025 complete: 0.20-0.35 bias +0.0538 +- 0.0476 (YES net +0.0286), 0.35-0.50 +0.0441 +- 0.0444 (+0.0189), 0.50-0.65 -0.0441 +- 0.0441, 0.65-0.80 -0.0566 +- 0.0474. 259 games. NOT significant.",
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "Two caveats recorded deliberately. The four buckets are ~110 games seen from both sides, so they are one finding mirrored, not four. And these are the same 259 games analysed from the cached candle subset at the start of the study -- the moneyline series was cached before the horizon backfill ran, so its numbers did not change across any coverage pass and that stability is NOT independent confirmation. This is also a GAME market, so the encompassing result for player props (H-018) says nothing about it."
+}

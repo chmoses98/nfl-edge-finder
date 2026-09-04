@@ -3,10 +3,9 @@
 Reproduce: `python3 scripts/research/efficiency_map.py '<horizons glob>'`
 Artifacts: `results.json` (current), `results_partial_16pct.json`, `results_cached_subset.json`.
 
-**Status: COMPLETE.** **39,226 kickoff-anchored markets, 269,949 tradable executable quote snapshots** from
-52,491 of the 54,364 settled archived markets (97%). Reported at 16% and again at 54% during construction;
-the findings below are the full-coverage versions and are stable against both earlier passes. Nothing here
-is an edge.
+**Status: COMPLETE.** **40,236 kickoff-anchored markets, 277,095 tradable executable quote snapshots** from
+all **54,364** settled archived markets. Reported at 16%, 54% and 97% during construction; the figures below
+are the final ones and moved by less than 0.001 between 97% and 100%. Nothing here is an edge.
 
 ## Method
 
@@ -47,18 +46,18 @@ computed on tradable books by default (`EFFMAP_MAX_WIDTH`, default 0.10).
 
 ## The headline: player props are overpriced, consistently, and it is still not tradable
 
-**12 of 223 calibration cells survive Benjamini–Hochberg at q = 0.10.** Nine of the twelve are receptions
+**13 of 224 calibration cells survive Benjamini–Hochberg at q = 0.10.** Nine of the twelve are receptions
 contracts and all nine point the same way. Player props are **overpriced on the YES side**, flat below 0.20
 and roughly −0.04 above 0.35:
 
 | closing price | n | games | mid | realised | bias |
 |---|---|---|---|---|---|
-| 0.05–0.10 | 2160 | 260 | 0.071 | 0.072 | +0.0005 ± 0.0061 |
-| 0.10–0.20 | 3534 | 259 | 0.146 | 0.151 | +0.0043 ± 0.0071 |
-| 0.20–0.35 | 4956 | 257 | 0.269 | 0.258 | −0.0117 ± 0.0087 |
-| 0.35–0.50 | 4204 | 251 | 0.425 | 0.395 | **−0.0304 ± 0.0107** |
-| 0.50–0.65 | 3645 | 229 | 0.563 | 0.521 | **−0.0417 ± 0.0127** |
-| 0.65–0.80 | 2392 | 183 | 0.716 | 0.677 | **−0.0394 ± 0.0121** |
+| 0.05–0.10 | 2216 | 261 | 0.071 | 0.072 | +0.0011 ± 0.0061 |
+| 0.10–0.20 | 3591 | 259 | 0.146 | 0.150 | +0.0037 ± 0.0070 |
+| 0.20–0.35 | 5010 | 259 | 0.269 | 0.258 | −0.0118 ± 0.0086 |
+| 0.35–0.50 | 4229 | 255 | 0.425 | 0.395 | **−0.0295 ± 0.0107** |
+| 0.50–0.65 | 3660 | 238 | 0.563 | 0.522 | **−0.0409 ± 0.0126** |
+| 0.65–0.80 | 2394 | 183 | 0.716 | 0.677 | **−0.0396 ± 0.0121** |
 | 0.80–0.90 | 850 | 168 | 0.842 | 0.802 | **−0.0397 ± 0.0143** |
 
 Four adjacent buckets at 2.8–3.3 SE, on 168–251 games each, with a clean threshold at 0.20 below which the
@@ -70,19 +69,28 @@ leg-calibration map built for the dependence test (`research/joint_structure`).
 those buckets; the NO side pooled to −0.0126 ± 0.0104 at 54% coverage. A 3–4 point pricing error against a
 5–7 cent spread nets nothing.
 
-First-touchdown-scorer markets show the mirror image at the cheap end — contracts at 0.030 settle 0.040
-(+0.0100 ± 0.0041) and at 0.067 settle 0.081 (+0.0135 ± 0.0079), i.e. very cheap long shots are mildly
-*under*priced. Buying them still nets −0.021. Note that the dramatic first-TD *over*pricing this file
+First-touchdown-scorer markets show the mirror image at the cheap end — contracts at 0.031 settle 0.041
+(+0.0102 ± 0.0040) and at 0.067 settle 0.077 (+0.0097 ± 0.0075), i.e. very cheap long shots are mildly
+*under*priced. Buying them still nets −0.022. Note that the dramatic first-TD *over*pricing this file
 reported at 54% coverage (−0.181 ± 0.026 at 0.20–0.35) has vanished entirely at full coverage on tradable
 books: 0.10–0.20 now reads −0.0002 ± 0.0194.
 
-Game markets are efficient. SPREAD and TOTAL biases are within about 1.5 SE at every bucket. The one family
-with a positive net return anywhere is GAME_WINNER, where underdogs look underpriced (0.35–0.50: mid 0.418,
-realised 0.470, bias +0.0523 ± 0.0461, YES net **+0.0270**) and favourites overpriced (0.65–0.80: mid 0.723,
-realised 0.656, bias −0.0669 ± 0.0493) — the classic favourite–longshot bias, on 93–124 games per bucket at
-**about 1.1–1.4 standard errors**. It is the only positive expected return in the entire map and it is not
-significant. It is recorded rather than acted on, and re-testing it on 2026 is the obvious use of the
-prospective ledger.
+Game markets are efficient. SPREAD and TOTAL biases are within about 1.5 SE at every bucket. The one family with a positive net return anywhere is GAME_WINNER — the classic
+favourite–longshot bias, in the right direction on both sides:
+
+| closing price | n | games | mid | realised | bias | YES net |
+|---|---|---|---|---|---|---|
+| 0.20–0.35 | 97 | 97 | 0.276 | 0.330 | +0.0538 ± 0.0476 | **+0.0286** |
+| 0.35–0.50 | 127 | 127 | 0.420 | 0.465 | +0.0441 ± 0.0444 | **+0.0189** |
+| 0.50–0.65 | 127 | 126 | 0.580 | 0.535 | −0.0441 ± 0.0441 | −0.0695 |
+| 0.65–0.80 | 99 | 99 | 0.723 | 0.667 | −0.0566 ± 0.0474 | −0.0819 |
+
+**This is the only positive expected return in the entire map, and it is 1.1–1.2 standard errors.** Two
+honesty notes. First, the four buckets are not four findings: they are ~110 games seen from both sides, so
+the underdog and favourite rows are the same games mirrored. Second, these are the *same 259 games* analysed
+from the cached candle subset at the very start of this study — the moneyline series was cached before the
+horizon backfill ran, so its numbers have not changed across any of the coverage passes and its stability
+across them is **not** independent confirmation. Registered as `H-20260904-019` and left untouched otherwise.
 
 **Spreads and totals are efficient; player props are consistently overpriced; game winners may carry a
 favourite–longshot bias too small to distinguish from noise; and the spread is wider than the error in every

@@ -22,3 +22,4 @@ Every hypothesis is written down before it is tested. Status is one of PROPOSED,
 | `H-20260904-016` | REJECTED | realised settlement rate minus closing midpoint, and NO-side net retur | The calibration bias persists on 2026 settled markets at roughly the same magnit |
 | `H-20260904-017` | REGISTERED_PROSPECTIVE | realised settlement rate minus closing midpoint on player props, and N | The YES-side overpricing persists on 2026 settled props at roughly 2-5 points an |
 | `H-20260904-018` | REGISTERED_PROSPECTIVE | Brier difference (model minus market) and net return after fees from t | The gap narrows with shadow-0.3.0 role features but does not close: predicted re |
+| `H-20260904-019` | REGISTERED_PROSPECTIVE | realised settlement rate minus closing midpoint, and YES-side net retu | If the bias is real, 2026 underdog moneylines quoted between 0.20 and 0.50 settl |
