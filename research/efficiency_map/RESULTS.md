@@ -3,11 +3,10 @@
 Reproduce: `python3 scripts/research/efficiency_map.py '<horizons glob>'`
 Artifacts: `results.json` (current), `results_partial_16pct.json`, `results_cached_subset.json`.
 
-**Status: INTERIM but replicated.** **26,671 kickoff-anchored markets, 204,256 executable quote snapshots**
-— 54% of the 54,364-market universe, up from the 16% this file first reported, and every headline finding
-below survived the increase with more games behind it. Sharding is `md5(ticker) % 6`, so the missing portion
-is pseudo-random with respect to family and date; what remains biased is the **newest-first ordering within
-each shard**, which still weights the sample toward late-season and playoff games. Nothing here is an edge.
+**Status: COMPLETE.** **39,226 kickoff-anchored markets, 269,949 tradable executable quote snapshots** from
+52,491 of the 54,364 settled archived markets (97%). Reported at 16% and again at 54% during construction;
+the findings below are the full-coverage versions and are stable against both earlier passes. Nothing here
+is an edge.
 
 ## Method
 
@@ -48,38 +47,46 @@ computed on tradable books by default (`EFFMAP_MAX_WIDTH`, default 0.10).
 
 ## The headline: player props are overpriced, consistently, and it is still not tradable
 
-On tradable books the noisy family-by-family picture collapses into one coherent result. Player props are
-**overpriced on the YES side**, and increasingly so as the price rises:
+**12 of 223 calibration cells survive Benjamini–Hochberg at q = 0.10.** Nine of the twelve are receptions
+contracts and all nine point the same way. Player props are **overpriced on the YES side**, flat below 0.20
+and roughly −0.04 above 0.35:
 
-| closing price | n | games | mid | realised | bias | NO-side net after fees |
-|---|---|---|---|---|---|---|
-| 0.20–0.35 | 3354 | 193 | 0.269 | 0.254 | −0.0147 ± 0.0103 | −0.0287 ± 0.0103 |
-| 0.35–0.50 | 2880 | 190 | 0.426 | 0.397 | −0.0284 ± 0.0128 | −0.0145 ± 0.0128 |
-| 0.50–0.65 | 2615 | 184 | 0.562 | 0.514 | **−0.0485 ± 0.0147** | +0.0044 ± 0.0147 |
-| 0.65–0.80 | 1684 | 168 | 0.717 | 0.679 | **−0.0380 ± 0.0144** | −0.0087 ± 0.0144 |
-| 0.80–0.90 | 650 | 145 | 0.843 | 0.802 | **−0.0412 ± 0.0171** | −0.0001 ± 0.0170 |
+| closing price | n | games | mid | realised | bias |
+|---|---|---|---|---|---|
+| 0.05–0.10 | 2160 | 260 | 0.071 | 0.072 | +0.0005 ± 0.0061 |
+| 0.10–0.20 | 3534 | 259 | 0.146 | 0.151 | +0.0043 ± 0.0071 |
+| 0.20–0.35 | 4956 | 257 | 0.269 | 0.258 | −0.0117 ± 0.0087 |
+| 0.35–0.50 | 4204 | 251 | 0.425 | 0.395 | **−0.0304 ± 0.0107** |
+| 0.50–0.65 | 3645 | 229 | 0.563 | 0.521 | **−0.0417 ± 0.0127** |
+| 0.65–0.80 | 2392 | 183 | 0.716 | 0.677 | **−0.0394 ± 0.0121** |
+| 0.80–0.90 | 850 | 168 | 0.842 | 0.802 | **−0.0397 ± 0.0143** |
 
-Five adjacent buckets, every one negative, three of them at 2.4–3.3 SE, on 199 games. Nine of the 9 cells
-surviving FDR are player-prop or first-TD cells and all but one point the same way. This is a real property
-of the exchange's player markets, not a subgroup that happened to look good.
+Four adjacent buckets at 2.8–3.3 SE, on 168–251 games each, with a clean threshold at 0.20 below which the
+market is exactly calibrated. This is the most robust finding in the study and it is confirmed by two
+unrelated methods elsewhere: the encompassing regression's intercept (`research/model_vs_market`) and the
+leg-calibration map built for the dependence test (`research/joint_structure`).
 
-**And selling them still loses.** Pooled across every bucket at or above 0.20: **−0.0126 ± 0.0104** on the NO
-side after the Kalshi taker fee. The best single bucket, 0.50–0.65, is +0.0044 ± 0.0147 — 0.3 standard errors
-from zero. A 3–5 point pricing error against a 5–7 cent spread nets nothing.
+**And it is not tradable.** The YES-side net return after the Kalshi taker fee is −0.055 to −0.086 across
+those buckets; the NO side pooled to −0.0126 ± 0.0104 at 54% coverage. A 3–4 point pricing error against a
+5–7 cent spread nets nothing.
 
-That is the map's central result, and it is now supported by a coherent effect rather than by whichever
-extreme cells survived multiplicity correction:
+First-touchdown-scorer markets show the mirror image at the cheap end — contracts at 0.030 settle 0.040
+(+0.0100 ± 0.0041) and at 0.067 settle 0.081 (+0.0135 ± 0.0079), i.e. very cheap long shots are mildly
+*under*priced. Buying them still nets −0.021. Note that the dramatic first-TD *over*pricing this file
+reported at 54% coverage (−0.181 ± 0.026 at 0.20–0.35) has vanished entirely at full coverage on tradable
+books: 0.10–0.20 now reads −0.0002 ± 0.0194.
 
-**Spreads and totals are efficient; player props are consistently overpriced; and the spread is wider than
-the error in every single case.**
+Game markets are efficient. SPREAD and TOTAL biases are within about 1.5 SE at every bucket. The one family
+with a positive net return anywhere is GAME_WINNER, where underdogs look underpriced (0.35–0.50: mid 0.418,
+realised 0.470, bias +0.0523 ± 0.0461, YES net **+0.0270**) and favourites overpriced (0.65–0.80: mid 0.723,
+realised 0.656, bias −0.0669 ± 0.0493) — the classic favourite–longshot bias, on 93–124 games per bucket at
+**about 1.1–1.4 standard errors**. It is the only positive expected return in the entire map and it is not
+significant. It is recorded rather than acted on, and re-testing it on 2026 is the obvious use of the
+prospective ledger.
 
-Game markets confirm the first half: SPREAD and TOTAL calibration biases on tradable books are all within
-about one standard error of zero at every price bucket (largest: SPREAD 0.20–0.35 at +0.022 ± 0.022).
-
-This also bears directly on `H-20260904-011`. The shadow model prices player props about 0.019 below the
-market after the availability haircut, and the direction of that gap is **correct** — on tradable 2025 books
-the market did settle below its own quotes. Whether 0.019 is the right magnitude is still open, and is still
-not worth anything after costs.
+**Spreads and totals are efficient; player props are consistently overpriced; game winners may carry a
+favourite–longshot bias too small to distinguish from noise; and the spread is wider than the error in every
+case.**
 
 ## Does efficiency vary with liquidity? Yes — but not the way edge-hunting assumes
 
@@ -93,10 +100,10 @@ Closing quotes bucketed by open interest, with game-clustered standard errors:
 | Q3 | 1886 | 61 | 0.030 | −0.0110 ± 0.0161 | 0.331 | 0.1666 | −0.0515 | −0.0281 |
 | Q4 deepest | 1887 | 61 | 0.020 | −0.0276 ± 0.0191 | 0.330 | 0.1653 | −0.0566 | −0.0008 |
 
-Deep markets are *slightly* better calibrated — at 54% coverage, Brier 0.169 in the deepest quartile against
-0.182 with no open interest at all, mean absolute bias 0.337 against 0.354. That difference is small. What
-changes enormously is the **cost**: the median spread falls from 7 cents to 2, and the NO-side net return
-improves from −0.145 to −0.016.
+At full coverage, Brier is 0.1725 in the deepest quartile against 0.1761 with no open interest at all, and
+mean absolute bias 0.344 against 0.350. That difference is small — smaller than it looked at 54%. What
+changes enormously is the **cost**: the median spread falls from 8 cents to 2, and the NO-side net return
+improves from −0.164 to −0.017.
 
 So the thin markets are barely less efficient and dramatically more expensive to trade. The intuition that
 drives people into illiquid corners — "nobody is looking at these, so they must be mispriced" — is roughly

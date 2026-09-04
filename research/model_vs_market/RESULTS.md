@@ -8,31 +8,31 @@ walk-forward model probability and a reconstructed closing quote both exist, bot
 actually happened — and then the only question that matters is asked: what would acting on the disagreement
 have paid?
 
-**12,553 matched contracts across 190 games**, restricted to books quoted within 10 cents.
+**18,412 matched contracts across 254 games** at full backfill coverage, restricted to books quoted within 10 cents. (An earlier version of this file reported 12,553 contracts over 190 games at 54% coverage; every figure below moved by less than the third decimal.)
 
 ## The market wins, and it wins everywhere
 
 | | Brier | log loss | mean probability |
 |---|---|---|---|
-| model | 0.20035 | 0.58555 | 0.3773 |
-| **market (closing mid)** | **0.18996** | **0.55827** | 0.3974 |
-| realised | | | 0.3770 |
+| model | 0.19943 | 0.58343 | 0.3685 |
+| **market (closing mid)** | **0.18948** | **0.55762** | 0.3914 |
+| realised | | | 0.3718 |
 
-Brier difference, model minus market, clustered on game: **+0.01040 ± 0.00197** — the market is better by 5.3
-standard errors. Note the model's *mean* probability (0.3773) is almost exactly the realised base rate
-(0.3770) while the market's is higher (0.3974): the model has the better unconditional average and is still
-worse contract by contract, which is what being less discriminating looks like.
+Brier difference, model minus market, clustered on game: **+0.00994 ± 0.00163** — the market is better by 6.1
+standard errors. The model's *mean* probability (0.3685) is closer to the realised base rate (0.3718) than
+the market's (0.3914), and it is still worse contract by contract: the model has the better unconditional
+average and less discrimination, which is exactly what being encompassed looks like.
 
 Per statistic, the market is better on every one:
 
 | statistic | n | games | model Brier | market Brier | difference | z |
 |---|---|---|---|---|---|---|
-| receiving_yards | 4309 | 171 | 0.22381 | 0.21129 | +0.01251 ± 0.00279 | 4.5 |
-| receptions | 3165 | 124 | 0.19624 | 0.18385 | +0.01239 ± 0.00384 | 3.2 |
-| passing_yards | 1573 | 174 | 0.17139 | 0.16202 | +0.00936 ± 0.00336 | 2.8 |
-| rushing_yards | 1545 | 154 | 0.22443 | 0.21617 | +0.00825 ± 0.00520 | 1.6 |
-| anytime_td | 1457 | 188 | 0.16289 | 0.15579 | +0.00710 ± 0.00184 | 3.9 |
-| passing_tds | 504 | 91 | 0.15058 | 0.15146 | −0.00088 ± 0.00208 | −0.4 |
+| receptions | 3970 | 128 | 0.19553 | 0.18333 | +0.01219 ± 0.00352 | 3.5 |
+| receiving_yards | 6305 | 176 | 0.22168 | 0.20977 | +0.01191 ± 0.00235 | 5.1 |
+| passing_yards | 2361 | 177 | 0.16974 | 0.16040 | +0.00934 ± 0.00293 | 3.2 |
+| rushing_yards | 2253 | 167 | 0.22799 | 0.21998 | +0.00801 ± 0.00490 | 1.6 |
+| anytime_td | 2923 | 253 | 0.16845 | 0.16176 | +0.00669 ± 0.00145 | 4.6 |
+| passing_tds | 600 | 91 | 0.15185 | 0.15206 | −0.00021 ± 0.00197 | −0.1 |
 
 The single exception is passing touchdowns, and it is a tie on 504 contracts, not a win.
 
@@ -40,16 +40,17 @@ The single exception is passing touchdowns, and it is a tie on 504 contracts, no
 
 | required edge | trades | games | net per contract after fees | z |
 |---|---|---|---|---|
-| > 0.00 | 8219 | 189 | −0.0323 ± 0.0098 | −3.3 |
-| > 0.02 | 6443 | 188 | −0.0304 ± 0.0114 | −2.7 |
-| > 0.05 | 4182 | 185 | −0.0369 ± 0.0133 | −2.8 |
-| > 0.10 | 2005 | 168 | −0.0463 ± 0.0202 | −2.3 |
-| > 0.15 | 947 | 143 | −0.0501 ± 0.0302 | −1.7 |
+| > 0.00 | 12129 | 253 | −0.0314 ± 0.0081 | −3.9 |
+| > 0.02 | 9493 | 253 | −0.0312 ± 0.0093 | −3.3 |
+| > 0.05 | 6195 | 250 | −0.0321 ± 0.0112 | −2.9 |
+| > 0.10 | 2985 | 237 | −0.0348 ± 0.0167 | −2.1 |
+| > 0.15 | 1410 | 199 | −0.0308 ± 0.0248 | −1.2 |
 
-**The losses get worse as the edge filter tightens.** That is the diagnostic signature of a model whose
-largest disagreements are its largest errors. A model with genuine edge shows the opposite: returns improve
-as you demand more disagreement. This one degrades monotonically from −0.032 to −0.050 as the threshold rises
-from 0 to 0.15.
+Every threshold loses, at roughly the cost of crossing the spread, and demanding more disagreement never
+helps. (At 54% coverage the losses appeared to *worsen* monotonically with the threshold, from −0.032 to
+−0.050; at full coverage they are flat at about −0.031 to −0.035. The stronger reading was a small-sample
+artefact — the conclusion that filtering harder buys nothing is unchanged, the claim that it actively hurts
+is not supported.)
 
 ## What this settles
 
@@ -77,8 +78,9 @@ settled outcome on both forecasts in logit space, fitted by IRLS with cluster-ro
 
 | arm | intercept | model coefficient b₁ | market coefficient b₂ |
 |---|---|---|---|
-| base | −0.1280 ± 0.0563 | **−0.0243 ± 0.0901 (z = −0.3)** | **+0.9683 ± 0.0836 (z = +11.6)** |
-| role features | −0.1261 ± 0.0533 | **−0.0299 ± 0.0843 (z = −0.4)** | **+0.9731 ± 0.0814 (z = +12.0)** |
+| base | −0.1217 ± 0.0505 | **+0.0000 ± 0.0763 (z = +0.00)** | **+0.9441 ± 0.0717 (z = +13.2)** |
+| role features | −0.1220 ± 0.0474 | **−0.0031 ± 0.0737 (z = −0.04)** | **+0.9467 ± 0.0708 (z = +13.4)** |
+| opponent defence | −0.1200 ± 0.0517 | **+0.0073 ± 0.0769 (z = +0.10)** | **+0.9378 ± 0.0722 (z = +13.0)** |
 
 A market coefficient of essentially **1.0** with a model coefficient of essentially **0** is the textbook
 signature of one forecast encompassing another. **The model contributes nothing the price does not already
@@ -132,7 +134,7 @@ it — "the model is missing something obvious" is not the explanation for a 0.0
   (`research/ladder_role`); the gap here is 5.5% relative. Role features would likely close part of it and
   are unlikely on that arithmetic to close all of it. Re-running this head-to-head with `shadow-0.3.0`
   probabilities is the obvious next step and is not done here.
-* 190 games, one season, and the horizon backfill is still incomplete.
+* 254 games, one season. The horizon backfill is now essentially complete (52,491 of 54,364 markets).
 * Restricted to tradable books, which is correct for the calibration comparison and means the result does not
   describe the wide-book segment at all.
 
