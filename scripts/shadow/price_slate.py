@@ -36,7 +36,7 @@ from nfl_edge.shadow.models import fit_bundle, KALSHI_STAT_TO_SPEC              
 from nfl_edge.shadow.prospective import build_prospective_rows, upcoming_from_markets  # noqa: E402
 
 GAME_FAMILIES = {"GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL", "WIN_MARGIN_BUCKET", "TOTAL_TD", "BOTH_TEAMS_SCORE_N"}
-MODEL_VERSION_DEFAULT = "shadow-0.1.0"
+MODEL_VERSION_DEFAULT = "shadow-0.2.0"
 
 
 def latest_files(pattern, n=1):
@@ -224,11 +224,19 @@ def main():
         feat = combined[combined.is_prospective == True].copy()   # noqa: E712
         histf = combined[combined.is_prospective != True].copy()  # noqa: E712
         bundle = fit_bundle(histf, a.target_season, a.model_version, {"ewma": cfg, "min_train_season": 2016})
+        # a count-shape companion for anytime TD, used only to extend the ladder above 1+
+        from nfl_edge.shadow.models import CHOSEN_FAMILY as _CF
+        _CF_backup = dict(_CF); _CF["anytime_td"] = "negbin"
+        cnt_bundle = fit_bundle(histf, a.target_season, a.model_version + "-tdcount", {"ewma": cfg, "min_train_season": 2016},
+                                stats=["anytime_td"], verbose=lambda *_: None)
+        _CF.clear(); _CF.update(_CF_backup)
+        if "anytime_td" in cnt_bundle.stat_models:
+            bundle.stat_models["anytime_td_count"] = cnt_bundle.stat_models["anytime_td"]
         print(f"model bundle {bundle.version} sha={bundle.artifact_sha} stats={list(bundle.stat_models)}", flush=True)
 
     # ---- price
     out_root = a.out
-    writer = L.LedgerWriter(out_root, run_id)
+    writer = L.LedgerWriter(out_root, run_id, model_version=a.model_version)
     feature_cutoff = run_ts.isoformat()
     n_priced = 0
     survival_cache = {}
@@ -322,11 +330,22 @@ def main():
                     if bundle.td_model is None:
                         obs.support_state = L.UNSUPPORTED_MODEL; obs.support_reason = "TD model unavailable"
                         writer.write(obs); continue
-                    p = float(bundle.td_model.predict(sub)[0])
-                    if (q.get("threshold") or 1) > 1:
-                        obs.support_state = L.UNSUPPORTED_MODEL
-                        obs.support_reason = "multi-touchdown thresholds need the count model; direct model covers 1+ only"
-                        writer.write(obs); continue
+                    p1 = float(bundle.td_model.predict(sub)[0])
+                    kk = float(q.get("threshold") or 1)
+                    if kk <= 1:
+                        p = p1
+                    else:
+                        # shape from the count family, level anchored on the validated direct 1+ model, so the
+                        # ladder stays monotone and consistent with the model we actually trust at 1+.
+                        cnt = bundle.stat_models.get("anytime_td_count")
+                        if cnt is None:
+                            obs.support_state = L.UNSUPPORTED_MODEL
+                            obs.support_reason = "multi-touchdown rung needs the count-shape model (not fitted)"
+                            writer.write(obs); continue
+                        grid, S, _mu = cnt.survival(sub)
+                        i1 = int(np.searchsorted(grid, 1.0, side="left")); ik = int(np.searchsorted(grid, kk, side="left"))
+                        base = float(S[0][min(i1, len(S[0]) - 1)])
+                        p = p1 * (float(S[0][min(ik, len(S[0]) - 1)]) / base) if base > 1e-9 else 0.0
                 else:
                     sm = bundle.stat_models.get(spec_name)
                     if sm is None:

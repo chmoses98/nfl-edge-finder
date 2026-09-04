@@ -124,12 +124,14 @@ class Observation:
 class LedgerWriter:
     """Append-only gzip JSONL, one file per (date, run). Refuses to overwrite an existing run file."""
 
-    def __init__(self, root: str, run_id: str, day: str | None = None):
+    def __init__(self, root: str, run_id: str, day: str | None = None, model_version: str = "unversioned"):
         self.run_id = run_id
+        self.model_version = model_version
         self.day = day or run_id[:4] + "-" + run_id[4:6] + "-" + run_id[6:8]
         self.dir = os.path.join(root, self.day)
         os.makedirs(self.dir, exist_ok=True)
-        self.path = os.path.join(self.dir, f"{run_id}.observations.jsonl.gz")
+        self.stem = f"{run_id}.{model_version}"
+        self.path = os.path.join(self.dir, f"{self.stem}.observations.jsonl.gz")
         if os.path.exists(self.path):
             raise FileExistsError(f"ledger file already exists (append-only, never rewritten): {self.path}")
         self._fh = gzip.open(self.path, "wt")
@@ -157,6 +159,7 @@ class LedgerWriter:
                "by_support_state": self.by_state, "by_family": self.by_family,
                "observations_file": os.path.basename(self.path)}
         man.update(manifest_extra or {})
-        with open(os.path.join(self.dir, f"{self.run_id}.ledger_manifest.json"), "w") as f:
+        man["model_version"] = self.model_version
+        with open(os.path.join(self.dir, f"{self.stem}.ledger_manifest.json"), "w") as f:
             json.dump(man, f, indent=1)
         return man
