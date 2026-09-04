@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-010",
+ "date_proposed": "2026-09-04",
+ "rationale": "Opportunity-engine role features (route share, targets per route run, snap share, red-zone and inside-5 shares, team point-in-time volume) improved calibrated P(Y >= k) on all six player statistics tested, walk-forward 2019-2025, with the sign consistent in 6-7 of 7 seasons per statistic. Every one of those seasons is retrospective. Frozen into shadow-0.3.0 (artifact 76facd384b51e817) before the first 2026 kickoff.",
+ "features": "ROLE_FEATURES in nfl_edge/research/player_distributions.py, attached by nfl_edge/features/opportunity.attach_role_features",
+ "target": "Brier and log loss of P(Y >= k) at listed Kalshi rungs, player statistic ladders",
+ "expected_direction": "shadow-0.3.0 beats the shadow-0.2.0 feature set on 2026 rungs by roughly the retrospective margin: Brier -0.003 on targets and receptions, smaller on the yards ladders",
+ "test_plan": "Prospective. Both feature sets are priced on every 2026 slate and written to the shadow ledger; score both against settled outcomes at season end. Pre-specified primary endpoint: pooled Brier across all settled PLAYER_STAT rungs. No subgroup will be promoted.",
+ "dataset": "market-data shadow ledger 2026 + nflverse settled outcomes",
+ "result": null,
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "A retrospective improvement of this size is small enough that one 2026 season will not settle it decisively; the registration exists so the comparison cannot be reframed after the fact."
+}

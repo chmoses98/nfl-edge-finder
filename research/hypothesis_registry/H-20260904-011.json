@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-011",
+ "date_proposed": "2026-09-04",
+ "rationale": "Across 1,343 supported contracts the model prices player props 0.0334 below the market midpoint on average. That decomposes into a 0.0140 availability haircut (Kalshi settles an inactive player's contract at $0.00) and 0.0194 of model-versus-market difference. The residual is either juice on the YES side of thin player markets or a downward bias in the model, and prospective quotes alone cannot separate the two.",
+ "features": "model_contract_value vs mid, yes_bid, yes_ask on PLAYER_STAT contracts in the shadow ledger",
+ "target": "realised settlement rate of player-prop contracts versus the model price and versus the market price",
+ "expected_direction": "If the market carries YES-side juice, realised settlement rates fall between the model price and the midpoint, and NO-side contracts settle profitably before fees. If the model is biased low, realised rates sit at or above the midpoint and the model loses on both sides.",
+ "test_plan": "Prospective on 2026 settled player props, and retrospectively on the 2025 horizon backfill once it completes, where model prices, closing quotes and outcomes exist on the same contracts. Bucket by quoted width; the test is only meaningful where the width is under 0.10.",
+ "dataset": "market-data shadow ledger 2026 + data/kalshi/backfill/horizons (2025)",
+ "result": null,
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "Direction is deliberately not asserted. This is the single most likely way the platform is currently wrong about player props."
+}

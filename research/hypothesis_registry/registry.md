@@ -1,13 +1,18 @@
-# Hypothesis index
+# Hypothesis registry
 
-| id | status | rationale | result |
+Every hypothesis is written down before it is tested. Status is one of PROPOSED, REGISTERED_PROSPECTIVE, VALIDATED_RESEARCH, REJECTED.
+
+| id | status | target | expected direction |
 |---|---|---|---|
-| H-20260904-001 | REJECTED | Opponent-adjusted EPA team ratings predict margin/total beyond the closing line. | RMSE 13.26 vs close 12.88; residual model 12.92; blend weight 0; ATS 50.0% (n=928) |
-| H-20260904-002 | PROSPECTIVE_REQUIRED | Kalshi early-week prices (T-5d..T-48h) are less efficient than the close; football features predict subsequent movement. |  |
-| H-20260904-003 | TESTING | Integer-threshold Kalshi ladders (totals, yards) are mispriced at tails relative to a well-calibrated empirical distribu | backfill: 61,557 archived 2025 markets (33,684 settled player rungs, 7,420 spread rungs, 5,918 total rungs); model families evaluated on Kalshi's own rungs: positive Brier skill vs |
-| H-20260904-004 | PROPOSED | WR height advantage over likely covering CBs increases target share / end-zone targets. |  |
-| H-20260904-005 | REJECTED_AT_CLOSE | Starting-QB change (backup starting) is under-reflected in early-week Kalshi prices. | team margin residual vs close after QB change: -0.50 [-1.43,+0.44], n=766 -> close already reflects |
-| H-20260904-006 | PROMISING | Wind ≥15 mph forecast lowers totals and passing-yard tails more than the market prices. | observed wind 10-20 mph: total residual -0.9..-1.3 (CIs touch 0); calm 0-5 mph +1.2 [+0.1,+2.3] |
-| H-20260904-007 | VALIDATED_RESEARCH | Distribution family choice matters for tail probabilities: NB/hurdle-lognormal beats normal for yards ladders. | yards: mu-binned empirical scale family wins (rec Brier 0.1009 vs normal 0.1024; only family with uniform PIT; P(rec>=100) 7.1% vs 7.0% obs; normal 4.7%); passing yards: censored n |
-| H-20260904-008 | PROSPECTIVE_REQUIRED | Availability play-rate priors (EXPECTED_ACTIVE 0.97, QUESTIONABLE 0.70, DOUBTFUL 0.25, OUT 0.01) are assumptions, not fi |  |
-| H-20260904-009 | PROPOSED | Red-zone and goal-line usage share should improve anytime-TD probabilities beyond touch-volume features, and explain the |  |
+| `H-20260904-001` | REJECTED | margin, total | lower RMSE than close |
+| `H-20260904-002` | PROSPECTIVE_REQUIRED | close price − early price | feature-predictable movement |
+| `H-20260904-003` | TESTING | ladder consistency, tail calibration | tails overpriced (YES ask too high at 100+/120+) |
+| `H-20260904-004` | PROPOSED | target share, end-zone target rate | positive |
+| `H-20260904-005` | REJECTED_AT_CLOSE | margin residual vs early price | price moves toward model after news |
+| `H-20260904-006` | PROMISING | total residual, passing yards | negative |
+| `H-20260904-007` | VALIDATED_RESEARCH | CRPS, tail Brier at 100+/120+ | heavy-tailed families win at tails |
+| `H-20260904-008` | VALIDATED_RESEARCH | P(player takes >=1 offensive snap) | observed play rates within a few points of the priors |
+| `H-20260904-009` | PROPOSED | P(anytime TD >= 1) | improves Brier and removes the -1.7pt bias on Kalshi rungs |
+| `H-20260904-010` | REGISTERED_PROSPECTIVE | Brier and log loss of P(Y >= k) at listed Kalshi rungs, player statist | shadow-0.3.0 beats the shadow-0.2.0 feature set on 2026 rungs by roughly the ret |
+| `H-20260904-011` | REGISTERED_PROSPECTIVE | realised settlement rate of player-prop contracts versus the model pri | If the market carries YES-side juice, realised settlement rates fall between the |
+| `H-20260904-012` | REGISTERED_PROSPECTIVE | correlation between |model - mid| and quoted width across snapshots, a | The correlation persists across every 2026 snapshot, and contracts selected on m |

@@ -1,0 +1,149 @@
+{
+ "frozen_at": "2026-09-04T18:01:42.875754+00:00",
+ "first_2026_kickoff": "2026-09-09",
+ "rule": "Everything listed here existed before any 2026 regular-season outcome. Week-1 shadow predictions are scored against THIS model. A later change requires a new freeze file, never an overwrite of this one.",
+ "real_money_status": "NOT VALIDATED - no real-money authorization, no production bet recommendations",
+ "model": {
+  "version": "shadow-0.3.0",
+  "artifact_sha": "76facd384b51e817",
+  "target_season": 2026,
+  "train_seasons": [
+   2013,
+   2025
+  ],
+  "role_features": true,
+  "role_feature_list": [
+   "pit_route_share",
+   "pit_tprr",
+   "pit_snap_share",
+   "pit_rz_target_share",
+   "pit_adot",
+   "pit_carry_share",
+   "pit_rz_carry_share",
+   "pit_i5_carry_share",
+   "pit_team_dropbacks",
+   "pit_team_rush_att"
+  ],
+  "stat_families": {
+   "attempts": "normal",
+   "completions": "normal",
+   "passing_yards": "normal",
+   "passing_tds": "poisson",
+   "interceptions": "negbin",
+   "qb_rushing_yards": "scale_emp_binned",
+   "targets": "negbin",
+   "receptions": "negbin",
+   "receiving_yards": "scale_emp_binned",
+   "receiving_tds": "negbin",
+   "carries": "negbin",
+   "rushing_yards": "scale_emp_binned",
+   "rushing_tds": "negbin",
+   "anytime_td_count": "negbin"
+  },
+  "ewma": {
+   "halflife": 6.0,
+   "season_carry": 0.35,
+   "shrink_k": 2.0
+  }
+ },
+ "pre_kickoff_ledger_snapshots": [
+  "data/shadow/ledger/2026-09-04/20260904T165756Z.ledger_manifest.json",
+  "data/shadow/ledger/2026-09-04/20260904T165925Z.ledger_manifest.json",
+  "data/shadow/ledger/2026-09-04/20260904T165925Z.shadow-0.2.0.ledger_manifest.json",
+  "data/shadow/ledger/2026-09-04/20260904T174955Z.shadow-0.3.0.ledger_manifest.json"
+ ],
+ "code": {
+  "nfl_edge/shadow/models.py": {
+   "sha256": "08872dadcefed9d82cbfa60331350a4811c04a9615f21b23b280d9e5dddb48c8",
+   "bytes": 8564
+  },
+  "nfl_edge/shadow/ledger.py": {
+   "sha256": "26949b18072963316d164de00f02a650c9e9a1f705eaa709e6ccba589b729a0b",
+   "bytes": 6780
+  },
+  "nfl_edge/shadow/prospective.py": {
+   "sha256": "fd1ed99150505aafbcc7182b391ce9db515457972d4c5bd29ea1ee7df70ed2b8",
+   "bytes": 4013
+  },
+  "nfl_edge/research/player_distributions.py": {
+   "sha256": "306cb57ff1c47b19bf3122bacef57b883fa1a6a5ede6cbb758222fcee96d4b8d",
+   "bytes": 37921
+  },
+  "nfl_edge/features/opportunity.py": {
+   "sha256": "f2929949736018246929a881327ae315aa733795917fa6b0141ec05cb4d7ad40",
+   "bytes": 14012
+  },
+  "nfl_edge/settlement/semantics.py": {
+   "sha256": "e877fba94b93a122d63d09a9256144fc7e881f57eee3b3b6c7260f7a4e13b06a",
+   "bytes": 7048
+  },
+  "nfl_edge/settlement/availability.py": {
+   "sha256": "9778bed948ada8e2104039c5023c96376d1b7ca1187cc63428769f0901818c35",
+   "bytes": 11133
+  },
+  "nfl_edge/pricing/market_implied.py": {
+   "sha256": "81c47febf9a96a6d769d8be2d2360f83b49f0e68a9272dbcae1f048f84448cea",
+   "bytes": 5937
+  },
+  "scripts/shadow/price_slate.py": {
+   "sha256": "6d526964364c77090593e8d223a0b9b9779f7edec6fe703c3556b44f29916b85",
+   "bytes": 26223
+  },
+  "scripts/shadow/ledger_report.py": {
+   "sha256": "c387dd55dbdabe19a6d3ab672967495d3aa3109c487645bff4b029fd708a9658",
+   "bytes": 4837
+  }
+ },
+ "research": {
+  "research/opportunity/RESULTS.md": {
+   "sha256": "a19305c2f2da74f87b457f6cd2b4503759449092feffb1c314830c8e34318195",
+   "bytes": 4539
+  },
+  "research/opportunity/results.json": {
+   "sha256": "042621ae922e9b44c7ad558eb1a8729c9545dd64530ac87c25a8edd82599f906",
+   "bytes": 6758
+  },
+  "research/ladder_role/RESULTS.md": {
+   "sha256": "cb426a8d8987f97c34ce7bc0d840eddec1f525b09628d25c89192a5f908fa00d",
+   "bytes": 5398
+  },
+  "research/ladder_role/results.json": {
+   "sha256": "bc6fd8f33bbeb83e72ad3cb8ef508b202dfe795b7cfd05b0cb089dd40f7abf91",
+   "bytes": 29547
+  },
+  "research/efficiency_map/RESULTS.md": {
+   "sha256": "ed1dbf3ccf0d81df9d82e7dd4fe2ac6a859e7d0f00d0ebb5f5e826c1ea482ee8",
+   "bytes": 6113
+  },
+  "research/shadow/RESULTS.md": {
+   "sha256": "0237d9bce77ad667dbdbde95a0dd2015a96d029d25a47e987116b9d6cf248275",
+   "bytes": 3742
+  },
+  "research/availability/RESULTS.md": {
+   "sha256": "a5d9fa73009d7aae169adc553b6930d013dc7c1f98ff1ed3c881985ddab6bd4d",
+   "bytes": 2848
+  },
+  "research/anytime_td/RESULTS.md": {
+   "sha256": "ee4e5562bc83fbcd41e37e6cadabb2063d8d364f55abdd79fee9cdfbadaea412",
+   "bytes": 1822
+  },
+  "research/player_distributions/results.json": {
+   "sha256": "7ebb0c2ac285b3ce699145cc988689eb79bffe8b6f561e847178997149c13f32",
+   "bytes": 526187
+  },
+  "docs/KALSHI_SETTLEMENT.md": {
+   "sha256": "329a7c3e86f51c4985eb535dda91ffb917fb8f9e44d59345bec897c4eea9e27f",
+   "bytes": 3416
+  }
+ },
+ "prospective_hypotheses": [
+  "H-20260904-010",
+  "H-20260904-011",
+  "H-20260904-012"
+ ],
+ "known_limitations": [
+  "The 2025 market-efficiency map is incomplete: the horizon backfill is refetching after a candle-field parse bug, so player-prop families are not yet covered.",
+  "Ladder gains are measured on historical settled outcomes; none has been shown to survive the ~2.5 point cost of crossing the Kalshi spread.",
+  "Availability play rates are measured from official injury reports; the 2026 live path reads ESPN and Sleeper, which is a different source and is not yet prospectively validated."
+ ]
+}
