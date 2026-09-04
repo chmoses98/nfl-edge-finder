@@ -118,12 +118,12 @@ def main():
             t = m["ticker"]
             if int(hashlib.md5(t.encode()).hexdigest(), 16) % a.shards != a.shard or t in state["done"]:
                 continue
-            todo.append((m.get("close_time") or "", s, m))
-    todo.sort(reverse=True)      # newest first
+            todo.append(((m.get("close_time") or ""), s, t, m))
+    todo.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)   # newest first; never compares the dict
     run["todo"] = len(todo)
     print(json.dumps({"shard": a.shard, "todo": len(todo), "done_already": len(state["done"])}), flush=True)
     fout = open(out_path, "a")
-    for _ct, s, m in todo:
+    for _ct, s, _tk, m in todo:
         if c.stats.requests >= a.budget - 3:
             break
         t = m["ticker"]

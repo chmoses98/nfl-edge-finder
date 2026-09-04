@@ -59,5 +59,6 @@ jobs:
             set -e
             python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill/horizons --message "quote backfill shard ${{ matrix.shard }} chunk $CHUNK $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "::warning::publish failed (chunk $CHUNK)"
             CHUNK=$((CHUNK+1))
-            if [ "$RC" != "3" ]; then echo "shard ${{ matrix.shard }} complete"; break; fi
+            if [ "$RC" = "0" ]; then echo "shard ${{ matrix.shard }} complete"; break; fi
+            if [ "$RC" != "3" ]; then echo "::error::shard ${{ matrix.shard }} script failed rc=$RC"; exit 1; fi
           done
