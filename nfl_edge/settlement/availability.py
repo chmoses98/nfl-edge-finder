@@ -33,20 +33,34 @@ UNKNOWN = "UNKNOWN"
 
 # state -> (P(takes >= 1 offensive snap), P(active but never takes a snap))
 # The remainder is P(inactive), which settles a YES contract at $0.00.
-# Public research on NFL game-status designations puts Questionable at roughly a 70% play rate and
-# Doubtful well under 30%; these are round, conservative numbers pending prospective calibration.
+#
+# MEASURED, not assumed (research/availability/RESULTS.md):
+#  * 101,917 established-role offensive player-weeks, 2015-2025, official designation vs PFR snap counts:
+#      Questionable 0.690 play (stable 0.63-0.80 across all 11 seasons), Doubtful 0.007, Out 0.0005,
+#      Probable 0.967, on-report-no-status 0.944.
+#  * The population we actually price is narrower -- players Kalshi lists a prop for. On the 4,243 listed
+#    player-games in the 2025 archive: not-on-report 0.971, on-report-no-status 0.992, Questionable 0.827
+#    (n=104), Out 0.000 (n=33). Kalshi lists props for questionable players it expects to play, so the
+#    listed-population Questionable rate is higher than the league-wide one; with n=104 it is shrunk toward
+#    the 11-season 0.690 estimate, giving 0.78.
+#  * "dressed but never took an offensive snap" -- the branch that settles at a fair price -- is rare in the
+#    listed population: 0.5% (not-on-report) to 1.0% (Questionable).
+# The earlier hand-set priors were wrong in one important place: DOUBTFUL was set to 0.25 when the measured
+# rate is under 0.01. In the modern NFL a Doubtful designation is effectively an Out.
 STATE_PLAY_RATES = {
-    EXPECTED_ACTIVE: (0.97, 0.02),
-    QUESTIONABLE: (0.70, 0.04),
-    DOUBTFUL: (0.25, 0.05),
-    EXPECTED_OUT: (0.03, 0.01),
-    OUT: (0.01, 0.01),
+    EXPECTED_ACTIVE: (0.975, 0.005),
+    QUESTIONABLE: (0.78, 0.010),
+    DOUBTFUL: (0.03, 0.005),
+    EXPECTED_OUT: (0.02, 0.005),
+    OUT: (0.005, 0.002),
     INACTIVE_CONFIRMED: (0.0, 0.0),
-    UNKNOWN: (0.50, 0.05),
+    # UNKNOWN: our sources did not find the player. The unconditional rate among Kalshi-listed players is
+    # 0.962; we deliberately price below it and raise a quality flag rather than assume the player is healthy.
+    UNKNOWN: (0.90, 0.02),
 }
-# Depth-chart / role adjustment: a nominal starter essentially always sees a snap when active; a deep
-# reserve may dress and never take an offensive snap.  Multiplies the base rates above.
-ROLE_SNAP_FLOOR = {1: 0.99, 2: 0.95, 3: 0.85, 4: 0.65}
+# Depth-chart adjustment. In the listed population the dressed-but-no-snap branch is ~0.5%, so the earlier
+# aggressive role floors (0.65 for a 4th-stringer) over-penalised. Only deep reserves are adjusted.
+ROLE_SNAP_FLOOR = {1: 1.0, 2: 1.0, 3: 0.98, 4: 0.94}
 
 BLOCKING_STATES = {EXPECTED_OUT, OUT, INACTIVE_CONFIRMED}
 

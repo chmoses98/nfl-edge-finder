@@ -98,6 +98,7 @@ class Observation:
     volume: float | None = None
     open_interest: float | None = None
     last_price: float | None = None
+    minutes_since_price_change: float | None = None
     liquidity: float | None = None
     book_depth_yes: float | None = None
     book_depth_no: float | None = None
