@@ -32,6 +32,35 @@ overpricing long shots — first-touchdown contracts quoted 0.10–0.20 settle 7
 pricer sees the market's long-shot overpricing and, being wrong in the same direction only more so, reads it
 as an opportunity.
 
+## The anytime-touchdown model has the same defect, despite being the best-calibrated model here
+
+`DirectTDModel` is a bespoke binary model rather than a count family, and it was excluded from the table
+above. Checked separately on 41,196 player-games across 1,871 games it is **excellently calibrated in
+aggregate** — predicted 0.1691 against realised 0.1688, bias −0.0003 — which independently reconfirms the
+earlier decision to use a direct model rather than a count family for anytime touchdown.
+
+It still has the tail defect, and its shape is different:
+
+| model p | n | games | predicted | realised | bias | z |
+|---|---|---|---|---|---|---|
+| 0.02–0.05 | 4,984 | 1,680 | 0.0399 | 0.0285 | **−0.0114** | −4.9 |
+| 0.05–0.10 | 12,034 | 1,870 | 0.0728 | 0.0643 | **−0.0085** | −3.9 |
+| 0.10–0.20 | 10,897 | 1,869 | 0.1433 | 0.1506 | **+0.0073** | +2.1 |
+| 0.20–0.35 | 8,777 | 1,861 | 0.2672 | 0.2783 | **+0.0112** | +2.4 |
+| 0.35–0.50 | 3,569 | 1,639 | 0.4109 | 0.4015 | −0.0094 | −1.1 |
+| 0.50+ | 933 | 733 | 0.5545 | 0.5595 | +0.0049 | +0.3 |
+
+Where the count families are uniformly too fat below 0.35, the direct model is S-shaped: too fat in the deep
+tail below 0.10, too *thin* between 0.10 and 0.35. An aggregate bias of −0.0003 conceals both.
+
+The deep-tail half of this matches the efficiency map exactly, where `PLAYER_STAT:touchdowns` in the
+[0.00, 0.02) bucket was one of the seven cells surviving FDR at every horizon tested. Two different methods,
+one pointing at the model and one at the market, agree that the sub-5-cent touchdown rungs are the least
+trustworthy prices on the board.
+
+That the defect survives in the single best-calibrated model in the platform is the reason it is treated as a
+pipeline property rather than a family choice.
+
 ## The correction, and an honest account of what it buys
 
 `nfl_edge/pricing/calibration.LadderCalibrator` is a monotone map from predicted to calibrated probability,
