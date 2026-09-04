@@ -26,7 +26,7 @@ import polars as pl
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "research", "efficiency_map"); os.makedirs(OUT, exist_ok=True)
-MD = sys.argv[1] if len(sys.argv) > 1 else "/home/user/_md"
+IN_GLOB = sys.argv[1] if len(sys.argv) > 1 else "/home/user/_md/data/kalshi/backfill/horizons/*.jsonl"
 HORIZONS = ["T-168h", "T-72h", "T-48h", "T-24h", "T-12h", "T-6h", "T-3h", "T-90m", "T-30m", "T-0"]
 
 
@@ -39,10 +39,18 @@ def taker_fee(p, contracts=1.0):
 
 def load():
     rows = []
-    for f in glob.glob(os.path.join(MD, "data/kalshi/backfill/horizons/*.jsonl")):
+    n_empty_book = 0
+    n_no_kickoff = 0
+    for f in glob.glob(IN_GLOB):
         for line in open(f):
             r = json.loads(line)
             if r.get("result") not in ("yes", "no"):
+                continue
+            if r.get("anchor_kind") != "kickoff":
+                # T-0 is measured relative to the anchor. When the anchor fell back to the market's close
+                # time, "T-0" is AFTER the game finished: 65% of those quotes sit at settled certainty and
+                # would make the market look clairvoyant. A time-to-kickoff study needs a real kickoff.
+                n_no_kickoff += 1
                 continue
             y = 1.0 if r["result"] == "yes" else 0.0
             fam = r["family"]; stat = r.get("stat")
@@ -53,17 +61,45 @@ def load():
                     continue
                 if not (0.0 <= bid <= ask <= 1.0):
                     continue
-                rows.append({"ticker": r["ticker"], "family": cell_fam, "base_family": fam, "stat": stat,
+                if sn.get("book_empty") or (bid <= 0.0 and ask >= 1.0):
+                    n_empty_book += 1      # no market at that instant; not a 100-cent spread
+                    continue
+                rows.append({"ticker": r["ticker"], "cluster": r.get("game_id") or r["ticker"], "family": cell_fam, "base_family": fam, "stat": stat,
                              "horizon": h, "y": y, "bid": bid, "ask": ask, "mid": (bid + ask) / 2.0,
                              "width": ask - bid, "vol": sn.get("vol") or 0.0, "oi": sn.get("oi") or 0.0,
                              "age_min": sn.get("age_min"), "threshold": r.get("threshold"),
                              "anchor_kind": r["anchor_kind"], "season": r.get("season"),
                              "final_volume": r.get("final_volume") or 0.0})
+    print(f"quoted snapshots {len(rows)}; empty-book skipped {n_empty_book}; "
+          f"markets dropped for having no kickoff anchor {n_no_kickoff}")
     return pl.DataFrame(rows)
+
+
+def clustered_se(values, clusters):
+    """SE of a mean when observations share a game.
+
+    Both sides of one game are separate contracts settled by one outcome, and a full player ladder is a dozen
+    contracts settled by one performance. Treating those as independent understates the SE by roughly sqrt(k).
+    This is the standard cluster-robust SE of the mean, clustered on game.
+    """
+    v = np.asarray(values, float)
+    n = len(v)
+    if n < 2:
+        return None
+    mu = v.mean()
+    by = defaultdict(float)
+    for x, c in zip(v - mu, clusters):
+        by[c] += x
+    g = len(by)
+    if g < 2:
+        return None
+    var = sum(t * t for t in by.values()) / (n * n) * (g / (g - 1.0))
+    return float(math.sqrt(max(var, 0.0)))
 
 
 def cell_metrics(d: pl.DataFrame):
     y = d["y"].to_numpy(); mid = d["mid"].to_numpy(); ask = d["ask"].to_numpy(); bid = d["bid"].to_numpy()
+    cl = d["cluster"].to_list()
     n = len(y)
     m = np.clip(mid, 1e-4, 1 - 1e-4)
     yes_ret = y - ask                                     # buy YES at the ask, hold to settlement
@@ -77,8 +113,9 @@ def cell_metrics(d: pl.DataFrame):
            "logloss_mid": float(-np.mean(y * np.log(m) + (1 - y) * np.log(1 - m))),
            "yes_ret_gross": float(yes_ret.mean()), "yes_ret_net": float((yes_ret - yes_fee).mean()),
            "no_ret_gross": float(no_ret.mean()), "no_ret_net": float((no_ret - no_fee).mean()),
-           "yes_ret_se": float(yes_ret.std(ddof=1) / math.sqrt(n)) if n > 1 else None,
-           "no_ret_se": float(no_ret.std(ddof=1) / math.sqrt(n)) if n > 1 else None}
+           "yes_ret_se": clustered_se(yes_ret - yes_fee, cl), "no_ret_se": clustered_se(no_ret - no_fee, cl),
+           "n_clusters": len(set(cl)),
+           "yes_ret_se_naive": float((yes_ret - yes_fee).std(ddof=1) / math.sqrt(n)) if n > 1 else None}
     if n > 5 and mid.std() > 1e-6:
         b = np.polyfit(mid, y, 1)
         out["reliability_slope"] = float(b[0]); out["reliability_intercept"] = float(b[1])
@@ -111,15 +148,44 @@ def main():
             if m.get("yes_ret_se"):
                 tests.append((f"{fam}|{h}|YES", m["yes_ret_net"], m["yes_ret_se"], m["n"]))
                 tests.append((f"{fam}|{h}|NO", m["no_ret_net"], m["no_ret_se"], m["n"]))
-    # FDR over every cell-side test
-    zs = [abs(t[1] / t[2]) if t[2] else 0.0 for t in tests]
-    pv = [2 * (1 - 0.5 * (1 + math.erf(z / math.sqrt(2)))) for z in zs]
-    sig, cut = bh_fdr(pv, q=0.10)
-    res["fdr"] = {"n_tests": len(tests), "q": 0.10, "p_cutoff": float(cut), "n_significant": int(sig.sum()),
-                  "significant": [{"cell": tests[i][0], "net_return": tests[i][1], "se": tests[i][2], "n": tests[i][3],
-                                   "p": pv[i]} for i in np.where(sig)[0]]}
-    # favourite-longshot bias by price bucket, per base family, at the closing proxy
+    # What crossing the spread costs is not a hypothesis -- it is the overround plus the fee, and it is very
+    # nearly deterministic (within a game the two sides' losses sum to the overround). Testing it against zero
+    # produces astronomically significant "findings" that say only that a market maker charges a spread.
+    # It is reported as a cost table. The FDR below is spent on the question that can actually surprise us:
+    # conditional on price, does the market settle at the rate it charges?
+    tests = []
     edges = [0, .02, .05, .10, .20, .35, .50, .65, .80, .90, .95, .98, 1.0]
+    for fam in fams:
+        for h in ("T-168h", "T-72h", "T-24h", "T-6h", "T-0"):
+            d = D.filter((pl.col("family") == fam) & (pl.col("horizon") == h))
+            if d.height < 200:
+                continue
+            mid = d["mid"].to_numpy(); y = d["y"].to_numpy(); cl = d["cluster"].to_list()
+            b = np.digitize(mid, edges) - 1
+            for i in range(len(edges) - 1):
+                msk = b == i
+                if msk.sum() < 60 or len(set(np.array(cl)[msk])) < 20:
+                    continue
+                resid = y[msk] - mid[msk]
+                se = clustered_se(resid, list(np.array(cl)[msk]))
+                if not se:
+                    continue
+                tests.append({"cell": f"{fam}|{h}|[{edges[i]:.2f},{edges[i+1]:.2f})", "bias": float(resid.mean()),
+                              "se": se, "n": int(msk.sum()), "g": int(len(set(np.array(cl)[msk])))})
+    if tests:
+        zs = [abs(t["bias"] / t["se"]) for t in tests]
+        pv = [2 * (1 - 0.5 * (1 + math.erf(z / math.sqrt(2)))) for z in zs]
+        sig, cut = bh_fdr(pv, q=0.10)
+        for t, p_ in zip(tests, pv):
+            t["p"] = float(p_)
+        res["fdr"] = {"question": "conditional on the quoted midpoint, does the contract settle at that rate?",
+                      "n_tests": len(tests), "q": 0.10, "p_cutoff": float(cut), "n_significant": int(sig.sum()),
+                      "significant": [tests[i] for i in np.where(sig)[0]], "all": tests}
+    else:
+        res["fdr"] = {"n_tests": 0, "n_significant": 0}
+    res["cost_to_cross"] = {k: {"yes_net": v["yes_ret_net"], "no_net": v["no_ret_net"], "median_width": v["median_width"]}
+                            for k, v in res["cells"].items()}
+    # favourite-longshot bias by price bucket, per base family, at the closing proxy
     for fam in sorted({f.split(":")[0] for f in fams}):
         d = D.filter((pl.col("base_family") == fam) & (pl.col("horizon") == "T-0"))
         if d.height < 300:
@@ -136,17 +202,29 @@ def main():
                          "obs": float(y[msk].mean()), "yes_ret_net": float(((y[msk] - ask[msk]) - fee).mean())})
         res["by_price_bucket"][fam] = rows
     # movement toward the outcome between horizons (does the price improve as kickoff approaches?)
-    piv = {}
+    piv = {}; piv_cluster = {}
     for r in D.iter_rows(named=True):
         piv.setdefault(r["ticker"], {})[r["horizon"]] = r
+        piv_cluster[r["ticker"]] = r["cluster"]
     for a, bh in (("T-72h", "T-0"), ("T-24h", "T-0"), ("T-6h", "T-0"), ("T-24h", "T-6h")):
-        rows = [(v[a]["mid"], v[bh]["mid"], v[bh]["y"], v[a]["family"]) for v in piv.values() if a in v and bh in v]
+        rows = [(v[a]["mid"], v[bh]["mid"], v[bh]["y"], v[a]["family"], t) for t, v in piv.items() if a in v and bh in v]
         if len(rows) < 200:
             continue
         m0 = np.array([r[0] for r in rows]); m1 = np.array([r[1] for r in rows]); y = np.array([r[2] for r in rows])
-        moved_right = np.mean(np.sign(m1 - m0) == np.sign(y - m0))
-        res["movement"][f"{a}->{bh}"] = {"n": len(rows), "mean_abs_move": float(np.mean(np.abs(m1 - m0))),
-                                         "share_moved_toward_outcome": float(moved_right),
+        # Only markets that actually moved can move toward or away from the outcome. np.sign(0) is 0, so
+        # including unchanged quotes silently scores every one of them as "moved away" -- with a median
+        # quote change of a penny or less, that alone drags the share to ~0.37.
+        cl_all = [piv_cluster[r[4]] for r in rows]
+        mv = m1 != m0
+        toward = (np.sign(m1[mv] - m0[mv]) == np.sign(y[mv] - m0[mv])).astype(float)
+        moved_right = float(toward.mean()) if mv.sum() else float("nan")
+        cl = [c for c, keep in zip(cl_all, mv) if keep]
+        res["movement"][f"{a}->{bh}"] = {"n": len(rows), "n_moved": int(mv.sum()),
+                                         "n_clusters": len(set(cl_all)),
+                                         "mean_abs_move": float(np.mean(np.abs(m1 - m0))),
+                                         "share_unchanged": float(1.0 - mv.mean()),
+                                         "share_moved_toward_outcome": moved_right,
+                                         "share_se_clustered": clustered_se(toward, cl),
                                          "brier_early": float(np.mean((m0 - y) ** 2)), "brier_late": float(np.mean((m1 - y) ** 2))}
     # tails: extreme rungs of player ladders at the close
     for stat in ("receiving_yards", "rushing_yards", "passing_yards", "receptions", "touchdowns"):
@@ -168,14 +246,16 @@ def main():
     json.dump(res, open(os.path.join(OUT, "results.json"), "w"), indent=1, default=float)
     # ---- print
     print("\nCALIBRATION AND EXECUTION BY FAMILY x HORIZON (net of the Kalshi taker fee)")
-    print(f"{'cell':44s} {'n':>6s} {'width':>6s} {'mid':>6s} {'obs':>6s} {'brier':>7s} {'YESnet':>8s} {'NOnet':>8s}")
+    print(f"{'cell':44s} {'n':>6s} {'g':>5s} {'width':>6s} {'mid':>6s} {'obs':>6s} {'brier':>7s} {'YESnet':>8s} {'NOnet':>8s}")
     for k, v in sorted(res["cells"].items()):
-        print(f"{k:44s} {v['n']:6d} {v['median_width']:6.3f} {v['mean_mid']:6.3f} {v['obs_yes']:6.3f} "
+        print(f"{k:44s} {v['n']:6d} {v['n_clusters']:5d} {v['median_width']:6.3f} {v['mean_mid']:6.3f} {v['obs_yes']:6.3f} "
               f"{v['brier_mid']:7.4f} {v['yes_ret_net']:+8.4f} {v['no_ret_net']:+8.4f}")
-    print(f"\nFDR q=0.10 over {res['fdr']['n_tests']} cell-side tests: {res['fdr']['n_significant']} significant "
-          f"(p cutoff {res['fdr']['p_cutoff']:.5f})")
-    for s in res["fdr"]["significant"]:
-        print(f"   {s['cell']:44s} net {s['net_return']:+.4f} +- {s['se']:.4f} (n={s['n']}, p={s['p']:.2e})")
+    print(f"\nCALIBRATION TESTS -- does a contract quoted at p settle at rate p?")
+    print(f"  {res['fdr']['n_tests']} tests, game-clustered SEs, Benjamini-Hochberg FDR q=0.10 -> "
+          f"{res['fdr']['n_significant']} significant")
+    for t in sorted(res["fdr"].get("all", []), key=lambda x: x["p"])[:12]:
+        mark = "*" if t in res["fdr"]["significant"] else " "
+        print(f"  {mark} {t['cell']:52s} bias {t['bias']:+.4f} +- {t['se']:.4f} (n={t['n']}, games={t['g']}, p={t['p']:.3f})")
     print("\nFAVOURITE-LONGSHOT BIAS AT THE CLOSE")
     for fam, rows in res["by_price_bucket"].items():
         print(f"  {fam}")
@@ -183,8 +263,10 @@ def main():
             print(f"    [{r['lo']:.2f},{r['hi']:.2f}) n={r['n']:6d} mid={r['mean_mid']:.3f} obs={r['obs']:.3f} YESnet={r['yes_ret_net']:+.4f}")
     print("\nPRICE MOVEMENT")
     for k, v in res["movement"].items():
-        print(f"  {k:14s} n={v['n']:6d} |move|={v['mean_abs_move']:.4f} toward outcome={v['share_moved_toward_outcome']:.3f} "
-              f"brier {v['brier_early']:.4f} -> {v['brier_late']:.4f}")
+        se = v.get("share_se_clustered")
+        print(f"  {k:14s} n={v['n']:6d} g={v['n_clusters']:5d} |move|={v['mean_abs_move']:.4f} "
+              f"unchanged={v['share_unchanged']:.2f} moved={v['n_moved']:5d} toward outcome={v['share_moved_toward_outcome']:.3f}"
+              f"{f' +-{se:.3f}' if se else ''} brier {v['brier_early']:.4f} -> {v['brier_late']:.4f}")
     print("\nPLAYER LADDER TAILS AT THE CLOSE")
     for stat, rows in res["tails"].items():
         for r in rows:
