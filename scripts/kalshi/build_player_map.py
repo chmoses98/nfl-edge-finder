@@ -19,6 +19,10 @@ from nfl_edge.kalshi.classifier import classify, KALSHI_TO_NFLVERSE  # noqa
 from nfl_edge.data.ids import _norm_name  # noqa
 
 
+# Kalshi display names that differ from nflverse display names (nicknames). Auditable, explicit.
+NAME_ALIASES = {"hollywood brown": "marquise brown", "joshua palmer": "josh palmer"}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--discovery-dir", required=True)
@@ -57,8 +61,14 @@ def main():
         team = max(rec["teams"], key=rec["teams"].get) if rec["teams"] else None
         jersey = max(rec["jerseys"], key=rec["jerseys"].get) if rec["jerseys"] else None
         key = _norm_name(name)
+        key = NAME_ALIASES.get(key, key)
         cand = ros.filter(pl.col("name_key") == key)
         status, gsis, method = "UNRESOLVED", None, None
+        if name.endswith("D/ST") or name.endswith("Special Teams") or name in ("No Touchdown",):
+            status, method = "NOT_A_PLAYER", "team D/ST or no-TD leg"
+            rows.append({"kalshi_player_id": kid, "kalshi_team_id": rec["team_uuid"], "name": name, "team": team, "jersey": jersey, "n_markets": rec["n"],
+                         "gsis_id": None, "status": status, "method": method, "season": a.season, "all_names": json.dumps(rec["names"])})
+            continue
         if team:
             c2 = cand.filter(pl.col("team") == team)
             if c2.height == 1:
