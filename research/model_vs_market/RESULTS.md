@@ -67,6 +67,39 @@ still beating the model are **both true and not in tension**. The closing price 
 informative than what this platform currently produces. Removing a known bias from a price does not help if
 your own estimate is noisier than the biased price.
 
+## The market encompasses the model entirely
+
+Losing to the market leaves one question that decides what to do about it: is the model *redundant*, or does
+it carry orthogonal information a market-anchored combination could use? The standard test regresses the
+settled outcome on both forecasts in logit space, fitted by IRLS with cluster-robust standard errors:
+
+`logit P(y = 1) = a + b₁ · logit(model) + b₂ · logit(market)`
+
+| arm | intercept | model coefficient b₁ | market coefficient b₂ |
+|---|---|---|---|
+| base | −0.1280 ± 0.0563 | **−0.0243 ± 0.0901 (z = −0.3)** | **+0.9683 ± 0.0836 (z = +11.6)** |
+| role features | −0.1261 ± 0.0533 | **−0.0299 ± 0.0843 (z = −0.4)** | **+0.9731 ± 0.0814 (z = +12.0)** |
+
+A market coefficient of essentially **1.0** with a model coefficient of essentially **0** is the textbook
+signature of one forecast encompassing another. **The model contributes nothing the price does not already
+contain**, and this holds identically with and without the role features.
+
+The walk-forward blend confirms it. Fitting the combination weights on strictly earlier weeks and scoring on
+later ones:
+
+| arm | n | model | market | blend | blend − market |
+|---|---|---|---|---|---|
+| base | 11,529 | 0.19977 | 0.18945 | 0.18901 | −0.00044 ± 0.00048 (z = −0.9) |
+| role | 11,529 | 0.20123 | 0.18945 | 0.18903 | −0.00042 ± 0.00044 (z = −1.0) |
+
+The blend is not distinguishable from simply using the market price. There is no combination to be had.
+
+One detail worth noting: the intercept is significantly negative (−0.128 ± 0.056, z = −2.3) while the market
+slope is ≈1. In logit space at p ≈ 0.4 that is a shift of roughly −0.03 in probability — which independently
+recovers the YES-side overpricing measured directly in `research/efficiency_map` (−0.028 to −0.049 across
+buckets). The regression finds the market's bias without being told to look for it, and finds no model
+signal in the same breath.
+
 ## Caveats
 
 * These model probabilities come from `research/kalshi_2025`, fitted walk-forward on seasons before 2025 but
@@ -80,7 +113,16 @@ your own estimate is noisier than the biased price.
 
 ## What follows
 
-The research posture this implies is not "find the edge". It is: **the player-prop model is not yet
-competitive with the closing line, and the measurable objective is to close a 0.0104 Brier gap.** The
-opportunity engine (−2.6 to −3.8% relative) and the tail calibrator (bias removal, Brier flat) are both
-steps in that direction and neither is nearly enough on its own.
+The research posture this implies is not "find the edge". It is: **the player-prop model is not merely
+behind the closing line, it is redundant to it**, and the measurable objective is to close a 0.0104 Brier gap
+with information the price does not already contain.
+
+Two candidate steps from this session both fail that bar. The opportunity engine improves the broad
+population by 2.6–3.8% relative but is worth ~0 on Kalshi-listed players and slightly negative on Kalshi's
+own rungs (`research/ladder_role`). The tail calibrator removes 75–80% of the long-shot bias with aggregate
+Brier flat. Neither moves the encompassing coefficient off zero.
+
+What would actually count: information the market demonstrably lacks. Candidates not yet tried here are
+in-week news the price incorporates slowly, opponent-adjusted role projection, and correlated-outcome
+structure within a game. Until the model coefficient in the encompassing regression is distinguishable from
+zero, no selection rule built on model-market disagreement can be expected to do anything but pay the spread.
