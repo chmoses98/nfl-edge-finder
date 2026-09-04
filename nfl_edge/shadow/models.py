@@ -149,6 +149,11 @@ def fit_bundle(df_hist: pd.DataFrame, target_season: int, version: str, config: 
     """Fit every statistic's mean model and distribution family on seasons < target_season."""
     stats = stats or [s for s in CHOSEN_FAMILY if s in pdist.STAT_SPECS]
     train_seasons = (int(df_hist.season.min()), target_season - 1)
+    # Role features are used when the frame carries them. research/ladder_role/RESULTS.md: they improve
+    # calibrated P(Y >= k) on all six statistics tested, walk-forward 2019-2025. The flag is recorded in the
+    # bundle config so a ledger row can be traced to whether it was priced with them.
+    role = pdist.has_role_features(df_hist)
+    config = dict(config); config["role_features"] = role
     b = ModelBundle(version=version, target_season=target_season, train_seasons=train_seasons, config=config)
     for name in stats:
         spec = pdist.STAT_SPECS[name]
@@ -163,14 +168,14 @@ def fit_bundle(df_hist: pd.DataFrame, target_season: int, version: str, config: 
             verbose(f"  {name}: direct binary model on {len(tr)} rows")
             continue
         y_tr = np.clip(tr[spec.col].to_numpy(dtype=float), 0, None)
-        mm = pdist.fit_mean_model(tr, spec, spec.col, spec.kind)
-        om = pdist.fit_mean_model(tr, spec, spec.opp, "count")
+        mm = pdist.fit_mean_model(tr, spec, spec.col, spec.kind, role=role)
+        om = pdist.fit_mean_model(tr, spec, spec.opp, "count", role=role)
         mu_tr = pdist.predict_mean(mm, tr, spec, spec.col, pdist.MU_FLOOR[spec.kind])
         muo_tr = pdist.predict_mean(om, tr, spec, spec.opp, 0.1)
         eff_tr = tr[spec.eff].to_numpy() if spec.eff else None
         fam = pdist.make_family(fam_name, spec)
         fam.fit(mu_tr, muo_tr, eff_tr, y_tr)
         b.stat_models[name] = StatModel(name, fam_name, mm, om, fam, np.arange(0, spec.grid_max + 1), len(tr), train_seasons)
-        verbose(f"  {name}: {fam_name} on {len(tr)} rows")
+        verbose(f"  {name}: {fam_name} on {len(tr)} rows{' with role features' if role else ''}")
     b.sha()
     return b

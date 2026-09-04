@@ -34,9 +34,10 @@ from nfl_edge.settlement.availability import AvailabilityBook, UNKNOWN          
 from nfl_edge.shadow import ledger as L                                            # noqa: E402
 from nfl_edge.shadow.models import fit_bundle, KALSHI_STAT_TO_SPEC                 # noqa: E402
 from nfl_edge.shadow.prospective import build_prospective_rows, upcoming_from_markets  # noqa: E402
+from nfl_edge.features import opportunity  # noqa: E402
 
 GAME_FAMILIES = {"GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL", "WIN_MARGIN_BUCKET", "TOTAL_TD", "BOTH_TEAMS_SCORE_N"}
-MODEL_VERSION_DEFAULT = "shadow-0.2.0"
+MODEL_VERSION_DEFAULT = "shadow-0.3.0"
 
 
 def latest_files(pattern, n=1):
@@ -221,6 +222,14 @@ def main():
         combined = build_prospective_rows(hist, upcoming)
         combined = pdist.add_ewma_features(combined, halflife=cfg["halflife"], season_carry=cfg["season_carry"],
                                            shrink_k=cfg["shrink_k"], priors=priors)
+        # Opportunity-engine role features, attached by the same routine the walk-forward study used. A
+        # prospective row has no usage outcome, so it receives features built from strictly prior games.
+        try:
+            combined = opportunity.attach_role_features(combined, halflife=cfg["halflife"],
+                                                        season_carry=cfg["season_carry"], shrink_k=cfg["shrink_k"])
+            print(f"role features attached: {pdist.has_role_features(combined)}", flush=True)
+        except FileNotFoundError as exc:
+            print(f"::warning::role features unavailable ({exc}); pricing without them", flush=True)
         feat = combined[combined.is_prospective == True].copy()   # noqa: E712
         histf = combined[combined.is_prospective != True].copy()  # noqa: E712
         bundle = fit_bundle(histf, a.target_season, a.model_version, {"ewma": cfg, "min_train_season": 2016})

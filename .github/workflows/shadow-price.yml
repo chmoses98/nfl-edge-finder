@@ -33,7 +33,7 @@ jobs:
         run: pip install -q numpy pandas polars scipy pyarrow
       - name: Fetch bronze inputs (nflverse) and market-data
         run: |
-          python3 scripts/data/nflverse_download.py --only pbp,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries --seasons 2013-2026 2>&1 | tail -3
+          python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries --seasons 2013-2026 2>&1 | tail -3
           python3 nfl_edge/data/silver.py 2016 2025 2>&1 | tail -2
           python3 nfl_edge/data/ids.py 2>&1 | tail -3
           git fetch --depth=1 origin market-data
@@ -41,6 +41,13 @@ jobs:
       - name: Rebuild Kalshi player map from the latest discovery
         run: |
           D=$(ls -d /tmp/md/data/kalshi/discovery/*/ | tail -1)
+          # Refresh the opportunity tables so route and red-zone shares include the games just played.
+          python3 -c "
+import sys; sys.path.insert(0,'.')
+from nfl_edge.features.opportunity import build_usage
+build_usage(list(range(2016, 2027)), out_dir='research/opportunity')
+print('opportunity usage rebuilt')
+" 2>&1 | tail -2
           python3 scripts/kalshi/build_player_map.py --discovery-dir "$D" --season 2026 2>&1 | tail -6
       - name: Price the slate
         id: price

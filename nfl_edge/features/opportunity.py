@@ -182,3 +182,64 @@ def group_priors(df: pl.DataFrame, cols: list[str], seasons: list[int], key: str
         name = g[0] if isinstance(g, tuple) else g
         out[name] = np.nan_to_num(sd.select(cols).mean().to_numpy()[0], nan=0.0)
     return out
+
+
+TEAM_VOL_COLS = ["team_dropbacks", "team_rush_att", "team_plays", "team_rz_dropbacks", "team_rz_rush",
+                 "team_i5_rush"]
+SHARE_FEATURES = ["route_share", "target_share", "tprr", "carry_share", "rz_target_share", "rz_carry_share",
+                  "i5_carry_share", "snap_share", "adot"]
+
+
+def attach_role_features(frame, usage=None, team=None, cache_dir: str | None = None,
+                         prior_seasons=(2016, 2017, 2018), halflife: float = 5.0, season_carry: float = 0.5,
+                         shrink_k: float = 3.0):
+    """Add the point-in-time role features to a player-game frame (pandas in, pandas out).
+
+    Works identically for historical rows and for synthetic prospective rows. A prospective row has no usage
+    outcome, so its share columns are NaN; the EWMA recursion writes each row's feature *before* its own
+    update and skips NaN in the update, so the synthetic row receives features built from strictly prior
+    games -- the same code path the walk-forward studies use, with no second implementation to drift.
+    """
+    import pandas as pd
+
+    was_pandas = not isinstance(frame, pl.DataFrame)
+    df = pl.from_pandas(frame) if was_pandas else frame
+    if usage is None or team is None:
+        cache_dir = cache_dir or os.path.join(ROOT, "research", "opportunity")
+        usage = pl.read_parquet(os.path.join(cache_dir, "player_usage.parquet"))
+        team = pl.read_parquet(os.path.join(cache_dir, "team_volume.parquet"))
+    usage = usage.drop([c for c in ("usage_team", "season") if c in usage.columns])
+    team = team.drop([c for c in ("season",) if c in team.columns])
+
+    df = df.with_columns(pl.col("season").cast(pl.Int64), pl.col("week").cast(pl.Int64))
+    d = df.join(usage, on=["game_id", "player_id"], how="left").join(team, on=["game_id", "team"], how="left")
+    e = 1e-6
+    d = d.with_columns(
+        route_share=pl.col("routes") / (pl.col("team_dropbacks") + e),
+        target_share=pl.col("targets") / (pl.col("team_dropbacks") + e),
+        tprr=pl.col("targets") / (pl.col("routes") + e),
+        carry_share=pl.col("carries") / (pl.col("team_rush_att") + e),
+        rz_target_share=pl.col("rz_targets") / (pl.col("team_rz_dropbacks") + e),
+        rz_carry_share=pl.col("rz_carries") / (pl.col("team_rz_rush") + e),
+        i5_carry_share=pl.col("i5_carries") / (pl.col("team_i5_rush") + e),
+        snap_share=pl.col("pbp_snaps") / (pl.col("team_plays") + e),
+        adot=pl.col("air_yards") / (pl.col("targets") + e),
+    )
+    d = d.with_columns([pl.col(c).clip(0, 5) for c in SHARE_FEATURES])
+
+    # team volume: one point-in-time series per team, then broadcast back to that team's players
+    tg = d.select(["game_id", "team", "season", "week"] + TEAM_VOL_COLS).unique(subset=["game_id", "team"])
+    tg = tg.with_columns(position=pl.lit("TEAM"))
+    tpri = group_priors(tg.filter(pl.col("season").is_in(list(prior_seasons))), TEAM_VOL_COLS,
+                        list(prior_seasons), key="position")
+    tg = point_in_time_ewma(tg, TEAM_VOL_COLS, key="team", halflife=6.0, season_carry=0.35, shrink_k=4.0,
+                            priors=tpri, prior_key="position", prefix="pit_")
+    d = d.join(tg.select(["game_id", "team", "pit_team_dropbacks", "pit_team_rush_att"]),
+               on=["game_id", "team"], how="left")
+
+    ppri = group_priors(d.filter(pl.col("season").is_in(list(prior_seasons))), SHARE_FEATURES,
+                        list(prior_seasons), key="position")
+    d = point_in_time_ewma(d, SHARE_FEATURES, key="player_id", halflife=halflife, season_carry=season_carry,
+                           shrink_k=shrink_k, priors=ppri, prior_key="position", prefix="pit_")
+    out = d.to_pandas() if was_pandas else d
+    return out
