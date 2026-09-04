@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-008",
+ "date_proposed": "2026-09-04",
+ "rationale": "Availability play-rate priors (EXPECTED_ACTIVE 0.97, QUESTIONABLE 0.70, DOUBTFUL 0.25, OUT 0.01) are assumptions, not fitted values; they scale every player-prop contract value through Kalshi's inactive-settles-NO rule.",
+ "features": "availability state from ESPN/Sleeper/roster at capture time",
+ "target": "P(player takes >=1 offensive snap)",
+ "expected_direction": "observed play rates within a few points of the priors",
+ "test_plan": "prospective: compare the state assigned at each 2026 capture to whether the player recorded a snap; recalibrate only after >=200 observations per state",
+ "dataset": "market-data context captures + nflverse snap counts",
+ "result": null,
+ "oos_result": null,
+ "status": "PROSPECTIVE_REQUIRED",
+ "notes": "Priors deliberately conservative; UNKNOWN is never treated as active."
+}

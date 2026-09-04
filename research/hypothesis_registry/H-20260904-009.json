@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-009",
+ "date_proposed": "2026-09-04",
+ "rationale": "Red-zone and goal-line usage share should improve anytime-TD probabilities beyond touch-volume features, and explain the residual under-prediction on Kalshi's listed (selected) player population.",
+ "features": "EWMA inside-20 / inside-10 / inside-5 opportunity share, end-zone target share, goal-line carry share",
+ "target": "P(anytime TD >= 1)",
+ "expected_direction": "improves Brier and removes the -1.7pt bias on Kalshi rungs",
+ "test_plan": "walk-forward 2020-2025 with the same protocol as scripts/research/anytime_td_study.py; then prospectively on 2026 Kalshi rungs",
+ "dataset": "nflverse pbp red-zone opportunity counts + Kalshi 2025 archive",
+ "result": null,
+ "oos_result": null,
+ "status": "PROPOSED",
+ "notes": "Registered before any 2026 outcome exists."
+}
