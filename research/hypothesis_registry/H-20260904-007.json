@@ -7,8 +7,8 @@
  "expected_direction": "heavy-tailed families win at tails",
  "test_plan": "scripts/research/player_distribution_study.py walk-forward 2020-2025",
  "dataset": "stats_player_week 2016-2025",
- "result": "pending",
- "oos_result": null,
- "status": "TESTING",
- "notes": null
+ "result": "yards: mu-binned empirical scale family wins (rec Brier 0.1009 vs normal 0.1024; only family with uniform PIT; P(rec>=100) 7.1% vs 7.0% obs; normal 4.7%); passing yards: censored normal; counts (targets/receptions/carries): negbin (empirical over-predicts count tails 1.5-2.3x); attempts/completions: normal; pass TD/INT: poisson; TDs under-dispersed: count families under-predict 1+ by 2-3 pts and over-predict 3+ -> anytime TD needs a direct binary model; two-stage opportunity x efficiency MC never beats direct fit with weak projections",
+ "oos_result": "walk-forward 2020-2025 (train < S)",
+ "status": "VALIDATED_RESEARCH",
+ "notes": "Family choice moves mean Brier 1-3% but tail probabilities 1.5-3x. Re-test once real opportunity projections replace EWMA. See research/player_distributions/RESULTS.md"
 }
