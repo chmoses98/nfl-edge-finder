@@ -44,3 +44,18 @@ Source: first prospective capture run (12,408 quoted markets; single-game market
 Ladder consistency: 405 ladders checked (spread/total/team-total/player/total-TD). **No crossed ladders** (no harder rung bid above an easier rung's ask, i.e. no locked arbitrage). Mid-price non-monotonicity: {'SPREAD/1H/mid_nonmonotone': 1, 'TOTAL/1H/mid_nonmonotone': 13, 'SPREAD/1Q/mid_nonmonotone': 8, 'TOTAL/1Q/mid_nonmonotone': 1, 'TOTAL/2Q/mid_nonmonotone': 4, 'SPREAD/3Q/mid_nonmonotone': 1, 'TOTAL/3Q/mid_nonmonotone': 2, 'SPREAD/4Q/mid_nonmonotone': 7, 'TOTAL/4Q/mid_nonmonotone': 1, 'PLAYER_STAT/FULL/mid_nonmonotone': 31, 'TEAM_TOTAL/FULL/mid_nonmonotone': 4} — all inside wide, untraded quotes, i.e. noise in resting orders rather than exploitable mispricing.
 
 Reading: five days out, Kalshi is a two-tier venue. Full-game winner/spread/total are tight (2–3¢) and universally traded (volume in the $10k–$370k range per market). Player-prop ladders are quoted at ~5–6¢ with three quarters already traded. Everything derivative (quarters, halves, race-to, both-teams-score, total TDs, half/full) is 30–65¢ wide and essentially untraded: those families cannot be evaluated for edge until they tighten near kickoff, and any 'edge' measured against a 50¢-wide quote is fiction. This snapshot is the baseline for the market-efficiency map; the same table will be recomputed at T-24h, T-6h, T-1h and close.
+
+## Trade tape, first 24 hours captured (2026-09-03 12:08 → 09-04 12:09 UTC, 4,833 NFL trades)
+| series | trades | YES-notional $ |
+|---|---|---|
+| KXNFLGAME (week-1 winners) | 3,923 | 82,294 |
+| KXSB | 314 | 12,053 |
+| KXNFLSPREAD | 181 | 8,934 |
+| KXNFLWINS | 186 | 7,810 |
+| KXNFLAFCCHAMP | 37 | 3,782 |
+| player props (all) | < 20 | < 300 |
+
+Taker side: 85% YES / 15% NO (retail buys "team wins"; NO liquidity is supplied by makers). Median trade 13.7
+contracts, p90 133, max 18,753 (one block-sized print in a winner market), no `is_block_trade` flags. Five days out,
+trading is overwhelmingly in game winners and futures; spread/total ladders trade lightly and props barely at all —
+the prop tape will be measured again on game day.
