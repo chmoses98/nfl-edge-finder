@@ -2,7 +2,7 @@
 
 | milestone | status 2026-09-04 | next scientific step |
 |---|---|---|
-| A free data + market audit | done (docs/DATA_SOURCE_AUDIT.md) | probe Sleeper/ESPN/NWS/Open-Meteo from Actions; add runner-side weather + availability collectors |
+| A free data + market audit | done; runner probes passed; context collectors live (NWS/Open-Meteo/Sleeper/ESPN, 3-hourly) | measure feed latencies vs official report times; add Polymarket reference capture |
 | B schemas + entity resolution | done v1 (silver tables, crosswalk, Kalshi player map, tests) | resolve 20 flagged Kalshi player ids; coach/coordinator table |
 | C Kalshi discovery/backfill/capture | running (discover daily, capture 10-min, backfill chaining) | verify cron delivery over 48h; measure storage; add compaction; external dispatcher if delivery < 80% |
 | D point-in-time research dataset | v1 (team_game, ratings snapshots, player research table) | injury/depth-chart vintage features; QB starter change; weather forecast archive |
