@@ -1,13 +1,11 @@
 name: Kalshi NFL Capture
 
 # Prospective market capture. Read-only public GETs, change-suppressed, published
-# to the orphan branch `market-data` (see docs/KALSHI_CAPTURE.md). GitHub cron is
-# best-effort (the CFB project measured very poor delivery); the conductor input
-# lets an external scheduler or a chained run dispatch this workflow.
+# to the orphan branch `market-data` (see docs/KALSHI_CAPTURE.md). Cadence is owned
+# by kalshi-conductor.yml (a looping runner); this workflow is the single-pass
+# entry point for manual or external-scheduler dispatch.
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
     inputs:
       trigger_source:

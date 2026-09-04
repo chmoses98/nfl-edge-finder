@@ -1,0 +1,62 @@
+name: Kalshi NFL Capture Conductor
+
+# GitHub cron is best-effort; this conductor keeps ONE runner looping capture
+# every 10 minutes for ~5h50m, publishing after each pass, then hands off to
+# the next hourly-scheduled run that has been queueing behind it (concurrency
+# group `capture-conductor`, cancel-in-progress=false keeps exactly one pending
+# successor). The repo is public, so runner minutes are unlimited.
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'how long this conductor loops'
+        required: false
+        default: '350'
+      interval:
+        description: 'seconds between capture passes'
+        required: false
+        default: '600'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: capture-conductor
+  cancel-in-progress: false
+
+jobs:
+  conduct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Loop capture + publish
+        env:
+          TRIGGER_SOURCE: CONDUCTOR
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          MINUTES="${{ github.event.inputs.minutes || '350' }}"
+          INTERVAL="${{ github.event.inputs.interval || '600' }}"
+          END=$(( $(date +%s) + MINUTES * 60 ))
+          PASS=0
+          while [ $(date +%s) -lt $END ]; do
+            T0=$(date +%s)
+            git fetch --depth=1 origin market-data || true
+            mkdir -p data/kalshi/capture
+            git show origin/market-data:data/kalshi/capture/state.json > data/kalshi/capture/state.json 2>/dev/null || echo '{"fingerprints":{},"trades_cursor_ts":null,"last_daily_run":null}' > data/kalshi/capture/state.json
+            git show origin/market-data:data/kalshi/capture/schedule_cache.csv > data/kalshi/capture/schedule_cache.csv 2>/dev/null || true
+            python3 scripts/kalshi/capture.py || echo "::warning::capture pass $PASS returned non-zero (partial)"
+            python3 scripts/ci/publish_market_data.py --src data/kalshi/capture --message "kalshi capture $(date -u +'%Y-%m-%dT%H:%M:%SZ') (conductor pass $PASS)" || echo "::warning::publish failed on pass $PASS"
+            rm -rf data/kalshi/capture/2* 
+            PASS=$((PASS+1))
+            ELAPSED=$(( $(date +%s) - T0 ))
+            SLEEP=$(( INTERVAL - ELAPSED )); [ $SLEEP -gt 0 ] && sleep $SLEEP
+          done
+          echo "conductor finished after $PASS passes"
