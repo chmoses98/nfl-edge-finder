@@ -112,3 +112,9 @@ def test_not_nfl_prefixes():
     assert classify({"ticker": "KXSBUX-27JANSTORES-41800", "event_ticker": "KXSBUX-27JANSTORES"}).family == "NOT_NFL"
     assert classify({"ticker": "KXNFLXA-28JANHEAD-20000", "event_ticker": "KXNFLXA-28JANHEAD"}).family == "NOT_NFL"
     assert classify({"ticker": "KXAFCCLGAME-26AUG11JAZITJ-TIE", "event_ticker": "KXAFCCLGAME-26AUG11JAZITJ"}).family == "NOT_NFL"
+
+
+def test_anytime_td_without_strike():
+    s = classify({"ticker": "KXNFLANYTD-26FEB08SEANE-NEMHOLLINS13", "event_ticker": "KXNFLANYTD-26FEB08SEANE", "title": "Mack Hollins: Anytime Touchdown",
+                  "strike_type": "structured", "custom_strike": {"football_player": "x", "football_team": "y"}})
+    assert s.family == "PLAYER_STAT" and s.stat == "touchdowns" and s.threshold == 1 and s.operator == ">=" and s.player_name == "Mack Hollins" and s.team == "NE"

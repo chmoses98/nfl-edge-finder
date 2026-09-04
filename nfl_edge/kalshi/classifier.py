@@ -422,7 +422,10 @@ def classify(m: dict) -> MarketSemantics:
             _parse_player(s, suffix, title, teams_in_game, has_threshold=False)
             s.yes_meaning = f"{s.player_name} scores {'first' if fam_name == 'FIRST_TD_SCORER' else 'next'} TD"
     elif fam_name == "PLAYER_STAT":
-        _parse_player(s, suffix, title, teams_in_game, has_threshold=True)
+        has_k = bool(re.search(r"-\d+$", suffix))
+        _parse_player(s, suffix, title, teams_in_game, has_threshold=has_k)
+        if K is None and s.stat == "touchdowns" and ("Anytime" in title or series == "KXNFLANYTD"):
+            K = 1  # anytime-TD contracts carry no numeric strike: YES iff touchdowns >= 1
         s.threshold, s.operator = K, ">="
         s.yes_meaning = f"{s.player_name} {s.stat} >= {K}"
         if K is None:
