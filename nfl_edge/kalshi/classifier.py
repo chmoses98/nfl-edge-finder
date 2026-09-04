@@ -460,7 +460,13 @@ def _parse_player(s: MarketSemantics, suffix: str, title: str, teams: list[str],
     mm = re.match(r"^([A-Z])([A-Z]+?)(\d+)$", rest)
     if mm:
         s.jersey = int(mm.group(3))
-    name = title.split(":")[0].strip() if ":" in title else None
+    # "Davante Adams: 120+ receiving yards"  vs  "Seattle vs New England: 4th TD: Sam Darnold" (next-TD family)
+    parts = [x.strip() for x in title.split(":")] if ":" in title else []
+    name = None
+    if parts:
+        name = parts[-1] if (len(parts) >= 3 or re.search(r"\bTD\b", parts[0])) else parts[0]
+        if " vs " in name or re.match(r"^\d", name):
+            name = None
     if not name:
         mm2 = re.match(r"^(.*?)\s+(records|scores|to |wins)", title)
         name = mm2.group(1).strip() if mm2 else None
