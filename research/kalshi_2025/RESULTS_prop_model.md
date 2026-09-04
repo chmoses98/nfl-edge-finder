@@ -11,6 +11,7 @@ rung that joins to a nflverse game and a resolved player id (24,268 rungs joined
 | receiving yards | mu-binned empirical | 8,892 | 0.2198 | 0.2408 | +0.087 | 0.393 | 0.404 |
 | receptions | negative binomial | 6,244 | 0.1925 | 0.2459 | +0.217 | 0.418 | 0.436 |
 | passing TDs | Poisson | 648 | 0.1527 | 0.2294 | +0.334 | 0.355 | 0.356 |
+| anytime TD (1+) | negative binomial | 3,369 | 0.1713 | 0.1822 | +0.060 | 0.207 | 0.240 |
 
 Per-rung calibration highlights (pred / observed): passing yards over-predicts every rung (300+: 0.194 / 0.125;
 350+: 0.068 / 0.042) — the 2025 passing-level drift flagged in the study, now confirmed on market rungs; receiving
@@ -23,5 +24,5 @@ its own projection, so observed YES rates hover near 0.40–0.45 at the central 
 the *market prices* on those rungs at each horizon, which needs the per-market candlesticks now being backfilled.
 Until then the honest statement is: the families are calibrated in shape (receiving yards, passing TDs), the
 point projections are not yet competitive (passing level drift, rushing role lag), and no prop edge is claimed.
-Anytime-TD rungs were not scored (archived KXNFLANYTD markets carry no numeric strike; a direct binary model is the
-plan per the distribution study).
+Anytime-TD contracts (no numeric strike; YES iff ≥ 1 TD) confirm the study's warning: the count family under-predicts
+the 1+ rung (0.207 vs 0.240 observed, skill only +0.06). A direct binary model with red-zone role features is required.
