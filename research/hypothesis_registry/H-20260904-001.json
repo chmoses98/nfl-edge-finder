@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-001",
+ "date_proposed": "2026-09-04",
+ "rationale": "Opponent-adjusted EPA team ratings predict margin/total beyond the closing line.",
+ "features": "ridge team ratings (11 metrics), rest, divisional, neutral",
+ "target": "margin, total",
+ "expected_direction": "lower RMSE than close",
+ "test_plan": "walk-forward 2014-2025, ridge, encompassing regression, blend weight",
+ "dataset": "nflverse pbp 2006-2025 + schedule lines",
+ "result": "RMSE 13.26 vs close 12.88; residual model 12.92; blend weight 0; ATS 50.0% (n=928)",
+ "oos_result": "same (all seasons)",
+ "status": "REJECTED",
+ "notes": "Closing line encompasses team-level EPA information. Use market as prior for game environment."
+}
