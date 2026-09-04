@@ -83,3 +83,25 @@ def test_walk_forward_split_never_trains_on_the_evaluation_season():
         train = seasons < S
         assert not train[seasons == S].any()
         assert seasons[train].max() < S
+
+
+def test_role_features_are_defined_on_every_row_not_just_evaluation_seasons():
+    """A feature that is null on the earliest training seasons trains against a constant and predicts garbage.
+
+    `proj_team_dropbacks` came from a nested walk-forward loop that only covered 2019+, so on 2016-2018
+    training rows it was null -> 0 while test rows carried ~35. It cost 0.012 Brier on the receptions ladder
+    and looked like a real negative result. Role features must come from quantities defined for every row.
+    """
+    import os
+    import polars as pl
+    from nfl_edge.research import player_distributions as pdist
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "research", "opportunity", "opportunity_features.parquet")
+    if not os.path.exists(path):
+        return
+    d = pl.read_parquet(path)
+    for c in pdist.ROLE_FEATURES:
+        assert c in d.columns, f"{c} missing from the opportunity feature table"
+        early = d.filter(pl.col("season") < 2019)
+        frac = early[c].null_count() / max(early.height, 1)
+        assert frac < 0.05, f"{c} is null on {frac:.0%} of pre-2019 rows; it cannot be a training feature"

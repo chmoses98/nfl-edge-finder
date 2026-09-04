@@ -234,39 +234,77 @@ def population_mask(df: pd.DataFrame, pop: str) -> np.ndarray:
 
 
 # ------------------------------------------------------------------------------- mean models
-def _design(df: pd.DataFrame, spec: StatSpec, col: str) -> np.ndarray:
-    return np.column_stack([
+# Role features from the opportunity engine (research/opportunity). Added ALONGSIDE the raw-count EWMA, never
+# instead of it: research/opportunity/RESULTS.md shows the multiplicative volume x share reconstruction is
+# worse than raw EWMA in every season, while these same quantities as extra regressors improve target and
+# carry projection in 7/7 seasons.
+# Team volume enters as the team's own point-in-time EWMA, not as a fitted projection. A nested projection
+# is only defined on the seasons its walk-forward loop covered, so it is null for the earliest training
+# seasons -- which trains its coefficient against a constant zero and then applies it to ~35 at test time.
+ROLE_FEATURES = ["pit_route_share", "pit_tprr", "pit_snap_share", "pit_rz_target_share", "pit_adot",
+                 "pit_carry_share", "pit_rz_carry_share", "pit_i5_carry_share", "pit_team_dropbacks",
+                 "pit_team_rush_att"]
+
+
+def has_role_features(df: pd.DataFrame) -> bool:
+    return all(c in df.columns for c in ROLE_FEATURES)
+
+
+def _design(df: pd.DataFrame, spec: StatSpec, col: str, role: bool = False) -> np.ndarray:
+    base = [
         np.ones(len(df)), df[f"ewma_{col}"].to_numpy(), df[f"ewma_{spec.opp}"].to_numpy(),
         df.implied_total.to_numpy(), df.home.to_numpy(dtype=float), df.shrink_w.to_numpy(),
-    ])
+    ]
+    if role:
+        base += [np.nan_to_num(df[c].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0)
+                 for c in ROLE_FEATURES]
+    return np.column_stack(base)
 
 
-def fit_mean_model(train: pd.DataFrame, spec: StatSpec, col: str, kind: str):
+def fit_mean_model(train: pd.DataFrame, spec: StatSpec, col: str, kind: str, role: bool = False):
     """Walk-forward point projection mu(x): OLS for yards, Poisson GLM (IRLS) for counts/TDs.
-    Features: EWMA of the stat, EWMA of opportunity, team implied total, home, shrink weight."""
-    X = _design(train, spec, col); y = np.clip(train[col].to_numpy(dtype=float), 0, None)
+
+    Features: EWMA of the stat, EWMA of opportunity, team implied total, home, shrink weight; plus the
+    opportunity-engine role features when ``role`` is set. The flag is carried in the returned model so
+    predict_mean cannot be called with a different design than the one that was fitted."""
+    X = _design(train, spec, col, role); y = np.clip(train[col].to_numpy(dtype=float), 0, None)
+    # Standardise every non-intercept column on the TRAINING rows and carry the scaler in the model. The
+    # design mixes shares (~0.1) with team dropbacks (~35) and air yards per target (~10); under the Poisson
+    # exp link an unscaled IRLS with a 1e-6 ridge produces coefficients that are numerically fine in sample
+    # and extreme out of it. Standardising is a no-op for the OLS arm's predictions and makes the ridge
+    # penalty mean the same thing for every feature.
+    mu_x = X[:, 1:].mean(axis=0)
+    sd_x = X[:, 1:].std(axis=0)
+    sd_x[sd_x < 1e-9] = 1.0
+    Xs = np.column_stack([np.ones(len(X)), (X[:, 1:] - mu_x) / sd_x])
+    scaler = (mu_x, sd_x)
     if kind == "yards":
-        beta = np.linalg.lstsq(X.T @ X + 1e-6 * np.eye(X.shape[1]), X.T @ y, rcond=None)[0]
-        return ("ols", beta)
-    beta = np.zeros(X.shape[1]); beta[0] = np.log(max(y.mean(), 1e-3))
-    for _ in range(25):
-        eta = np.clip(X @ beta, -20, 8); w = np.exp(eta)
+        A = Xs.T @ Xs + RIDGE_LAMBDA * np.eye(Xs.shape[1]); A[0, 0] -= RIDGE_LAMBDA
+        beta = np.linalg.solve(A, Xs.T @ y)
+        return ("ols", beta, role, scaler)
+    beta = np.zeros(Xs.shape[1]); beta[0] = np.log(max(y.mean(), 1e-3))
+    pen = RIDGE_LAMBDA * np.eye(Xs.shape[1]); pen[0, 0] = 0.0
+    for _ in range(50):
+        eta = np.clip(Xs @ beta, -20, 8); w = np.exp(eta)
         z = eta + (y - w) / w
-        XtW = X.T * w
-        new = np.linalg.solve(XtW @ X + 1e-6 * np.eye(X.shape[1]), XtW @ z)
+        XtW = Xs.T * w
+        new = np.linalg.solve(XtW @ Xs + pen, XtW @ z)
         if np.max(np.abs(new - beta)) < 1e-7:
             beta = new; break
         beta = new
-    return ("poisson", beta)
+    return ("poisson", beta, role, scaler)
 
 
 def predict_mean(model, df: pd.DataFrame, spec: StatSpec, col: str, floor: float) -> np.ndarray:
-    kind, beta = model
-    X = _design(df, spec, col)
+    kind, beta, role, scaler = model
+    X = _design(df, spec, col, role)
+    mu_x, sd_x = scaler
+    X = np.column_stack([np.ones(len(X)), (X[:, 1:] - mu_x) / sd_x])
     mu = X @ beta if kind == "ols" else np.exp(np.clip(X @ beta, -20, 8))
     return np.maximum(mu, floor)
 
 
+RIDGE_LAMBDA = 1.0
 MU_FLOOR = {"yards": 1.0, "count": 0.1, "td": 0.01}
 
 
