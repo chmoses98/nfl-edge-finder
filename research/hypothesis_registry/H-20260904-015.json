@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-015",
+ "date_proposed": "2026-09-04",
+ "rationale": "Walk-forward on 1.4M rung-observations across 1,871 games, the fitted families are systematically overconfident on long-shot rungs: rungs priced 0.033 settle 0.023, rungs priced 0.072 settle 0.061 (z = -8 to -15, game-clustered). That is a 15-40% relative overstatement, and it lands on exactly the rungs where the market itself overprices long shots -- so an uncorrected pricer reads the market's own long-shot overpricing as an opportunity while being wrong in the same direction, only more so.",
+ "features": "monotone logit-space recalibration (LadderCalibrator) fitted on the most recent season the model did not train on",
+ "target": "calibration bias on rungs the model prices below 0.20, and aggregate Brier and log loss on all listed rungs",
+ "expected_direction": "Bias on p<0.20 rungs shrinks by roughly 75-80% (retrospectively -0.0095 to -0.0018 on targets). Aggregate Brier does NOT measurably improve; log loss improves slightly on the highest-volume statistics. The count of long-shot rungs where the model disagrees with the market in the market's known-wrong direction falls.",
+ "test_plan": "Prospective on 2026. Price every slate under both shadow-0.3.0 and the calibrated variant, written to the ledger as separate model versions with distinct calibration_version. Pre-specified primary endpoint: calibration bias on settled rungs the raw model priced below 0.20. Secondary: aggregate Brier, expected to be flat -- a large Brier improvement would be evidence something else changed and should be investigated rather than celebrated.",
+ "dataset": "market-data shadow ledger 2026 + nflverse settled outcomes",
+ "result": "Retrospective 2020-2025: bias on p<0.20 rungs -0.0077 to -0.0096 raw, -0.0011 to -0.0044 calibrated. Brier flat (+-0.00007), improving in 3/5 statistics. rushing_yards slightly worse on both metrics (0/6 seasons).",
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "Deliberately NOT deployed into the Week-1 frozen model. The retrospective evidence is real for bias but a wash for aggregate accuracy, and shadow-0.3.0 is frozen; changing it five days before kickoff on that basis is the quiet retuning the freeze exists to prevent."
+}
