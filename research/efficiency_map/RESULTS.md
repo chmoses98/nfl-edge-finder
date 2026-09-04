@@ -118,6 +118,30 @@ most of a full season. A systematic "unders" result on a playoff-weighted sample
 like. It is recorded here so the full-sample re-run either confirms or kills it, and it is **not** registered
 as a hypothesis on this evidence.
 
+## Player ladder tails, on tradable books
+
+The high rungs of a ladder are more overpriced than the low ones, on top of the across-the-board prop
+overpricing above:
+
+| stat | rung bucket | n | games | mid | realised | bias | NO net after fees |
+|---|---|---|---|---|---|---|---|
+| receiving_yards | low | 1199 | 158 | 0.575 | 0.558 | −0.0171 ± 0.0191 | −0.0294 ± 0.0190 |
+| receiving_yards | middle | 2380 | 177 | 0.389 | 0.360 | −0.0291 ± 0.0145 | −0.0143 ± 0.0145 |
+| receiving_yards | **tail** | 1182 | 167 | 0.354 | 0.312 | **−0.0413 ± 0.0196** | −0.0023 ± 0.0197 |
+| receptions | **tail** | 726 | 124 | 0.284 | 0.238 | **−0.0461 ± 0.0194** | +0.0010 ± 0.0196 |
+| rushing_yards | tail | 599 | 152 | 0.370 | 0.357 | −0.0130 ± 0.0263 | −0.0278 ± 0.0263 |
+| passing_yards | tail | 355 | 136 | 0.063 | 0.045 | −0.0176 ± 0.0131 | −0.0140 ± 0.0131 |
+
+**This is a third correction.** On all books at 16% coverage the receiving-yards tail read −0.0755 ± 0.0303
+with a NO-side net of **+0.0258 ± 0.0308**, which an earlier version of this file singled out as the only
+positive number in the study. On tradable books at 54% coverage the bias is real but roughly half the size
+(−0.0413 ± 0.0196, 2.1 SE) and the NO-side net is **−0.0023 ± 0.0197** — indistinguishable from zero, not
+positive. The receptions tail behaves the same way (+0.0010 ± 0.0196).
+
+The direction still supports `H-20260904-013`: high rungs are overpriced, so the market's upper tail is
+already too fat, and `research/tail_calibration` shows the model's is fatter still. That remains a model
+defect rather than an edge, and the supporting evidence from this map is weaker than first reported.
+
 ## Price movement is uninformative pregame
 
 | window | markets | unchanged | of those that moved, toward the outcome | Brier |
@@ -136,7 +160,7 @@ Flat: Brier 0.2176 at T−168h against 0.2150 at T−0, spread at its one-cent f
 calibration tests, zero significant. Crossing costs 2.3–2.7% per contract on both sides at every horizon
 inside T−72h, doubling to 5.4% on the wider week-out book.
 
-## Three errors caught before any of this was believed
+## Errors caught before any of this was believed
 
 1. **Every price in the first backfill was null.** `snapshot()` read `yes_bid.close_dollars` and `volume_fp`;
    the API returns `yes_bid.close` and `volume`. 54,364 rows, structurally valid, correct `result` and
