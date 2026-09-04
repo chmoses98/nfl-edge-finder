@@ -32,20 +32,20 @@ def catalog(seasons):
         "depth_charts": [f"depth_charts_{s}.parquet" for s in seasons if s >= 2001],
         "ftn_charting": [f"ftn_charting_{s}.parquet" for s in seasons if s >= 2022],
         "pbp_participation": [f"pbp_participation_{s}.parquet" for s in seasons if s >= 2016],
-        "nextgen_stats": [f"ngs_{s}_{t}.parquet" for s in seasons if s >= 2016 for t in ("passing", "rushing", "receiving")],
+        "nextgen_stats": [f"ngs_{t}.parquet" for t in ("passing", "rushing", "receiving")],  # one file per stat type, all seasons 2016+
         "pfr_advstats": [f"advstats_week_{t}_{s}.parquet" for s in seasons if s >= 2018 for t in ("pass", "rush", "rec", "def")],
         "espn_data": [f"qbr_week_level.parquet", "qbr_season_level.parquet"],
         "players": ["players.parquet"],
-        "players_components": ["ff_playerids.parquet"],  # may not exist here; ff ids live in ffverse
-        "contracts": ["historical_contracts.parquet"],
+                "contracts": ["historical_contracts.parquet"],
         "officials": ["officials.parquet"],
         "combine": ["combine.parquet"],
         "draft_picks": ["draft_picks.parquet"],
-        "misc": ["trades.parquet"],
+        "trades": ["trades.parquet"],
+        "teams": ["teams_colors_logos.parquet"],
     }
 
 FFVERSE = {  # different repo
-    "ff_playerids": ("https://github.com/dynastyprocess/data/raw/master/files/db_playerids.parquet", "db_playerids.parquet"),
+    "ff_playerids": ("https://raw.githubusercontent.com/dynastyprocess/data/master/files/db_playerids.csv", "db_playerids.csv"),
     "ff_opportunity": None,
 }
 
