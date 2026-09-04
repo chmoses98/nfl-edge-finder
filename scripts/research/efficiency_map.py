@@ -73,17 +73,17 @@ def load():
                     n_empty_book += 1      # no market at that instant; not a 100-cent spread
                     continue
                 if (ask - bid) > MAX_WIDTH:
-                    n_too_wide += 1
-                    continue
-                rows.append({"ticker": r["ticker"], "cluster": r.get("game_id") or r["ticker"], "family": cell_fam, "base_family": fam, "stat": stat,
+                    n_too_wide += 1      # kept in the frame, excluded from calibration (see `tradable`)
+                rows.append({"tradable": (ask - bid) <= MAX_WIDTH,
+                             "ticker": r["ticker"], "cluster": r.get("game_id") or r["ticker"], "family": cell_fam, "base_family": fam, "stat": stat,
                              "horizon": h, "y": y, "bid": bid, "ask": ask, "mid": (bid + ask) / 2.0,
                              "width": ask - bid, "vol": sn.get("vol") or 0.0, "oi": sn.get("oi") or 0.0,
                              "age_min": sn.get("age_min"), "threshold": r.get("threshold"),
                              "anchor_kind": r["anchor_kind"], "season": r.get("season"),
                              "final_volume": r.get("final_volume") or 0.0})
     print(f"quoted snapshots {len(rows)}; empty-book skipped {n_empty_book}; "
-          f"wider than {MAX_WIDTH:.2f} skipped {n_too_wide}; "
-          f"markets dropped for having no kickoff anchor {n_no_kickoff}")
+          f"wider than {MAX_WIDTH:.2f} (excluded from calibration, kept for the liquidity section) "
+          f"{n_too_wide}; markets dropped for having no kickoff anchor {n_no_kickoff}")
     return pl.DataFrame(rows)
 
 
@@ -144,7 +144,11 @@ def bh_fdr(pvals, q=0.10):
 
 
 def main():
-    D = load()
+    D_ALL = load()
+    # Calibration against a midpoint needs a book around that midpoint; the liquidity section is precisely
+    # about books that do not have one, so it keeps the full frame.
+    D = D_ALL.filter(pl.col("tradable"))
+    print(f"tradable-book snapshots used for calibration: {D.height} of {D_ALL.height}")
     print("horizon observations:", D.height, "| markets:", D["ticker"].n_unique(), flush=True)
     res = {"n_observations": D.height, "n_markets": int(D["ticker"].n_unique()), "cells": {}, "by_price_bucket": {},
            "movement": {}, "tails": {}}
@@ -272,7 +276,7 @@ def main():
     # book, so the question is answerable rather than assumed. If thin markets are the mispriced ones, the
     # calibration bias should grow as liquidity falls -- and so should the spread that stops you trading it.
     liq = {}
-    D0 = D.filter(pl.col("horizon") == "T-0")
+    D0 = D_ALL.filter(pl.col("horizon") == "T-0")
     for name, col in (("open_interest_at_close", "oi"), ("market_lifetime_volume", "final_volume")):
         v = D0[col].to_numpy().astype(float)
         qs = np.quantile(v[v > 0], [0.25, 0.5, 0.75]) if (v > 0).any() else [0, 0, 0]
