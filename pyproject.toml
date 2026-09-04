@@ -1,0 +1,17 @@
+[project]
+name = "nfl-edge-finder"
+version = "0.1.0"
+description = "Free-data NFL analytics, projection, and Kalshi market-pricing research platform"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy", "pandas", "pyarrow", "polars", "scipy", "scikit-learn", "statsmodels", "duckdb",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["nfl_edge*"]

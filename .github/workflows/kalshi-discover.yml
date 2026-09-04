@@ -1,0 +1,53 @@
+name: Kalshi NFL Discovery
+
+# Full-universe Kalshi NFL market discovery. Read-only public GETs.
+# Output is published to the orphan branch `market-data` under
+# data/kalshi/discovery/<run_id>/ (never to main).
+
+on:
+  workflow_dispatch:
+    inputs:
+      statuses:
+        description: 'comma list of market statuses to enumerate'
+        required: false
+        default: 'open,unopened,closed,settled'
+      max_series:
+        description: 'debug cap on number of candidate series (0 = all)'
+        required: false
+        default: '0'
+  schedule:
+    - cron: '17 9 * * *'   # daily catalogue refresh so new series are noticed automatically
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-write
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Discover
+        id: discover
+        continue-on-error: true
+        run: |
+          python3 scripts/kalshi/discover.py --statuses "${{ github.event.inputs.statuses || 'open,unopened,closed,settled' }}" --max-series "${{ github.event.inputs.max_series || '0' }}"
+      - name: Publish to market-data branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/discovery --message "kalshi discovery $(date -u +'%Y-%m-%dT%H:%M:%SZ') (${{ github.event_name }})"
+      - name: Fail if discovery was incomplete
+        if: steps.discover.outcome != 'success'
+        run: |
+          echo "discovery step exited non-zero (partial universe or error); data was still published for inspection"
+          exit 1
