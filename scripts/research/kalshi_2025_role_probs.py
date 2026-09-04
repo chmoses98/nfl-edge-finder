@@ -26,7 +26,10 @@ STAT_MAP = {"passing_yards": "passing_yards", "rushing_yards": "rushing_yards",
 
 
 def main():
-    df = pl.read_parquet(os.path.join(ROOT, "research/opportunity/opportunity_features.parquet")).to_pandas()
+    src = os.path.join(ROOT, "research/opportunity/features_with_defense.parquet")
+    if not os.path.exists(src):
+        src = os.path.join(ROOT, "research/opportunity/opportunity_features.parquet")
+    df = pl.read_parquet(src).to_pandas()
     df = df.sort_values(["player_id", "season", "week"]).reset_index(drop=True)
     assert pdist.has_role_features(df), "opportunity features missing; run scripts/research/opportunity_study.py"
 
@@ -66,9 +69,12 @@ def main():
         y_tr = np.clip(tr[col].to_numpy(float), 0, None)
         grid = np.arange(0, spec.grid_max + 1)
         F = {}
-        for label, role in (("base", False), ("role", True)):
-            mm = pdist.fit_mean_model(tr, spec, col, spec.kind, role=role)
-            om = pdist.fit_mean_model(tr, spec, spec.opp, "count", role=role)
+        arms = [("base", False, False), ("role", True, False)]
+        if pdist.has_defense_features(df):
+            arms += [("def", False, True), ("roledef", True, True)]
+        for label, role, dfn in arms:
+            mm = pdist.fit_mean_model(tr, spec, col, spec.kind, role=role, defense=dfn)
+            om = pdist.fit_mean_model(tr, spec, spec.opp, "count", role=role, defense=dfn)
             mu_tr = pdist.predict_mean(mm, tr, spec, col, pdist.MU_FLOOR[spec.kind])
             mu_te = pdist.predict_mean(mm, te, spec, col, pdist.MU_FLOOR[spec.kind])
             muo_tr = pdist.predict_mean(om, tr, spec, spec.opp, 0.1)
@@ -86,13 +92,13 @@ def main():
                 continue
             k = int(r.k)
             row = {"ticker": r.ticker, "stat": stat, "k": k, "y": r.y}
-            for label in ("base", "role"):
+            for label, _r, _d in arms:
                 row[f"p_{label}"] = float(1.0 - F[label][i, k - 1]) if 1 <= k <= spec.grid_max else (1.0 if k <= 0 else 0.0)
             out.append(row); n += 1
-        print(f"  {stat}: {n} rungs priced under both arms", flush=True)
+        print(f"  {stat}: {n} rungs priced under {len(arms)} arms", flush=True)
     O = pl.DataFrame(out)
     O.write_parquet(os.path.join(OUT, "prop_probs_2025_both_arms.parquet"))
-    print(f"wrote {O.height} rungs to research/model_vs_market/prop_probs_2025_both_arms.parquet")
+    print(f"wrote {O.height} rungs, arms {[c for c in O.columns if c.startswith('p_')]}")
 
 
 if __name__ == "__main__":

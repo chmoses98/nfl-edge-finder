@@ -100,6 +100,31 @@ recovers the YES-side overpricing measured directly in `research/efficiency_map`
 buckets). The regression finds the market's bias without being told to look for it, and finds no model
 signal in the same breath.
 
+## Opponent defence: the most obvious missing feature, and it changes nothing
+
+The player mean model had **no opponent term at all** — it projected a receiver from his own history and the
+game's implied total, blind to whether he faced the best or worst coverage in the league. That is a real gap
+and the most obvious candidate for information the price might not contain, so it was built and tested:
+point-in-time EWMAs of what each defence has allowed (receptions, receiving and rushing yards, targets,
+carries, passing yards and touchdowns, plus yards per target and per carry), constructed exactly like the
+role features and with the same leakage discipline.
+
+| model arm | standalone Brier | model coefficient | market coefficient | blend − market |
+|---|---|---|---|---|
+| base | 0.19977 | −0.0243 ± 0.0901 | +0.9683 ± 0.0836 | −0.00044 ± 0.00048 |
+| + role features | 0.20123 | −0.0299 ± 0.0843 | +0.9731 ± 0.0814 | −0.00042 ± 0.00044 |
+| **+ opponent defence** | **0.19891** | **−0.0067 ± 0.0908** | +0.9534 ± 0.0840 | −0.00042 ± 0.00048 |
+| + both | 0.20012 | −0.0145 ± 0.0849 | +0.9601 ± 0.0816 | −0.00038 ± 0.00044 |
+
+Opponent defence produces the **best standalone model of the four** (Brier 0.19891, better than base by
+0.00086) — and moves the encompassing coefficient *closer to zero*, not away from it. The market coefficient
+stays at 0.95–0.97 throughout, and no blend beats the price.
+
+The reading is straightforward: opponent strength is among the first things any participant prices, so a
+feature that genuinely improves the model in isolation is exactly the feature the market already has. This
+eliminates the most obvious candidate on the list, and it should recalibrate expectations for the rest of
+it — "the model is missing something obvious" is not the explanation for a 0.0104 Brier gap.
+
 ## Caveats
 
 * These model probabilities come from `research/kalshi_2025`, fitted walk-forward on seasons before 2025 but
@@ -122,7 +147,9 @@ population by 2.6–3.8% relative but is worth ~0 on Kalshi-listed players and s
 own rungs (`research/ladder_role`). The tail calibrator removes 75–80% of the long-shot bias with aggregate
 Brier flat. Neither moves the encompassing coefficient off zero.
 
-What would actually count: information the market demonstrably lacks. Candidates not yet tried here are
-in-week news the price incorporates slowly, opponent-adjusted role projection, and correlated-outcome
-structure within a game. Until the model coefficient in the encompassing regression is distinguishable from
-zero, no selection rule built on model-market disagreement can be expected to do anything but pay the spread.
+What would actually count: information the market demonstrably lacks. Opponent defence has now been tried
+and eliminated — it improves the model standalone and adds nothing to the price. What remains untested is
+in-week news the price incorporates slowly (which requires the 2026 capture stream, since it cannot be
+reconstructed from settled archives) and correlated-outcome structure within a game. Until the model
+coefficient in the encompassing regression is distinguishable from zero, no selection rule built on
+model-market disagreement can be expected to do anything but pay the spread.

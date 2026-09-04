@@ -88,14 +88,15 @@ def main():
             b, a = s["bid"], s["ask"]
             if not (0 <= b <= a <= 1) or (b <= 0 and a >= 1) or (a - b) > 0.10:
                 continue
-            rows.append({"cluster": r.get("game_id") or r["ticker"], "week": int(r.get("week") or 0),
-                         "stat": m["stat"], "p_base": m["p_base"], "p_role": m["p_role"],
-                         "y": m["y"], "mid": (a + b) / 2.0})
+            row = {"cluster": r.get("game_id") or r["ticker"], "week": int(r.get("week") or 0),
+                   "stat": m["stat"], "y": m["y"], "mid": (a + b) / 2.0}
+            row.update({k: v for k, v in m.items() if k.startswith("p_")})
+            rows.append(row)
     d = pl.DataFrame(rows)
     print(f"contracts: {d.height}, games: {d['cluster'].n_unique()}")
     y = d["y"].to_numpy(); mid = d["mid"].to_numpy(); cl = d["cluster"].to_list()
 
-    for arm in ("p_base", "p_role"):
+    for arm in [c for c in d.columns if c.startswith("p_")]:
         p = d[arm].to_numpy()
         X = np.column_stack([np.ones(len(y)), logit(p), logit(mid)])
         b = irls(X, y)
@@ -110,7 +111,7 @@ def main():
     # walk-forward blend by week: weights fitted on earlier weeks only
     print("\nWALK-FORWARD BLEND (weights fitted on strictly earlier weeks)")
     wk = d["week"].to_numpy()
-    for arm in ("p_base", "p_role"):
+    for arm in [c for c in d.columns if c.startswith("p_")]:
         p = d[arm].to_numpy()
         X = np.column_stack([np.ones(len(y)), logit(p), logit(mid)])
         pred = np.full(len(y), np.nan)

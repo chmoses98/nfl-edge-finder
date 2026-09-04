@@ -246,11 +246,24 @@ ROLE_FEATURES = ["pit_route_share", "pit_tprr", "pit_snap_share", "pit_rz_target
                  "pit_team_rush_att"]
 
 
+# Opponent-defence features (nfl_edge/features/defense). The mean model has historically had no opponent
+# term at all; these are a candidate for information the closing price may not already contain.
+DEFENSE_FEATURES = ["pit_def_allowed_receptions", "pit_def_allowed_receiving_yards", "pit_def_allowed_targets",
+                    "pit_def_allowed_rushing_yards", "pit_def_allowed_carries", "pit_def_allowed_passing_yards",
+                    "pit_def_allowed_passing_tds", "pit_def_allowed_any_td",
+                    "pit_def_allowed_rec_yds_per_target", "pit_def_allowed_rush_yds_per_carry"]
+
+
 def has_role_features(df: pd.DataFrame) -> bool:
     return all(c in df.columns for c in ROLE_FEATURES)
 
 
-def _design(df: pd.DataFrame, spec: StatSpec, col: str, role: bool = False) -> np.ndarray:
+def has_defense_features(df: pd.DataFrame) -> bool:
+    return all(c in df.columns for c in DEFENSE_FEATURES)
+
+
+def _design(df: pd.DataFrame, spec: StatSpec, col: str, role: bool = False,
+            defense: bool = False) -> np.ndarray:
     base = [
         np.ones(len(df)), df[f"ewma_{col}"].to_numpy(), df[f"ewma_{spec.opp}"].to_numpy(),
         df.implied_total.to_numpy(), df.home.to_numpy(dtype=float), df.shrink_w.to_numpy(),
@@ -258,16 +271,20 @@ def _design(df: pd.DataFrame, spec: StatSpec, col: str, role: bool = False) -> n
     if role:
         base += [np.nan_to_num(df[c].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0)
                  for c in ROLE_FEATURES]
+    if defense:
+        base += [np.nan_to_num(df[c].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0)
+                 for c in DEFENSE_FEATURES]
     return np.column_stack(base)
 
 
-def fit_mean_model(train: pd.DataFrame, spec: StatSpec, col: str, kind: str, role: bool = False):
+def fit_mean_model(train: pd.DataFrame, spec: StatSpec, col: str, kind: str, role: bool = False,
+                   defense: bool = False):
     """Walk-forward point projection mu(x): OLS for yards, Poisson GLM (IRLS) for counts/TDs.
 
     Features: EWMA of the stat, EWMA of opportunity, team implied total, home, shrink weight; plus the
     opportunity-engine role features when ``role`` is set. The flag is carried in the returned model so
     predict_mean cannot be called with a different design than the one that was fitted."""
-    X = _design(train, spec, col, role); y = np.clip(train[col].to_numpy(dtype=float), 0, None)
+    X = _design(train, spec, col, role, defense); y = np.clip(train[col].to_numpy(dtype=float), 0, None)
     # Standardise every non-intercept column on the TRAINING rows and carry the scaler in the model. The
     # design mixes shares (~0.1) with team dropbacks (~35) and air yards per target (~10); under the Poisson
     # exp link an unscaled IRLS with a 1e-6 ridge produces coefficients that are numerically fine in sample
@@ -281,7 +298,7 @@ def fit_mean_model(train: pd.DataFrame, spec: StatSpec, col: str, kind: str, rol
     if kind == "yards":
         A = Xs.T @ Xs + RIDGE_LAMBDA * np.eye(Xs.shape[1]); A[0, 0] -= RIDGE_LAMBDA
         beta = np.linalg.solve(A, Xs.T @ y)
-        return ("ols", beta, role, scaler)
+        return ("ols", beta, role, scaler, defense)
     beta = np.zeros(Xs.shape[1]); beta[0] = np.log(max(y.mean(), 1e-3))
     pen = RIDGE_LAMBDA * np.eye(Xs.shape[1]); pen[0, 0] = 0.0
     for _ in range(50):
@@ -292,12 +309,13 @@ def fit_mean_model(train: pd.DataFrame, spec: StatSpec, col: str, kind: str, rol
         if np.max(np.abs(new - beta)) < 1e-7:
             beta = new; break
         beta = new
-    return ("poisson", beta, role, scaler)
+    return ("poisson", beta, role, scaler, defense)
 
 
 def predict_mean(model, df: pd.DataFrame, spec: StatSpec, col: str, floor: float) -> np.ndarray:
-    kind, beta, role, scaler = model
-    X = _design(df, spec, col, role)
+    kind, beta, role, scaler = model[:4]
+    defense = model[4] if len(model) > 4 else False
+    X = _design(df, spec, col, role, defense)
     mu_x, sd_x = scaler
     X = np.column_stack([np.ones(len(X)), (X[:, 1:] - mu_x) / sd_x])
     mu = X @ beta if kind == "ols" else np.exp(np.clip(X @ beta, -20, 8))
