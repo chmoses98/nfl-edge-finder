@@ -12,6 +12,8 @@ Nothing here is interpreted; interpretation (availability state machine) is down
 """
 import csv, io, json, os, sys, time, urllib.request, urllib.error
 from datetime import datetime, timezone, timedelta
+
+WEATHER_LOOKAHEAD_DAYS = 10
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UA = "nfl-edge-finder/0.1 (research; github.com/chmoses98/nfl-edge-finder)"
 OUT = os.path.join(ROOT, "data", "context")
@@ -57,7 +59,11 @@ def main():
             nov1 = datetime(dt.year, 11, 1); dst_end = nov1 + timedelta(days=(6 - nov1.weekday()) % 7)
             mar1 = datetime(dt.year, 3, 1); dst_start = mar1 + timedelta(days=(6 - mar1.weekday()) % 7 + 7)
             kick = (dt + timedelta(hours=4 if dst_start <= dt < dst_end else 5)).replace(tzinfo=timezone.utc)
-            if now - timedelta(hours=6) <= kick <= now + timedelta(days=7):
+            # 10 days, not 7. A Sunday game is 9-10 days out when the previous Sunday's slate finishes, so a
+            # 7-day window never records a 7-day-lead forecast vintage for the games that matter most -- on
+            # 2026-09-04 it captured 2 of Week 1's 16 games. Open-Meteo serves 16 days; forecast_days below
+            # must stay >= this window or the kickoff hour falls outside the returned range.
+            if now - timedelta(hours=6) <= kick <= now + timedelta(days=WEATHER_LOOKAHEAD_DAYS):
                 games.append({**row, "kickoff_utc": kick.isoformat()})
     else:
         man["failed_closed"].append("schedule unavailable: no weather rows written")
@@ -87,7 +93,7 @@ def main():
                 except Exception as e:
                     nws = {"error": str(e)[:200]}
             row["nws"] = nws or {"meta": m1}
-            om, m3 = try_get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation_probability,precipitation,relative_humidity_2m&forecast_days=8&wind_speed_unit=mph&temperature_unit=fahrenheit&timezone=UTC")
+            om, m3 = try_get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation_probability,precipitation,relative_humidity_2m&forecast_days=11&wind_speed_unit=mph&temperature_unit=fahrenheit&timezone=UTC")
             if om:
                 j = json.loads(om); k = datetime.fromisoformat(g["kickoff_utc"]).replace(tzinfo=None)
                 idx = [i for i, t in enumerate(j["hourly"]["time"]) if abs((datetime.fromisoformat(t) - k).total_seconds()) <= 6 * 3600]

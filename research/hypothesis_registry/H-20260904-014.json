@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-014",
+ "date_proposed": "2026-09-04",
+ "rationale": "H-006 found that outdoor games with observed wind 10-20 mph ran 0.9 to 1.3 points under the closing total, with the closing line already moving part of the way (44.9 -> 44.1 -> 43.8) but not all of it. That result is unusable: observed wind is post hoc. The prospective question is whether the FORECAST wind available at a given lead time is priced by the total, and forecast vintages are now being recorded so it can be asked properly.",
+ "features": "kickoff-hour open-meteo forecast (wind_speed_10m, wind_gusts_10m, precipitation, temperature) as of the most recent capture at or before the pricing cutoff, via nfl_edge.context.weather_vintages.latest_before; outdoor and open-roof games only",
+ "target": "residual of realised total minus the Kalshi-implied total at the same cutoff",
+ "expected_direction": "If the market underprices forecast wind, high-forecast-wind games settle under the implied total, with the effect largest at long lead times where the forecast is least incorporated. If the market prices the forecast fully, the residual is flat in forecast wind at every lead.",
+ "test_plan": "Prospective on 2026. Bucket by forecast wind (0-5, 5-10, 10-15, 15+ mph) crossed with lead time (T-168h, T-72h, T-24h, T-3h). Standard errors clustered on game; Benjamini-Hochberg at q=0.10 across the bucket x lead grid. Pre-specified primary endpoint: the 10+ mph bucket at T-24h. Minimum 150 outdoor games before reading the result.",
+ "dataset": "market-data data/context/*/*.weather.jsonl vintages + Kalshi total ladders + nflverse final scores",
+ "result": null,
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "Registering this exposed a collector gap: the capture window was 7 days, but a Sunday game is 9-10 days out when the previous week's slate ends, so on 2026-09-04 only 2 of Week 1's 16 games had any weather captured and no game would ever have had a 7-day-lead vintage. Window widened to 10 days and open-meteo forecast_days to 11. Two vintages of the same game already disagree (gusts 12.3 then 8.7 mph four hours apart), which is the reason vintages are stored rather than a single forecast."
+}
