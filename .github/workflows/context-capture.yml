@@ -21,6 +21,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Restore context state
+        run: |
+          git fetch --depth=1 origin market-data || true
+          mkdir -p data/context
+          git show origin/market-data:data/context/state.json > data/context/state.json 2>/dev/null || echo '{}' > data/context/state.json
       - id: cap
         continue-on-error: true
         run: python3 scripts/data/context_capture.py

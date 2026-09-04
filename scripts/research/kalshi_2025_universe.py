@@ -17,7 +17,7 @@ for f in sorted(glob.glob(os.path.join(MD, "data/kalshi/backfill/markets/*.jsonl
                      "game_date": s.game_date, "game_id": gk.get((s.game_date, s.away_team, s.home_team)) if s.game_date else None,
                      "status": m.get("status"), "result": m.get("result"), "volume": float(m.get("volume_fp") or 0), "oi": float(m.get("open_interest_fp") or 0),
                      "open_time": m.get("open_time"), "close_time": m.get("close_time"), "settled": m.get("result") in ("yes", "no")})
-d = pl.DataFrame(rows)
+d = pl.DataFrame(rows, infer_schema_length=None)
 os.makedirs(os.path.join(ROOT, "research/kalshi_2025"), exist_ok=True)
 d.write_parquet(os.path.join(ROOT, "research/kalshi_2025/archived_markets.parquet"))
 print("archived markets:", d.height, "settled:", int(d["settled"].sum()), "with nflverse game_id:", int(d["game_id"].is_not_null().sum()))

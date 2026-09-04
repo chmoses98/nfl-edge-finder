@@ -36,9 +36,12 @@ def try_get(url, timeout=60):
 
 
 def main():
+    import hashlib
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"); now = datetime.now(timezone.utc)
     d = os.path.join(OUT, now.strftime("%Y-%m-%d")); os.makedirs(d, exist_ok=True)
     man = {"run_id": run_id, "sources": {}, "failed_closed": []}
+    state_path = os.path.join(OUT, "state.json")
+    state = json.load(open(state_path)) if os.path.exists(state_path) else {}
     stadiums = json.load(open(os.path.join(ROOT, "config", "stadiums.json")))
     # schedule
     raw, meta = try_get(SCHEDULE_URL); man["sources"]["schedule"] = meta
@@ -100,7 +103,11 @@ def main():
                 "practice_participation", "practice_description", "depth_chart_order", "depth_chart_position", "active", "gsis_id", "espn_id", "number")
         players = json.loads(raw)
         slim = {pid: {k: p.get(k) for k in keep} for pid, p in players.items() if isinstance(p, dict) and p.get("team") and p.get("position") in ("QB", "RB", "WR", "TE", "K", "OL", "T", "G", "C", "DL", "DE", "DT", "LB", "CB", "S", "DB", "OLB", "ILB", "FB", "P")}
-        json.dump({"run_id": run_id, "retrieved_at": meta["retrieved_at"], "players": slim}, open(os.path.join(d, f"{run_id}.sleeper.json"), "w"), separators=(",", ":"))
+        blob = json.dumps(slim, sort_keys=True, separators=(",", ":")); h = hashlib.sha1(blob.encode()).hexdigest()
+        man["sources"]["sleeper_players"]["content_sha1"] = h; man["sources"]["sleeper_players"]["changed"] = state.get("sleeper_sha1") != h
+        if state.get("sleeper_sha1") != h:
+            json.dump({"run_id": run_id, "retrieved_at": meta["retrieved_at"], "players": slim}, open(os.path.join(d, f"{run_id}.sleeper.json"), "w"), separators=(",", ":"))
+            state["sleeper_sha1"] = h
         man["sources"]["sleeper_players"]["kept"] = len(slim)
         man["sources"]["sleeper_players"]["with_injury_status"] = sum(1 for p in slim.values() if p.get("injury_status"))
     else:
@@ -112,10 +119,24 @@ def main():
     raw, meta = try_get("https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries", timeout=120); man["sources"]["espn_injuries"] = meta
     if raw:
         j = json.loads(raw)
-        json.dump({"run_id": run_id, "retrieved_at": meta["retrieved_at"], "payload": j}, open(os.path.join(d, f"{run_id}.espn_injuries.json"), "w"), separators=(",", ":"))
-        man["sources"]["espn_injuries"]["teams"] = len(j.get("injuries", []))
+        slim = []
+        for team in j.get("injuries", []):
+            for inj in team.get("injuries", []):
+                ath = inj.get("athlete") or {}; det = inj.get("details") or {}
+                slim.append({"team": team.get("displayName"), "team_id": team.get("id"), "athlete_id": ath.get("id"), "name": ath.get("displayName"),
+                             "position": (ath.get("position") or {}).get("abbreviation"), "status": inj.get("status"), "date": inj.get("date"),
+                             "type": (inj.get("type") or {}).get("description"), "injury": det.get("type"), "location": det.get("location"), "detail": det.get("detail"),
+                             "side": det.get("side"), "return_date": det.get("returnDate"), "fantasy_status": (det.get("fantasyStatus") or {}).get("description"),
+                             "short_comment": (inj.get("shortComment") or "")[:200]})
+        blob = json.dumps(slim, sort_keys=True, separators=(",", ":")); h = hashlib.sha1(blob.encode()).hexdigest()
+        man["sources"]["espn_injuries"]["content_sha1"] = h; man["sources"]["espn_injuries"]["changed"] = state.get("espn_sha1") != h
+        if state.get("espn_sha1") != h:
+            json.dump({"run_id": run_id, "retrieved_at": meta["retrieved_at"], "injuries": slim}, open(os.path.join(d, f"{run_id}.espn_injuries.json"), "w"), separators=(",", ":"))
+            state["espn_sha1"] = h
+        man["sources"]["espn_injuries"]["teams"] = len(j.get("injuries", [])); man["sources"]["espn_injuries"]["rows"] = len(slim)
     else:
         man["failed_closed"].append("espn injuries unavailable")
+    json.dump(state, open(state_path, "w"))
     json.dump(man, open(os.path.join(d, f"{run_id}.manifest.json"), "w"), indent=1)
     print(json.dumps(man, default=str)[:1500])
     return 0 if not man["failed_closed"] else 2
