@@ -76,6 +76,42 @@ than the market on live ladders — meaning the market's tail is if anything too
 model's flatter tail is pointed the wrong way. That is a coherent story from two different data sources and
 it is registered as `H-20260904-013`, not claimed.
 
+## Does efficiency vary with liquidity? Yes — but not the way edge-hunting assumes
+
+Closing quotes bucketed by open interest, with game-clustered standard errors:
+
+| open interest at close | n | games | median width | bias | \|bias\| | Brier | YES net | NO net |
+|---|---|---|---|---|---|---|---|---|
+| zero / none | 1021 | 58 | 0.060 | +0.0123 ± 0.0205 | 0.344 | 0.1758 | −0.1045 | −0.1258 |
+| Q1 thinnest | 1888 | 61 | 0.050 | +0.0042 ± 0.0170 | 0.346 | 0.1753 | −0.0684 | −0.0745 |
+| Q2 | 1886 | 61 | 0.050 | −0.0219 ± 0.0156 | 0.323 | 0.1619 | −0.0744 | −0.0286 |
+| Q3 | 1886 | 61 | 0.030 | −0.0110 ± 0.0161 | 0.331 | 0.1666 | −0.0515 | −0.0281 |
+| Q4 deepest | 1887 | 61 | 0.020 | −0.0276 ± 0.0191 | 0.330 | 0.1653 | −0.0566 | −0.0008 |
+
+Deep markets are *slightly* better calibrated — Brier 0.165 against 0.176, mean absolute bias 0.330 against
+0.344. That difference is small. What changes enormously is the **cost**: the median spread falls from 6
+cents to 2, and the NO-side net return improves from −0.126 to −0.001.
+
+So the thin markets are barely less efficient and dramatically more expensive to trade. The intuition that
+drives people into illiquid corners — "nobody is looking at these, so they must be mispriced" — is roughly
+one third right about the mispricing and completely wrong about whether you can collect it. Lifetime volume
+gives the same picture (widest spreads and worst net returns in the zero-volume bucket).
+
+This is the same conclusion the live shadow ledger reached from the opposite direction
+(`research/shadow/RESULTS.md`): selecting on distance from the midpoint selects for illiquidity.
+
+## An apparent totals result that the sample will not support
+
+`TOTAL` shows a NO-side net return of **+0.015 to +0.026 at every one of the ten horizons** (n = 347 rungs,
+59 games), with closing mid 0.493 against an observed rate of 0.441 — totals settling under more often than
+priced. Ten consistent horizons is superficially striking.
+
+It is almost certainly the sample. The backfill runs newest-first, so this 16% subset is weighted toward
+late-season and playoff football, which is lower-scoring than the September and October games that make up
+most of a full season. A systematic "unders" result on a playoff-weighted sample is what that confound looks
+like. It is recorded here so the full-sample re-run either confirms or kills it, and it is **not** registered
+as a hypothesis on this evidence.
+
 ## Price movement is uninformative pregame
 
 | window | markets | unchanged | of those that moved, toward the outcome | Brier |
@@ -112,7 +148,9 @@ inside T−72h, doubling to 5.4% on the wider week-out book.
 
 * 16% of the universe, newest-first, four of six shards. Re-run on the full set before citing anything.
 * Quotes are candle closes, so the book is as of the end of the minute or hour, not the instant.
-* Volume is per-candle and mostly zero on these series, so "does efficiency vary with liquidity?" is still
-  unanswerable and is left out rather than reported from near-empty data.
+* Per-candle volume is zero for 64% of closing snapshots, but open interest is populated for 89% and
+  lifetime market volume for 95%, so the liquidity question is answered on those rather than on candle volume.
+* The week-out book is barely a book: median spread 0.59 for SPREAD and 0.56 for TEAM_TOTAL at T−168h and
+  T−72h. Those horizons' numbers describe an empty order book, not a market view.
 * Every bias here is measured against the midpoint. The midpoint is not tradable, which is exactly why the
   net-of-spread columns are carried alongside every one of them.

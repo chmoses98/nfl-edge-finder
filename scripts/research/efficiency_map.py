@@ -255,6 +255,44 @@ def main():
                          "no_ret_net": float(no_net.mean()),
                          "no_ret_net_se": clustered_se(no_net, list(cl_all[msk]))})
         res["tails"][stat] = rows
+    # ---- does efficiency vary with liquidity? (P8 microstructure)
+    # Open interest at the close and the market's lifetime volume are both populated on the reconstructed
+    # book, so the question is answerable rather than assumed. If thin markets are the mispriced ones, the
+    # calibration bias should grow as liquidity falls -- and so should the spread that stops you trading it.
+    liq = {}
+    D0 = D.filter(pl.col("horizon") == "T-0")
+    for name, col in (("open_interest_at_close", "oi"), ("market_lifetime_volume", "final_volume")):
+        v = D0[col].to_numpy().astype(float)
+        qs = np.quantile(v[v > 0], [0.25, 0.5, 0.75]) if (v > 0).any() else [0, 0, 0]
+        buckets = [("zero/none", v <= 0), ("Q1 thinnest", (v > 0) & (v <= qs[0])), ("Q2", (v > qs[0]) & (v <= qs[1])),
+                   ("Q3", (v > qs[1]) & (v <= qs[2])), ("Q4 deepest", v > qs[2])]
+        mid = D0["mid"].to_numpy(); y = D0["y"].to_numpy(); ask = D0["ask"].to_numpy()
+        bid = D0["bid"].to_numpy(); cl = np.array(D0["cluster"].to_list())
+        rows = []
+        for lab, m in buckets:
+            if m.sum() < 60 or len(set(cl[m])) < 15:
+                continue
+            resid = y[m] - mid[m]
+            fee = np.array([taker_fee(x) for x in ask[m]])
+            nofee = np.array([taker_fee(1 - x) for x in bid[m]])
+            rows.append({"bucket": lab, "n": int(m.sum()), "games": int(len(set(cl[m]))),
+                         "median_width": float(np.median(ask[m] - bid[m])),
+                         "abs_bias": float(np.abs(resid).mean()), "bias": float(resid.mean()),
+                         "bias_se": clustered_se(resid, list(cl[m])),
+                         "brier": float(np.mean((mid[m] - y[m]) ** 2)),
+                         "yes_net": float(((y[m] - ask[m]) - fee).mean()),
+                         "no_net": float((((1 - y[m]) - (1 - bid[m])) - nofee).mean())})
+        liq[name] = rows
+    res["liquidity"] = liq
+    print("\nDOES EFFICIENCY VARY WITH LIQUIDITY? (closing quotes)")
+    for name, rows in liq.items():
+        print(f"  by {name}")
+        print(f"    {'bucket':13s} {'n':>5s} {'g':>4s} {'width':>7s} {'bias':>9s} {'+-':>7s} {'|bias|':>7s} "
+              f"{'brier':>7s} {'YESnet':>8s} {'NOnet':>8s}")
+        for r in rows:
+            print(f"    {r['bucket']:13s} {r['n']:5d} {r['games']:4d} {r['median_width']:7.3f} "
+                  f"{r['bias']:+9.4f} {(r['bias_se'] or float('nan')):7.4f} {r['abs_bias']:7.4f} "
+                  f"{r['brier']:7.4f} {r['yes_net']:+8.4f} {r['no_net']:+8.4f}")
     json.dump(res, open(os.path.join(OUT, "results.json"), "w"), indent=1, default=float)
     # ---- print
     print("\nCALIBRATION AND EXECUTION BY FAMILY x HORIZON (net of the Kalshi taker fee)")
