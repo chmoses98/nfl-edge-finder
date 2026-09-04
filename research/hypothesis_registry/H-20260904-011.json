@@ -7,8 +7,8 @@
  "expected_direction": "If the market carries YES-side juice, realised settlement rates fall between the model price and the midpoint, and NO-side contracts settle profitably before fees. If the model is biased low, realised rates sit at or above the midpoint and the model loses on both sides.",
  "test_plan": "Prospective on 2026 settled player props, and retrospectively on the 2025 horizon backfill once it completes, where model prices, closing quotes and outcomes exist on the same contracts. Bucket by quoted width; the test is only meaningful where the width is under 0.10.",
  "dataset": "market-data shadow ledger 2026 + data/kalshi/backfill/horizons (2025)",
- "result": null,
+ "result": "Substantially MODEL BIAS. Head-to-head on 12,553 settled 2025 contracts with tradable books (research/model_vs_market): the closing midpoint beats the model on Brier by 0.01040 +- 0.00197 and on every statistic, and trading the model's disagreement lost 0.032/contract after fees. The market's price is biased on the YES side (H-017) AND more informative than the model's estimate; those are not in tension.",
  "oos_result": null,
- "status": "REGISTERED_PROSPECTIVE",
- "notes": "Direction is deliberately not asserted. This is the single most likely way the platform is currently wrong about player props."
+ "status": "LARGELY_ANSWERED",
+ "notes": "Direction is deliberately not asserted. This is the single most likely way the platform is currently wrong about player props. Answered on 2025 data within the session it was registered. The prospective 2026 test still stands, with shadow-0.3.0 rather than the pre-role-feature model."
 }

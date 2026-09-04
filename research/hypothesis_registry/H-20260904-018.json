@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-018",
+ "date_proposed": "2026-09-04",
+ "rationale": "Head-to-head on 12,553 settled 2025 player-prop contracts across 190 games with tradable books, the Kalshi closing midpoint beats the model on Brier by 0.01040 +- 0.00197 (5.3 SE) and on every individual statistic. Acting on the model's disagreement lost 0.032 per contract after fees, and losses grew monotonically to 0.050 as the required edge rose from 0 to 0.15 -- the signature of a model whose largest disagreements are its largest errors.",
+ "features": "walk-forward model probability vs reconstructed closing midpoint on the same contract",
+ "target": "Brier difference (model minus market) and net return after fees from trading the disagreement",
+ "expected_direction": "The gap narrows with shadow-0.3.0 role features but does not close: predicted residual gap of roughly +0.003 to +0.007 Brier in the market's favour. Net return from trading the disagreement stays negative at every edge threshold, and continues to degrade as the threshold rises until the model is genuinely competitive.",
+ "test_plan": "Re-run the same head-to-head with shadow-0.3.0 probabilities on the completed 2025 backfill, then prospectively on 2026 settled contracts. Pre-specified primary endpoint: the game-clustered Brier difference. Pre-specified falsifier: if net return from trading the disagreement becomes positive at ANY threshold with a clustered SE excluding zero, that is the first genuine edge signal this platform has produced and must be replicated on a held-out season before it means anything.",
+ "dataset": "research/kalshi_2025/prop_model_probs_2025.parquet + data/kalshi/backfill/horizons",
+ "result": "2025 at 54% coverage: model Brier 0.20035 vs market 0.18996, difference +0.01040 +- 0.00197. Market better on all six statistics (passing_tds a tie at -0.00088 +- 0.00208). Trading the disagreement: -0.0323 +- 0.0098 at any edge, degrading to -0.0501 +- 0.0302 at edge > 0.15.",
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "This is the platform's central open problem, stated as a measurable objective rather than a search for edges: close a 0.0104 Brier gap to the closing line. It also answers H-011 -- the model's persistent gap below the market on props is substantially model bias, not juice."
+}
