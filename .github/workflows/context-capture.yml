@@ -1,0 +1,33 @@
+name: Context Capture (weather, availability, injuries)
+
+on:
+  schedule:
+    - cron: '23 */3 * * *'   # every 3 hours; game-day density comes from the conductor later
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-write
+  cancel-in-progress: false
+
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - id: cap
+        continue-on-error: true
+        run: python3 scripts/data/context_capture.py
+      - name: Publish
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python3 scripts/ci/publish_market_data.py --src data/context --message "context capture $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - if: steps.cap.outcome != 'success'
+        run: echo "::warning::context capture failed closed on at least one source"; exit 1
