@@ -29,6 +29,7 @@ HORIZ_DIR = os.path.join(OUT, "horizons")
 REG_PATH = os.path.join(ROOT, "config", "kalshi_nfl_series.json")
 SCHEDULE_URL = "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
 # minutes before the anchor
+QUOTE_YIELD_CHECK_AT = 200
 HORIZONS = [("T-168h", 168 * 60), ("T-72h", 72 * 60), ("T-48h", 48 * 60), ("T-24h", 24 * 60), ("T-12h", 12 * 60),
             ("T-6h", 6 * 60), ("T-3h", 180), ("T-90m", 90), ("T-30m", 30), ("T-0", 0)]
 PRIORITY = ["KXNFLRECYDS", "KXNFLREC", "KXNFLRSHYDS", "KXNFLPASSYDS", "KXNFLANYTD", "KXNFLTD", "KXNFLPASSTDS", "KXNFLFIRSTTD",
@@ -76,12 +77,29 @@ def _num(x):
         return None
 
 
+def _pick(d, *names):
+    """Kalshi has shipped both bare (`close`) and suffixed (`close_dollars`) candle fields; accept either."""
+    for n in names:
+        if d.get(n) is not None:
+            return _num(d[n])
+    return None
+
+
 def snapshot(candle):
+    """One executable-quote snapshot from a candle.
+
+    yes_bid/yes_ask are the book at the close of the period, in dollars. An empty book is reported as
+    bid 0.00 / ask 1.00, which is not a tradable 0-100 spread -- it is the absence of one, so it is flagged
+    rather than silently treated as a quote.
+    """
     if not candle:
         return None
     yb = (candle.get("yes_bid") or {}); ya = (candle.get("yes_ask") or {}); pr = (candle.get("price") or {})
-    return {"bid": _num(yb.get("close_dollars")), "ask": _num(ya.get("close_dollars")), "last": _num(pr.get("close_dollars")),
-            "mean": _num(pr.get("mean_dollars")), "vol": _num(candle.get("volume_fp")), "oi": _num(candle.get("open_interest_fp")),
+    bid = _pick(yb, "close", "close_dollars"); ask = _pick(ya, "close", "close_dollars")
+    return {"bid": bid, "ask": ask,
+            "last": _pick(pr, "close", "close_dollars"), "mean": _pick(pr, "mean", "mean_dollars"),
+            "vol": _pick(candle, "volume", "volume_fp"), "oi": _pick(candle, "open_interest", "open_interest_fp"),
+            "book_empty": bool(bid is not None and ask is not None and bid <= 0.0 and ask >= 1.0),
             "ts": candle.get("end_period_ts")}
 
 
@@ -93,10 +111,13 @@ def main():
     ap.add_argument("--shards", type=int, default=1)
     ap.add_argument("--series", default="")
     ap.add_argument("--max-life-days", type=int, default=14)
+    ap.add_argument("--reset", action="store_true", help="re-fetch markets already marked done (use after fixing a parse bug)")
     a = ap.parse_args()
     os.makedirs(HORIZ_DIR, exist_ok=True)
     state_path = os.path.join(HORIZ_DIR, f"state_{a.shard}.json")
     state = json.load(open(state_path)) if os.path.exists(state_path) else {"done": {}, "runs": []}
+    if a.reset:
+        state = {"done": {}, "runs": state.get("runs", [])}
     out_path = os.path.join(HORIZ_DIR, f"{a.shard}.jsonl")
     reg = json.load(open(REG_PATH))["series"]
     ko = load_kickoffs()
@@ -105,7 +126,7 @@ def main():
         series = [s for s in a.series.split(",") if s]
     series = [s for s in PRIORITY if s in series] + sorted(s for s in series if s not in PRIORITY)
     c = KalshiClient(rps=a.rps)
-    run = {"shard": a.shard, "started_at": datetime.now(timezone.utc).isoformat(), "written": 0, "skipped": 0, "errors": 0}
+    run = {"shard": a.shard, "started_at": datetime.now(timezone.utc).isoformat(), "written": 0, "skipped": 0, "errors": 0, "with_quotes": 0}
     todo = []
     for s in series:
         p = os.path.join(OUT, "markets", f"{s}.jsonl")
@@ -165,11 +186,20 @@ def main():
                "home_team": sem.home_team, "away_team": sem.away_team, "game_id": game_id, "season": season, "week": week,
                "anchor_ts": anchor, "anchor_kind": anchor_kind, "open_ts": t_open, "close_ts": t_close,
                "result": m.get("result"), "expiration_value": m.get("expiration_value"),
-               "final_volume": _num(m.get("volume_fp")), "final_oi": _num(m.get("open_interest_fp")),
+               "final_volume": _pick(m, "volume", "volume_fp"), "final_oi": _pick(m, "open_interest", "open_interest_fp"),
                "n_candles": len(cands), "snaps": snaps}
         fout.write(json.dumps(row, separators=(",", ":")) + "\n")
         state["done"][t] = 1
         run["written"] += 1
+        if any(v.get("bid") is not None or v.get("last") is not None for v in snaps.values()):
+            run["with_quotes"] += 1
+        # A silent schema drift (Kalshi renaming a candle field) writes rows that look fine and carry no
+        # prices at all. Refuse to spend hours producing them: settled NFL markets do have quotes.
+        if run["written"] == QUOTE_YIELD_CHECK_AT and run["with_quotes"] < QUOTE_YIELD_CHECK_AT * 0.20:
+            fout.close()
+            print(f"::error::quote yield {run['with_quotes']}/{run['written']} after {QUOTE_YIELD_CHECK_AT} markets -- "
+                  f"candlestick price fields are not being parsed; check snapshot() against the API response")
+            return 4
         if run["written"] % 500 == 0:
             fout.flush(); json.dump(state, open(state_path, "w"), separators=(",", ":"))
             print(json.dumps({"shard": a.shard, "written": run["written"], "requests": c.stats.requests}), flush=True)
