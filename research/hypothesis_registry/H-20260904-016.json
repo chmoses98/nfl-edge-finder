@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-016",
+ "date_proposed": "2026-09-04",
+ "rationale": "On 26,671 settled 2025 markets the first-touchdown-scorer market shows a clean monotone longshot bias across five adjacent closing-price buckets: contracts at 0.030 settle 0.044, at 0.068 settle 0.086, at 0.149 settle 0.091, and at 0.226 settle 0.045. The top bucket is an 18-point error at z=7 with game-clustered standard errors -- the largest miscalibration found anywhere in the study. Player props show a matching favourite overpricing: three adjacent buckets above 0.50 all negative at 2.2-3.0 SE.",
+ "features": "closing midpoint bucket, family, game-clustered",
+ "target": "realised settlement rate minus closing midpoint, and NO-side net return after the Kalshi taker fee",
+ "expected_direction": "The calibration bias persists on 2026 settled markets at roughly the same magnitude. The NO-side net return after fees stays at or below zero: on 2025 it was -0.0089 +- 0.0260 in the most miscalibrated bucket and negative in every other bucket of every family.",
+ "test_plan": "Prospective on 2026 settled markets, plus a re-run on the remaining 46% of the 2025 backfill. Pre-specified primary endpoint: the calibration bias in the FIRST_TD_SCORER 0.10-0.20 closing bucket. Secondary and equally important: whether ANY family x price bucket achieves a positive net return after fees with a clustered SE excluding zero. Benjamini-Hochberg at q=0.10 across the bucket grid.",
+ "dataset": "data/kalshi/backfill/horizons (2025) + 2026 settled markets",
+ "result": "2025 at 54% coverage: FIRST_TD_SCORER [0.10,0.20) bias -0.0586 +- 0.0160 (130 games), [0.20,0.35) -0.1810 +- 0.0258 (43 games). 29 of 219 calibration cells survive FDR. NO-side net return after fees is negative in every family x bucket tested; best is -0.0089 +- 0.0260.",
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "Registered specifically so the tradability half cannot be dropped later. The miscalibration is real, large and highly significant, and it is worth nothing after the spread and fee. Any future selection rule built on this bias must clear the same net-return bar before it is taken seriously."
+}
