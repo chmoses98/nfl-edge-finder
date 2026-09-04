@@ -1,0 +1,63 @@
+name: Kalshi Historical Quote Backfill
+
+# Reconstructs the executable quote at each time-to-kickoff horizon for every settled archived NFL market.
+# Sharded across parallel runners; each shard loops (chunk -> publish) so a killed runner loses at most one chunk.
+
+on:
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: 'total shards'
+        required: false
+        default: '6'
+      minutes:
+        description: 'how long each shard loops'
+        required: false
+        default: '300'
+      budget:
+        description: 'requests per chunk'
+        required: false
+        default: '5000'
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    concurrency:
+      group: backfill-quotes-${{ matrix.shard }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Loop chunks
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          END=$(( $(date +%s) + ${{ github.event.inputs.minutes || '300' }} * 60 ))
+          # market lists are needed as input; restore them once
+          git fetch --depth=1 origin market-data
+          git checkout origin/market-data -- data/kalshi/backfill/markets || { echo "no market lists on market-data"; exit 1; }
+          git reset -q
+          CHUNK=0
+          while [ $(date +%s) -lt $END ]; do
+            git fetch --depth=1 origin market-data || true
+            mkdir -p data/kalshi/backfill/horizons
+            git show origin/market-data:data/kalshi/backfill/horizons/state_${{ matrix.shard }}.json > data/kalshi/backfill/horizons/state_${{ matrix.shard }}.json 2>/dev/null || echo '{"done":{},"runs":[]}' > data/kalshi/backfill/horizons/state_${{ matrix.shard }}.json
+            git show origin/market-data:data/kalshi/backfill/horizons/${{ matrix.shard }}.jsonl > data/kalshi/backfill/horizons/${{ matrix.shard }}.jsonl 2>/dev/null || true
+            set +e
+            python3 scripts/kalshi/backfill_quotes.py --shard ${{ matrix.shard }} --shards ${{ github.event.inputs.shards || '6' }} --budget ${{ github.event.inputs.budget || '5000' }}
+            RC=$?
+            set -e
+            python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill/horizons --message "quote backfill shard ${{ matrix.shard }} chunk $CHUNK $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "::warning::publish failed (chunk $CHUNK)"
+            CHUNK=$((CHUNK+1))
+            if [ "$RC" != "3" ]; then echo "shard ${{ matrix.shard }} complete"; break; fi
+          done
