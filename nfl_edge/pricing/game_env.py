@@ -29,7 +29,8 @@ class ResidualBank:
         if overtime is not None and results is not None:
             ot = np.asarray(overtime).astype(bool); r = np.asarray(results, float)
             self.p_tie_given_ot = float(np.mean(r[ot] == 0)) if ot.sum() else 0.05
-            self.ot_abs_margin = np.abs(r[ot][r[ot] != 0]) if ot.sum() else np.array([3.0])
+            nz = np.abs(r[ot][r[ot] != 0])
+            self.ot_abs_margin = nz if len(nz) else np.array([3.0, 3.0, 6.0, 7.0])
         else:
             self.p_tie_given_ot, self.ot_abs_margin = 0.05, np.array([3.0, 3.0, 6.0, 7.0])
 
