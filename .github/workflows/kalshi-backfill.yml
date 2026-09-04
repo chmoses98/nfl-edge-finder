@@ -10,7 +10,7 @@ on:
       budget:
         description: 'HTTP request budget for this run'
         required: false
-        default: '14000'
+        default: '60000'
       stage:
         description: 'markets | detail | all'
         required: false
@@ -22,7 +22,7 @@ on:
       chain:
         description: 'remaining self-dispatches allowed'
         required: false
-        default: '6'
+        default: '8'
 
 permissions:
   contents: write
@@ -57,6 +57,7 @@ jobs:
           python3 scripts/kalshi/backfill.py --budget "${{ github.event.inputs.budget }}" --stage "${{ github.event.inputs.stage }}" --series "${{ github.event.inputs.series }}"
           echo "rc=$?" >> $GITHUB_OUTPUT
       - name: Publish
+        if: always()
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

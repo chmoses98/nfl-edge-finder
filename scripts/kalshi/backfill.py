@@ -41,7 +41,7 @@ def ts(s):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--budget", type=int, default=12000, help="max HTTP requests this run")
+    ap.add_argument("--budget", type=int, default=60000, help="max HTTP requests this run (5 rps ~ 3.5h)")
     ap.add_argument("--rps", type=float, default=5.0)
     ap.add_argument("--stage", default="all", choices=["markets", "detail", "all"])
     ap.add_argument("--series", default="", help="comma list to restrict")
@@ -50,7 +50,10 @@ def main():
     state_path = os.path.join(OUT, "state.json")
     state = json.load(open(state_path)) if os.path.exists(state_path) else {"markets_done": {}, "detail_done": {}, "runs": []}
     reg = json.load(open(REG_PATH))["series"]
-    series = [s for s in reg if reg[s]["tier"] != "NOT_CAPTURED"]
+    # Parlay/combo series (KXMVENFL*, KXNFLPREPACK*) hold millions of archived multivariate contracts (1.99M in
+    # KXMVENFLMULTIGAMEEXTENDED alone) -- derivative products of markets we already archive. Excluded from backfill.
+    series = [s for s in reg if reg[s]["tier"] != "NOT_CAPTURED" and reg[s].get("family") not in ("PARLAY", "COMBO")
+              and not s.startswith(("KXMVE", "KXNFLPREPACK"))]
     if a.series:
         series = [s for s in a.series.split(",") if s]
     ordered = [s for s in PRIORITY if s in series] + [s for s in series if s not in PRIORITY]
@@ -68,14 +71,30 @@ def main():
             done = state["markets_done"].get(s)
             if done and done.get("complete"):
                 continue
-            items, complete, info = c.historical_markets(series_ticker=s, limit=1000, max_pages=max(1, budget_left() // 2))
+            # stream pages to disk (never hold a whole series in memory); cap pages per series
             path = os.path.join(OUT, "markets", f"{s}.jsonl")
+            n = 0; cursor = None; pages = 0; complete = True; info = {}
+            max_pages = min(60, max(1, budget_left() // 2))
             with open(path, "w") as f:
-                for m in items:
-                    f.write(json.dumps(m, separators=(",", ":")) + "\n")
-            state["markets_done"][s] = {"n": len(items), "complete": complete, "fetched_at": datetime.now(timezone.utc).isoformat(), "info": info}
-            run["markets_fetched"] += len(items)
-            print(json.dumps({"series": s, "n": len(items), "complete": complete}), flush=True)
+                while pages < max_pages:
+                    params = {"series_ticker": s, "limit": 1000}
+                    if cursor:
+                        params["cursor"] = cursor
+                    body, err = c.try_get("historical/markets", params)
+                    if body is None:
+                        complete = False; info = {"error": err, "pages": pages}; break
+                    pages += 1
+                    page = body.get("markets") or []
+                    for m in page:
+                        f.write(json.dumps(m, separators=(",", ":")) + "\n"); n += 1
+                    cursor = body.get("cursor")
+                    if not cursor or not page:
+                        break
+                else:
+                    complete = False; info = {"truncated_by_max_pages": True, "pages": pages}
+            state["markets_done"][s] = {"n": n, "complete": complete, "fetched_at": datetime.now(timezone.utc).isoformat(), "info": info}
+            run["markets_fetched"] += n
+            print(json.dumps({"series": s, "n": n, "complete": complete}), flush=True)
             if not complete:
                 run["errors"].append({"series": s, "stage": "markets", "info": info})
     # ---------------- stage 2: candles + trades per market (priority order, newest first)
@@ -88,6 +107,7 @@ def main():
             if fam_tier != "FULL_MICROSTRUCTURE":
                 continue  # detail backfill only for single-game families (cost control); lists are kept for all
             mk = [json.loads(l) for l in open(path)]
+            mk = [m for m in mk if m.get("result") in ("yes", "no")]   # settled contracts only
             mk.sort(key=lambda m: m.get("close_time") or "", reverse=True)
             done = state["detail_done"].setdefault(s, {})
             os.makedirs(os.path.join(OUT, "candles", s), exist_ok=True); os.makedirs(os.path.join(OUT, "trades", s), exist_ok=True)
