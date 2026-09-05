@@ -70,6 +70,11 @@ CORE_REASONING_TAGS = (
     "PACE", "GAME_SCRIPT", "MATCHUP_PASS", "MATCHUP_RUN", "MATCHUP_COVERAGE", "RED_ZONE",
     "WEATHER_WIND", "WEATHER_PRECIP", "MARKET_STALE", "MARKET_OVERREACTION", "LADDER_SHAPE",
     "TAIL_PRICING", "MODEL_DISAGREEMENT", "LIQUIDITY", "CORRELATION_HEDGE", "PRICE_VALUE",
+    # Reasons a contract was declined are tags too. A PASS is a record with reasoning, and the most common
+    # reasons to pass -- the price already reflects the news, the book is too thin, the news has not
+    # resolved yet -- need names, or every pass lands in the uncontrolled bucket.
+    "MARKET_ALREADY_PRICED", "PRICE_TOO_EXPENSIVE", "AWAIT_INACTIVE_RELEASE", "INSUFFICIENT_LIQUIDITY",
+    "ROLE_UNCERTAIN", "MODEL_UNTRUSTED_HERE",
 )
 
 _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
