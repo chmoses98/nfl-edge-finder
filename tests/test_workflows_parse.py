@@ -76,3 +76,61 @@ def test_shadow_price_does_not_pin_a_stale_model_version():
     assert not default, (
         f"model_version dispatch default is {default!r}; leave it blank so scripts/shadow/price_slate.py "
         "MODEL_VERSION_DEFAULT is the single source of truth")
+
+
+_PIPE_RE = re.compile(r"\|\s*(?:tail|head|grep)\b")
+
+
+def _shell_has_pipefail(doc, job):
+    for scope in (job, doc):
+        sh = ((scope.get("defaults") or {}).get("run") or {}).get("shell", "")
+        if "pipefail" in sh:
+            return True
+    return False
+
+
+@pytest.mark.parametrize("path", WORKFLOWS, ids=[os.path.basename(p) for p in WORKFLOWS])
+def test_piped_steps_require_pipefail(path):
+    """A step that pipes a script into `tail` reports tail's exit status, not the script's.
+
+    shadow-price.yml run 37 passed all eleven steps in 2m22s having priced nothing: every script it called
+    could die and still return 0 through the pipe. A green run that did no work is worse than a red one,
+    because nothing prompts anyone to look.
+    """
+    with open(path) as f:
+        doc = yaml.safe_load(f)
+    offenders = []
+    for job_name, job in (doc.get("jobs") or {}).items():
+        if _shell_has_pipefail(doc, job):
+            continue
+        for step in (job.get("steps") or []):
+            run = step.get("run") or ""
+            shell = step.get("shell", "")
+            if _PIPE_RE.search(run) and "pipefail" not in shell and "pipefail" not in run:
+                offenders.append(f"{job_name}/{step.get('name', '<unnamed>')}")
+    assert not offenders, (
+        f"{os.path.basename(path)}: steps pipe into tail/head/grep without pipefail, so a failing script "
+        f"exits 0: {offenders}. Set `defaults: run: shell: bash -eo pipefail {{0}}`")
+
+
+def test_steps_that_commit_have_a_git_identity_first():
+    """`Publish shocks` ran before any `git config user.*` and died with 'Author identity unknown' --
+    masked by a `|| echo ::warning::`, so shocks never published and the run still went green."""
+    path = os.path.join(ROOT, ".github", "workflows", "shadow-price.yml")
+    with open(path) as f:
+        doc = yaml.safe_load(f)
+    steps = doc["jobs"]["price"]["steps"]
+    identity_at = next((i for i, s in enumerate(steps) if "git config user.name" in (s.get("run") or "")),
+                       None)
+    assert identity_at is not None, "no step configures a git identity"
+    publishers = [i for i, s in enumerate(steps) if "publish_market_data" in (s.get("run") or "")]
+    assert publishers, "no publishing step found"
+    assert identity_at < min(publishers), (
+        f"git identity is set at step {identity_at} but the first publish is at step {min(publishers)}")
+
+
+def test_publish_failures_are_not_swallowed():
+    path = os.path.join(ROOT, ".github", "workflows", "shadow-price.yml")
+    src = open(path).read()
+    assert "|| echo \"::warning::shock publish failed\"" not in src, \
+        "a failed shock publish is masked as a warning; losing shocks silently is the failure mode"

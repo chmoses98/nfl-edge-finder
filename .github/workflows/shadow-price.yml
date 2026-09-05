@@ -16,6 +16,13 @@ on:
 permissions:
   contents: write
 
+# Every step here pipes python into `tail` for readable logs. Without pipefail bash reports the exit status
+# of `tail`, which always succeeds, so a script that died returned 0 and the step went green. Run 37 passed
+# all eleven steps in 2m22s having priced nothing.
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
 concurrency:
   group: shadow-price
   cancel-in-progress: false
@@ -31,6 +38,10 @@ jobs:
           python-version: '3.11'
       - name: Install
         run: pip install -q numpy pandas polars scipy pyarrow
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
       - name: Fetch bronze inputs (nflverse) and market-data
         run: |
           python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries --seasons 2013-2026 2>&1 | tail -3
@@ -54,12 +65,10 @@ jobs:
           python3 scripts/shadow/ingest_shocks.py --md /tmp/md --out /tmp/md/data/shocks 2>&1 | tail -3
       - name: Publish shocks
         run: |
-          python3 scripts/ci/publish_market_data.py --src data/shocks --message "shocks $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "::warning::shock publish failed"
+          python3 scripts/ci/publish_market_data.py --src data/shocks --message "shocks $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
       - name: System health
         run: |
           python3 scripts/shadow/system_health.py --md /tmp/md 2>&1 | tail -30
       - name: Publish ledger
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           python3 scripts/ci/publish_market_data.py --src data/shadow/ledger --message "shadow ledger $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
