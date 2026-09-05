@@ -135,7 +135,9 @@ def main():
                                                         season_carry=cfg["season_carry"],
                                                         shrink_k=cfg["shrink_k"])
             b = fit_bundle(hist, int(fz["model"]["target_season"]), fz["model"]["version"],
-                           {"ewma": cfg, "min_train_season": 2016}, verbose=lambda *_: None)
+                           {"ewma": cfg, "min_train_season": 2016,
+                            "use_role_features": bool(fz["model"].get("role_features"))},
+                           verbose=lambda *_: None)
             if b.artifact_sha == fz["model"]["artifact_sha"]:
                 ok.append(f"frozen model REPRODUCES exactly: rebuilt artifact {b.artifact_sha}")
             else:

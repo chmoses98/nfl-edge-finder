@@ -37,7 +37,7 @@ from nfl_edge.shadow.prospective import build_prospective_rows, upcoming_from_ma
 from nfl_edge.features import opportunity  # noqa: E402
 
 GAME_FAMILIES = {"GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL", "WIN_MARGIN_BUCKET", "TOTAL_TD", "BOTH_TEAMS_SCORE_N"}
-MODEL_VERSION_DEFAULT = "shadow-0.3.0"
+MODEL_VERSION_DEFAULT = "shadow-0.4.0"
 
 
 def latest_files(pattern, n=1):
@@ -113,6 +113,11 @@ def main():
     ap.add_argument("--market-data", default="/home/user/_md")
     ap.add_argument("--out", default=os.path.join(ROOT, "data", "shadow", "ledger"))
     ap.add_argument("--model-version", default=MODEL_VERSION_DEFAULT)
+    # Role features are retired by default (H-20260904-022): they improve a fixed synthetic ladder across all
+    # skill players and do NOT improve the traded population. The frozen Week-1 arm shadow-0.3.0 was built
+    # with them and must pass --role-features to stay reproducible.
+    ap.add_argument("--role-features", action="store_true",
+                    help="use opportunity/role features (retired from the default by H-022)")
     ap.add_argument("--calibration-version", default="none-v0")
     ap.add_argument("--target-season", type=int, default=2026)
     ap.add_argument("--max-quote-age-min", type=float, default=45.0)
@@ -232,11 +237,13 @@ def main():
             print(f"::warning::role features unavailable ({exc}); pricing without them", flush=True)
         feat = combined[combined.is_prospective == True].copy()   # noqa: E712
         histf = combined[combined.is_prospective != True].copy()  # noqa: E712
-        bundle = fit_bundle(histf, a.target_season, a.model_version, {"ewma": cfg, "min_train_season": 2016})
+        bundle = fit_bundle(histf, a.target_season, a.model_version,
+                            {"ewma": cfg, "min_train_season": 2016, "use_role_features": a.role_features})
         # a count-shape companion for anytime TD, used only to extend the ladder above 1+
         from nfl_edge.shadow.models import CHOSEN_FAMILY as _CF
         _CF_backup = dict(_CF); _CF["anytime_td"] = "negbin"
-        cnt_bundle = fit_bundle(histf, a.target_season, a.model_version + "-tdcount", {"ewma": cfg, "min_train_season": 2016},
+        cnt_bundle = fit_bundle(histf, a.target_season, a.model_version + "-tdcount",
+                                {"ewma": cfg, "min_train_season": 2016, "use_role_features": a.role_features},
                                 stats=["anytime_td"], verbose=lambda *_: None)
         _CF.clear(); _CF.update(_CF_backup)
         if "anytime_td" in cnt_bundle.stat_models:

@@ -130,8 +130,13 @@ class ModelBundle:
     artifact_sha: str = ""
 
     def sha(self):
+        # `use_role_features` is an INPUT DIRECTIVE, not a property of the fitted model -- the outcome is
+        # already recorded as `role_features`. Hashing the directive would change the artifact id of an
+        # identical model, which is exactly what happened when the H-022 retirement introduced the flag and
+        # the Week-1 freeze stopped reproducing. Excluded so the hash describes the model, not the request.
+        cfg = {k: v for k, v in self.config.items() if k != "use_role_features"}
         payload = {"version": self.version, "target_season": self.target_season,
-                   "train_seasons": list(self.train_seasons), "config": self.config,
+                   "train_seasons": list(self.train_seasons), "config": cfg,
                    "families": {k: v.family_name for k, v in self.stat_models.items()},
                    "td_model": self.td_model.to_json() if self.td_model is not None else None}
         self.artifact_sha = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
@@ -149,10 +154,16 @@ def fit_bundle(df_hist: pd.DataFrame, target_season: int, version: str, config: 
     """Fit every statistic's mean model and distribution family on seasons < target_season."""
     stats = stats or [s for s in CHOSEN_FAMILY if s in pdist.STAT_SPECS]
     train_seasons = (int(df_hist.season.min()), target_season - 1)
-    # Role features are used when the frame carries them. research/ladder_role/RESULTS.md: they improve
-    # calibrated P(Y >= k) on all six statistics tested, walk-forward 2019-2025. The flag is recorded in the
-    # bundle config so a ledger row can be traced to whether it was priced with them.
-    role = pdist.has_role_features(df_hist)
+    # Role features RETIRED from the default pricer by the H-20260904-022 decision rule.
+    # research/ladder_role showed them improving calibrated P(Y >= k) on all six statistics -- but on a fixed
+    # synthetic ladder across every skill-position player. research/listed_validation re-ran the comparison on
+    # the population that is actually traded (24,731 settled 2025 Kalshi rungs, 254 games) and found
+    # +0.00029 +- 0.00072 Brier, improving in 0 of 6 statistics at |z| > 2. The rule was: keep them only if
+    # they help the traded population. They do not, so the default is now OFF.
+    #
+    # `use_role_features` may still be set True explicitly. The frozen Week-1 arm (shadow-0.3.0) was built
+    # with them and must keep them to stay reproducible; it passes True.
+    role = config.get("use_role_features", False) and pdist.has_role_features(df_hist)
     config = dict(config); config["role_features"] = role
     b = ModelBundle(version=version, target_season=target_season, train_seasons=train_seasons, config=config)
     for name in stats:
