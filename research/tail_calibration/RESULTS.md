@@ -84,6 +84,41 @@ season S.
 statistic. Log loss — which weights the tail — improves on the three largest. Aggregate Brier is a wash
 (±0.00007), and rushing_yards is slightly worse on both metrics, 0 of 6 seasons.
 
+## The defect reverses sign on the population that is actually traded
+
+Everything above was measured on a fixed synthetic ladder across the whole skill-position population. Fitting
+the same calibration map to the **2025 Kalshi rungs** — the contracts that actually exist — gives the opposite
+answer:
+
+| model p | rungs | predicted | realised | bias |
+|---|---|---|---|---|
+| 0.02–0.05 | 301 | 0.0362 | 0.0731 | **+0.0369** |
+| 0.05–0.10 | 1424 | 0.0800 | 0.1011 | **+0.0211** |
+| 0.10–0.20 | 4865 | 0.1494 | 0.1797 | **+0.0302** |
+| 0.20–0.35 | 5927 | 0.2720 | 0.3047 | **+0.0327** |
+| 0.35–0.50 | 4954 | 0.4261 | 0.4407 | +0.0145 |
+| 0.50–0.70 | 4719 | 0.5924 | 0.5739 | −0.0185 |
+| 0.70+ | 2475 | 0.7905 | 0.7499 | −0.0406 |
+
+On Kalshi-listed contracts the model **understates long shots and overstates favourites** — precisely the
+reverse of the defect diagnosed above. The fitted transform reflects it: 0.03 → 0.043, 0.07 → 0.099,
+0.15 → 0.182, while 0.70 → 0.669 and 0.90 → 0.861.
+
+**The calibrator was built to correct a defect whose sign flips on the population it would be deployed on.**
+Applied to a Week-1 snapshot it *raises* mean model probability from 0.1624 to 0.1809 and moves the
+disagreement count from 114 NO-side / 20 YES-side to 77 / 58 — the opposite of its stated purpose.
+
+The mechanism is the same one that killed the role features' transfer (`research/ladder_role`): shrinkage
+toward a position prior that is correct on average is wrong in *both* directions on selected subpopulations.
+The full ladder includes deep bench players whom the model shrinks upward, so it overstates their long shots.
+Kalshi lists established starters, whom the same shrinkage pulls downward, so it understates theirs. Two
+opposite biases, one prior, and the traded population is the half the diagnosis missed.
+
+This does not retire the calibrator; it retires the *direction* recorded for it. `H-20260904-015` is updated:
+its registered expected direction — "bias on p<0.20 rungs shrinks by 75–80%" — was derived on the untraded
+population and is now in doubt. Arm B must be fitted on the population it is scored on, and the two-arm test
+(`scripts/shadow/calibrator_two_arm.py`) now does exactly that.
+
 ## Decision: not deployed into the Week-1 model
 
 The evidence is real but mixed, and `shadow-0.3.0` is already frozen for Week 1
