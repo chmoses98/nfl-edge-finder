@@ -88,6 +88,28 @@ market drifts in the direction the model already pointed — genuine CLV. But th
 closing price, so it never beats the outcome. **We are directionally early and absolutely wrong**: useful for
 predicting the market, useless for predicting football better than the market.
 
+## Early week versus close: less efficient, and more expensive by more than the difference
+
+| horizon | n | games | median width | market Brier | signed CLV | executable net | CLV ÷ half-spread |
+|---|---|---|---|---|---|---|---|
+| T−72h | 748 | 25 | 0.070 | 0.1950 | +0.00098 | −0.0397 ± 0.0322 | 0.028 |
+| T−48h | 5,709 | 114 | 0.070 | 0.1926 | +0.00137 | −0.0370 ± 0.0116 | 0.039 |
+| **T−24h** | 13,562 | 240 | 0.060 | 0.1897 | **+0.00204** | −0.0446 ± 0.0087 | **0.068** |
+| **T−12h** | 14,099 | 253 | 0.060 | 0.1890 | **+0.00206** | −0.0425 ± 0.0083 | **0.069** |
+| T−6h | 14,790 | 253 | 0.060 | 0.1889 | +0.00133 | −0.0403 ± 0.0081 | 0.044 |
+| T−3h | 15,873 | 253 | 0.050 | 0.1894 | +0.00080 | −0.0370 ± 0.0077 | 0.032 |
+| T−90m | 16,479 | 253 | 0.050 | 0.1885 | +0.00024 | −0.0369 ± 0.0073 | 0.010 |
+| T−30m | 16,909 | 254 | 0.050 | 0.1891 | +0.00013 | −0.0336 ± 0.0076 | 0.005 |
+
+Three things at once. The market's own accuracy **barely improves** across three days — Brier 0.1950 at
+T−72h against 0.1891 at T−30m. Our CLV **peaks a day out** and is essentially gone by kickoff, which is what
+information being gradually absorbed looks like. And the book is **wider exactly when the CLV is largest**:
+7 cents at T−48h against 5 cents at T−30m.
+
+So the answer to "are early prices meaningfully less efficient once the wider spread is accounted for?" is
+**no**. The extra inefficiency available early is about 0.2 probability points; the extra width costs about 2.
+Executable net is negative at every horizon without exception (−0.034 to −0.045).
+
 ## The economics kill it
 
 | | value |
