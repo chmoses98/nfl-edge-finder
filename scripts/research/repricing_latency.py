@@ -37,7 +37,7 @@ MAX_WIDTH = 0.15
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--horizons", default="/home/user/_md/data/kalshi/backfill/horizons/*.jsonl")
+    ap.add_argument("--horizons", default="/home/user/_market_data_wt/data/kalshi/backfill/horizons/*.jsonl")
     a = ap.parse_args()
 
     log = detect_2025_availability_shocks(ROOT)
@@ -52,7 +52,13 @@ def main():
     # quoted ladders in the release window, keyed by (game, gsis, stat)
     quotes = defaultdict(dict)
     meta = {}
-    for f in glob.glob(a.horizons):
+    files = glob.glob(a.horizons)
+    # Fail closed. This default once pointed at an empty worktree and the study reported 0 direct, 0
+    # secondary AND 0 control rungs as "(too few)" -- a silent no-op that looks like a finding.
+    if not files:
+        sys.exit(f"no horizon files matched {a.horizons!r} -- refusing to report a null from no data")
+
+    for f in files:
         for line in open(f):
             r = json.loads(line)
             if r.get("anchor_kind") != "kickoff" or r.get("family") != "PLAYER_STAT":

@@ -19,55 +19,87 @@ problem, and the answer for 2025 is restrictive:
 shock_type, entity, prior state, new state, game, team, affected players, data confidence, related market
 families.
 
-**1,243 shocks derived for 2025**: 888 surprise inactives (inactive on the weekly roster *without* an Out
-designation — timing exact) and 355 ruled-out-on-report (timing calendar-inferred). By position, surprise
-inactives are WR 268, QB 237, RB 219, TE 164.
+## Correction (session 4): the treatment group was 69% non-events
+
+Session 3 called every non-Out inactive a surprise and flagged its own treatment group as noisy, concluding
+that "without a real observation timestamp there is no way to keep only the absences the market did not
+already expect." **That conclusion was wrong.** Separating an expected scratch from a genuine surprise needs
+no timestamp at all — it needs the player's own prior week.
+
+A player inactive in his most recent earlier ACT/INA week is inactive again as his *expected* state. Applying
+that single backward-looking gate:
+
+| | session 3 | corrected |
+|---|---|---|
+| surprise inactives | 888 | **279** |
+| routine (repeat) inactives | counted as surprises | 541 |
+| expectation unestablished (no prior ACT/INA week) | counted as surprises | 68 |
+| ruled out on report | 355 | 355 |
+
+696 of 1,243 inactives (56%; **72% at QB**) followed another inactive week. The old surprise set was led by
+Tommy DeVito (20 times), Stetson Bennett (20), Case Keenum (18) and Philip Rivers — career backups for whom
+being inactive is the normal weekly condition. The corrected set's most frequent name appears 4 times.
+
+**1,243 shocks derived for 2025**: 279 surprise inactives (timing exact), 541 routine, 68 unestablished and
+355 ruled-out-on-report (calendar-inferred). Only the surprise group carries `timing_basis = exact`; the
+others are `unknown` and cannot enter a latency population. By position the surprise inactives are WR 118,
+RB 66, TE 53, QB 42 — QB falls from 237 to 42, which is where the contamination was worst.
 
 ## Finding 1: the direct response is unmeasurable, and that is itself the answer
 
-Of 3,787 players with a complete T−90m / T−30m / T−0 ladder, **exactly 2 rungs belonged to a player who was
+Of the players with a complete T−90m / T−30m / T−0 ladder, **essentially none belonged to a player who was
 then inactive.** Kalshi does not carry quoted ladders through the inactive release for players who do not
-dress — the markets are gone or were never listed.
+dress — the markets are gone or were never listed. Unchanged by the correction.
 
 So the "how fast does the direct market reprice" question **cannot be asked of 2025 data**, and the reason is
 economically informative: there is no stale direct quote to trade against, because the exchange removes it.
 Any strategy premised on picking off a doomed player's prop after the inactive list drops has no inventory.
 
-## Finding 2: secondary reallocation — a marginal first-hour bump that does not persist
+## Finding 2: on genuine surprises the secondary effect is gone
 
-Teammates at the same position who did play (the reallocation beneficiaries), against a control of players in
-games with no surprise inactive at their position, over the identical window:
+Same design, same windows, same control definition — only the treatment population is corrected.
 
 | group | rungs | games | T−90m → T−30m | T−30m → T−0 | T−90m → T−0 |
 |---|---|---|---|---|---|
-| secondary | 6,852 | 243 | +0.00139 ± 0.00026 | +0.00092 ± 0.00024 | +0.00231 ± 0.00037 |
-| control | 12,773 | 263 | +0.00075 ± 0.00019 | +0.00130 ± 0.00018 | +0.00205 ± 0.00025 |
+| secondary | 339 | 30 | +0.00053 ± 0.00170 | +0.00260 ± 0.00117 | +0.00313 ± 0.00240 |
+| control | 4,251 | 59 | +0.00099 ± 0.00034 | +0.00164 ± 0.00035 | +0.00263 ± 0.00048 |
 
 Difference (secondary − control), cluster-robust on game:
 
-| window | difference | z |
-|---|---|---|
-| **T−90m → T−30m** | **+0.00064 ± 0.00029** | **+2.17** |
-| T−30m → T−0 | −0.00037 ± 0.00026 | −1.43 |
-| T−90m → T−0 (net) | +0.00026 ± 0.00040 | +0.65 |
+| window | session 3 (contaminated) | corrected | |
+|---|---|---|---|
+| T−90m → T−30m | **+0.00064 ± 0.00029, z = +2.17** | −0.00046 ± 0.00169 | **z = −0.27** |
+| T−30m → T−0 | −0.00037 ± 0.00026, z = −1.43 | +0.00096 ± 0.00112 | z = +0.86 |
+| T−90m → T−0 | +0.00026 ± 0.00040, z = +0.65 | +0.00050 ± 0.00236 | z = +0.21 |
 
-Beneficiaries' prices rise faster than control in the first hour after the release, then give most of it back;
-across the full window the difference is indistinguishable from zero. The first-hour effect is **z = 2.17
-across three windows tested**, so it is weak before any multiplicity adjustment.
+**The one nominally significant result in the session-3 shock work does not survive.** Its point estimate
+changes sign, and no window reaches |z| > 0.9.
 
-And the magnitude settles it regardless: **0.064 probability points, against a 5–6 cent spread.** Even taken
-at face value the effect is roughly 1% of the cost of entry.
+### What this does and does not establish
+
+It does **not** prove the effect is zero. The corrected sample is 20× smaller (339 secondary rungs against
+6,852) and its standard errors are ~5.6× wider, so the old point estimate of +0.00064 sits comfortably inside
+the corrected interval. The corrected test cannot exclude an effect that size.
+
+What it establishes is narrower and still decisive for how the result should be used: **the significance was
+manufactured by the contamination.** A z of +2.17 computed on a population that is 69% non-events is not
+evidence about how the market absorbs news, because most of those observations carried no news to absorb.
+After the gate there is no support for the effect and the sign flips.
+
+Either way the magnitude argument from session 3 stands and is unaffected by sample size: 0.064 probability
+points against a 5–6 cent spread is ~1% of the cost of entry. Even the contaminated effect, taken at face
+value, was never tradable.
 
 ## Honest limits of this test
 
-* The treatment group is noisy. "Inactive without an Out designation" includes routine healthy scratches and
-  third quarterbacks whose absence was never news; 237 of the 888 are QBs. Without a real observation
-  timestamp there is no way to keep only the absences the market did not already expect, and that
-  attenuates any true effect toward zero.
-* Three windows were examined. The one significant result is the first of them.
+* 279 surprises across 172 games, of which only 30 games contribute a secondary rung — the corrected test is
+  underpowered and is reported as such, not as a null result.
+* The gate is one prespecified rule (prior ACT/INA week). It was not tuned, and it is not swept over
+  thresholds; a looser or stricter version was not searched for a better answer.
+* Three windows were examined in both versions.
 * 2025 only, and the horizon grid gives three points across 90 minutes — enough to see a bump, not enough to
   characterise a decay curve.
 
-The 2026 capture stream removes the first limitation: ESPN and Sleeper state diffs arrive with real
-observation timestamps at a 10-minute cadence, so a genuine surprise can be distinguished from a scratch that
-everyone expected. Registered as `H-20260904-021` for prospective testing.
+The 2026 capture stream improves on this further: ESPN and Sleeper state diffs arrive with real observation
+timestamps at a 10-minute cadence, so the *moment* of a surprise is observed rather than inferred from the
+league calendar. Registered as `H-20260904-021` for prospective testing.

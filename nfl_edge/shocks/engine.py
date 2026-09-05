@@ -107,9 +107,24 @@ def detect_2025_availability_shocks(root: str, season: int = 2025) -> ShockLog:
 
       `ruled_out_on_report`  -- designated Out on the weekly report. Public by the Friday final report, so
                                 its timing is `calendar_inferred` and it is NOT used for latency.
-      `surprise_inactive`    -- NOT designated Out, yet took no offensive snap and did not appear in the game.
-                                For a player the market was still quoting, that fact becomes public at the
-                                inactive release, exactly 90 minutes before kickoff. Timing `exact`.
+      `surprise_inactive`    -- NOT designated Out, AND active in his own most recent prior appearance, yet
+                                inactive now. That fact becomes public at the inactive release, exactly 90
+                                minutes before kickoff. Timing `exact`.
+      `routine_inactive`     -- inactive again, having also been inactive in his most recent prior
+                                appearance. This is a third-stringer's normal weekly state and carries no
+                                news; it is recorded but is NOT a shock.
+
+    The expectation gate matters more than it looks. Without it, "not designated Out and inactive" flagged
+    Tommy DeVito 20 times, Stetson Bennett 20 and Philip Rivers once -- career backups whose inactivity is
+    the *expected* outcome, not a surprise. 696 of 1,243 inactives (56%; 72% at QB) were preceded by another
+    inactive week. Treating those as precisely-timed news would have measured the market's response to
+    nothing, on a population dominated by nothing.
+
+    The gate uses only information available before the release: the player's status in the most recent
+    earlier week in which he appeared on his team's roster as ACT or INA. DEV (practice squad) and RES (IR)
+    are not evidence of expected availability and are skipped when looking back. A player with no such prior
+    week -- week 1, or a mid-season signing -- has `unknown_expectation` and is excluded from both groups
+    rather than guessed at.
 
     The surprise group is the identified natural experiment: a precisely-timed public information release.
     """
@@ -123,6 +138,17 @@ def detect_2025_availability_shocks(root: str, season: int = 2025) -> ShockLog:
     # the weekly roster carries an explicit INA (inactive) status -- a direct observation, not an inference
     rost = rost.filter(pl.col("position").is_in(SKILL) & (pl.col("gsis_id").is_not_null())
                        & (pl.col("gsis_id") != ""))
+    # ---- expectation gate: the player's status in his most recent EARLIER ACT/INA week ----------------
+    # Only ACT and INA count as evidence; DEV (practice squad) and RES (IR) say nothing about whether the
+    # market expected him to dress. Strictly backward-looking -- week w may only see weeks < w.
+    _seen = {}
+    prior_status = {}
+    for r in rost.filter(pl.col("status").is_in(["ACT", "INA"])).sort("week").iter_rows(named=True):
+        pid, wk = r["gsis_id"], int(r["week"])
+        if pid in _seen:
+            prior_status[(wk, pid)] = _seen[pid]
+        _seen[pid] = r["status"]
+
     inj_key = {}
     for r in inj.iter_rows(named=True):
         if r.get("gsis_id"):
@@ -139,7 +165,7 @@ def detect_2025_availability_shocks(root: str, season: int = 2025) -> ShockLog:
         gidx[(int(r["week"]), r["home_team"])] = r["game_id"]
         gidx[(int(r["week"]), r["away_team"])] = r["game_id"]
 
-    n_out = n_surprise = 0
+    n_out = n_surprise = n_routine = 0
     for r in rost.iter_rows(named=True):
         if r.get("status") != "INA":
             continue
@@ -161,7 +187,29 @@ def detect_2025_availability_shocks(root: str, season: int = 2025) -> ShockLog:
                           notes="designated Out and inactive; public by the Friday final report, so the "
                                 "moment it became known is not observable in the data"))
             n_out += 1
-        else:
+            continue
+
+        prior = prior_status.get((week, pid))
+        if prior != "ACT":
+            # routine for a repeat inactive, unknown for a player with no prior ACT/INA week. Neither is a
+            # precisely-timed information event, and neither may enter the latency population.
+            kind = "routine_inactive" if prior == "INA" else "unknown_expectation"
+            log.add(Shock(shock_id=_sid(gid, pid, kind), observed_at=None,
+                          timing_basis=TIMING_UNKNOWN, source="nflverse_weekly_roster+injuries",
+                          shock_type=kind, entity_id=pid, entity_name=r.get("full_name"),
+                          entity_position=r["position"], prior_state=prior or "no_prior_week",
+                          new_state="inactive", game_id=gid, team=team, affected_players=others,
+                          data_confidence="high", related_market_families=[],
+                          notes="inactive without an Out designation, but he was "
+                                + ("also inactive in his most recent prior week -- his expected state, "
+                                   "not news" if prior == "INA" else
+                                   "never previously active or inactive this season, so whether the market "
+                                   "expected him to dress is not established"))
+                    )
+            n_routine += 1
+            continue
+
+        if True:
             log.add(Shock(shock_id=_sid(gid, pid, "surprise"), observed_at=None,
                           timing_basis=TIMING_EXACT, source="nflverse_weekly_roster+injuries",
                           shock_type="surprise_inactive", entity_id=pid, entity_name=r.get("full_name"),
