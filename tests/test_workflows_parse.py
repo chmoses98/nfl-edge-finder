@@ -157,3 +157,18 @@ def test_download_list_covers_what_the_pipeline_reads():
                 only = m.group(1)
         assert "ff_playerids" in only.split(","), (
             f"{job_name} runs ids.py but --only is {only!r}; ids.py reads ff_playerids/db_playerids.csv")
+
+
+def test_system_health_defaults_to_the_published_ledger():
+    """`--ledger` must default to the published ledger under --md, not a local scratch directory.
+
+    It previously defaulted to the repo's own gitignored data/shadow/ledger, so running the health report
+    against a market-data worktree described the published capture and shocks alongside STALE LOCAL pricing:
+    it reported shadow-0.3.0 as the current model on a day when shadow-0.4.0 had been published, and
+    undercounted observations by 2,485. A health report that silently mixes two sources is worse than none.
+    """
+    src = open(os.path.join(ROOT, "scripts", "shadow", "system_health.py")).read()
+    assert 'ap.add_argument("--ledger", default=os.path.join(ROOT' not in src, \
+        "--ledger must not default to the local repo path"
+    assert 'os.path.join(a.md, "data", "shadow", "ledger")' in src, \
+        "--ledger should default to the published ledger under --md"

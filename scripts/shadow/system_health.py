@@ -15,8 +15,19 @@ def status(ok, degraded_if=False, not_started=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--md", default="/home/user/_md")
-    ap.add_argument("--ledger", default=os.path.join(ROOT, "data/shadow/ledger"))
+    # The PUBLISHED ledger under --md is the source of truth, so it is the default. This previously
+    # defaulted to the local repo path, which is gitignored scratch: running with --md pointed at a
+    # market-data worktree produced a report whose capture and shock sections described the published data
+    # while its SHADOW PRICING and CURRENT MODEL sections described stale local files. It reported
+    # shadow-0.3.0 as current on a day when shadow-0.4.0 was published.
+    ap.add_argument("--ledger", default=None,
+                    help="ledger root (default: <md>/data/shadow/ledger, i.e. the published ledger)")
     a = ap.parse_args()
+    if a.ledger is None:
+        a.ledger = os.path.join(a.md, "data", "shadow", "ledger")
+        if not os.path.isdir(a.ledger):
+            a.ledger = os.path.join(ROOT, "data", "shadow", "ledger")
+            print(f"note: no published ledger under --md; falling back to local {a.ledger}")
     print("=" * 74)
     print("NFL EDGE FINDER -- LIVE SYSTEM HEALTH")
     print(f"generated {datetime.now(timezone.utc).isoformat()}")
