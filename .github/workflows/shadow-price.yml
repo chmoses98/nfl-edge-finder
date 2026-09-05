@@ -44,7 +44,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
       - name: Fetch bronze inputs (nflverse) and market-data
         run: |
-          python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries --seasons 2013-2026 2>&1 | tail -3
+          python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,ff_playerids --seasons 2013-2026 2>&1 | tail -3
           python3 nfl_edge/data/silver.py 2016 2025 2>&1 | tail -2
           python3 nfl_edge/data/ids.py 2>&1 | tail -3
           git fetch --depth=1 origin market-data

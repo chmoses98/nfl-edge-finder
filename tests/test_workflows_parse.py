@@ -134,3 +134,26 @@ def test_publish_failures_are_not_swallowed():
     src = open(path).read()
     assert "|| echo \"::warning::shock publish failed\"" not in src, \
         "a failed shock publish is masked as a warning; losing shocks silently is the failure mode"
+
+
+def test_download_list_covers_what_the_pipeline_reads():
+    """A workflow that runs ids.py must also download ff_playerids.
+
+    ids.py reads data/raw/nflverse/ff_playerids/db_playerids.csv, but the fetch step's `--only` list omitted
+    it, so ids.py raised FileNotFoundError on every run. With no pipefail that exception exited 0 and the
+    step went green; the crosswalk was simply never rebuilt in CI.
+    """
+    path = os.path.join(ROOT, ".github", "workflows", "shadow-price.yml")
+    with open(path) as f:
+        doc = yaml.safe_load(f)
+    for job_name, job in doc["jobs"].items():
+        runs = [s.get("run") or "" for s in (job.get("steps") or [])]
+        if not any("ids.py" in r for r in runs):
+            continue
+        only = ""
+        for r in runs:
+            m = re.search(r"nflverse_download\.py\s+--only\s+(\S+)", r)
+            if m:
+                only = m.group(1)
+        assert "ff_playerids" in only.split(","), (
+            f"{job_name} runs ids.py but --only is {only!r}; ids.py reads ff_playerids/db_playerids.csv")
