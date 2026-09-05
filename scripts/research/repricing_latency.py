@@ -19,7 +19,7 @@ response.
 
 Only players Kalshi actually quoted are counted -- the market defines which absences were newsworthy, not us.
 """
-import argparse, glob, json, os, sys
+import argparse, glob, json, math, os, sys
 from collections import defaultdict
 
 import numpy as np
@@ -33,6 +33,8 @@ from nfl_edge.shocks import detect_2025_availability_shocks  # noqa: E402
 OUT = os.path.join(ROOT, "research", "shocks"); os.makedirs(OUT, exist_ok=True)
 WINDOW = ["T-90m", "T-30m", "T-0"]
 MAX_WIDTH = 0.15
+MIN_POS_RUNGS = 50      # below this a position cell cannot support a cluster-robust contrast
+FDR_Q = 0.10            # Benjamini-Hochberg across the positions reported
 
 
 def main():
@@ -83,12 +85,14 @@ def main():
     shocked_players = set()
     shocked_games_pos = set()
     beneficiaries = defaultdict(list)
+    benefit_pos = {}                       # (game, beneficiary) -> position of the ABSENT player
     for r in surprise.iter_rows(named=True):
         shocked_players.add((r["game_id"], r["entity_id"]))
         shocked_games_pos.add((r["game_id"], r["team"], r["entity_position"]))
         for b in (r["affected_players"] or "").split(";"):
             if b:
                 beneficiaries[(r["game_id"], b)].append(r["entity_id"])
+                benefit_pos.setdefault((r["game_id"], b), r["entity_position"])
 
     direct, secondary, control = [], [], []
     for (gid, g), lad in quotes.items():
@@ -99,7 +103,8 @@ def main():
             rec = {"game_id": gid, "gsis": g, "stat": stat, "k": k,
                    "p90": row["T-90m"], "p30": row["T-30m"], "p0": row["T-0"],
                    "d_90_30": row["T-30m"] - row["T-90m"], "d_30_0": row["T-0"] - row["T-30m"],
-                   "d_90_0": row["T-0"] - row["T-90m"]}
+                   "d_90_0": row["T-0"] - row["T-90m"],
+                   "shock_pos": benefit_pos.get((gid, g))}
             (direct if is_direct else secondary if is_secondary else control).append(rec)
 
     print(f"\nladder rungs in the window:  direct {len(direct)}   secondary {len(secondary)}   "
@@ -121,6 +126,27 @@ def main():
             line += f" {v.mean():+14.5f} {se:8.5f}" if col == "d_90_30" else f" {v.mean():+12.5f} {se:8.5f}"
         res["groups"][name] = out
         print(line)
+
+    def cluster_diff(treat, ctrl, col):
+        """Difference in means, cluster-robust on game. Identical estimator for pooled and per-position."""
+        vs = np.array([r[col] for r in treat]); cs = np.array([r[col] for r in ctrl])
+        allv = np.concatenate([vs, cs])
+        grp = np.concatenate([np.ones(len(vs)), np.zeros(len(cs))])
+        cl = [r["game_id"] for r in treat] + [r["game_id"] for r in ctrl]
+        X = np.column_stack([np.ones(len(allv)), grp])
+        beta, *_ = np.linalg.lstsq(X, allv, rcond=None)
+        resid = allv - X @ beta
+        XtXi = np.linalg.pinv(X.T @ X)
+        agg = defaultdict(lambda: np.zeros(2))
+        for i, c in enumerate(cl):
+            agg[c] += X[i] * resid[i]
+        meat = np.zeros((2, 2))
+        for v in agg.values():
+            meat += np.outer(v, v)
+        gg = len(agg)
+        V = XtXi @ meat @ XtXi * (gg / max(gg - 1, 1))
+        se = float(np.sqrt(max(V[1, 1], 0)))
+        return float(beta[1]), se, (float(beta[1] / se) if se else float("nan"))
 
     # the economically meaningful contrast: secondary minus control
     if len(secondary) >= 50 and len(control) >= 50:
@@ -148,6 +174,45 @@ def main():
             print(f"  {lab:16s} diff {beta[1]:+.5f} +- {se:.5f}  (z={z:+.2f})")
             res.setdefault("secondary_minus_control", {})[col] = {"diff": float(beta[1]), "se": se,
                                                                   "z": float(z)}
+    # ---- PART VIII: does the response depend on WHICH position went missing? -------------------------
+    # Kalshi lists no offensive-line props, so an OL absence has no direct or secondary prop ladder to
+    # measure. The position split is therefore QB/RB/WR/TE only, and that is a scope limit of the venue,
+    # not a choice.
+    print("\nSECONDARY minus CONTROL BY POSITION OF THE ABSENT PLAYER  (T-90m -> T-30m)")
+    print(f"  {'pos':4s} {'rungs':>6s} {'games':>6s} {'diff':>10s} {'se':>9s} {'z':>7s} {'p':>8s}")
+    per_pos, pvals = {}, []
+    for pos in ("QB", "RB", "WR", "TE"):
+        grp = [r for r in secondary if r["shock_pos"] == pos]
+        if len(grp) < MIN_POS_RUNGS:
+            print(f"  {pos:4s} {len(grp):6d}   (below the {MIN_POS_RUNGS}-rung floor -- not reported)")
+            per_pos[pos] = {"n": len(grp), "reported": False}
+            continue
+        d, se, z = cluster_diff(grp, control, "d_90_30")
+        pv = 2.0 * (1.0 - 0.5 * (1.0 + math.erf(abs(z) / math.sqrt(2.0)))) if se else float("nan")
+        ngames = len({r["game_id"] for r in grp})
+        print(f"  {pos:4s} {len(grp):6d} {ngames:6d} {d:+10.5f} {se:9.5f} {z:+7.2f} {pv:8.3f}")
+        per_pos[pos] = {"n": len(grp), "games": ngames, "diff": d, "se": se, "z": z, "p": pv,
+                        "reported": True}
+        pvals.append((pos, pv))
+
+    if pvals:
+        # Benjamini-Hochberg across the positions actually reported. Four looks at one mechanism is
+        # exactly the situation that manufactured the session-3 result; it is corrected for, not ignored.
+        m = len(pvals)
+        ranked = sorted(pvals, key=lambda x: x[1])
+        any_sig = False
+        for i, (pos, pv) in enumerate(ranked, start=1):
+            crit = FDR_Q * i / m
+            ok = pv <= crit
+            any_sig = any_sig or ok
+            per_pos[pos]["bh_critical"] = crit
+            per_pos[pos]["bh_significant"] = bool(ok)
+            print(f"  BH q={FDR_Q}: {pos} p={pv:.3f} vs critical {crit:.3f}  "
+                  f"{'PASS' if ok else 'fail'}")
+        if not any_sig:
+            print(f"  No position survives BH at q={FDR_Q}. No position-specific response is established.")
+    res["by_position"] = per_pos
+
     log.write(os.path.join(OUT, "shocks_2025.parquet"))
     json.dump(res, open(os.path.join(OUT, "latency_results.json"), "w"), indent=1, default=float)
     return 0

@@ -103,3 +103,31 @@ value, was never tradable.
 The 2026 capture stream improves on this further: ESPN and Sleeper state diffs arrive with real observation
 timestamps at a 10-minute cadence, so the *moment* of a surprise is observed rather than inferred from the
 league calendar. Registered as `H-20260904-021` for prospective testing.
+
+## Finding 3: no position-specific response either (Part VIII)
+
+Splitting the secondary contrast by the position of the *absent* player, same estimator, cluster-robust on
+game, T−90m → T−30m:
+
+| position of absent player | rungs | games | diff | se | z | p |
+|---|---|---|---|---|---|---|
+| QB | 64 | 7 | +0.00010 | 0.00164 | +0.06 | 0.949 |
+| RB | 78 | 12 | +0.00190 | 0.00155 | +1.23 | 0.220 |
+| WR | 151 | 13 | −0.00155 | 0.00335 | −0.46 | 0.643 |
+| TE | 46 | — | below the 50-rung floor, not reported | | | |
+
+Benjamini–Hochberg at q = 0.10 across the three reported positions: **nothing passes** (smallest p = 0.220
+against a critical value of 0.033). No position-specific response is established.
+
+The four-way split is exactly the kind of repeated look that manufactured the session-3 result, so it is
+corrected for rather than reported raw — and the correction is not what kills it. None of the three would
+reach significance uncorrected either.
+
+**Offensive line is not testable here at all.** Kalshi lists no OL props, so an OL absence has neither a
+direct nor a secondary prop ladder to measure. That is a limit of the venue, not a modelling choice, and it
+means the position where an absence plausibly has the largest *structural* effect on a game is the one this
+design cannot see. The ladder study (`research/ladder_shocks/`) is the route to it, since an OL absence would
+show up in the margin distribution rather than in anyone's prop.
+
+Power: 7–13 games per position cell. These are not evidence of absence; they are an absence of evidence, and
+the corrected pooled test is already underpowered before splitting.
