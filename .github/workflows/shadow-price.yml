@@ -41,13 +41,7 @@ jobs:
       - name: Rebuild Kalshi player map from the latest discovery
         run: |
           D=$(ls -d /tmp/md/data/kalshi/discovery/*/ | tail -1)
-          # Refresh the opportunity tables so route and red-zone shares include the games just played.
-          python3 -c "
-import sys; sys.path.insert(0,'.')
-from nfl_edge.features.opportunity import build_usage
-build_usage(list(range(2016, 2027)), out_dir='research/opportunity')
-print('opportunity usage rebuilt')
-" 2>&1 | tail -2
+          python3 scripts/shadow/rebuild_opportunity.py 2>&1 | tail -2
           python3 scripts/kalshi/build_player_map.py --discovery-dir "$D" --season 2026 2>&1 | tail -6
       - name: Price the slate
         id: price
@@ -55,6 +49,15 @@ print('opportunity usage rebuilt')
           python3 scripts/shadow/price_slate.py --market-data /tmp/md \
             ${{ github.event.inputs.model_version && format('--model-version {0}', github.event.inputs.model_version) || '' }} \
             --out data/shadow/ledger 2>&1 | tail -25
+      - name: Ingest live information shocks
+        run: |
+          python3 scripts/shadow/ingest_shocks.py --md /tmp/md --out /tmp/md/data/shocks 2>&1 | tail -3
+      - name: Publish shocks
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shocks --message "shocks $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "::warning::shock publish failed"
+      - name: System health
+        run: |
+          python3 scripts/shadow/system_health.py --md /tmp/md 2>&1 | tail -30
       - name: Publish ledger
         run: |
           git config user.name  "github-actions[bot]"
