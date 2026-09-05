@@ -1,6 +1,6 @@
 # Hypothesis registry
 
-Every hypothesis is written down before it is tested. Status is one of PROPOSED, REGISTERED_PROSPECTIVE, VALIDATED_RESEARCH, LARGELY_ANSWERED, IN_DOUBT, REJECTED.
+Every hypothesis is written down before it is tested. Status is one of PROPOSED, REGISTERED_PROSPECTIVE, VALIDATED_RESEARCH, LARGELY_ANSWERED, IN_DOUBT, RETIRED, REJECTED.
 
 | id | status | target | expected direction |
 |---|---|---|---|
@@ -26,3 +26,5 @@ Every hypothesis is written down before it is tested. Status is one of PROPOSED,
 | `H-20260904-020` | REGISTERED_PROSPECTIVE | primary: signed CLV (movement in our direction, mid basis) from T-24h  | CLV stays positive on 2026 contracts at roughly +0.002 probability points at T-2 |
 | `H-20260904-021` | REGISTERED_PROSPECTIVE | midpoint movement of beneficiary prop ladders from T-90m to T-30m, dif | With observation-timestamped 2026 shocks the first-hour beneficiary effect excee |
 | `H-20260904-022` | REGISTERED_PROSPECTIVE | the sign and magnitude of the validated effect when re-measured on Kal | Effects validated on the full population will attenuate toward zero or reverse o |
+| `H-20260904-023` | REGISTERED_PROSPECTIVE | primary: share of prop-market decision-time books with a spread >= 2 c | Prop books will offer a passive level far more often than the 8.8% seen on game  |
+| `H-20260904-024` | REGISTERED_PROSPECTIVE | primary: gross P&L to settlement of reachable minus non-reachable cand | The difference stays negative prospectively at roughly -0.02 to -0.04, and marko |

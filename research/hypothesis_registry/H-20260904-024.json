@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-024",
+ "date_proposed": "2026-09-05",
+ "rationale": "On 2025 game markets, hypothetical passive orders that were reachable by a trade lost 0.0287 gross to settlement while otherwise identical unreachable orders gained 0.0110, a difference of -0.0396 +- 0.0237 (z=-1.67) for improve-bid and -0.1798 +- 0.0873 (z=-2.06) for join-bid, clustered on game. Markout from the trade instant was negative at every horizon (-0.0035 at +1m to -0.0154 at +60m). This is the signature of adverse selection: the resting order is hit precisely when it is wrong.",
+ "features": "trade-at-level reachability of a hypothetical resting order, side, time to kickoff, quoted width",
+ "target": "primary: gross P&L to settlement of reachable minus non-reachable candidate orders, clustered on game. secondary: markout at +1/+5/+10/+30/+60 minutes and close.",
+ "expected_direction": "The difference stays negative prospectively at roughly -0.02 to -0.04, and markout stays negative at every horizon. If the difference is indistinguishable from zero on 2026 data, the 2025 result was a 73-game artefact and passive execution deserves re-examination.",
+ "test_plan": "Prospective on 2026 shadow orders with captured depth-10 books, so queue-ahead is observable and fill can be estimated rather than upper-bounded. Pre-specified primary endpoint above; minimum 200 reachable orders across 100 games before reading. Touch, trade-at-level, fill-upper-bound and prospective fill are reported as four separate quantities.",
+ "dataset": "research/passive/passive_orders_2025.parquet + 2026 shadow order ledger",
+ "result": "2025 game markets: reachable -0.0287, non-reachable +0.0110; difference -0.0396 +- 0.0237 (improve) and -0.1798 +- 0.0873 (join). Markout negative at every horizon. 174 markets across 73 games -- underpowered.",
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "This is the hypothesis that decides whether passive execution is viable at all. The 2025 evidence points clearly negative but at 1.6-2.1 SE on 73 games it is not conclusive on its own."
+}

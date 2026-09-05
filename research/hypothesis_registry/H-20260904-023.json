@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-023",
+ "date_proposed": "2026-09-05",
+ "rationale": "The historical passive study (research/passive) rejected passive execution on KXNFLGAME and KXNFLSPREAD on three counts: 86.2% of decision-time books are exactly one cent wide so no passive level exists, trade-at-level occurs on only 3.6% (join) to 26.7% (improve) of candidates despite ~99% touch, and reachable orders lost 2.9 cents gross while unreachable ones gained 1.1. But those are GAME markets. Player-prop books ran a median 5-6 cents wide in session 3, so the structural objection may not apply there, and there is no 2025 prop candle or trade archive to test it retrospectively.",
+ "features": "quoted width, top-of-book size (yes_bid_size_fp / yes_ask_size_fp), depth-10 book snapshots which arm automatically 72h before kickoff",
+ "target": "primary: share of prop-market decision-time books with a spread >= 2 cents (a passive level existing at all). co-equal: prospective shadow-order trade-at-level rate and fill-conditioned gross P&L.",
+ "expected_direction": "Prop books will offer a passive level far more often than the 8.8% seen on game markets. Whether that converts into economics is separate and is expected to fail the same way: fill-conditioned P&L negative, because the mechanism producing adverse selection on game markets is not specific to them.",
+ "test_plan": "Prospective on 2026 prop markets. Primary endpoint read once at least 2,000 decision-time prop books exist. Co-equal endpoint requires at least 200 shadow orders reaching trade-at-level. Report touch, trade-at-level and fill-upper-bound separately and never collapse them. No real orders.",
+ "dataset": "market-data capture stream 2026 (quotes with top-of-book size, depth-10 books) + shadow order ledger",
+ "result": null,
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "Registered specifically because the historical rejection is scoped to game markets and it would be wrong to generalise it to props without measurement. The prior is nonetheless negative."
+}
