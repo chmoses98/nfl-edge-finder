@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-020",
+ "date_proposed": "2026-09-04",
+ "rationale": "On 98,169 point-in-time observations across 254 games, the model predicts SUBSEQUENT KALSHI MOVEMENT even though it never beats the price on the outcome. In the contamination-resistant specification (model and price as separate regressors, cluster-robust on game) b_model is +0.0333 (z=+2.82) at T-24h and +0.0317 (z=+2.85) at T-12h, positive at every horizon. Signed CLV is +0.00204 +- 0.00055 and rises monotonically across pre-specified disagreement buckets (0.000, +0.00077, +0.00199, +0.00289, +0.00591). Three within-statistic shuffle placebos show no monotone pattern and no bucket above z=+3.2, so the dose-response is not mean reversion.",
+ "features": "walk-forward model probability at horizon T vs the contemporaneous quoted midpoint",
+ "target": "primary: signed CLV (movement in our direction, mid basis) from T-24h to close. Co-equal secondary: executable net return after the Kalshi taker fee.",
+ "expected_direction": "CLV stays positive on 2026 contracts at roughly +0.002 probability points at T-24h and remains monotone in disagreement. Executable net return stays NEGATIVE, because CLV is about 7% of the half-spread. A positive executable net at any bucket would be the first tradable signal this project has produced and must replicate on held-out data.",
+ "test_plan": "Prospective on 2026. Primary endpoint: signed CLV at T-24h, clustered on game, with the same five pre-specified disagreement buckets (0-2%, 2-5%, 5-10%, 10-15%, 15%+), never re-cut. The shuffle placebo is re-run alongside every time. Secondary: executable net after fees. Minimum 200 games before reading.",
+ "dataset": "research/residual_pit/pit_dataset_p_base.parquet + market-data shadow ledger 2026",
+ "result": "2025: b_model +0.0333 (z=+2.82) at T-24h; signed CLV +0.00204 +- 0.00055 (z=+3.68); monotone dose-response validated against three placebos. Economics: CLV / half-spread = 0.068. Executable net negative in all five buckets (-0.030 to -0.061).",
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "The first genuine positive signal the project has produced: statistically real, correctly signed, monotone in dose, placebo-controlled -- and economically dead by more than an order of magnitude. Registered with the economics as a co-equal endpoint precisely so the statistical half cannot later be reported alone."
+}

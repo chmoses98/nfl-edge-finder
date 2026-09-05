@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-022",
+ "date_proposed": "2026-09-04",
+ "rationale": "Three independent times now, a model property validated on the full skill-position player population has failed to transfer -- or reversed -- on the subpopulation Kalshi actually lists. (1) Role features improve calibrated ladder probabilities in 6/6 statistics on the full ladder and are worth ~0 on Kalshi-listed players (-0.00010 +- 0.00068) and slightly negative on Kalshi's own rungs (+0.00117 +- 0.00104). (2) The model's tail defect is a long-shot OVERstatement on the full ladder (-0.0096 at p 0.02-0.05, z=-11.7) and a long-shot UNDERstatement on Kalshi rungs (+0.0369). (3) The LadderCalibrator built to correct the first therefore does the reverse of its stated purpose on the traded population. The proposed mechanism is shrinkage: a position prior that is right on average pulls bench players up and established starters down, and Kalshi lists starters.",
+ "features": "any feature or calibration validated on a full-population ladder",
+ "target": "the sign and magnitude of the validated effect when re-measured on Kalshi-listed contracts only",
+ "expected_direction": "Effects validated on the full population will attenuate toward zero or reverse on Kalshi-listed contracts, with the reversal concentrated where position-prior shrinkage is largest. A feature that survives full-population validation should NOT be assumed to survive on the traded population without direct re-measurement.",
+ "test_plan": "Standing rule rather than a single test: every future feature or calibration claim is measured twice, once on the full population and once restricted to Kalshi-listed contracts, and the traded-population figure is the one that counts. Pre-specified failure criterion for the mechanism: if a future effect transfers cleanly with no attenuation, the shrinkage explanation is wrong and this is downgraded.",
+ "dataset": "research/ladder_role, research/tail_calibration, research/model_vs_market",
+ "result": "Three for three so far: role features (transfer to ~0), tail defect (sign reversal), calibrator direction (reversal). No counterexample yet.",
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "Registered as a methodological hypothesis because it has already cost this project two headline results. It also implies that the entire session-2 opportunity-engine programme was validated on the wrong population, and that any future 'the model improved' claim is meaningless unless measured on listed contracts."
+}

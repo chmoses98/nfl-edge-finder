@@ -1,6 +1,6 @@
 # Hypothesis registry
 
-Every hypothesis is written down before it is tested. Status is one of PROPOSED, REGISTERED_PROSPECTIVE, VALIDATED_RESEARCH, LARGELY_ANSWERED, REJECTED.
+Every hypothesis is written down before it is tested. Status is one of PROPOSED, REGISTERED_PROSPECTIVE, VALIDATED_RESEARCH, LARGELY_ANSWERED, IN_DOUBT, REJECTED.
 
 | id | status | target | expected direction |
 |---|---|---|---|
@@ -18,8 +18,11 @@ Every hypothesis is written down before it is tested. Status is one of PROPOSED,
 | `H-20260904-012` | REGISTERED_PROSPECTIVE | correlation between |model - mid| and quoted width across snapshots, a | The correlation persists across every 2026 snapshot, and contracts selected on m |
 | `H-20260904-013` | REGISTERED_PROSPECTIVE | mean (model - market) probability by ladder position, centre removed,  | if the effect is real it persists across snapshots at roughly -0.02 low / +0.02  |
 | `H-20260904-014` | REGISTERED_PROSPECTIVE | residual of realised total minus the Kalshi-implied total at the same  | If the market underprices forecast wind, high-forecast-wind games settle under t |
-| `H-20260904-015` | REGISTERED_PROSPECTIVE | calibration bias on rungs the model prices below 0.20, and aggregate B | Bias on p<0.20 rungs shrinks by roughly 75-80% (retrospectively -0.0095 to -0.00 |
+| `H-20260904-015` | IN_DOUBT | calibration bias on rungs the model prices below 0.20, and aggregate B | Bias on p<0.20 rungs shrinks by roughly 75-80% (retrospectively -0.0095 to -0.00 |
 | `H-20260904-016` | REJECTED | realised settlement rate minus closing midpoint, and NO-side net retur | The calibration bias persists on 2026 settled markets at roughly the same magnit |
 | `H-20260904-017` | REGISTERED_PROSPECTIVE | realised settlement rate minus closing midpoint on player props, and N | The YES-side overpricing persists on 2026 settled props at roughly 2-5 points an |
 | `H-20260904-018` | REGISTERED_PROSPECTIVE | Brier difference (model minus market) and net return after fees from t | The gap narrows with shadow-0.3.0 role features but does not close: predicted re |
 | `H-20260904-019` | REGISTERED_PROSPECTIVE | realised settlement rate minus closing midpoint, and YES-side net retu | If the bias is real, 2026 underdog moneylines quoted between 0.20 and 0.50 settl |
+| `H-20260904-020` | REGISTERED_PROSPECTIVE | primary: signed CLV (movement in our direction, mid basis) from T-24h  | CLV stays positive on 2026 contracts at roughly +0.002 probability points at T-2 |
+| `H-20260904-021` | REGISTERED_PROSPECTIVE | midpoint movement of beneficiary prop ladders from T-90m to T-30m, dif | With observation-timestamped 2026 shocks the first-hour beneficiary effect excee |
+| `H-20260904-022` | REGISTERED_PROSPECTIVE | the sign and magnitude of the validated effect when re-measured on Kal | Effects validated on the full population will attenuate toward zero or reverse o |

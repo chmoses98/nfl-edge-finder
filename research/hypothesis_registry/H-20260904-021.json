@@ -1,0 +1,14 @@
+{
+ "id": "H-20260904-021",
+ "date_proposed": "2026-09-04",
+ "rationale": "The inactive release is the one 2025 information event whose timing is exact by league rule (90 minutes before kickoff). Across it, prop ladders of the absent player's position-group teammates who did play rose +0.00064 +- 0.00029 more than control in the first hour (z=+2.17), then gave it back (-0.00037, z=-1.43), with a net over the full window indistinguishable from zero (+0.00026, z=+0.65). If the market is genuinely slow to reallocate opportunity to secondary players, a cleaner treatment definition should sharpen this.",
+ "features": "surprise-inactive shocks (inactive on the weekly roster without an Out designation), beneficiaries = same-position teammates who took offensive snaps",
+ "target": "midpoint movement of beneficiary prop ladders from T-90m to T-30m, differenced against control players in games with no surprise inactive at that position",
+ "expected_direction": "With observation-timestamped 2026 shocks the first-hour beneficiary effect exceeds the 2025 estimate of +0.00064, because the 2025 treatment group is diluted by routine healthy scratches. If it does not, the mechanism is rejected. Either way the effect must exceed the half-spread to matter, which at 2025 magnitudes it does not by two orders of magnitude.",
+ "test_plan": "Prospective on 2026 using ESPN/Sleeper capture diffs, which carry real observation timestamps at a 10-minute cadence, so a genuine surprise can be separated from an expected scratch. Pre-specified primary endpoint: beneficiary minus control midpoint movement in the first hour after the first capture showing the new state, clustered on game. Minimum 150 shocks. Report the direct-market response separately.",
+ "dataset": "research/shocks/shocks_2025.parquet + market-data capture stream 2026",
+ "result": "2025: beneficiary minus control +0.00064 +- 0.00029 (z=+2.17) in the first hour, -0.00037 (z=-1.43) in the second, +0.00026 (z=+0.65) net. Direct response UNMEASURABLE: of 3,787 players with a complete T-90m/T-30m/T-0 ladder, only 2 rungs belonged to a player who was then inactive -- Kalshi does not carry those markets through the release.",
+ "oos_result": null,
+ "status": "REGISTERED_PROSPECTIVE",
+ "notes": "Weak (z=2.17 across three windows tested) and economically negligible at 0.064 probability points against a 5-6 cent spread. Registered because the 2025 treatment group is provably diluted -- 237 of 888 surprise inactives are QBs, mostly routine third-string scratches -- and 2026 timestamps remove that dilution. The direct-market finding is arguably more useful than the secondary one: there is no stale quote to pick off because the exchange removes it."
+}
