@@ -1,5 +1,8 @@
 # RUN NFL
 
+> The operating standard this workflow has to satisfy — required fields, the freshness policy, fees, risk
+> limits and the price/P&L vocabulary — is [`DECISION_STANDARD.md`](DECISION_STANDARD.md).
+
 **The model is the quantitative foundation. ChatGPT is the decision layer. The market is the benchmark.
 The ledger is the memory.**
 
@@ -113,6 +116,44 @@ ledger will ever produce, and it only works if passes are recorded with equal ca
 Prices are **Kalshi probability as displayed**. Fees are not folded into `bet_up_to_probability` — the
 displayed price is the user's cost basis. Fee-aware analysis is separate, in `nfl_edge/execution/fees.py`.
 
+#### What a RECOMMENDED record must carry
+
+A `RECOMMENDED` record asks the user to risk money, and the ledger is immutable — a defective one is
+permanent. So the full professional decision record is **required**, and every shortfall is a hard rejection
+rather than a warning:
+
+* **identity / lineage** — `packet_sha`, `season`, `week`, `game_id`, `kickoff_utc`, `market_family`
+* **market state** — `market_timestamp`, `minutes_to_kickoff`, and the **side-specific executable ask**
+  (`yes_ask` for YES, `no_ask` for NO). A midpoint is not accepted in its place.
+* **handicap** — the full probability band, `bet_up_to_probability`, a grade, a positive whole-dollar stake,
+  and non-empty `key_supporting_factors`, `counterarguments` and `uncertainties`
+* **lineage** — `support_state` and `source_freshness`; plus `model_version` and `model_probability` where
+  `support_state` is `SUPPORTED`
+
+**The ceiling is a ceiling.** If the executable ask is *above* `bet_up_to_probability`, the record is
+refused. The ledger must never be able to say "BET up to 58%" while the book is asking 61%.
+
+`PASS`, `WATCHLIST` and `RESEARCH_ALERT` stay deliberately cheap to write — see
+[`DECISION_STANDARD.md`](DECISION_STANDARD.md) §2 for why the asymmetry is the design and not an oversight.
+
+#### The gates that run on ingestion
+
+Beyond the record's own coherence, a real recommendation is checked against the **world** at import time. Any
+of these blocks it — and so does a gate that could not reach its evidence, because "I could not check" must
+never resolve to "it is fine":
+
+| gate | blocks when |
+|---|---|
+| decision-time price freshness | no capture-confirmed executable quote within 15 minutes |
+| live ceiling | the **live** ask is above `bet_up_to_probability` |
+| player identity | the Kalshi → GSIS mapping is unresolved |
+| player availability | availability is missing, UNKNOWN, blocking, or stale |
+| transaction costs | the fee regime for this market is UNKNOWN or DEGRADED |
+| portfolio risk | a per-position, grade, game, correlation-group or slate limit binds |
+
+A failure fails the **whole batch**, and the reason is named in the workflow log. Full detail:
+[`DECISION_STANDARD.md`](DECISION_STANDARD.md) §3–§7.
+
 ### 5. Write the records
 
 ChatGPT emits the whole run as **one Airtable row** in the `Sports Betting Bridge` base:
@@ -131,17 +172,30 @@ server-side `createdTime`, so ingestion latency costs the audit trail nothing.
 
 See **GitHub write-back** below, and `docs/AIRTABLE_BRIDGE.md` for the full contract.
 
-### 6. User reports actual bets
+### 6. User reports actual bets — one record per FILL
 
 The user may not take every recommendation, and may get a different price. That is an **execution** record,
-never an edit to the recommendation:
+never an edit to the recommendation. This is what lets recommendation quality and bankroll performance be
+measured separately.
+
+**One record per FILL, not per position.** A recommendation is routinely filled in pieces at different
+prices, and each piece is its own immutable record:
 
 ```json
-{"execution_id": "exe_...", "recommendation_id": "rec_...", "executed_at": "...",
- "actual_price": 0.64, "stake": 25, "side": "YES", "notes": "filled 2c worse"}
+[
+ {"execution_id": "exe_a", "recommendation_id": "rec_...", "executed_at": "...",
+  "actual_price": 0.54, "stake": 20, "contracts": 37.037037, "side": "YES", "fees_paid": 0.35},
+ {"execution_id": "exe_b", "recommendation_id": "rec_...", "executed_at": "...",
+  "actual_price": 0.55, "stake": 30, "contracts": 54.545455, "side": "YES", "fees_paid": 0.52}
+]
 ```
 
-This is what lets recommendation quality and bankroll performance be measured separately.
+Economics are computed per fill and summed, so `BUY YES up to 58%` filled `$20 @ 54%` and `$30 @ 55%` scores
+a `$41.58` gross win — not the number a single blended price would give. Never record a fake single-price
+fill; the stake-weighted average IS computed and is labelled `average_execution_price` (DERIVED).
+
+`fees_paid` is what the venue charged. Set `fees_are_estimated: true` if it is modelled rather than observed
+— an estimated fee is carried and reported but **never** reduces realised P/L.
 
 ### 7. Close, CLV, settlement
 
@@ -168,6 +222,12 @@ python3 scripts/handicap/scorecard.py --handicap-root <wt>
 Compares **model vs market vs ChatGPT handicap** on the same resolved contracts, and RECOMMENDED vs PASS,
 broken down by grade, market family, reasoning tag, time to kickoff, price bucket, model agreement, driver
 and market type.
+
+Also reports **gross ROI and net ROI after actual fees** (separately — see
+[`DECISION_STANDARD.md`](DECISION_STANDARD.md) §1), total fees, mean entry slippage, the share of
+recommendations that were actually executed, exposure by game and by correlation group, the missing-close
+rate, gate-rejection counts, and an explicit **statistical power verdict**. An empty or underpowered sample
+says so in words rather than printing zeros that read like measurements.
 
 ---
 

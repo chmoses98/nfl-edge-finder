@@ -1,5 +1,8 @@
 # Airtable bridge
 
+> Airtable is transport. GitHub is canonical. The standard a record must satisfy before it reaches the
+> canonical ledger is [`DECISION_STANDARD.md`](DECISION_STANDARD.md).
+
 **Airtable is a transport inbox. `handicap-data` remains the canonical ledger.**
 
 ChatGPT cannot write to GitHub. The GitHub integration exposes write-shaped tools, but every branch or file
@@ -180,6 +183,8 @@ The distinction that matters: **permanent data problems become `ERROR`; infrastr
 | batch spans two slates, or duplicate ids | nothing written | `ERROR` |
 | recommendation id exists with different content | nothing written, original untouched | `ERROR` |
 | `Payload` edited after a prior sync (hash mismatch) | nothing written | `ERROR` |
+| **a real `RECOMMENDED` record fails a decision gate** | nothing written | `ERROR` |
+| **a real `RECOMMENDED` record with no gate context** | nothing written | `ERROR` |
 | Airtable unreachable / timeout / `5xx` | nothing written | stays `READY_FOR_SYNC` |
 | Airtable `429` | retried, then deferred | stays `READY_FOR_SYNC` |
 | token rejected (`401`/`403`) | nothing written | stays `READY_FOR_SYNC` |
@@ -188,6 +193,30 @@ The distinction that matters: **permanent data problems become `ERROR`; infrastr
 
 A rejected token is deliberately **not** an `ERROR`: a misconfigured secret must never permanently condemn a
 real recommendation.
+
+### The decision gates
+
+Beyond per-record schema validity, every **new** `RECOMMENDED` record is checked against the world at import
+time: is the executable price still confirmed and fresh, is the live ask still under the stated ceiling, is
+the player identity resolved, is availability resolved, are the transaction costs known, does the portfolio
+have room. See [`DECISION_STANDARD.md` §7](DECISION_STANDARD.md#7-the-gates).
+
+Three properties of how that is wired into this transport:
+
+* **A gate failure fails the whole batch**, exactly like a schema failure. The atomicity rule is the same and
+  for the same reason: a handicap run that is half in the ledger is a run nobody can score, and the missing
+  half looks like decisions that were never made.
+* **Only NEW records are gated.** A record already durably in the ledger passed its gates when it was
+  written; re-gating it on a replay would test today's market against yesterday's decision and fail for the
+  wrong reason — and would break the guarantee that identical replay is harmless.
+* **Gate results go into a separate `decision_gates` record**, never into the recommendation. The
+  recommendation must hash identically on every replay for the idempotency comparison to work, and gate
+  results are import-time observations that differ between replays by definition. Keeping them apart is what
+  lets "identical replay is harmless" and "gates ran and passed" both be true.
+
+`TEST_ONLY` records keep full structural schema validation and skip the live-market gates — they risk no
+capital, and gating them would make the E2E depend on the live state of a market their fake ticker does not
+have.
 
 Exit codes: `0` nothing to do or all imported · `1` at least one row failed permanently · `2` configuration
 problem · `3` transient failure, work still pending.
@@ -233,9 +262,18 @@ slow — it is unchanged and unthrottled.
 Locally:
 
 ```bash
-AIRTABLE_TOKEN=... python3 scripts/handicap/sync_airtable.py --handicap-root /path/to/handicap-data-wt --dry-run
-AIRTABLE_TOKEN=... python3 scripts/handicap/sync_airtable.py --handicap-root /path/to/handicap-data-wt
+AIRTABLE_TOKEN=... python3 scripts/handicap/sync_airtable.py \
+    --handicap-root /path/to/handicap-data-wt --market-data /path/to/market-data-wt --dry-run
+AIRTABLE_TOKEN=... python3 scripts/handicap/sync_airtable.py \
+    --handicap-root /path/to/handicap-data-wt --market-data /path/to/market-data-wt
 ```
+
+`--market-data` must point at a `market-data` checkout: the decision-time price gate reads its capture
+stream, and without it no `RECOMMENDED` record can be verified against a live executable price. The sync
+refuses to start rather than importing real recommendations ungated.
+
+`--max-quote-age-minutes` (default 15) is the freshness window. The conductor captures roughly every 10
+minutes, so the default accepts one on-time capture and rejects a missed one.
 
 `--no-push` writes records locally without committing, pushing, or touching any Airtable status.
 
@@ -313,8 +351,8 @@ A worked minimal payload (replace all timestamps and ids with live values):
 ]
 ```
 
-Every field above is required for a `RECOMMENDED` record; see
-[the required-field table](#what-a-recommended-record-must-carry). A `PASS` needs far fewer — decision,
+Every field above is required for a `RECOMMENDED` record; the authoritative list is
+[`DECISION_STANDARD.md` §2](DECISION_STANDARD.md#2-what-a-recommended-record-must-carry). A `PASS` needs far fewer — decision,
 side, ticker, run id, and a `primary_thesis` saying why — because the cost of an incomplete `PASS` is lost
 information, not lost money.
 

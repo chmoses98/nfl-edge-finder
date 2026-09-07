@@ -195,3 +195,30 @@ def test_the_freshness_window_is_configurable(tmp_path):
 def test_the_default_window_matches_the_capture_cadence(tmp_path):
     """15 minutes accepts one on-time ~10 minute capture and rejects a missed one."""
     assert Q.DEFAULT_MAX_QUOTE_AGE_MIN == 15.0
+
+
+def test_a_long_quiet_market_still_finds_its_last_written_quote(tmp_path):
+    """The false negative the two separate scan bounds exist to prevent.
+
+    A week-out book that has not moved in days is still tradable, and its last written row is days back. If
+    the quote scan shared the (deliberately short) confirmation bound, every such market would resolve as
+    UNCONFIRMED and block a perfectly good recommendation -- hitting hardest on exactly the quiet books where
+    a handicapper is most likely to find something.
+    """
+    moved = NOW - timedelta(days=6)
+    runs = [(moved, {SERIES: True}, [quote_row(moved, yes_ask=0.44)])]
+    # Six days of confirmations with no price change: 250 runs, well past the 200-run confirmation bound.
+    runs += [(moved + timedelta(minutes=30 * i), {SERIES: True}, []) for i in range(1, 250)]
+    runs += [(NOW - timedelta(minutes=5), {SERIES: True}, [])]
+    md = capture(tmp_path, runs)
+
+    q = resolve(md)
+    assert q.state == Q.FRESH, q.reason
+    assert q.executable_price == 0.44, "the last written quote must be found however far back it is"
+    assert q.age_minutes < 15
+
+
+def test_the_confirmation_and_quote_scan_bounds_are_different_numbers():
+    idx = Q.CaptureIndex("/nonexistent")
+    assert idx.max_quote_scan_runs > idx.max_runs, \
+        "the quote scan must reach further back than the confirmation scan; see CaptureIndex"

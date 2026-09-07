@@ -133,13 +133,29 @@ def _run_started_at(run_id: str, manifest: dict | None) -> datetime | None:
 class CaptureIndex:
     """Read-only view over the capture stream, built once and queried per ticker.
 
-    Scanning is bounded to the newest `max_runs` runs: resolution only ever needs enough history to find one
-    confirmation and one written quote, and the capture directory holds months.
+    TWO DIFFERENT BOUNDS, because the two lookups have different reach:
+
+      max_runs             how far back to look for a CONFIRMATION. Short by design -- a confirmation older
+                           than the freshness window is useless, so scanning further only costs time.
+
+      max_quote_scan_runs  how far back to look for the last WRITTEN quote. Must be much longer, because
+                           change suppression means a quiet market's last row can be days old and still be
+                           the current price. Sharing one bound with `max_runs` would make every market that
+                           had not moved in ~33 hours resolve as UNCONFIRMED and block a perfectly good
+                           recommendation -- a false negative that would bite hardest on exactly the quiet
+                           week-out books where a handicapper is most likely to find something.
+
+    Both scans walk newest-first and stop at the first hit, so an active market costs one file read and only
+    a genuinely silent ticker pays for the depth.
     """
 
-    def __init__(self, md_root: str, max_runs: int = 200):
+    def __init__(self, md_root: str, max_runs: int = 200, max_quote_scan_runs: int = 1500):
         self.md_root = md_root
         self.max_runs = max_runs
+        # ~1500 runs is roughly ten days at a 10-minute cadence -- far beyond any plausible quiet period for
+        # a market inside its own game week, and still bounded so a ticker that was never captured cannot
+        # walk the entire history.
+        self.max_quote_scan_runs = max_quote_scan_runs
         self._manifests: list[tuple[str, datetime, dict]] = []   # (run_id, started_at, manifest), newest last
         self._state: dict = {}
         self._loaded = False
@@ -215,14 +231,15 @@ class CaptureIndex:
 
     # ---- last written quote ---------------------------------------------------------------------
     def last_quote_row(self, ticker: str, not_after: datetime | None = None) -> dict | None:
-        """The most recent WRITTEN quote row for a ticker -- i.e. the last time its price moved.
+        """The most recent WRITTEN quote row for a ticker -- i.e. the last time its price MOVED.
 
-        Files are walked newest-first and the walk stops at the first hit, so a quiet market costs one file
-        read more per unchanged interval rather than a full history scan.
+        Bounded by `max_quote_scan_runs`, not `max_runs`: see the class docstring for why those are different
+        numbers. Files are walked newest-first and the walk stops at the first hit, so an active market costs
+        one file read and only a silent ticker pays for the depth.
         """
         self.load()
         files = sorted(glob.glob(os.path.join(self._capture_root(), "*", "*.quotes.jsonl")))
-        for path in reversed(files[-self.max_runs:]):
+        for path in reversed(files[-self.max_quote_scan_runs:]):
             best = None
             try:
                 with open(path) as f:

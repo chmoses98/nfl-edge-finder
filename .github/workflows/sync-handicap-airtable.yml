@@ -6,9 +6,14 @@ name: Sync handicap runs from Airtable
 #
 #   ChatGPT -> Airtable row (READY_FOR_SYNC) -> validate -> immutable JSON -> push -> row becomes SYNCED
 #
-# Nothing here touches `main`'s data, `market-data`, the collectors, or any model. It moves already-made
+# Nothing here WRITES to `main`'s data, `market-data`, the collectors, or any model. It moves already-made
 # decisions from an inbox into the ledger, and refuses anything it cannot prove is a valid, new, prospective
 # recommendation batch.
+#
+# It does READ `market-data`, and must: a real recommendation is checked against the freshest CONFIRMED
+# executable quote before it becomes canonical, and that quote lives in the capture stream. Without the
+# checkout there is no evidence, and no evidence fails the gate closed -- so the sync refuses to start
+# rather than importing real recommendations unverified. See docs/DECISION_STANDARD.md.
 
 on:
   # Twice a day, September through February -- the NFL season plus the playoffs. The bridge ARCHIVES
@@ -65,6 +70,16 @@ jobs:
           # a shallow checkout cannot. The branch is a few hundred small JSON files.
           fetch-depth: 0
 
+      # READ-ONLY. The decision-time price gate resolves the freshest confirmed executable quote from the
+      # capture stream. depth 1 is enough and is what keeps this cheap: the gate reads the newest manifests,
+      # state.json and quote files, never the history.
+      - name: Checkout market data (market-data)
+        uses: actions/checkout@v4
+        with:
+          ref: market-data
+          path: market-data
+          fetch-depth: 1
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -101,6 +116,7 @@ jobs:
         run: |
           python3 scripts/handicap/sync_airtable.py \
             --handicap-root ../ledger \
+            --market-data ../market-data \
             ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
 
       - name: Ledger state after sync
@@ -111,4 +127,13 @@ jobs:
           # ever been bridged). Guard both so a summary step can never fail the run.
           echo "recommendations on handicap-data: $( { find data/recommendations -name '*.json' 2>/dev/null || true; } | wc -l)"
           echo "import receipts:                  $( { find data/import_receipts  -name '*.json' 2>/dev/null || true; } | wc -l)"
+          echo "decision gate records:            $( { find data/decision_gates   -name '*.json' 2>/dev/null || true; } | wc -l)"
           git log --oneline -3
+
+      # The append-only property is what makes this branch evidence. write_record enforces it in the
+      # application and a server-side ruleset should prevent a bypass (docs/OPERATIONS.md), but neither is
+      # visible from here -- so the history is checked directly, every run, right after we wrote to it.
+      - name: Verify the ledger history is still append-only
+        if: always()
+        working-directory: code
+        run: python3 scripts/handicap/verify_append_only.py --handicap-root ../ledger

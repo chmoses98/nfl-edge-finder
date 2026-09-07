@@ -622,18 +622,45 @@ def test_idle_polling_stays_inside_a_modest_monthly_api_budget():
         "status updates, retries and E2E testing on the free tier")
 
 
-def test_workflow_checks_out_the_ledger_separately_and_never_touches_market_data():
+def test_workflow_checks_out_code_ledger_and_market_data_separately():
+    """Three checkouts, one writable.
+
+    `market-data` is now checked out deliberately: the decision-time price gate resolves the freshest
+    CONFIRMED executable quote from the capture stream, and without it every real recommendation would fail
+    the gate for a reason that is really a missing checkout. It is READ-ONLY here -- the next test pins that.
+    """
     doc = _workflow()
     steps = doc["jobs"]["sync"]["steps"]
     checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout")]
     paths = {s["with"]["path"] for s in checkouts}
-    assert paths == {"code", "ledger"}, "code and ledger must be separate checkouts"
+    assert paths == {"code", "ledger", "market-data"}, "code, ledger and market-data must be separate"
     ledger_step = next(s for s in checkouts if s["with"]["path"] == "ledger")
     assert ledger_step["with"]["ref"] == store.BRANCH
-    assert all(s.get("with", {}).get("ref") != "market-data" for s in steps), \
-        "this workflow must not check out the collector branch"
-    assert all("market-data" not in (s.get("run") or "") for s in steps), \
-        "no step may operate on the collector branch"
+
+
+def test_the_workflow_never_writes_to_the_collector_branch():
+    """Reading the capture stream is required. Writing to it is not, and never becomes so by accident.
+
+    A high-frequency collector branch and a human-paced decision log must not share a writer: a commit from
+    this workflow landing on `market-data` would fight the conductor and blur when a decision was recorded
+    against when a price was.
+    """
+    steps = _workflow()["jobs"]["sync"]["steps"]
+    md = next(s for s in steps
+              if str(s.get("uses", "")).startswith("actions/checkout")
+              and s["with"]["path"] == "market-data")
+    assert md["with"]["ref"] == "market-data"
+    assert md["with"].get("fetch-depth") == 1, \
+        "a shallow checkout cannot rebase-and-push; depth 1 is itself part of the read-only guarantee"
+
+    for step in steps:
+        assert step.get("working-directory") != "market-data", \
+            f"step {step.get('name')!r} runs inside the collector checkout"
+        run = step.get("run") or ""
+        for verb in ("git -C ../market-data", "git push", "git commit"):
+            if verb in run:
+                assert "market-data" not in run, \
+                    f"step {step.get('name')!r} appears to write to the collector branch: {run[:120]}"
 
 
 def test_workflow_sets_a_git_identity_before_the_sync_step():
