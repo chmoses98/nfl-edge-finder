@@ -144,15 +144,21 @@ never resolve to "it is fine":
 
 | gate | blocks when |
 |---|---|
-| decision-time price freshness | no capture-confirmed executable quote within 15 minutes |
-| live ceiling | the **live** ask is above `bet_up_to_probability` |
+| decision-time price freshness | no capture-confirmed executable quote within 15 minutes **before the decision** |
+| ceiling | the ask **at the decision** was above `bet_up_to_probability` |
 | player identity | the Kalshi → GSIS mapping is unresolved |
-| player availability | availability is missing, UNKNOWN, blocking, or stale |
-| transaction costs | the fee regime for this market is UNKNOWN or DEGRADED |
+| player availability | availability is missing, UNKNOWN, blocking, stale, or read after the decision |
+| full-position executability | the approved stake cannot be filled from observed depth, or the fill walks above the ceiling |
+| transaction costs | costs are not `KNOWN`, or net executable EV is **≤ $0** at the full-position VWAP |
 | portfolio risk | a per-position, grade, game, correlation-group or slate limit binds |
 
+**Everything above is evaluated as of the recommendation's own `created_at`, not as of the import.** The
+sync runs every twelve hours and archives decisions made hours earlier; judging them against the market at
+import time would fail every call whose game had since kicked off. Import latency cannot change a verdict.
+Only the risk gate runs on import-time state, and only because it reads no market data at all.
+
 A failure fails the **whole batch**, and the reason is named in the workflow log. Full detail:
-[`DECISION_STANDARD.md`](DECISION_STANDARD.md) §3–§7.
+[`DECISION_STANDARD.md`](DECISION_STANDARD.md) §3–§8.
 
 ### 5. Write the records
 

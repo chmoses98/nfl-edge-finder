@@ -89,7 +89,7 @@ A qualitative call on a market the model cannot price is legitimate and is **not
 fields. What is not legitimate is leaving it to be inferred from a null. `SUPPORTED` asserts the model priced
 this market and therefore requires model lineage; anything else requires a `support_reason`.
 
-`UNSUPPORTED_IDENTITY` can **never** carry a RECOMMENDED record — see §5.
+`UNSUPPORTED_IDENTITY` can **never** carry a RECOMMENDED record — see §6.
 
 ### PASS is deliberately cheaper
 
@@ -104,6 +104,62 @@ informative thing this ledger will ever produce.
 ---
 
 ## 3. Decision-time price freshness
+
+### The clock is the DECISION, not the import
+
+The Airtable bridge is **retrospective archival transport** on a twelve-hour cadence. GitHub ingestion is when
+a decision is *filed*, not when it is *made*.
+
+```
+13:00   decision made, YES ask 0.56, recorded
+01:00   importer runs. Game kicked off; the ask is gone; the book is closed.
+```
+
+Judged at 01:00 that record fails everything, which answers a question nobody asked. So every time-sensitive
+gate is evaluated **`as_of` the record's own `created_at`**:
+
+| | role |
+|---|---|
+| `created_at` | the exact decision timestamp. **This is the clock every market gate reads.** |
+| Airtable `createdTime` | server-stamped, unforgeable proof the decision had been handed off by then. The anti-backfill bound, unchanged. |
+
+Two rules follow, enforced in the resolvers rather than trusted:
+
+* **Evidence after the decision is invisible.** A later capture is information the handicapper did not have;
+  admitting it would rescue a bet that was stale when it was made.
+* **Freshness is measured backwards from the decision.** Import latency cannot change a verdict.
+
+`GateContext` has no `now` field at all, and `resolve_decision_quote` **raises** if the decision time is
+omitted rather than defaulting to wall clock — that default *was* the bug. Only the **risk** gate is
+evaluated at import time, and only because it is deterministic from the frozen batch, the recorded bankroll
+snapshot and the versioned policy file: it reads no market state, so there is nothing for latency to change.
+
+| case | verdict |
+|---|---|
+| valid at T, imported 12h later | **PASS** |
+| quote exists only after T | not used → **FAIL** |
+| fresh at T, ancient by import | **PASS** |
+| stale at T, fresher later | **FAIL** |
+| kickoff falls between T and import | **PASS** — it was prospective when made |
+| created after kickoff | **FAIL**, as before |
+
+### Which timestamp means "the information existed"
+
+A capture run works through ~270 series over several minutes, so run-start and the moment a given series
+actually returned are materially different. The manifest now records **`observed_at` per series**, and that is
+used wherever present. Where only run-level timestamps exist, the bound is chosen per question — and both
+directions round **against** the recommendation:
+
+| question | timestamp used | why |
+|---|---|---|
+| did this predate the decision? | the **latest** plausible (`finished_at`) | erring late means an ambiguous capture is treated as possibly-after, and ignored |
+| how old is it? | the **earliest** plausible (`started_at`) | erring early means it is treated as older than it may be |
+
+`capture/state.json`'s `last_seen` is a **mutable, latest-only** file and cannot answer "which run last saw
+this ticker as of last Tuesday". When its run postdates the decision it is simply not usable evidence, and
+resolution falls through to the immutable per-run manifests — which can answer it exactly.
+
+### Model snapshot vs executable price
 
 The model snapshot and the executable price have **different freshness requirements**, and conflating them is
 how a desk records a bet at a price that no longer exists.
@@ -168,30 +224,68 @@ free.
 schedule with a `primary_source` and a `verified_at`. Coefficients are configuration, not literals in code, so
 a platform fee change is a reviewable commit.
 
+### The 2026 fixed-point rounding model
+
+A fill is charged in **three separately-named parts**, and the total is **not** `ceil(raw, $0.01)`:
+
+| part | what |
+|---|---|
+| **raw quadratic fee** | `coefficient × multiplier × contracts × price × (1 − price)` |
+| **trade fee** | the raw fee ceiled to a **centicent** (`$0.0001`) |
+| **rounding fee** | cent-alignment — the balance change is floored to the account's precision and the shortfall charged |
+| **rebate** | the overpayment accumulates **per order across fills**; once it exceeds a cent, a whole-cent rebate is issued and the accumulator drops by a cent |
+
 ```
-taker  fee = round_up_to_cent(0.07   * M * C * P * (1 - P))
-maker  fee = round_up_to_cent(0.0175 * M * C * P * (1 - P))
+net fee = trade fee + rounding fee − rebate        (never below zero)
 ```
 
-`C` is contracts **in the order**; rounding is applied **once per order**, not per contract. For a 100-lot at
-50c that is the difference between $1.75 and $1.00.
+The accumulator is the economically load-bearing part: it makes 100 small fills cost **within one cent** of a
+single equivalent fill. Ceiling every fill to the next cent independently overstates a twenty-fill order by
+up to twenty cents; ceiling the whole order to the next cent understates the rounding on a fragmented one.
+Both change whether a marginal trade is worth doing.
 
-### The maker multiplier is UNKNOWN, loudly
+All arithmetic is `Decimal`. Kalshi's documented worked example reproduces fill by fill:
 
-Kalshi's series metadata exposes `fee_type` but **not** the maker multiplier, and the published schedule says
-it defaults to 0 "unless otherwise indicated" without saying what the indicated value is. So for the 25
-maker-fee NFL series the maker cost is genuinely unknown.
+```
+fill 1   revenue −$0.0550, trade fee $0.0085 → balance −$0.0635 floors to −$0.0700
+         rounding fee $0.0065, accumulator $0.0065, no rebate, net $0.0150
+fill 2   same again → accumulator $0.0130 > $0.01
+         rebate $0.0100, accumulator $0.0030, net $0.0050
+```
 
-It is modelled as `UNKNOWN` and **never defaulted**. `maker_fee()` returns `amount=None`, and
-`net_executable_ev()` refuses to produce a net EV from an unknown cost — it does **not** fall back to zero. A
-hidden default that is too low manufactures profitable passive trades that do not exist, which is the single
-failure this design exists to prevent. Research that needs a number sweeps `MAKER_MULTIPLIER_SWEEP` and
-reports every value.
+**Pre-trade** (`entry_fee` / `net_executable_ev`) gives the economically equivalent whole-order cost, which is
+what a decision needs. **Post-trade**, the exchange's own reported fee is authoritative and
+`Execution.fees_paid` carries it; these functions are estimates and are labelled as such wherever recorded.
 
-This costs nothing operationally: passive execution was rejected on core game markets by
-`research/passive` (Milestone K) -- not by H-019, which is the favourite/longshot hypothesis, nor by
-H-023, which is the still-open prospective prop-book question. So a real
-recommendation is a **taker** order, and the taker path is fully known.
+### Maker and taker multipliers: three sources, ranked, failing closed
+
+Two multipliers exist per series and only one is in the API.
+
+| rank | source | carries |
+|---|---|---|
+| 1 | **regulatory Fee Schedule** (CFTC-filed) | **both** Maker Multiplier and Taker Multiplier for listed non-standard series |
+| 2 | `GET /series/{ticker}` | `fee_type` and `fee_multiplier` — the **taker** multiplier only |
+| 3 | `GET /series/fee_changes` | announced future changes → builds the *next* window |
+
+**The API object's silence about the maker multiplier is not evidence that it is unknown.** A value published
+in the regulatory schedule is a known value. `KXNFLGAME` is **Maker Multiplier 1, Taker Multiplier 1**, and is
+priced accordingly.
+
+`UNVERIFIED` now means what it says: a series that *does* charge a maker fee (`quadratic_with_maker_fees`) and
+is not listed in any schedule window we hold. Those, and only those, fail closed. A taker-only series has a
+**known** maker multiplier of zero — not charging a fee is a fact, not an absence of information.
+
+Rank decides who is *consulted* first. It does **not** decide a disagreement: two sources that disagree about
+the same window produce **`CONFLICTED`** and fail closed, because one of them is wrong and rank does not say
+which.
+
+Every fee value preserves **series, fee type, maker multiplier, taker multiplier, source, effective time and
+verification timestamp**, and schedules are looked up **as of the decision time** — a recommendation made at
+13:00 is priced with the schedule in force at 13:00, not the one current when the importer runs.
+
+Passive execution was rejected on core game markets by `research/passive` (Milestone K) — *not* by H-019,
+which is the favourite/longshot hypothesis, nor by H-023, which is the still-open prospective prop-book
+question. So a real recommendation is a **taker** order, and the taker path is fully known.
 
 ### Keeping it traceable
 
@@ -200,20 +294,74 @@ recommendation is a **taker** order, and the taker path is fully known.
 fee change surfaces as a failed job rather than as a quietly wrong number six weeks later. It never edits the
 registry; that is a human decision.
 
-### What the gate does and does not do
+### Net EV at or below zero BLOCKS
 
-The gate **does** refuse to record a recommendation whose transaction costs are `UNKNOWN` or `DEGRADED`.
-That is a data-integrity check.
+For `RECOMMENDED`:
 
-The gate **does not** enforce a minimum edge by default. This session built the primitives to *measure* net
-executable EV; it did not invent a minimum-edge rule, because none has been justified for this desk and
-inventing one would silently become a strategy decision wearing a safety check's clothes. The switch exists
-(`GateContext.require_net_ev_positive`) and is off. Turning it on is a deliberate policy change with its own
-justification.
+| net executable EV | verdict |
+|---|---|
+| fee/cost state not `KNOWN` (`UNVERIFIED` / `CONFLICTED` / `DEGRADED`) | **FAIL** |
+| cannot be calculated | **FAIL** |
+| `<= $0` | **FAIL** |
+| `> $0` | this gate may pass |
+
+This is **not** a minimum-edge rule. There is a real difference between
+
+* *"require at least +3% edge"* — a strategy threshold, and
+* *"do not knowingly record a trade worth ≤ $0 after its known entry costs"* — arithmetic.
+
+Only the second is enforced. **No positive minimum beyond zero is invented**, and there is deliberately no
+switch in the module to turn one on — a blocking rule with an off switch is a warning in costume. A test
+sweeps the boundary and asserts the first record whose net EV rises above zero passes, so a hidden buffer
+would fail the build. Any future buffer is a separately authorised strategy decision.
+
+The EV is computed at the **full-position VWAP** (§5), not the top ask: pricing a trade at its cheapest
+contract is how a losing position looks profitable.
 
 ---
 
-## 5. Player identity and availability
+## 5. Full-position executability
+
+The top of book proves a **price** exists. It does not prove your **position** exists at that price.
+
+```
+approved stake   $50
+best ask         56c for 1 contract
+next liquidity   59c, then 60c
+```
+
+That is a **59.4c** position, not a 56c one. Calling it 56c is false in the flattering direction: the
+displayed price is the cheapest contract you buy and every other one costs more, so a desk that sizes against
+top-of-book systematically pays more than it recorded — on exactly the thin books where it thought it had
+found something.
+
+`nfl_edge/execution/depth.py` therefore walks the observed book for the **whole approved stake** and records:
+
+* top ask, and the size available at it
+* contracts required
+* **full-position VWAP**
+* worst consumed price
+* dollar and probability slippage against the displayed top
+* whether the book can fill the position at all
+
+A `RECOMMENDED` record **fails closed** when depth cannot be established (no book, a post-decision book, a
+stale book), when the approved stake exceeds observable liquidity, when the fill walks above
+`bet_up_to_probability`, or when full-position net EV is ≤ 0 at the resulting VWAP.
+
+**Book semantics.** Kalshi returns resting **bids** per side, ascending, best last. There are no ask ladders,
+because an ask on one side *is* a bid on the other: to buy YES you lift NO bids, and a NO bid at `q` is a YES
+ask at `1 − q`. This orientation was **verified empirically, not assumed** — reconstructing `yes_bid` and
+`yes_ask` from the ladders reproduces the separately-captured quote row across 126 tickers in one run, and
+every residual mismatch is the ~13-second book-after-quote lag present in all 126. That lag is also why the
+book's **own** `observed_at` decides its freshness, never the quote's or the run's.
+
+**The user-facing display does not change.** It stays `Current: 56% / Bet up to: 59%`. What changes is that
+the *record* now distinguishes the top ask (56%) from the expected full-position VWAP (59.4%) from the worst
+consumed price (60%), so nothing downstream can mistake one for another.
+
+---
+
+## 6. Player identity and availability
 
 ### Identity is fail-closed
 
@@ -255,7 +403,7 @@ kickoff.
 
 ---
 
-## 6. Bankroll and portfolio risk
+## 7. Bankroll and portfolio risk
 
 `config/risk_policy.json`, applied by `nfl_edge/handicap/risk.py`.
 
@@ -306,18 +454,22 @@ was taken.
 
 ---
 
-## 7. The gates
+## 8. The gates
 
 `nfl_edge/handicap/gates.py`. Run once, when a record is first materialised.
 
-| gate | blocks RECOMMENDED when |
-|---|---|
-| `decision_time_quote_freshness` | no confirmed executable quote inside the window |
-| `executable_price_within_ceiling` | the **live** ask is above `bet_up_to_probability` |
-| `player_identity_resolved` | unresolved identity, or SUPPORTED with no `player_id` |
-| `player_availability_resolved` | availability missing or stale |
-| `net_executable_ev` | transaction costs are UNKNOWN or DEGRADED |
-| `portfolio_risk_policy` | rejected by a limit, or the recorded stake is not the approved stake |
+All are evaluated **as of the record's `created_at`** except the last — see §3 for why that one is different.
+
+| gate | blocks RECOMMENDED when | clock |
+|---|---|---|
+| `decision_timestamp_resolved` | `created_at` missing, unparseable, or timezone-naive | — |
+| `decision_time_quote_freshness` | no confirmed executable quote in the window **before the decision** | decision |
+| `executable_price_within_ceiling` | the ask **at the decision** was above `bet_up_to_probability` | decision |
+| `player_identity_resolved` | unresolved identity, or SUPPORTED with no `player_id` | — |
+| `player_availability_resolved` | availability missing, stale, or read **after** the decision | decision |
+| `full_position_executable` | depth unestablished, stake exceeds liquidity, or the fill walks above the ceiling | decision |
+| `net_executable_ev` | costs not `KNOWN`, EV uncomputable, or EV **≤ $0** at the full-position VWAP | decision |
+| `portfolio_risk_policy` | rejected by a limit, or the recorded stake is not the approved stake | import (deterministic) |
 
 **UNKNOWN is a FAILURE.** A gate that cannot reach its evidence returns `UNAVAILABLE`, and `UNAVAILABLE`
 blocks exactly as `FAIL` does. Treating "I could not check" as "it is fine" is the failure mode all of this
@@ -327,8 +479,11 @@ exists to prevent.
 
 Results go into a `DecisionGates` file, **not** into the recommendation. The recommendation must hash
 identically on every replay — the bridge's idempotency check compares canonical bytes — and gate results are
-observations made at import time, which by definition differ between replays. Keeping them separate is what
-lets *"identical replay is harmless"* and *"gates ran and passed"* both be true.
+observations *made* at import time *about* the decision time, which differ between replays. Keeping them
+separate is what lets *"identical replay is harmless"* and *"gates ran and passed"* both be true.
+
+The record carries both clocks explicitly: `evaluated_at` is when the gates ran, `decision_as_of` is the
+timestamp they evaluated at.
 
 A record already durably in the ledger was gated when it was written. Re-gating it later would test today's
 market against yesterday's decision and fail for entirely the wrong reason.
@@ -342,7 +497,7 @@ proving.
 
 ---
 
-## 8. Multiple fills
+## 9. Multiple fills
 
 A recommendation is routinely filled in pieces:
 
@@ -376,7 +531,7 @@ it does not re-derive it.
 
 ---
 
-## 9. The two write paths are equivalent
+## 10. The two write paths are equivalent
 
 There are exactly two ways a record reaches the immutable ledger, and they are held to the same standard.
 If the manual one were permissive it would be a hole straight through every protection the bridge applies —
@@ -394,7 +549,7 @@ rejected on both paths, and a PASS or a `TEST_ONLY` record is accepted on both w
 
 ---
 
-## 10. Airtable is transport. GitHub is canonical.
+## 11. Airtable is transport. GitHub is canonical.
 
 Full detail in [`AIRTABLE_BRIDGE.md`](AIRTABLE_BRIDGE.md). The properties this standard depends on:
 
@@ -411,7 +566,7 @@ Full detail in [`AIRTABLE_BRIDGE.md`](AIRTABLE_BRIDGE.md). The properties this s
 
 ---
 
-## 11. What this standard does not do
+## 12. What this standard does not do
 
 * It does not place, route or automate a wager. The Kalshi client is read-only and has no order surface.
 * It does not enforce a minimum edge (§4).

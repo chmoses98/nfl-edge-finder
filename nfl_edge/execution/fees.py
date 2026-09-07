@@ -296,7 +296,13 @@ class FeeSchedule:
 
     # ---- window lookup -----------------------------------------------------------------------------
     def window_for(self, as_of: datetime | None = None) -> dict | None:
-        """The schedule window in force at `as_of`. Never "the newest one"."""
+        """The schedule window in force at `as_of`. Never "the newest one".
+
+        `as_of=None` means "right now" and exists for DIAGNOSTICS -- `describe()`, an operator poking at the
+        registry. It is not reachable from the pricing path: `entry_fee` raises rather than defaulting,
+        because a silent wall-clock fallback there would price a 13:00 decision with whatever schedule
+        happens to be in force when the importer runs twelve hours later.
+        """
         t = _iso(as_of) or datetime.now(timezone.utc)
         best = None
         for w in self.windows:
@@ -391,7 +397,16 @@ class FeeSchedule:
 
         `fills` prices an order that is known to arrive in pieces; omit it and the order is priced as one
         fill, which is what the accumulator makes a fragmented order converge to anyway.
+
+        `as_of` is REQUIRED and is the DECISION timestamp. There is no wall-clock default here on purpose:
+        defaulting to now() would price a decision with a schedule that took effect after it was made, which
+        is the same class of mistake as judging its price freshness at import time.
         """
+        if as_of is None:
+            raise FeeStateError(
+                "entry_fee requires the DECISION timestamp as `as_of`. Fee parameters are versioned by "
+                "effective window, and defaulting to wall clock would price a past decision with a schedule "
+                "that may not have existed when it was made.")
         bad = _price_problem(price, contracts)
         if bad:
             return FeeQuote(None, UNVERIFIED, f"{execution_style} quadratic", execution_style,

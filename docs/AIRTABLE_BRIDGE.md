@@ -196,10 +196,19 @@ real recommendation.
 
 ### The decision gates
 
-Beyond per-record schema validity, every **new** `RECOMMENDED` record is checked against the world at import
-time: is the executable price still confirmed and fresh, is the live ask still under the stated ceiling, is
-the player identity resolved, is availability resolved, are the transaction costs known, does the portfolio
-have room. See [`DECISION_STANDARD.md` §7](DECISION_STANDARD.md#7-the-gates).
+Beyond per-record schema validity, every **new** `RECOMMENDED` record is checked against the world **as it
+was at the decision**: was the executable price confirmed and fresh then, was the ask under the stated
+ceiling then, is the player identity resolved, was availability resolved, are the transaction costs known,
+was the full approved stake executable from observed depth, and does the portfolio have room. See
+[`DECISION_STANDARD.md` §8](DECISION_STANDARD.md#8-the-gates).
+
+**This is the point most easily got wrong, and it is why the twelve-hour cadence is safe.** The bridge is
+retrospective archival transport; ingestion is when a decision is *filed*, not when it is *made*. Gating
+against the market at import time would reject a perfectly sound 13:00 call because the 01:00 sync found the
+game already kicked off. Every market gate therefore reads the record's own `created_at`, evidence captured
+after it is invisible, and freshness is measured backwards from it — so a recommendation that was valid when
+made stays valid however late the importer runs, and one that was stale when made cannot be rescued by a
+later capture. Airtable's `createdTime` keeps its separate job as the anti-backfill bound.
 
 Three properties of how that is wired into this transport:
 

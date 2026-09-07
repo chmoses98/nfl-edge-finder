@@ -14,14 +14,23 @@
 9. **Kalshi player UUID map** resolves 121/141 players exactly; 20 are flagged for review and must not be used in pricing until resolved.
 10. **Kalshi parlay series** (KXMVENFL*, KXNFLPREPACK*) hold millions of archived multivariate contracts and are excluded from backfill; live capture keeps them at LIGHT tier.
 
-11. **The maker fee multiplier is unknown.** Kalshi's series metadata exposes `fee_type` but not the maker
-    coefficient, and the published schedule says it defaults to 0 "unless otherwise indicated" without saying
-    what the indicated value is for these series. It is carried as `UNKNOWN` and never defaulted, so
-    `net_executable_ev` refuses to produce a net EV for a maker order. This costs nothing operationally —
-    passive execution is rejected on core game markets by research/passive (Milestone K), so a real
-    recommendation is a taker order and
-    the taker path is fully known — but it does mean maker-side research must sweep
-    `MAKER_MULTIPLIER_SWEEP` rather than report one number.
+11. **Maker multipliers are unverified for most maker-fee series.** The regulatory Fee Schedule lists both a
+    Maker and a Taker Multiplier per listed non-standard series, and `KXNFLGAME` is recorded from it at
+    maker 1 / taker 1. The other 24 maker-fee NFL series are not yet transcribed into a schedule window, so
+    their maker multiplier is `UNVERIFIED` and `net_executable_ev` refuses to price a maker order on them.
+    This costs nothing operationally — passive execution is rejected on core game markets by
+    research/passive (Milestone K), so a real recommendation is a taker order and the taker path is fully
+    known — but maker-side research on those series must sweep `MAKER_MULTIPLIER_SWEEP`.
+18. **The fee schedule's per-series multipliers are operator-attested, not machine-verified.** The session
+    that transcribed them could not reach kalshi.com or the Kalshi API (network egress policy).
+    `scripts/kalshi/capture_fee_metadata.py` re-reads live metadata from Actions and reports any
+    disagreement, and a conflict fails closed rather than resolving by source rank — but until that job has
+    run against the live API, the `verified_by: OPERATOR_ATTESTATION` marker on the window is the honest
+    description of its provenance.
+19. **Order-book depth is only captured for FULL_MICROSTRUCTURE series inside 72h of kickoff.** Outside that
+    window the depth behind the top of book is not observable at all, so the full-position executability
+    gate fails closed rather than falling back to top-of-book pricing. That is the right failure, but it
+    does mean a recommendation on a market outside book coverage cannot currently be written.
 12. **No official gameday inactive feed.** `INACTIVE_CONFIRMED` is reserved and unpopulated; no free source
     has been shown to deliver the official T-90m inactive list reliably. `scripts/data/probe_inactives.py`
     reports what candidates actually deliver and is deliberately a probe, not a collector: a broken inactives

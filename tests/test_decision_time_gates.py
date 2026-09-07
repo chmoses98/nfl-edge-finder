@@ -329,3 +329,27 @@ def test_the_fee_schedule_in_force_at_the_decision_is_the_one_used():
     later, _ = fs.coefficients(DECISION + timedelta(days=2))
     assert at_decision == pytest.approx(0.07), "the decision must be priced with the schedule then in force"
     assert later == pytest.approx(0.99), "and the later window must still be reachable for later decisions"
+
+
+def test_the_pricing_path_refuses_to_default_to_wall_clock():
+    """The same trap as the quote resolver's, closed the same way.
+
+    A silent `now()` in the fee lookup would price a 13:00 decision with whatever schedule is in force when
+    the importer runs. `window_for` keeps a wall-clock default for diagnostics; `entry_fee` does not.
+    """
+    fs = F.load_fee_schedule(ROOT)
+    with pytest.raises(F.FeeStateError, match="DECISION timestamp"):
+        fs.entry_fee(0.50, 100, "KXNFLGAME", F.TAKER)
+    # the diagnostic path is still allowed to mean "now"
+    assert fs.describe("KXNFLGAME")
+
+
+def test_no_market_gate_reads_a_wall_clock():
+    """An audit of the gate module: the only `now()` may be the one stamping when the gates RAN."""
+    import inspect
+    src = inspect.getsource(G).splitlines()
+    hits = [(i, ln.strip()) for i, ln in enumerate(src, 1)
+            if "datetime.now" in ln or "utcnow" in ln]
+    assert len(hits) == 1, f"unexpected wall-clock reads in the gate module: {hits}"
+    # and it is inside to_record, which records evaluated_at -- not inside any gate
+    assert "now = now or" in hits[0][1]
