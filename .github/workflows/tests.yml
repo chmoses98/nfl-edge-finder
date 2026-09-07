@@ -43,15 +43,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      # numpy, polars and pyyaml are the only third-party imports anywhere in tests/. Everything the
-      # hardening work added -- schema, gates, quotes, fees, risk, the bridge -- is stdlib-only by design, so
-      # a package resolution failure can never be what stops the gates being tested.
-      #
-      # pyyaml is not optional: tests/test_workflows_parse.py imports it at module scope, and without it
-      # those 42 tests fail collection rather than skipping. That file exists because an unparseable
-      # workflow once killed 36 consecutive scheduled shadow-pricing runs with nothing noticing.
+      # requirements-test.txt is the TRANSITIVE set, derived by walking the import graph rather than by
+      # reading the top of each test file. A missing dependency does not skip a test -- it fails it, or
+      # fails collection for the whole module -- so the list has to be complete, and
+      # tests/test_ci_dependencies.py fails if it falls behind.
       - name: Install test dependencies
-        run: python3 -m pip install --quiet pytest numpy polars pyyaml
+        run: python3 -m pip install --quiet -r requirements-test.txt
 
       - name: Syntax check every module
         run: python3 -m compileall -q nfl_edge scripts tests
