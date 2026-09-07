@@ -22,6 +22,10 @@ def main():
     # shadow-0.3.0 as current on a day when shadow-0.4.0 was published.
     ap.add_argument("--ledger", default=None,
                     help="ledger root (default: <md>/data/shadow/ledger, i.e. the published ledger)")
+    # Bridge health is read from a handicap-data checkout and costs ZERO Airtable requests. Polling the
+    # Airtable API for a decorative health line would spend free-tier quota on something nobody acts on.
+    ap.add_argument("--handicap-root", default=None,
+                    help="handicap-data worktree; enables the Airtable bridge section (no API calls)")
     a = ap.parse_args()
     if a.ledger is None:
         a.ledger = os.path.join(a.md, "data", "shadow", "ledger")
@@ -142,10 +146,38 @@ def main():
             if isinstance(v, dict) and v.get("status") not in (200, None):
                 srcs.append(f"{k}={v.get('status')}")
     print(f"SOURCE FAILURES:    {srcs or 'none'}")
+    if a.handicap_root:
+        _bridge_health(a.handicap_root)
     print("=" * 74)
     print(f"REAL-MONEY STATUS:  NOT VALIDATED -- research only, no orders, no recommendations")
     print("=" * 74)
     return 0
+
+
+def _bridge_health(root):
+    """Airtable -> handicap-data bridge, from local files only.
+
+    Every signal here is derived from the ledger checkout: what has actually landed is the only thing worth
+    reporting, and it is also the only thing that can be reported for free. Pending/ERROR row counts live in
+    Airtable and are visible there by filtering Status; they are deliberately not fetched.
+    """
+    from nfl_edge.handicap import store
+
+    recs = store.read_kind(root, "recommendations", include_test=True)
+    receipts = store.read_kind(root, "import_receipts", include_test=True)
+    real = [r for r in recs if not r.get("test_only")]
+    print("-" * 74)
+    print(f"HANDICAP LEDGER:    {len(real)} recommendation(s), {len(recs) - len(real)} test_only")
+    latest = max((r.get("created_at") or "" for r in recs), default="")
+    print(f"LATEST DECISION:    {latest or '-'}")
+    if receipts:
+        last = max(receipts, key=lambda r: r.get("imported_at") or "")
+        print(f"LAST BRIDGE IMPORT: {last.get('imported_at')} "
+              f"(airtable {last.get('airtable_record_id')}, run {last.get('run_id')}, "
+              f"{last.get('record_count')} record(s))")
+        print(f"BRIDGE IMPORTS:     {len(receipts)} receipt(s)")
+    else:
+        print(f"LAST BRIDGE IMPORT: none -- no batch has arrived through Airtable yet")
 
 
 if __name__ == "__main__":
