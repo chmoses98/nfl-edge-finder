@@ -1,0 +1,88 @@
+name: Tests
+
+# The suite is what keeps every fail-closed gate honest. `schema.validate_recommendation` refusing a stale
+# price, `evaluate.aggregate_executions` counting two fills once, `fees.maker_fee` staying UNKNOWN -- all of
+# it is one plausible-looking refactor away from silently not doing that, and the ledger is immutable, so a
+# defective record written in the meantime is permanent.
+#
+# Until this workflow existed the tests only ran when somebody remembered to run them. Now a pull request
+# that breaks one cannot merge without the failure being visible.
+#
+# Deliberately narrow: no network, no secrets, no branch writes. It reads the code and runs the tests.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The append-only guard and the frozen-artifact test both compare against the merge base with
+          # main, which a shallow checkout cannot resolve. They skip rather than fail without it, and a
+          # silently skipped guard is not a guard.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # numpy and polars are the only third-party imports anywhere in tests/. Everything the hardening work
+      # added -- schema, gates, quotes, fees, risk, the bridge -- is stdlib-only by design, so a package
+      # resolution failure can never be what stops the gates being tested.
+      - name: Install test dependencies
+        run: python3 -m pip install --quiet pytest numpy polars
+
+      - name: Syntax check every module
+        run: python3 -m compileall -q nfl_edge scripts tests
+
+      - name: Workflow YAML parses
+        run: |
+          python3 - <<'PY'
+          import glob, sys, yaml
+          bad = []
+          for f in sorted(glob.glob(".github/workflows/*.yml")):
+              try:
+                  yaml.safe_load(open(f))
+                  print(f"ok  {f}")
+              except yaml.YAMLError as e:
+                  bad.append(f"{f}: {e}")
+          if bad:
+              print("\n".join(bad), file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Run the suite
+        run: python3 -m pytest -q --tb=short
+
+      - name: Config files are valid JSON
+        run: |
+          python3 - <<'PY'
+          import glob, json, sys
+          bad = []
+          for f in sorted(glob.glob("config/*.json")):
+              try:
+                  json.load(open(f))
+                  print(f"ok  {f}")
+              except ValueError as e:
+                  bad.append(f"{f}: {e}")
+          if bad:
+              print("\n".join(bad), file=sys.stderr)
+              sys.exit(1)
+          PY

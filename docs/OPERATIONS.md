@@ -10,6 +10,7 @@
 | Kalshi NFL Capture | dispatch only | single capture pass (manual / external scheduler) | `market-data` |
 | Kalshi NFL Discovery | daily 09:17 UTC + dispatch | catalogue refresh, all NFL markets in every status (settlements), endpoint probes; proposes registry additions | `market-data` |
 | Kalshi NFL Historical Backfill | dispatch (self-chains) | historical tier market lists + candles + trades | `market-data` |
+| Tests | pull request + push to `main` + dispatch | full pytest suite, syntax check, workflow YAML and config JSON validation. Read-only: no network, no secrets, no branch writes | none |
 | Sync handicap runs from Airtable | 12-hourly cron `23 */12 * 9-12,1-2 *` + dispatch | ingests ChatGPT recommendation batches from the `Sports Betting Bridge` Airtable inbox into the immutable ledger | `handicap-data` |
 
 Manual dispatch from the GitHub UI or API (`POST /repos/chmoses98/nfl-edge-finder/actions/workflows/<file>/dispatches`).
