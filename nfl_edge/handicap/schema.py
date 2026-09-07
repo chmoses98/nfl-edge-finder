@@ -364,6 +364,7 @@ class DecisionGates:
     net_ev: dict | None = None                      # gross edge, fees, slippage, net -- see execution/fees
     risk: dict | None = None                        # the portfolio verdict for this record
     blocking_reasons: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)      # seen, recorded, not blocking
     test_only: bool = False
 
     def to_dict(self):

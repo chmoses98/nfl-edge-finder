@@ -374,7 +374,25 @@ it does not re-derive it.
 
 ---
 
-## 9. Airtable is transport. GitHub is canonical.
+## 9. The two write paths are equivalent
+
+There are exactly two ways a record reaches the immutable ledger, and they are held to the same standard.
+If the manual one were permissive it would be a hole straight through every protection the bridge applies —
+documented in the runbook, reachable by anyone who read it, and indistinguishable in the ledger from a
+properly gated write.
+
+| | path | gates |
+|---|---|---|
+| unattended | `scripts/handicap/sync_airtable.py` | required; a failure fails the batch |
+| manual | `scripts/handicap/validate_recommendations.py --write` | required; `--market-data` is mandatory for a real `RECOMMENDED` record |
+
+`tests/test_write_paths_equivalent.py` pins the property that matters — not "the same code runs", but **"the
+same record is refused"**: a stale price, a live ask above the ceiling and an oversized stake are all
+rejected on both paths, and a PASS or a `TEST_ONLY` record is accepted on both without market data.
+
+---
+
+## 10. Airtable is transport. GitHub is canonical.
 
 Full detail in [`AIRTABLE_BRIDGE.md`](AIRTABLE_BRIDGE.md). The properties this standard depends on:
 
@@ -391,7 +409,7 @@ Full detail in [`AIRTABLE_BRIDGE.md`](AIRTABLE_BRIDGE.md). The properties this s
 
 ---
 
-## 10. What this standard does not do
+## 11. What this standard does not do
 
 * It does not place, route or automate a wager. The Kalshi client is read-only and has no order surface.
 * It does not enforce a minimum edge (§4).

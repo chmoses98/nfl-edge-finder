@@ -75,6 +75,9 @@ class GateReport:
     net_ev: dict | None = None
     risk: dict | None = None
     blocking_reasons: list = field(default_factory=list)
+    # Things the operator should see that are NOT blockers. Kept strictly apart from blocking_reasons: a
+    # warning list that can block, or a blocker list that contains advice, makes both unreadable.
+    warnings: list = field(default_factory=list)
 
     def to_record(self, *, test_only: bool = False, now: datetime | None = None) -> dict:
         now = now or datetime.now(timezone.utc)
@@ -90,6 +93,7 @@ class GateReport:
             net_ev=self.net_ev,
             risk=self.risk,
             blocking_reasons=list(self.blocking_reasons),
+            warnings=list(self.warnings),
             test_only=test_only,
         ).to_dict()
 
@@ -266,6 +270,15 @@ def evaluate_gates(rec: dict, ctx: GateContext) -> GateReport:
                 {k: nev.to_dict()[k] for k in ("gross_edge", "gross_ev_dollars", "estimated_fees",
                                                "net_ev_dollars", "net_edge")})
         else:
+            if nev.net_ev_dollars is not None and nev.net_ev_dollars <= 0:
+                # Not a blocker -- no minimum-edge rule is enforced (see the docstring) -- but a desk should
+                # never find this out later from the scorecard. It is said now, in the record.
+                report.warnings.append(
+                    f"NET EV IS NOT POSITIVE: a gross edge of {nev.gross_edge:+.4f} is erased by "
+                    f"${nev.estimated_fees:.2f} of estimated fees and "
+                    f"${nev.estimated_slippage_dollars:.2f} of slippage, leaving "
+                    f"${nev.net_ev_dollars:+.2f}. This record is being written because no minimum-edge rule "
+                    "is enforced, not because the trade survives its costs.")
             report.gates[G_NET_EV] = GateResult(
                 PASS,
                 f"gross edge {nev.gross_edge:+.4f}, estimated fees ${nev.estimated_fees:.2f}, net EV "
