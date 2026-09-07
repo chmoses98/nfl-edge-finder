@@ -34,6 +34,27 @@ measure. The per-group cap is deliberately tighter than the per-game cap for tha
 
 Exposure is measured in DOLLARS STAKED. For a Kalshi long that is the maximum loss, which is the quantity a
 risk limit should actually bind.
+
+CUMULATIVE, ACROSS RUNS
+-----------------------
+A limit that resets every batch is not a limit. Two handicap runs two hours apart, each proposing 2u into
+the same correlation group, each independently "under" a 3u cap, put 4u into one thesis -- and every gate
+says PASS while the desk breaks its own policy.
+
+So the caps bind against OUTSTANDING EXPOSURE PLUS THE CURRENT BATCH. Outstanding exposure is read from the
+ledger as of the decision timestamp and is defined conservatively:
+
+    reserved       max(approved recommended stake - executed stake, 0), held until kickoff or supersession
+    at risk        executed stake, held until the position settles
+
+    total per recommendation = reserved + at risk
+
+Which is `max(approved, executed)` once a position is fully filled, so a recommendation and its own fills are
+never counted twice. A partial fill of $6 against an approved $10 holds $10: $6 at risk and $4 still
+reservable. What is EXCLUDED is stated as explicitly as what is included -- TEST_ONLY, PASS/WATCHLIST/
+RESEARCH_ALERT, superseded links in an amendment chain, anything decided after `as_of`, and settled
+positions -- and every exclusion is recorded with its reason so the arithmetic can be audited rather than
+trusted.
 """
 from __future__ import annotations
 
@@ -41,6 +62,9 @@ import json
 import math
 import os
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+
+from nfl_edge.handicap import store
 
 APPROVED = "APPROVED"          # the proposal stands as submitted
 CAPPED = "CAPPED"              # allowed, but at a smaller stake than proposed
@@ -97,6 +121,52 @@ class Verdict:
 
 
 @dataclass
+class OutstandingPosition:
+    """One already-live position's claim on the bankroll, split into why it is still a claim."""
+    recommendation_id: str
+    approved_stake: float
+    executed_stake: float
+    reserved_stake: float          # approved but not yet filled, and still fillable
+    at_risk_stake: float           # filled and not yet settled
+    exposure: float                # reserved + at_risk
+    game_id: str | None = None
+    correlation_group: str | None = None
+    market_ticker: str | None = None
+    basis: str = ""
+
+    def to_dict(self) -> dict:
+        return dict(self.__dict__)
+
+
+@dataclass
+class OutstandingExposure:
+    """What the book already carries at a point in time, and everything deliberately left out of it.
+
+    `excluded` is not decoration. A cumulative limit is only auditable if the reason a position was NOT
+    counted is written down next to the number, so a later reviewer can check the subtraction rather than
+    take it on faith.
+    """
+    as_of: str | None = None
+    release_as_of: str | None = None
+    positions: list = field(default_factory=list)
+    by_game: dict = field(default_factory=dict)
+    by_correlation_group: dict = field(default_factory=dict)
+    total: float = 0.0
+    excluded: list = field(default_factory=list)          # [(recommendation_id, reason)]
+    source: str = ""
+
+    def to_dict(self) -> dict:
+        return {"as_of": self.as_of, "release_as_of": self.release_as_of,
+                "total": self.total, "by_game": self.by_game,
+                "by_correlation_group": self.by_correlation_group, "source": self.source,
+                "positions": [p.to_dict() for p in self.positions],
+                "excluded": [{"recommendation_id": r, "reason": w} for r, w in self.excluded]}
+
+
+EMPTY_EXPOSURE = OutstandingExposure(source="no prior exposure supplied")
+
+
+@dataclass
 class PortfolioReport:
     """The whole slate's verdict, plus the exposure it actually consumes."""
     policy_id: str
@@ -108,6 +178,10 @@ class PortfolioReport:
     total_exposure: float = 0.0
     limits: dict = field(default_factory=dict)
     violations: list = field(default_factory=list)
+    # What the book already carried BEFORE this batch. The `exposure_by_*` maps above are cumulative --
+    # outstanding plus this batch -- because that is what the caps actually bind against.
+    outstanding: dict = field(default_factory=dict)
+    batch_exposure: float = 0.0
 
     @property
     def all_approved(self) -> bool:
@@ -168,14 +242,25 @@ class RiskPolicy:
                 else (by_fraction, "max_slate_exposure_fraction_of_bankroll"))
 
     def _round(self, stake: float) -> float:
-        """Round DOWN to whole dollars. A risk cap that rounds up is not a cap."""
+        """Round DOWN to whole dollars. A risk cap that rounds up is not a cap.
+
+        An INT, not a float. The schema requires a whole-dollar integer stake, and the approved size is
+        written straight onto the record the pre-trade path shows the owner -- a 20.0 there is refused by
+        `validate_recommendation` at the last moment, for a reason that has nothing to do with the bet.
+        """
         if not self.round_stakes_to_dollars:
             return round(stake, 2)
-        return float(math.floor(stake + 1e-9))
+        return int(math.floor(stake + 1e-9))
 
     # ---- the decision ---------------------------------------------------------------------------
-    def evaluate(self, proposals: list, bankroll_snapshot: float) -> PortfolioReport:
+    def evaluate(self, proposals: list, bankroll_snapshot: float,
+                 outstanding: "OutstandingExposure | None" = None) -> PortfolioReport:
         """Cap every proposal against position, grade, game, correlation-group and slate limits.
+
+        `outstanding` is what the book ALREADY carries -- from earlier handicap runs, earlier Airtable rows,
+        amendments, unfilled approvals and unsettled fills. Every aggregate budget starts partly consumed by
+        it, which is the whole difference between a limit and a suggestion: without it, two runs of 2u each
+        both pass a 3u correlation cap and the desk ends up at 4u.
 
         Proposals are processed in descending proposed size so that when a shared budget runs out it is the
         smallest positions that get squeezed, not whichever happened to be listed first. Order-dependence is
@@ -200,9 +285,15 @@ class RiskPolicy:
                 "slate_binding_limit": slate_limit_name,
             })
 
-        game_used: dict = {}
-        group_used: dict = {}
-        total_used = 0.0
+        out = outstanding or EMPTY_EXPOSURE
+        report.outstanding = out.to_dict()
+
+        # The budgets start where the book already is. A cap is a statement about the DESK's total position,
+        # not about whichever batch happens to be in front of the policy right now.
+        game_used: dict = {k: float(v) for k, v in (out.by_game or {}).items()}
+        group_used: dict = {k: float(v) for k, v in (out.by_correlation_group or {}).items()}
+        total_used = float(out.total or 0.0)
+        opening_total = total_used
 
         for p in sorted(proposals, key=lambda x: (-float(x.proposed_stake or 0.0), x.recommendation_id or "")):
             reasons: list = []
@@ -236,19 +327,22 @@ class RiskPolicy:
                 tighten(float(gc) * unit, "grade_caps_units", f"grade {p.grade} cap {gc}u")
 
             if p.game_id:
-                room = self.max_exposure_per_game_units * unit - game_used.get(p.game_id, 0.0)
+                used = game_used.get(p.game_id, 0.0)
+                room = self.max_exposure_per_game_units * unit - used
                 tighten(max(room, 0.0), "max_exposure_per_game_units",
-                        f"game {p.game_id} aggregate cap {self.max_exposure_per_game_units}u")
+                        f"game {p.game_id} aggregate cap {self.max_exposure_per_game_units}u "
+                        f"({used:.2f} already committed)")
 
             if p.correlation_group:
-                room = (self.max_exposure_per_correlation_group_units * unit
-                        - group_used.get(p.correlation_group, 0.0))
+                used = group_used.get(p.correlation_group, 0.0)
+                room = self.max_exposure_per_correlation_group_units * unit - used
                 tighten(max(room, 0.0), "max_exposure_per_correlation_group_units",
                         f"correlation group {p.correlation_group} cap "
-                        f"{self.max_exposure_per_correlation_group_units}u")
+                        f"{self.max_exposure_per_correlation_group_units}u "
+                        f"({used:.2f} already committed)")
 
             tighten(max(slate_cap - total_used, 0.0), slate_limit_name,
-                    f"slate aggregate cap ({slate_limit_name})")
+                    f"slate aggregate cap ({slate_limit_name}, {total_used:.2f} already committed)")
 
             allowed = self._round(allowed)
 
@@ -275,14 +369,17 @@ class RiskPolicy:
                 group_used[p.correlation_group] = group_used.get(p.correlation_group, 0.0) + allowed
             total_used += allowed
 
+        # These are CUMULATIVE: outstanding plus this batch, which is what the caps bound.
         report.exposure_by_game = {k: round(v, 2) for k, v in sorted(game_used.items())}
         report.exposure_by_correlation_group = {k: round(v, 2) for k, v in sorted(group_used.items())}
         report.total_exposure = round(total_used, 2)
+        report.batch_exposure = round(total_used - opening_total, 2)
         return report
 
 
 def evaluate_records(records: list, policy: RiskPolicy, bankroll_snapshot: float | None = None,
-                     decisions=("RECOMMENDED",)) -> PortfolioReport:
+                     decisions=("RECOMMENDED",),
+                     outstanding: OutstandingExposure | None = None) -> PortfolioReport:
     """Run the policy over a batch of recommendation dicts.
 
     Only records whose decision actually consumes bankroll are sized. A PASS carries no exposure and must not
@@ -302,4 +399,210 @@ def evaluate_records(records: list, policy: RiskPolicy, bankroll_snapshot: float
                 "no bankroll_snapshot on any record in the batch; a portfolio limit expressed as a fraction "
                 "of bankroll cannot be evaluated without one")
         bankroll_snapshot = snaps.pop()
-    return policy.evaluate([Proposal.from_record(r) for r in live], bankroll_snapshot)
+    return policy.evaluate([Proposal.from_record(r) for r in live], bankroll_snapshot, outstanding)
+
+
+# ---- outstanding exposure --------------------------------------------------------------------------
+
+# A recommendation is not gated on a decision's own kickoff here; `_ts` returning None means "no usable
+# timestamp", which is always resolved in the direction that KEEPS exposure on the book.
+def _ts(value):
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def outstanding_exposure(recommendations: list, executions: list, evaluations: list, as_of,
+                         *, release_as_of=None, exclude_ids=(),
+                         decisions=("RECOMMENDED",)) -> OutstandingExposure:
+    """What the book already carries at `as_of`, from the ledger's own records.
+
+    The definition, and why each half of it is what it is:
+
+      RESERVED   `max(approved_stake - executed_stake, 0)` on a live recommendation. An approval the owner
+                 has not yet filled is still a commitment to fill it, so it holds budget. It is released at
+                 KICKOFF -- after which the pregame position can no longer be established -- or when an
+                 amendment supersedes the record.
+
+      AT RISK    executed stake, held until the position SETTLES. A filled position is exposure in the most
+                 literal sense: the money is gone until the contract resolves. Settlement is established
+                 from an Evaluation carrying a `settlement`, because that is the ledger's only record that
+                 the outcome is known.
+
+    Their sum is `max(approved, executed)` for a fully-filled position, so a recommendation and its own
+    fills never double count, and a partial fill neither forgets the filled half nor releases the unfilled
+    one.
+
+    Everything is evaluated AS OF the decision timestamp: a recommendation made after `as_of`, or a fill
+    that happened after it, was not exposure when this call was made. That is the same clock every other
+    gate uses, and it is what makes the answer independent of when the importer got around to the row.
+    """
+    at = _ts(as_of)
+    if at is None:
+        raise RiskPolicyError(
+            "outstanding_exposure requires a decision timestamp. Cumulative exposure is a statement about a "
+            "point in time, and defaulting to wall clock would count positions taken after the decision "
+            "being evaluated.")
+    # Two bounds, each rounded against the batch, exactly as the quote gate does with capture runs. INCLUSION
+    # asks "did this position already exist?" and uses the LATEST decision in the batch, so nothing prior is
+    # missed. RELEASE asks "has it gone away yet?" and uses the EARLIEST, so nothing is let go early. A batch
+    # spanning one minute makes them the same; a batch spanning hours is judged conservatively at both ends.
+    release_at = _ts(release_as_of) or at
+
+    exclude = set(exclude_ids or ())
+    excluded: list = []
+
+    live = []
+    for r in recommendations or []:
+        rid = r.get("recommendation_id")
+        if rid in exclude:
+            excluded.append((rid, "in the batch currently being evaluated; counted there, not here"))
+            continue
+        if r.get("test_only"):
+            excluded.append((rid, "TEST_ONLY: risks no capital"))
+            continue
+        if r.get("decision") not in decisions:
+            excluded.append((rid, f"decision {r.get('decision')} consumes no bankroll"))
+            continue
+        created = _ts(r.get("created_at"))
+        if created is not None and created > at:
+            excluded.append((rid, f"decided at {r.get('created_at')}, after the decision being evaluated"))
+            continue
+        live.append(r)
+
+    # Only the current opinion in an amendment chain carries exposure. The superseded links stay in the
+    # ledger -- they are simply represented by the record that replaced them.
+    current = store.latest_amendment_chain(live)
+    current_ids = {r["recommendation_id"] for r in current}
+    for r in live:
+        if r["recommendation_id"] not in current_ids:
+            excluded.append((r["recommendation_id"], "superseded by an amendment; the amendment carries it"))
+
+    # Fills, as of the decision. A fill recorded later did not exist yet.
+    filled: dict = {}
+    for e in executions or []:
+        if e.get("test_only"):
+            continue
+        when = _ts(e.get("executed_at"))
+        if when is not None and when > at:
+            continue
+        rid = e.get("recommendation_id")
+        stake = e.get("stake")
+        if stake is None:
+            price, contracts = e.get("actual_price"), e.get("contracts")
+            stake = (float(price) * float(contracts)) if (price and contracts) else 0.0
+        filled[rid] = filled.get(rid, 0.0) + float(stake)
+
+    settled = {ev.get("recommendation_id") for ev in evaluations or []
+               if ev.get("settlement") is not None}
+
+    positions, by_game, by_group = [], {}, {}
+    for r in current:
+        rid = r["recommendation_id"]
+        approved = float(r.get("recommended_stake") or 0.0)
+        # A fill on a superseded link is a fill on this position: the amendment revised the opinion, not the
+        # money already spent under it.
+        executed = float(filled.get(rid, 0.0))
+        for prior in r.get("_superseded_ids") or []:
+            executed += float(filled.get(prior, 0.0))
+
+        kicked_off = False
+        ko = _ts(r.get("kickoff_utc"))
+        if ko is not None and ko <= release_at:
+            kicked_off = True
+
+        reserved = 0.0 if kicked_off else max(approved - executed, 0.0)
+        at_risk = 0.0 if rid in settled else executed
+        exposure = reserved + at_risk
+
+        if exposure <= 0:
+            excluded.append((rid, "settled and fully released" if rid in settled else
+                             ("kicked off with nothing filled; the position can no longer be established"
+                              if kicked_off else "no approved or executed stake")))
+            continue
+
+        basis = []
+        if reserved > 0:
+            basis.append(f"${reserved:.2f} approved and not yet filled")
+        if at_risk > 0:
+            basis.append(f"${at_risk:.2f} filled and unsettled")
+        positions.append(OutstandingPosition(
+            recommendation_id=rid, approved_stake=round(approved, 2), executed_stake=round(executed, 2),
+            reserved_stake=round(reserved, 2), at_risk_stake=round(at_risk, 2),
+            exposure=round(exposure, 2), game_id=r.get("game_id"),
+            correlation_group=r.get("correlation_group"), market_ticker=r.get("market_ticker"),
+            basis="; ".join(basis)))
+        if r.get("game_id"):
+            by_game[r["game_id"]] = by_game.get(r["game_id"], 0.0) + exposure
+        if r.get("correlation_group"):
+            by_group[r["correlation_group"]] = by_group.get(r["correlation_group"], 0.0) + exposure
+
+    positions.sort(key=lambda p: p.recommendation_id)
+    return OutstandingExposure(
+        as_of=at.isoformat(), release_as_of=release_at.isoformat(), positions=positions,
+        by_game={k: round(v, 2) for k, v in sorted(by_game.items())},
+        by_correlation_group={k: round(v, 2) for k, v in sorted(by_group.items())},
+        total=round(sum(p.exposure for p in positions), 2),
+        excluded=sorted(set(excluded)),
+        source="handicap-data ledger: recommendations + executions + evaluations")
+
+
+def load_outstanding(ledger_root: str, as_of, *, release_as_of=None,
+                     exclude_ids=()) -> OutstandingExposure:
+    """`outstanding_exposure` over the committed ledger.
+
+    Reads the whole ledger rather than one season/week on purpose: exposure does not respect a week boundary,
+    and a Thursday-night position taken in one week's directory is still money at risk on Sunday.
+    """
+    recs = store.read_kind(ledger_root, "recommendations")
+    exes = store.read_kind(ledger_root, "executions")
+    evals = store.read_kind(ledger_root, "evaluations")
+    out = outstanding_exposure(recs, exes, evals, as_of, release_as_of=release_as_of,
+                               exclude_ids=exclude_ids)
+    out.source = f"handicap-data ledger at {ledger_root}"
+    return out
+
+
+def batch_window(records: list) -> tuple:
+    """The earliest and latest decision timestamp in a batch of records."""
+    times = sorted(t for t in (_ts(r.get("created_at")) for r in records or []) if t is not None)
+    return (times[0], times[-1]) if times else (None, None)
+
+
+def report_for_batch(records: list, policy: RiskPolicy, ledger_root: str | None,
+                     bankroll_snapshot: float | None = None,
+                     decisions=("RECOMMENDED",)) -> PortfolioReport:
+    """THE portfolio verdict for a batch, against the whole book rather than the batch alone.
+
+    This is the single entry point every caller uses -- the pre-trade preflight, the Airtable importer, and
+    the manual write path -- so there is exactly one definition of "does this fit within the limits". A
+    second implementation of the cap arithmetic that read only the batch is the defect this replaces.
+
+    `ledger_root` of None means the committed exposure could not be read. That is not treated as zero: the
+    caller gets a report whose `outstanding` says so, and the gate that consumes it should refuse rather
+    than assume an empty book.
+    """
+    live = [r for r in records if r.get("decision") in decisions and not r.get("test_only")]
+    if not live:
+        return policy.evaluate([], bankroll_snapshot or 1.0, EMPTY_EXPOSURE)
+
+    earliest, latest = batch_window(live)
+    if latest is None:
+        raise RiskPolicyError(
+            "no record in the batch carries a parseable created_at; cumulative exposure is measured at the "
+            "decision timestamp and cannot be measured without one")
+
+    if ledger_root is None:
+        outstanding = OutstandingExposure(
+            as_of=latest.isoformat(), release_as_of=(earliest or latest).isoformat(),
+            source="UNAVAILABLE: no ledger root supplied, so committed exposure could not be read")
+    else:
+        outstanding = load_outstanding(
+            ledger_root, latest, release_as_of=earliest,
+            exclude_ids={r.get("recommendation_id") for r in live})
+
+    return evaluate_records(live, policy, bankroll_snapshot, decisions, outstanding=outstanding)

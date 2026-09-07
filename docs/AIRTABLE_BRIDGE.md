@@ -13,6 +13,7 @@ So the decision handoff goes through Airtable:
 
 ```
 ChatGPT handicaps the slate
+  -> PRE-TRADE PREFLIGHT (scripts/handicap/preflight_candidate.py) approves or blocks each candidate
   -> writes ONE Airtable row per handicap run   (Status = READY_FOR_SYNC)
   -> sync-handicap-airtable workflow polls twice daily (or on manual dispatch)
   -> existing handicap schema validates the batch
@@ -67,7 +68,7 @@ would break batch atomicity.
 | Status | Meaning |
 |---|---|
 | `TEST_ONLY` | connectivity/scratch row. **Scheduled polling ignores it entirely** — it is excluded by the server-side filter, so it costs nothing and can never be imported. |
-| `READY_FOR_SYNC` | ChatGPT has finished writing the batch; GitHub may ingest it. This is the only status the importer picks up. |
+| `READY_FOR_SYNC` | ChatGPT has finished writing the batch **and every RECOMMENDED record in it has already passed pre-trade preflight at its approved stake**; GitHub may ingest it. This is the only status the importer picks up. |
 | `SYNCED` | every record in the payload was validated and is **durably present on `handicap-data`, and the push succeeded**. |
 | `ERROR` | a permanent payload/schema/conflict problem. Fix by submitting a **corrected new row**, never by editing the failed one. |
 

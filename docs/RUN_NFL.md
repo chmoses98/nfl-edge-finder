@@ -40,8 +40,9 @@ MASSIVE NFL DATA COLLECTION        collectors -> market-data branch (continuous)
   -> STRUCTURED HANDICAP PACKET    scripts/handicap/run_nfl.py
   -> CHATGPT INDEPENDENT HANDICAP  <- you are the decision layer here
   -> KALSHI MARKET SELECTION       best-expression comparison, correlation groups
+  -> PRE-TRADE PREFLIGHT           scripts/handicap/preflight_candidate.py  <- BEFORE anything is a BET
   -> AIRTABLE RECOMMENDATION RUN   ChatGPT writes one row -- the only write ChatGPT can make
-  -> AIRTABLE -> GITHUB SYNC       sync-handicap-airtable workflow, validates and materialises
+  -> AIRTABLE -> GITHUB SYNC       sync-handicap-airtable workflow, REPLAYS the same gates and materialises
   -> IMMUTABLE RECOMMENDATION      handicap-data branch, one file per record
   -> CLOSE / CLV / SETTLEMENT      scripts/handicap/attach_evaluations.py
   -> POSTMORTEM                    named categories, explicit confidence
@@ -93,9 +94,28 @@ Then, for each game you open:
 * answer the game's **KEY QUESTIONS**. They are generated from that game's actual data and are aimed at how
   this packet could be wrong.
 
-### 4. Produce recommendations and passes
+### 4. Produce CANDIDATES, and preflight them before anything is called a bet
 
-For each contract seriously considered, emit a record. The shape the user reads:
+For each contract seriously considered, emit a record. Until it has passed preflight it is a **CANDIDATE**,
+and a candidate may be shown as `CANDIDATE`, `WATCHLIST` or `PASS` — never as a BET or a final
+`RECOMMENDED` instruction.
+
+```
+python3 scripts/handicap/preflight_candidate.py candidates.json \
+    --market-data /home/user/_market_data_wt --handicap-root /home/user/_ledger_wt
+```
+
+Exit `0` means every candidate may be surfaced as a bet, **at the stake preflight approved**. Exit `5` means
+at least one is blocked; surface those as CANDIDATE / WATCHLIST / PASS with the reasons it printed. The
+script places nothing and writes nothing.
+
+Preflight runs the same gates the ledger will later replay — decision-time price freshness, the ceiling,
+full-position depth, the fee schedule, net EV, identity, availability, and the **cumulative** portfolio caps
+— against the candidate's own `created_at`. That ordering is the point: the Airtable importer runs every
+twelve hours, so without this step the first check on a bet the owner placed at 13:01 would happen at 01:00.
+See [`DECISION_STANDARD.md`](DECISION_STANDARD.md) §0.
+
+The shape the user reads, once approved:
 
 ```
 BET
@@ -136,11 +156,13 @@ refused. The ledger must never be able to say "BET up to 58%" while the book is 
 `PASS`, `WATCHLIST` and `RESEARCH_ALERT` stay deliberately cheap to write — see
 [`DECISION_STANDARD.md`](DECISION_STANDARD.md) §2 for why the asymmetry is the design and not an oversight.
 
-#### The gates that run on ingestion
+#### The gates — run at preflight, replayed on ingestion
 
-Beyond the record's own coherence, a real recommendation is checked against the **world** at import time. Any
-of these blocks it — and so does a gate that could not reach its evidence, because "I could not check" must
-never resolve to "it is fine":
+Beyond the record's own coherence, a real recommendation is checked against the **world**. The same gate
+module runs twice: once **before** the bet is shown (step 4) and again when the importer archives it, which
+is an independent replay from the capture stream rather than the first look. Any of these blocks it — and so
+does a gate that could not reach its evidence, because "I could not check" must never resolve to "it is
+fine":
 
 | gate | blocks when |
 |---|---|
@@ -149,8 +171,9 @@ never resolve to "it is fine":
 | player identity | the Kalshi → GSIS mapping is unresolved |
 | player availability | availability is missing, UNKNOWN, blocking, stale, or read after the decision |
 | full-position executability | the approved stake cannot be filled from observed depth, or the fill walks above the ceiling |
-| transaction costs | costs are not `KNOWN`, or net executable EV is **≤ $0** at the full-position VWAP |
-| portfolio risk | a per-position, grade, game, correlation-group or slate limit binds |
+| fee schedule established | no committed window covers the decision, an announced Kalshi fee change is unmodelled, or the schedule has gone unverified past 45 days |
+| transaction costs | costs are not `KNOWN`, or net executable EV — or **conservative** net EV, after the derived fee-rounding residual — is **≤ $0** at the full-position VWAP |
+| portfolio risk | a per-position, grade, game, correlation-group or slate limit binds **cumulatively**, counting exposure already outstanding from earlier runs; or the committed ledger could not be read |
 
 **Everything above is evaluated as of the recommendation's own `created_at`, not as of the import.** The
 sync runs every twelve hours and archives decisions made hours earlier; judging them against the market at
@@ -167,14 +190,19 @@ ChatGPT emits the whole run as **one Airtable row** in the `Sports Betting Bridg
 | field | value |
 |---|---|
 | `Sport` | `NFL` |
-| `Status` | `READY_FOR_SYNC` |
+| `Status` | `READY_FOR_SYNC` — asserts the batch **already passed pre-trade approval** |
 | `Run ID` | the `handicap_run_id`, identical on every record in the payload |
 | `Payload` | the canonical JSON **array** for the whole batch — recommendations, passes, watchlist, alerts |
 
-That is the only write ChatGPT makes. Within twelve hours — or immediately, on manual dispatch — the
-`sync-handicap-airtable` workflow validates the batch, materialises one immutable file per record on
-`handicap-data`, pushes, and flips the row to `SYNCED`. The decision's prospective timestamp is Airtable's
-server-side `createdTime`, so ingestion latency costs the audit trail nothing.
+That is the only write ChatGPT makes. `READY_FOR_SYNC` is an assertion, not a request: it says the
+recommendation **has already been through preflight** at the approved stake. Within twelve hours — or
+immediately, on manual dispatch — the `sync-handicap-airtable` workflow independently **replays** the gates
+from the capture stream, materialises one immutable file per record on `handicap-data` plus its
+`DecisionGates` evidence, pushes, and flips the row to `SYNCED`. The decision's prospective timestamp is
+Airtable's server-side `createdTime`, so ingestion latency costs the audit trail nothing.
+
+The twelve-hour cadence stays. It is right for archival transport, and it is no longer load-bearing for
+safety.
 
 See **GitHub write-back** below, and `docs/AIRTABLE_BRIDGE.md` for the full contract.
 

@@ -70,7 +70,9 @@ fee into a price: `bet_up_to_probability` stays readable off the ticket, and cos
 """
 from __future__ import annotations
 
+import glob
 import json
+import math
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -221,6 +223,58 @@ def fee_for_order(fills, coefficient, multiplier, *, balance_precision=CENT) -> 
             **{k: float(v) for k, v in totals.items()}}
 
 
+# ---- pre-trade rounding uncertainty ----------------------------------------------------------------
+
+def rounding_uncertainty(contracts, balance_precision=CENT, trade_fee_increment=CENTICENT) -> dict:
+    """A WORST-CASE bound on how much more a fragmented order can cost than the equivalent single fill.
+
+    Before the trade we know the price and the size; we do not know how many pieces the venue will fill it
+    in. The accumulator makes fragmentation CONVERGE on the equivalent order -- that is its purpose -- but
+    it does not make it identical, and a pre-trade net EV computed from a single-fill estimate is therefore
+    slightly optimistic. This function says by exactly how much, from the mechanism rather than from taste.
+
+    Two sources, and there are only two:
+
+      CEILING.  `net_fee = SUM(trade_fee_i) + accumulator_final` (the rounding fees minus the rebates ARE the
+                accumulator, since it starts at zero). Within one price level the raw quadratic is linear in
+                contracts, so `SUM(raw_i) == raw_total`, and each fill's ceiling to a centicent adds at most
+                one centicent. With N fills the excess over `ceil(raw_total)` is therefore < N centicents.
+
+      RESIDUAL. The accumulator is bounded by one balance precision: it starts at 0, each fill adds a
+                rounding fee strictly below one precision unit, and any value above one precision unit
+                immediately rebates one. So the final residual is at most one precision unit, and the
+                single-fill estimate carries a residual of its own that is at least zero -- the DIFFERENCE
+                is bounded by one precision unit.
+
+      bound = N * trade_fee_increment  +  balance_precision
+
+    N is bounded because a Kalshi fill is at least one whole contract: `N <= ceil(contracts)`.
+
+    This is a TRANSACTION-COST bound, not a strategy buffer. It exists because a cost is uncertain, it is
+    derived from the venue's published rounding mechanism, and it shrinks to nothing as the mechanism is
+    observed. Nothing here may be tuned to make trades harder or easier to find.
+    """
+    try:
+        c = float(contracts)
+    except (TypeError, ValueError):
+        return {"bound_dollars": None, "reason": f"contracts {contracts!r} is not numeric"}
+    if c <= 0:
+        return {"bound_dollars": None, "reason": f"contracts {c} is not positive"}
+    max_fills = int(math.ceil(c - 1e-9))
+    inc, prec = _d(trade_fee_increment), _d(balance_precision)
+    ceiling_bound = _d(max_fills) * inc
+    bound = ceiling_bound + prec
+    return {
+        "max_fills": max_fills,
+        "trade_fee_ceiling_bound": float(ceiling_bound),
+        "accumulator_residual_bound": float(prec),
+        "bound_dollars": float(bound),
+        "derivation": (f"at most {max_fills} fill(s) of >=1 contract, each ceiling at most "
+                       f"{float(inc)} above the linear quadratic, plus at most {float(prec)} of "
+                       "un-rebated accumulator residual"),
+    }
+
+
 # ---- the schedule ----------------------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -283,6 +337,7 @@ class FeeSchedule:
     source_hierarchy: list = field(default_factory=list)
     rounding: dict = field(default_factory=dict)
     conflict_policy: str = ""
+    verification_policy: dict = field(default_factory=dict)
 
     # ---- regime ------------------------------------------------------------------------------------
     def fee_type(self, series_ticker: str) -> str | None:
@@ -443,6 +498,95 @@ class FeeSchedule:
         return self.entry_fee(price, contracts, series_ticker, MAKER, as_of=as_of,
                               maker_multiplier=maker_multiplier, **kw)
 
+    # ---- freshness ---------------------------------------------------------------------------------
+    def max_verification_age_days(self) -> float:
+        return float((self.verification_policy or {}).get(
+            "max_verification_age_days", DEFAULT_MAX_VERIFICATION_AGE_DAYS))
+
+    def verification(self, series_ticker: str | None, as_of: datetime,
+                     observations: "FeeObservations | None" = None) -> dict:
+        """Can the applicable fee schedule be ESTABLISHED at `as_of`, and how recently was it checked?
+
+        Four outcomes, three of which block a real recommendation:
+
+            NO_SCHEDULE          no committed window covers this timestamp. Nothing to price with.
+            PENDING_CHANGE       Kalshi announced a change effective at or before this decision and the
+                                 committed schedule carries no window for it. The registry is knowably
+                                 behind the venue, which is worse than never having looked.
+            STALE_VERIFICATION   a window is in force but the last confirmation against the live API is
+                                 older than the policy allows. A months-old unchecked registry is not a
+                                 fee schedule, it is a memory.
+            VERIFIED             in force and confirmed within the window.
+
+        A change is never applied here. Capture, surface, block, and require a reviewed window update --
+        auto-editing the regulatory schedule from an API response would let the venue silently rewrite every
+        historical net-EV number in the ledger.
+        """
+        at = _iso(as_of)
+        if at is None:
+            raise FeeStateError(
+                "fee-schedule verification requires the DECISION timestamp; the applicable schedule and its "
+                "freshness are both statements about a point in time")
+
+        w = self.window_for(at)
+        if w is None:
+            return {"state": NO_SCHEDULE, "as_of": at.isoformat(), "window_id": None,
+                    "reason": f"no committed fee-schedule window covers {at.isoformat()}; the applicable "
+                              "schedule cannot be established and no fee may be quoted against it"}
+
+        obs = observations or FeeObservations(None)
+
+        # 1. An announced change the committed schedule has not absorbed.
+        pending = []
+        for ch in obs.announced_changes(at):
+            eff = _change_effective(ch)
+            if eff is None or eff > at:
+                continue                       # a future change is a future window, not this one's problem
+            if series_ticker and ch.get("series_ticker") not in (None, series_ticker):
+                continue
+            if any(_iso(x.get("effective_from")) == eff for x in self.windows):
+                continue                       # already written up as a reviewed window
+            pending.append(ch)
+        if pending:
+            return {
+                "state": PENDING_CHANGE, "as_of": at.isoformat(), "window_id": w.get("window_id"),
+                "pending_changes": pending,
+                "reason": (f"Kalshi announced {len(pending)} fee change(s) effective at or before "
+                           f"{at.isoformat()} that config/kalshi_fee_schedule.json does not carry a window "
+                           "for. The committed schedule is knowably behind the venue; a reviewed window "
+                           "update is required before a real recommendation is priced against it.")}
+
+        # 2. How recently was the schedule actually confirmed? The committed attestation counts, and so does
+        #    any clean live capture at or before the decision -- whichever is later.
+        verified_at = _iso(w.get("verified_at"))
+        basis = f"schedule window {w.get('window_id')} attested {w.get('verified_at')}"
+        latest = obs.latest(at)
+        if latest is not None and not latest.get("differences") and not latest.get("errors"):
+            t = _iso(latest.get("retrieved_at"))
+            if t is not None and (verified_at is None or t > verified_at):
+                verified_at, basis = t, f"clean live capture at {latest.get('retrieved_at')}"
+
+        limit = self.max_verification_age_days()
+        if verified_at is None:
+            return {"state": STALE_VERIFICATION, "as_of": at.isoformat(),
+                    "window_id": w.get("window_id"), "verified_at": None, "age_days": None,
+                    "max_age_days": limit,
+                    "reason": f"schedule window {w.get('window_id')} carries no verification timestamp, so "
+                              "there is no evidence it still matches the venue"}
+
+        age_days = (at - verified_at).total_seconds() / 86400.0
+        common = {"as_of": at.isoformat(), "window_id": w.get("window_id"),
+                  "verified_at": verified_at.isoformat(), "age_days": round(age_days, 2),
+                  "max_age_days": limit, "basis": basis, "source": w.get("source")}
+        if age_days > limit:
+            return dict(common, state=STALE_VERIFICATION,
+                        reason=(f"the applicable fee schedule was last verified {age_days:.1f} days before "
+                                f"this decision ({basis}), beyond the {limit:.0f}-day policy. Real money is "
+                                "not priced off an unchecked registry; run "
+                                "scripts/kalshi/capture_fee_metadata.py and commit any reviewed change."))
+        return dict(common, state=VERIFIED,
+                    reason=f"verified {age_days:.1f} days before the decision ({basis})")
+
     def describe(self, series_ticker: str, as_of: datetime | None = None) -> str:
         t = self.fee_type(series_ticker)
         if t is None:
@@ -451,6 +595,84 @@ class FeeSchedule:
         return (f"{series_ticker}: fee_type {t}, taker multiplier {m.taker} ({m.taker_state}), "
                 f"maker multiplier {m.maker} ({m.maker_state}), source {m.source}, "
                 f"effective {m.effective_from}")
+
+
+# ---- fee-schedule freshness ------------------------------------------------------------------------
+
+VERIFIED = "VERIFIED"                       # a schedule is in force and was checked recently enough
+STALE_VERIFICATION = "STALE_VERIFICATION"   # in force, but nobody has confirmed it against Kalshi lately
+PENDING_CHANGE = "PENDING_CHANGE"           # Kalshi has announced a change the committed schedule lacks
+NO_SCHEDULE = "NO_SCHEDULE"                 # no window covers this timestamp at all
+
+DEFAULT_MAX_VERIFICATION_AGE_DAYS = 45.0
+
+
+class FeeObservations:
+    """Append-only fee observations captured from the live API onto the market-data branch.
+
+    Two things live here and they answer different questions:
+
+        series metadata      "is the committed registry still what the API reports?"
+        /series/fee_changes  "has Kalshi ANNOUNCED a change we have not yet written a window for?"
+
+    The second is why this class exists. A three-source hierarchy that never ingests its third source is a
+    documented intention, not a control. `scripts/kalshi/capture_fee_metadata.py` writes these snapshots;
+    nothing here writes anything.
+    """
+
+    def __init__(self, md_root: str | None):
+        self.md_root = md_root
+        self._loaded = None
+
+    def _all(self) -> list:
+        if self._loaded is not None:
+            return self._loaded
+        out = []
+        if self.md_root:
+            pattern = os.path.join(self.md_root, "data", "kalshi", "fees", "*.json")
+            for path in sorted(glob.glob(pattern)):
+                try:
+                    with open(path) as f:
+                        d = json.load(f)
+                except (OSError, ValueError):
+                    continue
+                d["_path"] = path
+                out.append(d)
+        out.sort(key=lambda d: str(d.get("retrieved_at") or ""))
+        self._loaded = out
+        return out
+
+    def latest(self, as_of: datetime | None = None) -> dict | None:
+        """The newest snapshot taken at or before `as_of`. Later ones are not evidence about a past call."""
+        cutoff = _iso(as_of)
+        best = None
+        for d in self._all():
+            t = _iso(d.get("retrieved_at"))
+            if t is None or (cutoff is not None and t > cutoff):
+                continue
+            best = d
+        return best
+
+    def announced_changes(self, as_of: datetime | None = None) -> list:
+        """Every announced fee change captured at or before `as_of`, newest snapshot wins per series."""
+        cutoff = _iso(as_of)
+        seen: dict = {}
+        for d in self._all():
+            t = _iso(d.get("retrieved_at"))
+            if t is None or (cutoff is not None and t > cutoff):
+                continue
+            for ch in ((d.get("fee_changes") or {}).get("changes") or []):
+                key = (ch.get("series_ticker"), str(ch.get("effective_at")))
+                seen[key] = dict(ch, _observed_at=d.get("retrieved_at"))
+        return [seen[k] for k in sorted(seen, key=lambda k: (str(k[0]), str(k[1])))]
+
+
+def _change_effective(ch) -> datetime | None:
+    for key in ("effective_at", "effective_time", "effective_from", "effective_date"):
+        t = _iso(ch.get(key))
+        if t is not None:
+            return t
+    return None
 
 
 def _price_problem(price, contracts) -> str | None:
@@ -498,6 +720,7 @@ def load_fee_schedule(root: str) -> FeeSchedule:
         fs.source_hierarchy = sched.get("source_hierarchy") or []
         fs.rounding = sched.get("rounding") or {}
         fs.conflict_policy = sched.get("conflict_policy", "")
+        fs.verification_policy = sched.get("verification_policy") or {}
         fs.windows = sorted(sched.get("schedules") or [],
                             key=lambda w: str(w.get("effective_from") or ""))
     return fs
@@ -530,6 +753,12 @@ class NetEV:
     state: str
     reason: str | None = None
     fee_components: dict | None = None
+    # A worst-case bound on the extra cost of unknown fill fragmentation, derived in `rounding_uncertainty`.
+    # `conservative_net_ev_dollars` is net EV less that bound: the number that is still positive even if the
+    # venue fragments the order as badly as its own rounding rules permit.
+    fee_uncertainty_dollars: float | None = None
+    fee_uncertainty: dict | None = None
+    conservative_net_ev_dollars: float | None = None
 
     @property
     def is_known(self) -> bool:
@@ -575,13 +804,17 @@ def net_executable_ev(fair_probability, executable_price, contracts, schedule: F
             reason=fee.reason or "gross EV is undefined without a fair probability and an executable price")
 
     net = round(gross_ev - fee.amount - float(slippage_dollars), 6)
+    unc = rounding_uncertainty(contracts, schedule.balance_precision(direct_member))
+    bound = unc.get("bound_dollars")
     return NetEV(
         fair_probability=fair_probability, executable_price=executable_price, contracts=contracts,
         stake_dollars=stake, gross_edge=gross_edge, gross_ev_dollars=gross_ev,
         estimated_fees=fee.amount, fee_state=KNOWN, fee_basis=fee.basis,
         estimated_slippage_dollars=float(slippage_dollars), net_ev_dollars=net,
         net_edge=None if not contracts else round(net / float(contracts), 6),
-        state=KNOWN, fee_components=fee.components)
+        state=KNOWN, fee_components=fee.components,
+        fee_uncertainty_dollars=bound, fee_uncertainty=unc,
+        conservative_net_ev_dollars=None if bound is None else round(net - bound, 6))
 
 
 def contracts_for_stake(stake_dollars, price) -> float:

@@ -64,9 +64,12 @@ def test_two_fills_at_different_prices_produce_exact_win_pnl():
 
 
 def test_two_fills_lose_exactly_what_was_staked():
+    """Gross ROI is -1 on a total loss. NET ROI does not exist here: these fills carry no fee data."""
     agg = aggregate_executions(TWO_FILLS, won=False)
     assert agg["gross_pnl"] == pytest.approx(-50.0)
-    assert agg["net_roi"] == pytest.approx(-1.0)
+    assert agg["net_roi"] is None and agg["net_pnl"] is None
+    priced = aggregate_executions([fill(0.54, 20, fees_paid=0.0), fill(0.55, 30, fees_paid=0.0)], won=False)
+    assert priced["net_roi"] == pytest.approx(-1.0), "with every fee observed, the net is exact"
 
 
 def test_the_blended_price_is_the_one_that_reproduces_the_aggregate():
@@ -125,27 +128,76 @@ def test_actual_fees_are_subtracted_from_net_but_not_from_gross():
     assert agg["fees_basis"] == "ACTUAL"
 
 
-def test_estimated_fees_never_reduce_realised_pnl():
-    """An estimate is a fine input to a forecast and an unacceptable input to a realised-P/L claim."""
+def test_all_estimated_fees_give_an_estimated_net_and_no_actual_net():
+    """An estimate is a fine input to a forecast and an unacceptable input to a realised-P/L claim.
+
+    The old behaviour was worse than either: it reported gross AS net, which is a realised claim that the
+    position cost nothing to enter.
+    """
     fills = [fill(0.54, 20, fees_paid=0.35, fees_are_estimated=True)]
     agg = aggregate_executions(fills, won=True)
     assert agg["fees_estimated"] == pytest.approx(0.35)
     assert agg["fees_paid"] is None
-    assert agg["net_pnl"] == pytest.approx(agg["gross_pnl"]), "an estimate must not move net P/L"
     assert agg["fees_basis"] == "ESTIMATED"
+    assert agg["net_pnl"] is None and agg["net_roi"] is None, \
+        "a modelled cost cannot produce a realised net"
+    assert agg["estimated_net_pnl"] == pytest.approx(agg["gross_pnl"] - 0.35, abs=0.01)
+    assert agg["actual_fee_coverage"] == 0.0 and agg["fee_coverage_complete"] is False
 
 
-def test_a_mixed_basis_is_reported_as_mixed():
+def test_a_mixed_basis_leaves_the_actual_net_unknown():
+    """One observed fee and one modelled fee is not a realised accounting of the position."""
     fills = [fill(0.54, 20, fees_paid=0.35), fill(0.55, 30, fees_paid=0.52, fees_are_estimated=True)]
     agg = aggregate_executions(fills, won=True)
     assert agg["fees_basis"] == "MIXED"
-    assert agg["fees_paid"] == pytest.approx(0.35), "only the charged fee reduces net P/L"
-    assert agg["net_pnl"] == pytest.approx(agg["gross_pnl"] - 0.35, abs=0.01)
+    assert agg["fees_paid"] == pytest.approx(0.35)
+    assert agg["net_pnl"] is None and agg["net_roi"] is None
+    assert agg["estimated_net_pnl"] == pytest.approx(agg["gross_pnl"] - 0.87, abs=0.01)
+    assert agg["actual_fee_coverage"] == pytest.approx(0.5)
+    assert "MODELLED" in agg["fee_coverage_gap"]
+
+
+def test_one_of_two_fills_missing_a_fee_blocks_both_nets():
+    """A missing fee is not an estimate either: there is nothing to model it from."""
+    fills = [fill(0.54, 20, fees_paid=0.35), fill(0.55, 30)]
+    agg = aggregate_executions(fills, won=True)
+    assert agg["fees_basis"] == "INCOMPLETE"
+    assert agg["missing_fee_count"] == 1
+    assert agg["net_pnl"] is None
+    assert agg["estimated_net_pnl"] is None, \
+        "an estimate of the whole position needs a fee for every fill of it"
+
+
+def test_completing_the_reconciliation_restores_the_actual_net():
+    """Nothing has to be corrected when the fees arrive: the earlier record never claimed a net."""
+    before = aggregate_executions([fill(0.54, 20, fees_paid=0.35), fill(0.55, 30)], won=True)
+    assert before["net_pnl"] is None
+    after = aggregate_executions([fill(0.54, 20, fees_paid=0.35), fill(0.55, 30, fees_paid=0.52)], won=True)
+    assert after["fees_basis"] == "ACTUAL" and after["fee_coverage_complete"] is True
+    assert after["actual_fee_coverage"] == pytest.approx(1.0)
+    assert after["net_pnl"] == pytest.approx(after["gross_pnl"] - 0.87, abs=0.01)
+    assert after["fee_coverage_gap"] is None
 
 
 def test_no_fee_information_is_none_not_zero():
     agg = aggregate_executions(TWO_FILLS, won=True)
     assert agg["fees_paid"] is None and agg["fees_basis"] == "NONE"
+    assert agg["net_pnl"] is None and agg["net_roi"] is None, \
+        "gross is known; net is not, and reporting gross as net would price the fees at zero"
+    assert agg["gross_pnl"] is not None, "gross P/L never depends on knowing the costs"
+
+
+def test_an_unobserved_settlement_fee_the_schedule_charges_blocks_the_actual_net():
+    """If the venue's schedule says settlement costs something, an unobserved charge is a gap, not a zero."""
+    fills = [fill(0.54, 20, fees_paid=0.35)]
+    free = aggregate_executions(fills, won=True, settlement_fee_per_contract=0.0)
+    assert free["net_pnl"] is not None, "a schedule charging nothing leaves nothing to observe"
+    owed = aggregate_executions(fills, won=True, settlement_fee_per_contract=0.01)
+    assert owed["net_pnl"] is None and "settlement" in owed["fee_coverage_gap"]
+    seen = aggregate_executions([dict(fills[0], settlement_fee=0.37)], won=True,
+                                settlement_fee_per_contract=0.01)
+    assert seen["settlement_fees_paid"] == pytest.approx(0.37)
+    assert seen["net_pnl"] == pytest.approx(seen["gross_pnl"] - 0.35 - 0.37, abs=0.01)
 
 
 # ---- the evaluation record -------------------------------------------------------------------------

@@ -11,7 +11,8 @@
 | Kalshi NFL Discovery | daily 09:17 UTC + dispatch | catalogue refresh, all NFL markets in every status (settlements), endpoint probes; proposes registry additions | `market-data` |
 | Kalshi NFL Historical Backfill | dispatch (self-chains) | historical tier market lists + candles + trades | `market-data` |
 | Tests | pull request + push to `main` + dispatch | full pytest suite, syntax check, workflow YAML and config JSON validation. Read-only: no network, no secrets, no branch writes | none |
-| Sync handicap runs from Airtable | 12-hourly cron `23 */12 * 9-12,1-2 *` + dispatch | ingests ChatGPT recommendation batches from the `Sports Betting Bridge` Airtable inbox into the immutable ledger | `handicap-data` |
+| Sync handicap runs from Airtable | 12-hourly cron `23 */12 * 9-12,1-2 *` + dispatch | ingests ChatGPT recommendation batches from the `Sports Betting Bridge` Airtable inbox into the immutable ledger, **replaying** the pre-trade gates | `handicap-data` |
+| Kalshi Fee Health | weekly cron `41 8 * * 1` + dispatch | reconciles the committed fee schedule against live series metadata **and `GET /series/fee_changes`**; publishes a dated observation and fails loudly on any drift or unmodelled announced change | `market-data` |
 
 Manual dispatch from the GitHub UI or API (`POST /repos/chmoses98/nfl-edge-finder/actions/workflows/<file>/dispatches`).
 Check health: `git fetch origin market-data && git worktree add /tmp/md origin/market-data && python scripts/ops/health.py --market-data-dir /tmp/md`.
@@ -82,16 +83,57 @@ Verify afterwards with `gh api repos/chmoses98/nfl-edge-finder/rulesets`, and re
 Order placement, portfolio access, model promotion, registry tier changes, and **repository protection
 settings** (see above — applied by the owner, verified by `verify_append_only.py`).
 
-## Fee-metadata drift
+## Fee-schedule freshness
 
 `config/kalshi_nfl_series.json` records each series' fee regime as the API reported it *when the registry was
-built*. A Kalshi fee change makes every net-EV number computed from it wrong, in the direction that makes
-trades look better than they are.
+built*, and `config/kalshi_fee_schedule.json` records the regulatory multipliers per effective window. A
+Kalshi fee change makes every net-EV number computed from them wrong, in the direction that makes trades look
+better than they are.
+
+The **Kalshi Fee Health** workflow runs this weekly and Actions will fail loudly on drift. To run it by hand:
 
 ```bash
 python3 scripts/kalshi/capture_fee_metadata.py --out /tmp/md --check
 ```
 
-Exit 1 means the live metadata disagrees with the committed registry. Review the diff, commit an updated
-registry, and do **not** record a real recommendation against a fee regime we know we are no longer
-modelling. The script never edits the registry itself.
+It reads three things and writes one:
+
+* `GET /series/{ticker}` — the fee regime in force, diffed against the committed registry;
+* `GET /series/fee_changes` — **announced** changes, with their scheduled effective timestamps;
+* the committed schedule windows, to see whether each announced change is already modelled;
+* → an append-only dated observation at `market-data:data/kalshi/fees/<YYYY-MM-DD>.json`.
+
+Exit 1 means one of: live metadata disagrees with the registry; Kalshi has announced a change no committed
+window covers; or the schedule has gone unverified past `verification_policy.max_verification_age_days`
+(45). All three block affected real recommendations through the `fee_schedule_established` gate, which is
+the intended behaviour.
+
+### Responding to a fee change
+
+The script **never edits the config.** Capture → surface → block → review, in that order. The owner:
+
+1. reads the observation just published under `data/kalshi/fees/`;
+2. **adds a new window** to `config/kalshi_fee_schedule.json` with the announced `effective_from`;
+3. sets the previous window's `effective_to` to the same instant;
+4. commits, with the source and a `verified_at`.
+
+Never edit an existing window in place. Every past decision must keep being priced with the schedule that
+was actually in force when it was made, or the ledger's historical net-EV numbers silently change meaning.
+
+## Pre-trade preflight is an owner step, not a workflow
+
+Nothing in Actions can preflight a candidate, because a candidate does not exist until ChatGPT produces one
+and preflight must run *before* the owner acts on it. It is a command the owner runs:
+
+```bash
+python3 scripts/handicap/preflight_candidate.py candidates.json \
+    --market-data /home/user/_market_data_wt --handicap-root /home/user/_ledger_wt
+```
+
+Exit 0: may be shown as a BET at the approved stake. Exit 5: **not a bet** — surface as CANDIDATE /
+WATCHLIST / PASS. Exit 2: misconfiguration on this machine (a missing checkout), which is not a verdict on
+the bet. It writes nothing and places nothing. See `docs/DECISION_STANDARD.md` §0.
+
+The twelve-hourly Airtable sync then replays the same gates and commits the evidence. If preflight was
+skipped, that replay is the first check — which is the failure mode the preflight step exists to remove, and
+it will simply fail the batch rather than silently accept it.

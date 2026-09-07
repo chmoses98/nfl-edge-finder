@@ -173,6 +173,15 @@ class KalshiClient:
     def series(self, ticker: str):
         return self.get(f"series/{ticker}")
 
+    def series_fee_changes(self):
+        """Announced, scheduled fee changes -- the third source in the fee hierarchy.
+
+        `GET /series/{ticker}` reports the fee regime IN FORCE. This endpoint reports changes that have been
+        announced and are not yet in force, which is the only way to know the committed schedule is about to
+        stop being right before it stops being right.
+        """
+        return self.get("series/fee_changes")
+
     def events(self, series_ticker: str | None = None, status: str | None = None, with_nested_markets: bool = False, **kw):
         return self.paginate("events", {"series_ticker": series_ticker, "status": status,
                                         "with_nested_markets": "true" if with_nested_markets else None}, "events", **kw)

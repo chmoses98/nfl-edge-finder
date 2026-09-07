@@ -30,13 +30,27 @@ reported.
 
 GROSS AND NET
 -------------
-    gross_pnl   contract payoff minus cost, before fees. Says whether the CALL was right.
-    fees_paid   what the venue actually charged, summed over fills.
-    net_pnl     gross_pnl - fees. Says whether the BANKROLL grew.
+    gross_pnl            contract payoff minus cost, before fees. Says whether the CALL was right.
+    fees_paid            what the venue actually charged, summed over fills.
+    net_pnl              gross_pnl - fees. Says whether the BANKROLL grew.
+    estimated_net_pnl    gross_pnl - modelled fees. A forecast, and labelled one.
 
-`fees_basis` records whether those fees were observed or modelled. A modelled fee is a fine input to an
-estimate and an unacceptable input to a realised-P/L claim, so an ESTIMATED or MIXED basis is carried on the
-record rather than smoothed away -- and only fees the venue actually charged ever reduce `net_pnl`.
+Gross P/L is always computable from observed fills and settlement: nothing about it depends on knowing what
+the trade cost. NET P/L is a different claim, and it is only true when the costs are actually known.
+
+So `net_pnl` is numeric ONLY when every counted fill carries an OBSERVED venue fee. Anything less --
+no fee data, modelled fees, one of two fills missing its charge -- and `net_pnl` and `net_roi` are None.
+Not zero, and not "gross minus whatever fees happened to be supplied": subtracting the fees you have from a
+position whose other fills you have not reconciled produces a number that looks realised and is not.
+
+The modelled figure still exists, under a name that cannot be mistaken for accounting: `estimated_net_pnl`,
+computed from every fee present, actual or modelled, and defined only when NO fill is missing a fee
+altogether. When the reconciliation later completes, `net_pnl` becomes numeric on the next evaluation --
+nothing has to be corrected, because nothing false was written.
+
+`fees_basis` says which of those worlds the record is in (ACTUAL / ESTIMATED / MIXED / INCOMPLETE / NONE)
+and the coverage fields say it in numbers: `fills_total`, `fills_with_actual_fees`, `missing_fee_count`,
+`actual_fee_coverage`.
 """
 from __future__ import annotations
 
@@ -46,10 +60,12 @@ from nfl_edge.handicap import schema as S
 
 MISSING_CLOSE = "MISSING_CLOSE"
 
-FEES_ACTUAL = "ACTUAL"
-FEES_ESTIMATED = "ESTIMATED"
-FEES_MIXED = "MIXED"
-FEES_NONE = "NONE"
+FEES_ACTUAL = "ACTUAL"           # every counted fill carries an observed venue charge
+FEES_ESTIMATED = "ESTIMATED"     # every counted fill carries a modelled fee, none observed
+FEES_MIXED = "MIXED"             # some observed, some modelled, none missing
+FEES_INCOMPLETE = "INCOMPLETE"   # at least one counted fill carries no fee of any kind, and at least one does
+FEES_NONE = "NONE"               # no fee information at all
+FEES_BASES = (FEES_ACTUAL, FEES_ESTIMATED, FEES_MIXED, FEES_INCOMPLETE, FEES_NONE)
 
 
 def _iso(t):
@@ -106,7 +122,8 @@ def _contracts_of(ex: dict) -> float:
     return 0.0
 
 
-def aggregate_executions(executions: list, won: bool | None = None) -> dict:
+def aggregate_executions(executions: list, won: bool | None = None, *,
+                         settlement_fee_per_contract: float | None = None) -> dict:
     """Fill-level economics, summed to the recommendation.
 
     Each fill contributes independently:
@@ -121,10 +138,17 @@ def aggregate_executions(executions: list, won: bool | None = None) -> dict:
 
     `won=None` means the market has not settled. Staked, contracts and fees are still real and are returned;
     every P/L field stays None rather than being reported as a zero that reads like a measurement.
+
+    `settlement_fee_per_contract` is what the fee schedule in force says the venue charges at settlement. It
+    defaults to None, meaning "not asserted". When it is a positive number, an observed settlement charge is
+    REQUIRED on a settled position before `net_pnl` may be numeric -- a cost the schedule says exists and the
+    ledger has not seen is exactly the kind of gap that turns a realised number into a guess. Kalshi charges
+    none on these markets today, which is recorded in config/kalshi_fee_schedule.json rather than assumed
+    here.
     """
     total_stake = total_contracts = 0.0
-    fees_actual = fees_estimated = 0.0
-    n_actual = n_estimated = 0
+    fees_actual = fees_estimated = settlement_actual = 0.0
+    n_actual = n_estimated = n_settlement = 0
     gross = 0.0
     counted = 0
 
@@ -150,14 +174,43 @@ def aggregate_executions(executions: list, won: bool | None = None) -> dict:
                 fees_actual += float(fee)
                 n_actual += 1
 
-    if n_actual and n_estimated:
-        basis = FEES_MIXED
-    elif n_actual:
+        # A venue-reported settlement or fixed-point rounding adjustment, when one is reported. Preserved
+        # and reconciled; never manufactured.
+        sf = ex.get("settlement_fee")
+        if sf is not None:
+            settlement_actual += float(sf)
+            n_settlement += 1
+
+    missing = counted - n_actual - n_estimated
+    if counted == 0 or missing == counted:
+        basis = FEES_NONE
+    elif missing > 0:
+        basis = FEES_INCOMPLETE
+    elif n_actual == counted:
         basis = FEES_ACTUAL
-    elif n_estimated:
+    elif n_estimated == counted:
         basis = FEES_ESTIMATED
     else:
-        basis = FEES_NONE
+        basis = FEES_MIXED
+
+    # The one question that decides whether a NET number may exist: is every counted fill's cost observed?
+    settlement_owed = (settlement_fee_per_contract is not None
+                       and float(settlement_fee_per_contract) > 0)
+    settlement_observed = (not settlement_owed) or (won is None) or n_settlement == counted
+    complete = counted > 0 and n_actual == counted and settlement_observed
+
+    if counted == 0:
+        gap = "no executions carry a price, so there is nothing to reconcile"
+    elif complete:
+        gap = None
+    elif missing > 0:
+        gap = f"{missing} of {counted} fill(s) carry no fee of any kind"
+    elif n_actual < counted:
+        gap = (f"{counted - n_actual} of {counted} fill(s) carry a MODELLED fee; a modelled cost cannot "
+               "produce a realised net")
+    else:
+        gap = (f"the fee schedule charges {settlement_fee_per_contract} per contract at settlement and "
+               f"only {n_settlement} of {counted} fill(s) report one")
 
     out = {
         "n_executions": counted,
@@ -168,23 +221,48 @@ def aggregate_executions(executions: list, won: bool | None = None) -> dict:
                                     if total_contracts > 0 else None),
         "fees_paid": round(fees_actual, 4) if n_actual else None,
         "fees_estimated": round(fees_estimated, 4) if n_estimated else None,
+        "settlement_fees_paid": round(settlement_actual, 4) if n_settlement else None,
         "fees_basis": basis,
+        # Completeness, in numbers rather than adjectives, so a reader can check the verdict below.
+        "fills_total": counted,
+        "fills_with_actual_fees": n_actual,
+        "fills_with_estimated_fees": n_estimated,
+        "missing_fee_count": max(missing, 0),
+        "actual_fee_coverage": round(n_actual / counted, 6) if counted else None,
+        "fee_coverage_complete": complete,
+        "fee_coverage_gap": gap,
     }
     if won is None:
-        out.update({"gross_pnl": None, "net_pnl": None, "net_roi": None})
+        out.update({"gross_pnl": None, "net_pnl": None, "net_roi": None,
+                    "estimated_net_pnl": None, "estimated_net_roi": None})
         return out
 
-    # Only fees the venue actually charged reduce realised P/L. An estimate is carried alongside so the gap
-    # between modelled and charged stays measurable, but it never silently becomes a realised number.
-    charged = fees_actual if n_actual else 0.0
     out["gross_pnl"] = round(gross, 2)
-    out["net_pnl"] = round(gross - charged, 2)
-    out["net_roi"] = round(out["net_pnl"] / total_stake, 6) if total_stake > 0 else None
+
+    # ACTUAL net: only when every cost is observed. Subtracting the fees that happen to be present from a
+    # position whose other fills are unreconciled yields a number that reads as realised and is not one.
+    if complete:
+        out["net_pnl"] = round(gross - fees_actual - settlement_actual, 2)
+        out["net_roi"] = round(out["net_pnl"] / total_stake, 6) if total_stake > 0 else None
+    else:
+        out["net_pnl"] = None
+        out["net_roi"] = None
+
+    # ESTIMATED net: every fee present, actual or modelled. Defined only when no fill is missing a fee
+    # altogether, because otherwise it is not an estimate of the whole position either.
+    if counted > 0 and missing == 0:
+        est = round(gross - fees_actual - fees_estimated - settlement_actual, 2)
+        out["estimated_net_pnl"] = est
+        out["estimated_net_roi"] = round(est / total_stake, 6) if total_stake > 0 else None
+    else:
+        out["estimated_net_pnl"] = None
+        out["estimated_net_roi"] = None
     return out
 
 
 def evaluate(rec: dict, observations: list, settlement: float | None = None,
-             executions: list | None = None, now=None, execution: dict | None = None) -> dict:
+             executions: list | None = None, now=None, execution: dict | None = None,
+             *, settlement_fee_per_contract: float | None = None) -> dict:
     """Build an Evaluation for one recommendation. Pure: nothing here writes or mutates.
 
     `executions` is EVERY fill on this recommendation. The singular `execution` argument is accepted for
@@ -252,17 +330,28 @@ def evaluate(rec: dict, observations: list, settlement: float | None = None,
     elif ev.outcome is None:
         ev.outcome = "UNSETTLED"
 
-    agg = aggregate_executions(executions, won=won)
+    agg = aggregate_executions(executions, won=won,
+                               settlement_fee_per_contract=settlement_fee_per_contract)
     ev.n_executions = agg["n_executions"]
     ev.gross_dollars_staked = agg["gross_dollars_staked"] or None
     ev.contracts = agg["contracts"] or None
     ev.average_execution_price = agg["average_execution_price"]
     ev.fees_paid = agg["fees_paid"]
     ev.fees_estimated = agg["fees_estimated"]
+    ev.settlement_fees_paid = agg["settlement_fees_paid"]
     ev.fees_basis = agg["fees_basis"]
+    ev.fills_total = agg["fills_total"]
+    ev.fills_with_actual_fees = agg["fills_with_actual_fees"]
+    ev.fills_with_estimated_fees = agg["fills_with_estimated_fees"]
+    ev.missing_fee_count = agg["missing_fee_count"]
+    ev.actual_fee_coverage = agg["actual_fee_coverage"]
+    ev.fee_coverage_complete = agg["fee_coverage_complete"]
+    ev.fee_coverage_gap = agg["fee_coverage_gap"]
     ev.gross_pnl = agg["gross_pnl"]
     ev.net_pnl = agg["net_pnl"]
     ev.net_roi = agg["net_roi"]
+    ev.estimated_net_pnl = agg["estimated_net_pnl"]
+    ev.estimated_net_roi = agg["estimated_net_roi"]
     # `pnl` is the pre-1.1.0 name, kept as an exact alias of gross_pnl so no existing reader silently
     # changes meaning underneath it. New readers use the explicit names.
     ev.pnl = agg["gross_pnl"]

@@ -1,10 +1,75 @@
 # The decision standard
 
-One operating policy for the last mile: **model → market → context → packet → ChatGPT decision → executable
-price check → recommendation → Airtable → immutable ledger → execution → CLV → fees → P/L → scorecard.**
+One operating policy for the last mile: **model → market → context → packet → ChatGPT decision →
+PRE-TRADE PREFLIGHT → recommendation → Airtable → delayed GitHub replay → immutable ledger → execution →
+CLV → fees → P/L → scorecard.**
+
+The order of those first two arrows is the whole point. Nothing is surfaced to the owner as a **BET** until
+it has passed preflight; the twelve-hourly importer then *independently replays* the same checks and commits
+the evidence. See §0.
 
 This is the canonical document for what a real recommendation must satisfy. Where any other doc disagrees
 with this one, this one is right and the other needs fixing.
+
+---
+
+## 0. Pre-trade preflight comes first
+
+The decision gates were sound and, until this section existed, they ran in the wrong place.
+
+The Airtable importer runs **every twelve hours**. That cadence is deliberate and is not changing: it is
+archival transport for a decision log, and polling more often would only hide the architectural problem
+rather than fix it. But it meant the operating sequence could be:
+
+```
+13:00   ChatGPT says BET
+13:01   the owner places the bet
+01:00   the importer runs
+01:00   the gates discover the book was too thin, the fees ate the edge, or the group cap was already full
+```
+
+Every one of those findings is correct and every one is twelve hours late. A control that fires after the
+money is down is an audit, not a control.
+
+### The lifecycle
+
+```
+HANDICAP CANDIDATE
+  → PRE-TRADE PREFLIGHT                 scripts/handicap/preflight_candidate.py
+  → only if PASS: user-visible RECOMMENDED / BET, at the APPROVED stake
+  → Airtable READY_FOR_SYNC             asserts preflight already passed
+  → delayed GitHub import (12h)         independently REPLAYS the same evidence
+  → immutable ledger                    recommendation + its DecisionGates record
+```
+
+A candidate that has not passed preflight may be called **PASS**, **WATCHLIST** or **CANDIDATE**. It may
+**not** be surfaced as a final BET or RECOMMENDED instruction.
+
+### One implementation, two places it runs
+
+Preflight evaluates the candidate as the `RECOMMENDED` record it would become, and it does so by calling
+`gates.evaluate_gates` — the same function the importer calls, assembled by the same
+`preflight.build_context`, sized by the same `risk.report_for_batch`, on the same clock (the candidate's own
+`created_at`). Nothing in `preflight.py` decides anything itself.
+
+That is not tidiness. If the two were separate implementations, the importer's later agreement would only
+tell us that the second copy agrees with itself. Because they are one implementation, the delayed run is a
+genuine independent **replay**: same rules, same decision timestamp, evidence re-read from the capture stream
+and committed as a `DecisionGates` record.
+
+`tests/test_preflight.py` pins both halves — that a candidate failing depth, ceiling, fee knowledge, net EV,
+identity, availability or the portfolio caps cannot reach the BET state, and that preflight and the delayed
+import reach the same verdict on the same record.
+
+### What preflight tells the owner
+
+The stake it reports is the stake the **risk policy approved**, not the one the handicapper proposed — and
+that approved size is what the depth walk and net-EV arithmetic are then run against, because that is the
+position that would actually be worked. An oversized proposal is therefore an *answer* before the trade
+("$10, not $500") and a *refusal* after it, since a filed record must carry the approved size.
+
+Preflight places nothing, orders nothing, and writes nothing to the ledger. A PASS is permission for a human
+to act.
 
 ---
 
@@ -22,9 +87,13 @@ nothing in this system merges them.
 | **ESTIMATED TRANSACTION COST** | modelled entry fee plus any stated slippage, before the trade. | `nfl_edge/execution/fees.net_executable_ev()` |
 | **ACTUAL EXECUTION** | what was filled, per fill: price, stake, contracts. | one `Execution` record per fill |
 | **ACTUAL FEES** | what the venue actually charged. | `Execution.fees_paid` with `fees_are_estimated=false` |
-| **GROSS P/L** | payoff minus cost, before fees. Says whether the **call** was right. | `Evaluation.gross_pnl` |
-| **NET P/L** | gross minus the fees actually charged. Says whether the **bankroll** grew. | `Evaluation.net_pnl` |
+| **GROSS P/L** | payoff minus cost, before fees. Says whether the **call** was right. Always computable. | `Evaluation.gross_pnl` |
+| **ACTUAL NET P/L** | gross minus the fees actually charged, **and only when every fill's charge was observed**. Says whether the **bankroll** grew. `null` otherwise — never gross standing in for net. | `Evaluation.net_pnl` |
+| **ESTIMATED NET P/L** | gross minus every fee present, actual or modelled. A forecast, and named one. | `Evaluation.estimated_net_pnl` |
 | **CLV** | close minus entry, signed in our direction. Says whether the **market moved toward us**. | `Evaluation.clv`, `clv_executable` |
+| **CANDIDATE** | a proposal that has **not** passed preflight. May be shown as CANDIDATE / WATCHLIST / PASS. Never as a bet. | `nfl_edge/handicap/preflight.py` |
+| **OUTSTANDING EXPOSURE** | what the book already carries at a decision: approved-and-unfilled *plus* filled-and-unsettled, across every earlier run. | `risk.outstanding_exposure()` |
+| **CONSERVATIVE NET EV** | net executable EV less the worst-case fee-rounding residual from unknown fill fragmentation. A **cost** bound, not an edge buffer. | `NetEV.conservative_net_ev_dollars` |
 
 ### The word "edge"
 
@@ -287,6 +356,37 @@ Passive execution was rejected on core game markets by `research/passive` (Miles
 which is the favourite/longshot hypothesis, nor by H-023, which is the still-open prospective prop-book
 question. So a real recommendation is a **taker** order, and the taker path is fully known.
 
+### Freshness is an operational control, not a documented intention
+
+Three ranked sources were documented and only one was ever read. A hierarchy whose third source is never
+ingested cannot detect the one failure it exists for: a change Kalshi has **announced** and we have not yet
+modelled.
+
+`scripts/kalshi/capture_fee_metadata.py` now reads `GET /series/fee_changes` alongside the per-series
+metadata, preserves each announced change with its scheduled effective timestamp, and writes an append-only,
+dated observation to `market-data` under `data/kalshi/fees/<YYYY-MM-DD>.json`. The weekly
+`.github/workflows/kalshi-fee-health.yml` job runs it with `--check`.
+
+`FeeSchedule.verification()` reads those observations and returns one of four states **as of the decision
+timestamp** — a capture taken after a decision is not evidence about it, exactly as in §3:
+
+| state | meaning | gate |
+|---|---|---|
+| `VERIFIED` | a window is in force and was confirmed within the policy age | pass |
+| `PENDING_CHANGE` | Kalshi announced a change effective at or before this decision and no committed window covers it | **FAIL** |
+| `STALE_VERIFICATION` | in force, but the last confirmation is older than `max_verification_age_days` (45) | **FAIL** |
+| `NO_SCHEDULE` | no committed window covers this timestamp at all | **UNAVAILABLE** (blocks) |
+
+Weekly against a 45-day tolerance absorbs three consecutive missed runs and does not absorb a months-old
+unchecked registry. Fee schedules change on the order of once or twice a year and are announced in advance,
+so a higher cadence would buy nothing.
+
+**A change is never applied automatically.** Capture → surface → block → review. An API response must not
+silently rewrite the schedule that every historical net-EV number in the ledger was computed against, so the
+job fails loudly, the gate blocks affected real recommendations, and an operator commits a **new** effective
+window (closing the previous window's `effective_to`). Existing windows are never edited: a past decision
+keeps being priced with the schedule that was actually in force when it was made.
+
 ### Keeping it traceable
 
 `scripts/kalshi/capture_fee_metadata.py` re-reads live per-series fee metadata, writes a dated snapshot to
@@ -303,7 +403,8 @@ For `RECOMMENDED`:
 | fee/cost state not `KNOWN` (`UNVERIFIED` / `CONFLICTED` / `DEGRADED`) | **FAIL** |
 | cannot be calculated | **FAIL** |
 | `<= $0` | **FAIL** |
-| `> $0` | this gate may pass |
+| `> $0` but **conservative** net EV `<= $0` | **FAIL** — see below |
+| conservative net EV `> $0` | this gate may pass |
 
 This is **not** a minimum-edge rule. There is a real difference between
 
@@ -311,12 +412,38 @@ This is **not** a minimum-edge rule. There is a real difference between
 * *"do not knowingly record a trade worth ≤ $0 after its known entry costs"* — arithmetic.
 
 Only the second is enforced. **No positive minimum beyond zero is invented**, and there is deliberately no
-switch in the module to turn one on — a blocking rule with an off switch is a warning in costume. A test
-sweeps the boundary and asserts the first record whose net EV rises above zero passes, so a hidden buffer
-would fail the build. Any future buffer is a separately authorised strategy decision.
+switch in the module to turn one on — a blocking rule with an off switch is a warning in costume.
 
 The EV is computed at the **full-position VWAP** (§5), not the top ask: pricing a trade at its cheapest
 contract is how a losing position looks profitable.
+
+### The fee-rounding residual, and why it is not a buffer
+
+The pre-trade estimate prices the order as **one fill**. The venue may fragment it, and the accumulator makes
+fragmentation *converge* on the equivalent order without *equalling* it — so a single-fill estimate is
+slightly optimistic by an amount nobody can know before the order is worked. That amount has a derivable
+worst case, from the mechanism rather than from taste:
+
+```
+net_fee_order  =  SUM(trade_fee_i)  +  accumulator_final        (rounding fees minus rebates ARE the accumulator)
+
+CEILING term   within a price level the raw quadratic is linear in contracts, so SUM(raw_i) == raw_total,
+               and each fill's centicent ceiling adds at most $0.0001. With N fills: < N × $0.0001.
+RESIDUAL term  the accumulator starts at 0, each fill adds < one balance precision, and anything above one
+               precision unit immediately rebates one — so the final residual is at most $0.01, and the
+               DIFFERENCE from the single-fill estimate's own residual is bounded by the same $0.01.
+N              a Kalshi fill is at least one whole contract, so N <= ceil(contracts).
+
+bound = ceil(contracts) × $0.0001  +  $0.01
+```
+
+`conservative_net_ev_dollars = net_ev_dollars − bound`, and the gate requires it to be **above zero**.
+
+This is protection against a **known transaction-cost uncertainty**, not a strategy edge buffer. It is
+computed, never configured — `tests/test_gates_and_risk.py` reproduces it independently and asserts the gate
+demands nothing more, and `tests/test_fee_freshness.py` checks empirically that no fragmentation of a real
+order ever exceeds it. It does not move when the edge moves, only when the size does. For a 100-contract
+position it is two cents.
 
 ---
 
@@ -452,6 +579,46 @@ per-game cap for that reason: a correlation you can name but cannot measure is h
 PASS records and TEST_ONLY records consume no budget — a slate of passes must not crowd out the one bet that
 was taken.
 
+### The limits are CUMULATIVE, or they are not limits
+
+A cap measured against one batch is a cap on **batch size**, which is a much weaker statement than a cap on
+**exposure**:
+
+```
+run A, 13:00   home-side thesis, 2u    → passes the 3u correlation cap
+run B, 15:00   another home-side, 2u   → passes the 3u correlation cap, independently
+the desk       4u in one thesis        → the policy is broken and every gate said PASS
+```
+
+So every aggregate budget starts **partly consumed** by what the book already carries. `risk.report_for_batch`
+reads the committed ledger at the decision timestamp and adds the batch to it. The caps then bind across
+separate Airtable rows, separate RUN NFL invocations, amendments, multiple games on a slate, and multiple
+correlated markets in one game.
+
+**Outstanding exposure** is defined conservatively, and its two halves are held for different reasons:
+
+| component | what it is | released when |
+|---|---|---|
+| **reserved** | `max(approved stake − executed stake, 0)` — an approval the owner has not yet filled is still a commitment to fill it | **kickoff**, after which the pregame position can no longer be established; or supersession by an amendment |
+| **at risk** | executed stake — the money is gone until the contract resolves | **settlement**, established from an `Evaluation` carrying a `settlement` |
+
+Their sum is `max(approved, executed)` for a fully-filled position, so a recommendation and its own fills
+never double count, and a partial fill neither forgets the filled half nor releases the unfilled one. A $6
+fill against a $10 approval holds $10: $6 at risk, $4 still reservable.
+
+What is **excluded** is recorded as explicitly as what is included, with a reason per record, so the
+subtraction can be audited: `TEST_ONLY`; `PASS` / `WATCHLIST` / `RESEARCH_ALERT`; superseded links in an
+amendment chain (the amendment carries the chain's fills); anything decided *after* the decision being
+evaluated; settled positions; and the batch's own records, which are counted in the batch rather than twice.
+
+Two conservative bounds, the same shape as §3's capture-time bounds: **inclusion** is judged at the batch's
+*latest* decision so no prior position is missed, and **release** at its *earliest* so nothing is let go
+early. Both round against the batch.
+
+An **unreadable ledger is not an empty one.** If outstanding exposure cannot be read, the risk gate returns
+`UNAVAILABLE` and blocks. Treating "I could not see the book" as "the book is flat" is exactly how two 2u
+positions in one group both clear a 3u cap.
+
 ---
 
 ## 8. The gates
@@ -459,6 +626,9 @@ was taken.
 `nfl_edge/handicap/gates.py`. Run once, when a record is first materialised.
 
 All are evaluated **as of the record's `created_at`** except the last — see §3 for why that one is different.
+
+They run twice: once **before** the bet is shown to anyone (§0) and once again when the record is imported,
+from the same function. The table below is the same in both places.
 
 | gate | blocks RECOMMENDED when | clock |
 |---|---|---|
@@ -468,8 +638,9 @@ All are evaluated **as of the record's `created_at`** except the last — see §
 | `player_identity_resolved` | unresolved identity, or SUPPORTED with no `player_id` | — |
 | `player_availability_resolved` | availability missing, stale, or read **after** the decision | decision |
 | `full_position_executable` | depth unestablished, stake exceeds liquidity, or the fill walks above the ceiling | decision |
-| `net_executable_ev` | costs not `KNOWN`, EV uncomputable, or EV **≤ $0** at the full-position VWAP | decision |
-| `portfolio_risk_policy` | rejected by a limit, or the recorded stake is not the approved stake | import (deterministic) |
+| `fee_schedule_established` | no window covers the decision, an announced change is unmodelled, or the schedule is unverified past its policy window | decision |
+| `net_executable_ev` | costs not `KNOWN`, EV uncomputable, EV **≤ $0**, or **conservative** EV ≤ $0 at the full-position VWAP | decision |
+| `portfolio_risk_policy` | rejected by a **cumulative** limit, the recorded stake is not the approved stake, or the committed book could not be read | import (deterministic) |
 
 **UNKNOWN is a FAILURE.** A gate that cannot reach its evidence returns `UNAVAILABLE`, and `UNAVAILABLE`
 blocks exactly as `FAIL` does. Treating "I could not check" as "it is fine" is the failure mode all of this
@@ -520,36 +691,84 @@ Nothing invents a single blended fill price to stand in for two real ones. A sta
 so it reproduces the aggregate exactly, which is what makes it a legitimate slippage basis — and it is
 labelled **DERIVED**. No execution record carries it.
 
-### Gross, net, and what an estimate may do
+### "Net P/L" may only mean fully observed net P/L
 
-Only fees the venue **actually charged** reduce realised P/L. Modelled fees are summed separately into
-`fees_estimated` and never touch `net_pnl`. `fees_basis` records `ACTUAL` / `ESTIMATED` / `MIXED` / `NONE`, so
-the gap between modelled and charged stays measurable rather than smoothed away.
+**GROSS** P/L is always computable from observed fills and settlement: nothing about it depends on knowing
+what the trade cost.
+
+**ACTUAL NET** P/L is a different claim, and it is only true when the costs are actually known. So `net_pnl`
+and `net_roi` are numeric **only when every counted fill carries an OBSERVED venue fee**. Anything less —
+no fee data, modelled fees, one of two fills unreconciled — and both are `null`.
+
+The behaviour this replaces was worse than either extreme: subtracting whatever fees happened to be supplied
+produced a number that *read* as realised and had priced the missing fills at zero. An unobserved fee is not
+a zero.
+
+The modelled figure still exists, under a name that cannot be mistaken for accounting:
+
+| field | meaning |
+|---|---|
+| `gross_pnl` | payoff minus cost. Always available. |
+| `net_pnl` | realised. `null` unless `fee_coverage_complete`. |
+| `estimated_net_pnl` | gross minus every fee present, actual or modelled. `null` if **any** fill has no fee at all. |
+| `fees_paid` / `fees_estimated` | observed and modelled totals, never summed into one another |
+| `settlement_fees_paid` | a venue-reported settlement or fixed-point rounding adjustment, **when observed** |
+| `fees_basis` | `ACTUAL` / `ESTIMATED` / `MIXED` / `INCOMPLETE` / `NONE` |
+| `fills_total`, `fills_with_actual_fees`, `missing_fee_count`, `actual_fee_coverage`, `fee_coverage_gap` | the coverage arithmetic, so a reader checks the verdict instead of trusting it |
+
+When the reconciliation later completes, `net_pnl` becomes numeric on the next evaluation. Nothing has to be
+corrected, because nothing false was written. The schema enforces the same rule structurally: a record
+asserting `net_pnl` while admitting incomplete coverage is **refused**, not filed.
+
+The **scorecard** applies the identical rule at the portfolio level. Desk net P/L is the sum of realised
+nets and exists only if every contributing position has one; otherwise it is `null` alongside a
+`fee_reconciliation` block. Falling back to gross for one unreconciled position would price its fees at zero
+and report the result as though it had been measured.
+
+On **settlement adjustments**: Kalshi charges no settlement fee on these markets today, which is recorded
+explicitly in `config/kalshi_fee_schedule.json` rather than assumed. If a venue-reported settlement or
+rounding adjustment appears it is preserved on the `Execution` and reconciled into the net. If the schedule
+says one is charged and none was observed, the actual net is `null` — the cost is known to exist and is not
+manufactured.
 
 P/L is counted **once per recommendation**, not once per fill. The scorecard reads the evaluation's aggregate;
 it does not re-derive it.
 
 ---
 
-## 10. The two write paths are equivalent
+## 10. The write paths are equivalent
 
-There are exactly two ways a record reaches the immutable ledger, and they are held to the same standard.
+There are exactly two ways a record reaches the immutable ledger — and one way a candidate reaches a human
+before it becomes a record at all. All three are held to the same standard.
 If the manual one were permissive it would be a hole straight through every protection the bridge applies —
 documented in the runbook, reachable by anyone who read it, and indistinguishable in the ledger from a
 properly gated write.
 
 | | path | gates |
 |---|---|---|
+| pre-trade | `scripts/handicap/preflight_candidate.py` | required; exit 5 means **not a bet**. Writes nothing. |
 | unattended | `scripts/handicap/sync_airtable.py` | required; a failure fails the batch |
 | manual | `scripts/handicap/validate_recommendations.py --write` | required; `--market-data` is mandatory for a real `RECOMMENDED` record |
 
+All three assemble the context through `preflight.build_context` and size through `risk.report_for_batch`,
+so the cumulative portfolio arithmetic cannot differ between them. Both writers need `--handicap-root`
+because outstanding exposure is read from it; an unreadable ledger blocks rather than being read as an empty
+book.
+
 `tests/test_write_paths_equivalent.py` pins the property that matters — not "the same code runs", but **"the
-same record is refused"**: a stale price, a live ask above the ceiling and an oversized stake are all
-rejected on both paths, and a PASS or a `TEST_ONLY` record is accepted on both without market data.
+same record is refused"**: a stale price, a thin book and a live ask above the ceiling are rejected on every
+path, and a PASS or a `TEST_ONLY` record is accepted on both writers without market data. It also pins the
+one place the pre-trade path legitimately differs: an oversized proposal is *capped* before the trade (the
+useful answer is a size) and *refused* at write time (a filed record must carry the approved size).
 
 ---
 
 ## 11. Airtable is transport. GitHub is canonical.
+
+**`READY_FOR_SYNC` asserts that the recommendation ALREADY passed pre-trade approval.** It is not a request
+to check it. The delayed GitHub import independently replays that evidence from the capture stream and
+commits it; it is the second look, never the first. The twelve-hour cadence is preserved precisely because
+the bridge is no longer load-bearing for safety.
 
 Full detail in [`AIRTABLE_BRIDGE.md`](AIRTABLE_BRIDGE.md). The properties this standard depends on:
 

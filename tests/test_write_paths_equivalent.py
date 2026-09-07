@@ -1,9 +1,15 @@
 """Both write paths are held to the same standard, or the stricter one is decoration.
 
-There are exactly two ways a record reaches the immutable ledger:
+There are exactly two ways a record reaches the immutable ledger, and one way a candidate reaches a HUMAN
+before it ever becomes a record:
 
-    scripts/handicap/sync_airtable.py           the unattended Airtable bridge
+    scripts/handicap/preflight_candidate.py       the pre-trade check, BEFORE anything is shown as a bet
+    scripts/handicap/sync_airtable.py             the unattended Airtable bridge
     scripts/handicap/validate_recommendations.py  the manual / engineering fallback
+
+All three consume the same gates through the same assembly (`preflight.build_context`) and the same
+cumulative portfolio arithmetic (`risk.report_for_batch`). The pre-trade path is where the check is USEFUL;
+the other two are where it is RECORDED.
 
 The bridge was hardened first. If the manual path had stayed permissive it would be a hole straight through
 every protection the bridge applies -- documented in the runbook, reachable by anyone who read it, and
@@ -206,3 +212,124 @@ def test_every_required_field_is_required_on_the_manual_path_too(tmp_path, missi
     r, ledger = run_cli(tmp_path, [rec(**{missing: None})])
     assert r.returncode == 1, f"{missing} was accepted"
     assert ledger_files(ledger) == []
+
+
+# ---- the third path: pre-trade, before the ledger is involved at all --------------------------------
+
+def test_the_pre_trade_path_refuses_the_same_records_the_writers_refuse(tmp_path):
+    """Whatever the ledger would refuse, the owner must never have been shown as a bet in the first place.
+
+    This is the property that makes the twelve-hour importer an AUDIT rather than the first line of defence.
+    """
+    from nfl_edge.handicap import preflight as P              # noqa: PLC0415
+
+    md = capture_tree(tmp_path)
+    ledger = tmp_path / "ledger3"
+    ledger.mkdir(exist_ok=True)
+
+    cases = [
+        ("sound", rec(), True),
+        ("stale price", rec(), False),
+        ("thin book", rec(proposed_stake=100, recommended_stake=100), False),
+        ("ask above the ceiling", rec(bet_up_to_probability=0.61, yes_ask=0.62), False),
+    ]
+    stale_md = capture_tree(tmp_path / "stale", minutes_ago=400.0)
+    thin_md = capture_tree(tmp_path / "thin", depth=3.0)
+
+    for i, (label, candidate, expect_bet) in enumerate(cases):
+        market = {"stale price": stale_md, "thin book": thin_md}.get(label, md)
+        try:
+            result = P.preflight(candidate, market_data_root=market, ledger_root=str(ledger), root=ROOT)
+            got = result.may_be_shown_as_a_bet
+        except S.ValidationError:
+            got = False
+        assert got is expect_bet, f"{label}: preflight said may_be_shown_as_a_bet={got}"
+
+        payload = tmp_path / f"p_{i}.json"
+        payload.write_text(json.dumps([candidate]))
+        target = tmp_path / f"l4_{i}"
+        target.mkdir(exist_ok=True)
+        r = subprocess.run(
+            [sys.executable, SCRIPT, str(payload), "--write", "--handicap-root", str(target),
+             "--market-data", market],
+            capture_output=True, text=True, cwd=ROOT)
+        wrote = r.returncode == 0
+        assert wrote is expect_bet, f"{label}: the writer and the pre-trade path disagree\n{r.stdout}"
+
+
+def test_capping_is_an_answer_before_the_trade_and_a_refusal_after_it(tmp_path):
+    """The one place the pre-trade path and the writer legitimately differ, and why.
+
+    An oversized proposal is not a rejection before the trade: the risk policy's job is to say what size IS
+    allowed, and telling the owner "$10, not $500" is the useful answer. At write time the same record is
+    refused, because a filed recommendation must carry the size that was approved rather than the size that
+    was wanted -- otherwise the ledger would record a bet nobody was allowed to take.
+
+    The paths agree on the thing that matters: what preflight approves is exactly what the writer accepts.
+    """
+    from nfl_edge.handicap import preflight as P              # noqa: PLC0415
+
+    md = capture_tree(tmp_path)
+    ledger = tmp_path / "ledgerC"
+    ledger.mkdir(exist_ok=True)
+    oversized = rec(proposed_stake=500, recommended_stake=500)
+
+    pre = P.preflight(oversized, market_data_root=md, ledger_root=str(ledger), root=ROOT)
+    assert pre.may_be_shown_as_a_bet, "the pre-trade answer is a SIZE, not a refusal"
+    assert pre.approved_stake == 10 and pre.proposed_stake == 500
+
+    as_wanted = tmp_path / "wanted.json"
+    as_wanted.write_text(json.dumps([oversized]))
+    r = subprocess.run([sys.executable, SCRIPT, str(as_wanted), "--write",
+                        "--handicap-root", str(tmp_path / "lw"), "--market-data", md],
+                       capture_output=True, text=True, cwd=ROOT)
+    assert r.returncode == 4, "the ledger refuses a record carrying the unapproved size"
+    assert "does not match the stake the risk policy approved" in r.stdout + r.stderr
+
+    as_approved = tmp_path / "approved.json"
+    as_approved.write_text(json.dumps([dict(oversized, recommended_stake=pre.approved_stake)]))
+    ok = subprocess.run([sys.executable, SCRIPT, str(as_approved), "--write",
+                         "--handicap-root", str(tmp_path / "la"), "--market-data", md],
+                        capture_output=True, text=True, cwd=ROOT)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+
+
+def test_the_pre_trade_cli_exits_five_on_a_blocked_candidate(tmp_path):
+    """A blocked candidate is not an error in the pipeline. It has its own exit code so a caller can tell."""
+    md = capture_tree(tmp_path, depth=2.0)
+    ledger = tmp_path / "ledger5"
+    ledger.mkdir(exist_ok=True)
+    payload = tmp_path / "cand.json"
+    payload.write_text(json.dumps([rec(proposed_stake=500, recommended_stake=500)]))
+    cli = os.path.join(ROOT, "scripts", "handicap", "preflight_candidate.py")
+    r = subprocess.run([sys.executable, cli, str(payload), "--market-data", md,
+                        "--handicap-root", str(ledger)], capture_output=True, text=True, cwd=ROOT)
+    assert r.returncode == 5, r.stdout + r.stderr
+    assert "NOT A BET" in r.stdout
+    assert "must NOT be surfaced as a bet" in r.stderr
+
+
+def test_the_pre_trade_cli_approves_a_sound_candidate(tmp_path):
+    md = capture_tree(tmp_path)
+    ledger = tmp_path / "ledger6"
+    ledger.mkdir(exist_ok=True)
+    payload = tmp_path / "ok.json"
+    payload.write_text(json.dumps([rec()]))
+    cli = os.path.join(ROOT, "scripts", "handicap", "preflight_candidate.py")
+    r = subprocess.run([sys.executable, cli, str(payload), "--market-data", md,
+                        "--handicap-root", str(ledger)], capture_output=True, text=True, cwd=ROOT)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.startswith("BET")
+    assert "places nothing" in r.stdout
+
+
+def test_the_pre_trade_cli_refuses_to_guess_at_a_missing_ledger(tmp_path):
+    """Without the ledger the caps are not cumulative, and a non-cumulative cap is not a cap."""
+    md = capture_tree(tmp_path)
+    payload = tmp_path / "ok.json"
+    payload.write_text(json.dumps([rec()]))
+    cli = os.path.join(ROOT, "scripts", "handicap", "preflight_candidate.py")
+    r = subprocess.run([sys.executable, cli, str(payload), "--market-data", md,
+                        "--handicap-root", str(tmp_path / "nope")], capture_output=True, text=True, cwd=ROOT)
+    assert r.returncode == 2
+    assert "outstanding portfolio exposure" in r.stderr

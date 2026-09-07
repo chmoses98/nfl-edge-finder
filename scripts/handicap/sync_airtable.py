@@ -37,6 +37,7 @@ from nfl_edge.execution import fees as FEES            # noqa: E402
 from nfl_edge.execution import quotes as Q             # noqa: E402
 from nfl_edge.handicap import airtable_bridge as AB    # noqa: E402
 from nfl_edge.handicap import gates as G               # noqa: E402
+from nfl_edge.handicap import preflight as PF          # noqa: E402
 from nfl_edge.handicap import risk as RISK             # noqa: E402
 from nfl_edge.handicap import store                    # noqa: E402
 
@@ -101,8 +102,13 @@ def commit_and_push(ledger_root: str, message: str, *, branch: str = store.BRANC
 # ---- sync -----------------------------------------------------------------------------------------
 
 def build_gate_context(market_data_root: str, *, max_quote_age_minutes: float,
-                       max_book_age_minutes: float, risk_policy_path: str | None = None):
+                       max_book_age_minutes: float, risk_policy_path: str | None = None,
+                       ledger_root: str | None = None):
     """Assemble what the real-money gates need to look at the world.
+
+    Built by `preflight.build_context`, which is the SAME assembly the pre-trade path uses. That is not
+    tidiness: the importer's job is to independently REPLAY the checks that approved the bet hours earlier,
+    and a replay against a differently-assembled context would prove nothing about the decision.
 
     NOTE WHAT IS NOT HERE: a `now`. This importer runs every twelve hours and archives decisions that were
     made hours earlier, so a wall-clock timestamp handed to the gates would evaluate each recommendation
@@ -112,31 +118,34 @@ def build_gate_context(market_data_root: str, *, max_quote_age_minutes: float,
     Built once per sync, not per row: the capture and book indexes scan the capture stream, and rebuilding
     them for every row would turn a cheap check into an expensive one.
 
-    The portfolio risk report is deliberately NOT built here. It has to be computed per batch, because a
-    portfolio limit is a statement about one slate's set of positions, and a report built across two
-    unrelated Airtable rows would let one run's exposure cap another's.
+    The portfolio risk report is deliberately NOT built here. It is computed per batch by `_context_for`,
+    against the whole committed book -- see the note there.
     """
-    ctx = G.GateContext(
-        capture_index=Q.CaptureIndex(market_data_root),
-        book_index=DEPTH.BookIndex(market_data_root),
-        fee_schedule=FEES.load_fee_schedule(ROOT),
-        max_quote_age_minutes=max_quote_age_minutes,
-        max_book_age_minutes=max_book_age_minutes,
-    )
+    ctx = PF.build_context(market_data_root, root=ROOT,
+                           max_quote_age_minutes=max_quote_age_minutes,
+                           max_book_age_minutes=max_book_age_minutes)
     ctx.risk_policy = RISK.RiskPolicy.load(ROOT, risk_policy_path)
+    ctx.ledger_root = ledger_root
     return ctx
 
 
 def _context_for(base_ctx, records):
-    """A per-batch gate context carrying this batch's own portfolio verdict.
+    """A per-batch gate context carrying this batch's portfolio verdict against the WHOLE book.
 
     A shallow copy, so the expensive capture index and fee schedule are shared while the risk report is not.
+
+    The verdict is per batch and the EXPOSURE is not. A portfolio limit is a statement about the desk's total
+    position, so `report_for_batch` adds the batch to everything already outstanding in the ledger --
+    unfilled approvals before kickoff, filled and unsettled stake, across every earlier handicap run and
+    Airtable row. Sizing a batch against itself alone is how two 2u positions in one correlation group both
+    clear a 3u cap.
     """
     if base_ctx is None:
         return None
     ctx = copy.copy(base_ctx)
     try:
-        ctx.risk_report = RISK.evaluate_records(records, base_ctx.risk_policy)
+        ctx.risk_report = RISK.report_for_batch(
+            records, base_ctx.risk_policy, getattr(base_ctx, "ledger_root", None))
     except RISK.RiskPolicyError as e:
         # A batch with no RECOMMENDED records needs no bankroll and no portfolio verdict; anything else is a
         # real problem and the risk gate will report it as UNAVAILABLE, which blocks.
@@ -150,6 +159,17 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
          pusher=commit_and_push, sport: str = AB.SPORT_NFL, update_status: bool = True,
          gate_context=None) -> int:
     now = now or datetime.now(timezone.utc)
+
+    # The ledger the gates measure cumulative exposure against MUST be the ledger being written. Binding it
+    # here rather than trusting the caller removes the one way this could go quietly wrong: a context built
+    # against a different checkout would size every batch against somebody else's book.
+    if gate_context is not None:
+        existing = getattr(gate_context, "ledger_root", None)
+        if existing and os.path.abspath(existing) != os.path.abspath(ledger_root):
+            raise AB.BridgeError(
+                f"the gate context measures outstanding exposure against {existing} but this sync writes to "
+                f"{ledger_root}; portfolio caps would be checked against the wrong book")
+        gate_context.ledger_root = ledger_root
 
     try:
         rows = client.list_ready(sport=sport)
@@ -316,7 +336,8 @@ def main(argv=None) -> int:
     try:
         ctx = build_gate_context(os.path.abspath(a.market_data),
                                  max_quote_age_minutes=a.max_quote_age_minutes,
-                                 max_book_age_minutes=a.max_book_age_minutes)
+                                 max_book_age_minutes=a.max_book_age_minutes,
+                                 ledger_root=os.path.abspath(a.handicap_root))
         return sync(client, os.path.abspath(a.handicap_root), dry_run=a.dry_run, pusher=pusher,
                     sport=a.sport, update_status=not a.no_push, gate_context=ctx)
     except AB.BridgeError as e:

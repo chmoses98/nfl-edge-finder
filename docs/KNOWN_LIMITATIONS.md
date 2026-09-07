@@ -53,3 +53,30 @@
     (`Evaluation.entry_slippage`) but does not yet feed a prior.
 17. **Zero resolved recommendations.** Every metric in the scorecard is structurally correct and empirically
     empty. Nothing is backfilled and nothing will be.
+20. **Preflight is a check, not an enforcement mechanism.** `scripts/handicap/preflight_candidate.py` decides
+    whether a candidate may be shown as a bet; nothing prevents a human from placing a wager anyway, because
+    nothing in this repository can see or reach an order surface. The control is that a blocked candidate is
+    never *presented* as a bet and never reaches the ledger as one — not that the bet is impossible.
+21. **Outstanding exposure is only as complete as the committed ledger.** Reserved-and-unfilled stake is
+    released at kickoff and executed stake at settlement, both established from records on `handicap-data`.
+    A fill the owner never reported is invisible to the cap, and a settled position with no `Evaluation`
+    keeps consuming budget until one is attached. Both errors are conservative in the safe direction (an
+    unreported fill under-counts only its own reserve, which is already held; a missing evaluation
+    over-counts), but the definition is a ledger statement, not a broker statement — there is no position
+    feed.
+22. **The `/series/fee_changes` response shape is unconfirmed.** The endpoint is now ingested and its
+    announced effective timestamps are preserved, but this environment could not reach the Kalshi API to see
+    a real response. `fetch_fee_changes` therefore accepts several plausible envelopes and keeps every field
+    rather than filtering through today's understanding. The first live run from Actions is what will
+    confirm the shape; until then a parse that silently returns zero changes is possible, which is why
+    schedule freshness *also* rests on the age of the last clean capture rather than on fee-change detection
+    alone.
+23. **The fee-rounding residual bounds fragmentation, not everything.** `rounding_uncertainty` is a
+    worst-case bound on the difference between a fragmented order and its single-fill equivalent, derived
+    from the accumulator mechanism. It does not bound a *wrong multiplier*, a schedule that changed without
+    announcement, or slippage; those fail closed through other gates. It also assumes fills are at least one
+    whole contract, which is true on Kalshi today and is the only reason the fill count is bounded at all.
+24. **Realised net P/L will be null for a while.** `net_pnl` requires an observed venue fee on every counted
+    fill. Until the owner reports fees per fill, evaluations will carry `gross_pnl` and `estimated_net_pnl`
+    with `net_pnl: null`, and the scorecard's desk-level net will be null alongside a
+    `fee_reconciliation` block. That is the intended behaviour and not a defect to route around.

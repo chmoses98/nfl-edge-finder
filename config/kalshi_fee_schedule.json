@@ -22,6 +22,14 @@
     }
   ],
   "conflict_policy": "FAIL_CLOSED. Where two sources disagree about a series' multiplier for the same effective window, the fee state for that series is CONFLICTED, net EV cannot be computed, and a RECOMMENDED record on it is refused. A conflict is reported, never silently resolved by rank.",
+  "verification_policy": {
+    "max_verification_age_days": 45,
+    "check_cadence": "weekly, via the fee-health job in .github/workflows/kalshi-fee-health.yml",
+    "why_this_cadence": "Fee schedules change on the order of once or twice a year and are announced in advance through GET /series/fee_changes, so a ten-minute cadence would buy nothing. A weekly check against a 45-day tolerance means three consecutive missed checks before real recommendations block -- enough slack for a broken runner, not enough for a months-old unchecked registry to price real money.",
+    "on_change": "CAPTURE, SURFACE, BLOCK, REVIEW. An observed difference or an announced change is written to the append-only fee observations on market-data, fails the health job loudly, blocks affected real recommendations through the fee_schedule_established gate, and requires a reviewed edit to this file adding a NEW effective window. Nothing auto-edits this file: an API response must never silently rewrite the schedule that every historical net-EV number in the ledger was computed against.",
+    "historical_windows": "Existing windows are never modified or removed. A change adds a window with its own effective_from and closes the previous window's effective_to, so a past decision keeps being priced with the schedule that was actually in force when it was made.",
+    "observations_path": "market-data: data/kalshi/fees/<YYYY-MM-DD>.json"
+  },
   "rounding": {
     "trade_fee_increment": 0.0001,
     "trade_fee_mode": "ceil",

@@ -41,6 +41,7 @@ from nfl_edge.execution import depth as DEPTH         # noqa: E402
 from nfl_edge.execution import fees as FEES           # noqa: E402
 from nfl_edge.execution import quotes as Q            # noqa: E402
 from nfl_edge.handicap import gates as G              # noqa: E402
+from nfl_edge.handicap import preflight as PF         # noqa: E402
 from nfl_edge.handicap import risk as RISK            # noqa: E402
 from nfl_edge.handicap import schema as S             # noqa: E402
 from nfl_edge.handicap import store                   # noqa: E402
@@ -141,13 +142,16 @@ def main():
         now = datetime.now(timezone.utc)
         # No `now` on the context: each record is gated as of its own created_at. `now` below is only the
         # time the gate RAN, which the evidence record stamps alongside the decision time it evaluated at.
-        ctx = G.GateContext(capture_index=Q.CaptureIndex(os.path.abspath(a.market_data)),
-                            book_index=DEPTH.BookIndex(os.path.abspath(a.market_data)),
-                            fee_schedule=FEES.load_fee_schedule(ROOT),
-                            max_quote_age_minutes=a.max_quote_age_minutes,
-                            max_book_age_minutes=a.max_book_age_minutes)
+        # Assembled by preflight.build_context, the same way the pre-trade path and the importer assemble it.
+        ctx = PF.build_context(os.path.abspath(a.market_data), root=ROOT,
+                               max_quote_age_minutes=a.max_quote_age_minutes,
+                               max_book_age_minutes=a.max_book_age_minutes)
         try:
-            ctx.risk_report = RISK.evaluate_records(real_recs, RISK.RiskPolicy.load(ROOT))
+            # Cumulative: this payload PLUS everything already outstanding in the ledger. The manual path
+            # gets the same portfolio arithmetic as the bridge, or it would be a way to write a record that
+            # breaks a cap the bridge would have caught.
+            ctx.risk_report = RISK.report_for_batch(
+                real_recs, RISK.RiskPolicy.load(ROOT), os.path.abspath(a.handicap_root))
         except RISK.RiskPolicyError as e:
             print(f"\nrisk policy could not be evaluated: {e}", file=sys.stderr)
             return 4

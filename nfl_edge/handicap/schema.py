@@ -286,6 +286,9 @@ class Execution:
     contracts: float | None = None                  # fractional permitted; see fees.taker_fee
     fees_paid: float | None = None
     fees_are_estimated: bool = False                # True => this is a model output, not a venue charge
+    # A venue-reported settlement or fixed-point rounding adjustment, when the venue reports one. Recorded
+    # only when observed: an unobserved adjustment is a gap in the accounting, not a zero.
+    settlement_fee: float | None = None
     fee_state: str | None = None                    # KNOWN / UNKNOWN / DEGRADED when the fee was modelled
     execution_style: str | None = None              # taker / maker, for fee attribution
     order_id: str | None = None                     # venue order this fill belongs to, when known
@@ -320,8 +323,21 @@ class Evaluation:
     gross_pnl: float | None = None
     fees_paid: float | None = None                  # actual venue fees, summed across fills
     fees_estimated: float | None = None             # modelled fees, summed; NEVER added to fees_paid
-    fees_basis: str | None = None                   # ACTUAL / ESTIMATED / MIXED / NONE
-    net_pnl: float | None = None                    # gross_pnl - fees (actual where present)
+    settlement_fees_paid: float | None = None       # venue-reported settlement/rounding adjustment, observed
+    fees_basis: str | None = None                   # ACTUAL / ESTIMATED / MIXED / INCOMPLETE / NONE
+    # Fee-observation completeness. `net_pnl` is numeric ONLY when every counted fill carries an OBSERVED
+    # venue charge; otherwise it is None and the modelled figure lives in `estimated_net_pnl`, which cannot
+    # be mistaken for accounting. These fields are how a reader checks that verdict instead of trusting it.
+    fills_total: int = 0
+    fills_with_actual_fees: int = 0
+    fills_with_estimated_fees: int = 0
+    missing_fee_count: int = 0
+    actual_fee_coverage: float | None = None        # fills_with_actual_fees / fills_total
+    fee_coverage_complete: bool = False
+    fee_coverage_gap: str | None = None             # why an actual net could not be stated
+    net_pnl: float | None = None                    # REALISED. None unless fee coverage is complete.
+    estimated_net_pnl: float | None = None          # MODELLED. Never a realised-accounting claim.
+    estimated_net_roi: float | None = None
     gross_dollars_staked: float | None = None
     contracts: float | None = None
     n_executions: int = 0
@@ -365,6 +381,7 @@ class DecisionGates:
     depth: dict | None = None                       # full-position VWAP walk -- see execution/depth
     net_ev: dict | None = None                      # gross edge, fees, slippage, net -- see execution/fees
     risk: dict | None = None                        # the portfolio verdict for this record
+    fee_schedule: dict | None = None                # which fee window applied, and how recently verified
     blocking_reasons: list = field(default_factory=list)
     warnings: list = field(default_factory=list)      # seen, recorded, not blocking
     test_only: bool = False
@@ -738,16 +755,28 @@ def validate_evaluation(d: dict) -> list:
     if d.get("settlement") is not None and float(d["settlement"]) not in (0.0, 1.0):
         raise ValidationError(f"settlement must be 0.0 or 1.0, got {d['settlement']}")
     basis = d.get("fees_basis")
-    if basis is not None and basis not in ("ACTUAL", "ESTIMATED", "MIXED", "NONE"):
-        raise ValidationError(f"fees_basis must be ACTUAL/ESTIMATED/MIXED/NONE, got {basis!r}")
+    if basis is not None and basis not in ("ACTUAL", "ESTIMATED", "MIXED", "INCOMPLETE", "NONE"):
+        raise ValidationError(
+            f"fees_basis must be ACTUAL/ESTIMATED/MIXED/INCOMPLETE/NONE, got {basis!r}")
     # gross - fees = net is the whole point of keeping three fields. If they disagree, one of them is a
     # number somebody typed rather than a number something computed.
     g, f, n = d.get("gross_pnl"), d.get("fees_paid"), d.get("net_pnl")
+    sf = d.get("settlement_fees_paid")
     if g is not None and n is not None:
-        expected = float(g) - float(f or 0.0)
+        expected = float(g) - float(f or 0.0) - float(sf or 0.0)
         if abs(expected - float(n)) > 0.011:
             raise ValidationError(
-                f"net_pnl {n} does not equal gross_pnl {g} minus fees_paid {f or 0.0} ({expected:.2f})")
+                f"net_pnl {n} does not equal gross_pnl {g} minus fees_paid {f or 0.0} "
+                f"and settlement_fees_paid {sf or 0.0} ({expected:.2f})")
+    # A REALISED net requires observed costs on every fill. This is the structural half of the rule that
+    # evaluate.aggregate_executions enforces arithmetically: a record asserting net_pnl while admitting
+    # incomplete fee coverage is refused rather than filed.
+    if n is not None and d.get("fills_total") and not d.get("fee_coverage_complete"):
+        raise ValidationError(
+            f"net_pnl {n} is stated while fee coverage is incomplete "
+            f"({d.get('fills_with_actual_fees')}/{d.get('fills_total')} fill(s) carry an observed fee: "
+            f"{d.get('fee_coverage_gap')}). An actual net P/L may only be numeric when every transaction "
+            "cost on it was observed; the modelled figure belongs in estimated_net_pnl.")
     if d.get("pnl") is not None and g is not None and abs(float(d["pnl"]) - float(g)) > 1e-6:
         raise ValidationError(f"pnl {d['pnl']} disagrees with gross_pnl {g}; pnl is an alias of gross_pnl")
     return []

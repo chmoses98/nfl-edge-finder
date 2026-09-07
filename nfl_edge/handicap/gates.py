@@ -76,6 +76,7 @@ G_CEILING = "executable_price_within_ceiling"
 G_IDENTITY = "player_identity_resolved"
 G_AVAILABILITY = "player_availability_resolved"
 G_DEPTH = "full_position_executable"
+G_FEE_SCHEDULE = "fee_schedule_established"
 G_NET_EV = "net_executable_ev"
 G_RISK = "portfolio_risk_policy"
 
@@ -100,6 +101,7 @@ class GateReport:
     depth: dict | None = None
     net_ev: dict | None = None
     risk: dict | None = None
+    fee_schedule: dict | None = None
     as_of: str | None = None
     blocking_reasons: list = field(default_factory=list)
     # Things the operator should see that are NOT blockers. Kept strictly apart from blocking_reasons: a
@@ -121,6 +123,7 @@ class GateReport:
             depth=self.depth,
             net_ev=self.net_ev,
             risk=self.risk,
+            fee_schedule=self.fee_schedule,
             blocking_reasons=list(self.blocking_reasons),
             warnings=list(self.warnings),
             test_only=test_only,
@@ -137,6 +140,9 @@ class GateContext:
     capture_index: Q.CaptureIndex | None = None
     book_index: D.BookIndex | None = None
     fee_schedule: F.FeeSchedule | None = None
+    # Append-only fee observations from market-data. Absent, the schedule can still be applied but its
+    # freshness rests on the committed attestation alone -- which ages, and the gate says so.
+    fee_observations: F.FeeObservations | None = None
     risk_report=None                                  # nfl_edge.handicap.risk.PortfolioReport
     max_quote_age_minutes: float = Q.DEFAULT_MAX_QUOTE_AGE_MIN
     max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN
@@ -298,10 +304,13 @@ def evaluate_gates(rec: dict, ctx: GateContext) -> GateReport:
                 {"state": dr.state, "top_ask": dr.top_ask, "fillable_stake": dr.fillable_stake,
                  "book_age_minutes": dr.book_age_minutes})
 
-    # ---- 6. transaction costs, on the FULL position ----------------------------------------------
+    # ---- 6. the fee schedule itself ---------------------------------------------------------------
+    report.gates[G_FEE_SCHEDULE] = _fee_schedule_gate(ctx, report, series, as_of)
+
+    # ---- 7. transaction costs, on the FULL position ----------------------------------------------
     report.gates[G_NET_EV] = _net_ev_gate(rec, ctx, report, dq, dr, series, as_of)
 
-    # ---- 7. portfolio risk -----------------------------------------------------------------------
+    # ---- 8. portfolio risk -----------------------------------------------------------------------
     report.gates[G_RISK] = _risk_gate(rec, ctx, report)
 
     report.blocking_reasons = [f"{name}: {g.reason}" for name, g in report.gates.items()
@@ -334,6 +343,31 @@ def _availability_gate(rec: dict, as_of: datetime) -> GateResult:
             return GateResult(UNAVAILABLE, f"availability_as_of {seen!r} is not an ISO-8601 timestamp")
     return GateResult(PASS, f"availability {av}",
                       {"state": av, "as_of": seen, "stale_minutes": stale})
+
+
+def _fee_schedule_gate(ctx, report, series, as_of) -> GateResult:
+    """Which fee schedule applies, and is there any evidence it is still the venue's?
+
+    Net EV asks what the costs are. This asks the prior question -- whether we are entitled to believe the
+    numbers we are about to compute them from. They fail for different reasons and reporting them as one
+    gate would make a months-old unchecked registry read as a pricing problem.
+
+    A schedule that cannot be established, or one whose registry the venue has knowably moved past, blocks.
+    An announced change is never applied here; see FeeSchedule.verification.
+    """
+    if ctx.fee_schedule is None:
+        return GateResult(
+            UNAVAILABLE, "no fee schedule supplied; the applicable fee regime could not be established")
+    try:
+        v = ctx.fee_schedule.verification(series, as_of, ctx.fee_observations)
+    except F.FeeStateError as e:
+        return GateResult(UNAVAILABLE, str(e))
+    report.fee_schedule = v
+    if v["state"] == F.VERIFIED:
+        return GateResult(PASS, v["reason"], v)
+    # NO_SCHEDULE is "we cannot price this at all"; the other two are "what we would price it with is not
+    # trustworthy". All three block, and the distinction is preserved in the evidence.
+    return GateResult(UNAVAILABLE if v["state"] == F.NO_SCHEDULE else FAIL, v["reason"], v)
 
 
 def _net_ev_gate(rec, ctx, report, dq, dr, series, as_of) -> GateResult:
@@ -400,13 +434,37 @@ def _net_ev_gate(rec, ctx, report, dq, dr, series, as_of) -> GateResult:
             {k: report.net_ev[k] for k in ("gross_edge", "gross_ev_dollars", "estimated_fees",
                                            "net_ev_dollars", "net_edge", "price_basis")})
 
+    # The pre-trade estimate prices the order as one fill. The venue may fragment it, and the accumulator
+    # makes fragmentation converge on -- not equal -- the equivalent order. `conservative_net_ev_dollars`
+    # is net EV less the WORST CASE of that residual, derived in fees.rounding_uncertainty from the venue's
+    # own rounding mechanism. It is a transaction-cost bound, not an edge buffer: there is no configurable
+    # number here to raise, and it vanishes as the fee is observed rather than modelled.
+    cons = nev.conservative_net_ev_dollars
+    if cons is None:
+        return GateResult(
+            UNAVAILABLE, "the fee-rounding uncertainty bound could not be computed, so no conservative net "
+                         "EV exists to check", {"price_basis": basis})
+    if cons <= 0:
+        return GateResult(
+            FAIL,
+            f"net executable EV is ${nev.net_ev_dollars:+.4f} but only ${cons:+.4f} once the "
+            f"${nev.fee_uncertainty_dollars:.4f} worst-case fee-rounding residual is taken off "
+            f"({(nev.fee_uncertainty or {}).get('derivation')}). The trade survives its MODELLED costs and "
+            "not its POSSIBLE ones, and the difference is fill fragmentation we cannot see before the "
+            "order is worked.",
+            {k: report.net_ev[k] for k in ("gross_edge", "estimated_fees", "net_ev_dollars",
+                                           "fee_uncertainty_dollars", "conservative_net_ev_dollars",
+                                           "price_basis")})
+
     return GateResult(
         PASS,
         f"net executable EV ${nev.net_ev_dollars:+.4f} at the {basis} of {price} "
-        f"(gross {nev.gross_edge:+.4f}, fees ${nev.estimated_fees:.4f})",
+        f"(gross {nev.gross_edge:+.4f}, fees ${nev.estimated_fees:.4f}); conservative ${cons:+.4f} after "
+        f"the ${nev.fee_uncertainty_dollars:.4f} fee-rounding bound",
         {k: report.net_ev[k] for k in ("gross_edge", "gross_ev_dollars", "estimated_fees",
                                        "estimated_slippage_dollars", "net_ev_dollars", "net_edge",
-                                       "fee_state", "price_basis")})
+                                       "fee_state", "price_basis", "fee_uncertainty_dollars",
+                                       "conservative_net_ev_dollars")})
 
 
 def _risk_gate(rec, ctx, report) -> GateResult:
@@ -419,6 +477,15 @@ def _risk_gate(rec, ctx, report) -> GateResult:
         return GateResult(
             UNAVAILABLE, "no portfolio risk report supplied; aggregate game and correlation-group exposure "
                          "could not be checked")
+    outstanding = getattr(ctx.risk_report, "outstanding", None) or {}
+    if str(outstanding.get("source", "")).startswith("UNAVAILABLE"):
+        # An unreadable ledger is not an empty one. Treating "I could not see the book" as "the book is
+        # flat" is how two 2u positions in one correlation group both pass a 3u cap.
+        return GateResult(
+            UNAVAILABLE,
+            "the committed ledger could not be read, so OUTSTANDING exposure from earlier handicap runs is "
+            f"unknown ({outstanding.get('source')}). Caps are cumulative and cannot be checked against a "
+            "book we cannot see.")
     v = ctx.risk_report.verdict_for(rec.get("recommendation_id"))
     report.risk = v.to_dict() if v is not None else None
     if v is None:
@@ -435,5 +502,11 @@ def _risk_gate(rec, ctx, report) -> GateResult:
             "one",
             {"proposed_stake": v.proposed_stake, "approved_stake": v.approved_stake})
     return GateResult(
-        PASS, f"{v.status} at ${v.approved_stake:.2f}" + (f" ({v.binding_limit})" if v.binding_limit else ""),
-        {"proposed_stake": v.proposed_stake, "approved_stake": v.approved_stake, "status": v.status})
+        PASS, f"{v.status} at ${v.approved_stake:.2f}" + (f" ({v.binding_limit})" if v.binding_limit else "")
+        + f"; cumulative slate exposure ${ctx.risk_report.total_exposure:.2f} of which "
+          f"${float(outstanding.get('total') or 0.0):.2f} was already outstanding",
+        {"proposed_stake": v.proposed_stake, "approved_stake": v.approved_stake, "status": v.status,
+         "outstanding_total": outstanding.get("total"),
+         "cumulative_total_exposure": ctx.risk_report.total_exposure,
+         "cumulative_by_game": ctx.risk_report.exposure_by_game,
+         "cumulative_by_correlation_group": ctx.risk_report.exposure_by_correlation_group})

@@ -222,7 +222,10 @@ def _headline(resolved, ex_by_rec):
     clv = [e.get("clv") for _, e in taken]
     clv_x = [e.get("clv_executable") for _, e in taken]
 
-    staked = gross = net = fees_actual = fees_est = 0.0
+    staked = gross = net = est_net = fees_actual = fees_est = 0.0
+    # Both start True and are only ever falsified: a desk-level net exists only if every position has one.
+    net_complete = est_net_complete = True
+    fills_counted = fills_reconciled = 0
     n_executed = n_fills = 0
     slippage = []
     fee_bases = set()
@@ -238,7 +241,22 @@ def _headline(resolved, ex_by_rec):
         g = e.get("gross_pnl", e.get("pnl"))
         if g is not None:
             gross += float(g)
-            net += float(e["net_pnl"]) if e.get("net_pnl") is not None else float(g)
+            # The desk's realised net is the sum of realised nets, and it exists only if every contributing
+            # position has one. Falling back to gross for an unreconciled position would price its fees at
+            # zero and report the result as though it had been measured.
+            if e.get("net_pnl") is not None:
+                net += float(e["net_pnl"])
+            else:
+                net_complete = False
+            if e.get("estimated_net_pnl") is not None:
+                est_net += float(e["estimated_net_pnl"])
+            elif e.get("net_pnl") is not None:
+                est_net += float(e["net_pnl"])
+            else:
+                est_net_complete = False
+            if e.get("fills_total"):
+                fills_counted += int(e["fills_total"])
+                fills_reconciled += int(e.get("fills_with_actual_fees") or 0)
         if e.get("fees_paid") is not None:
             fees_actual += float(e["fees_paid"])
         if e.get("fees_estimated") is not None:
@@ -262,9 +280,19 @@ def _headline(resolved, ex_by_rec):
         "total_fees_estimated": round(fees_est, 2) if fees_est else None,
         "fees_basis": ("MIXED" if len(fee_bases - {"NONE"}) > 1
                        else (sorted(fee_bases - {"NONE"}) or ["NONE"])[0]),
-        "net_pnl": round(net, 2),
+        # REALISED. None whenever any contributing position's transaction costs are unreconciled.
+        "net_pnl": round(net, 2) if net_complete else None,
+        "estimated_net_pnl": round(est_net, 2) if est_net_complete else None,
+        "fee_reconciliation": {
+            "fills_counted": fills_counted,
+            "fills_with_actual_fees": fills_reconciled,
+            "coverage": None if not fills_counted else round(fills_reconciled / fills_counted, 4),
+            "actual_net_available": net_complete,
+        },
         "gross_roi": None if staked <= 0 else round(gross / staked, 4),
-        "net_roi": None if staked <= 0 else round(net / staked, 4),
+        "net_roi": (None if staked <= 0 or not net_complete else round(net / staked, 4)),
+        "estimated_net_roi": (None if staked <= 0 or not est_net_complete
+                              else round(est_net / staked, 4)),
         "n_recommendations_executed": n_executed,
         "n_fills": n_fills,
         "execution_rate": None if not taken else round(n_executed / len(taken), 4),

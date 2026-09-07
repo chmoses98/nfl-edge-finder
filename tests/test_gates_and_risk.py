@@ -308,22 +308,49 @@ def test_there_is_no_switch_to_turn_the_net_ev_gate_off():
     assert "require_net_ev_positive" not in [f for f in G.GateContext.__dataclass_fields__]
 
 
-def test_no_positive_minimum_beyond_zero_is_invented():
-    """Only <= 0 blocks. A trade worth a fraction of a cent is thin, not disallowed."""
-    r = rec(probability_mid=0.62)
-    # Sweep upward until net EV first turns positive; that record must PASS, not be held to a buffer.
+def test_the_only_thing_above_zero_is_the_derived_fee_rounding_bound():
+    """The threshold is zero plus a DERIVED transaction-cost bound, and nothing else.
+
+    Two claims have to hold together, and they pull in opposite directions:
+
+      * No strategy minimum is invented. There is no "require at least 3% edge" anywhere.
+      * A pre-trade fee estimate prices the order as ONE fill. The venue may fragment it, and the
+        accumulator makes fragmentation converge on the equivalent order without equalling it. A trade whose
+        entire margin is smaller than that residual has not been shown to survive its costs.
+
+    So the pass threshold is exactly `fees.rounding_uncertainty(...)["bound_dollars"]` above zero -- a
+    number derived from the venue's published rounding mechanism, reproduced here independently. If the gate
+    ever demands MORE than that, a buffer has been smuggled in.
+    """
     passed = None
-    for mid in [0.62 + i * 0.0005 for i in range(1, 60)]:
+    for mid in [0.62 + i * 0.0005 for i in range(1, 120)]:
         rr = rec(probability_mid=round(mid, 6))
         rep = G.evaluate_gates(rr, ctx(records=[rr]))
-        if rep.net_ev.get("net_ev_dollars", 0) and rep.net_ev["net_ev_dollars"] > 0:
+        if (rep.net_ev.get("conservative_net_ev_dollars") or 0) > 0:
             passed = rep
             break
-    assert passed is not None, "net EV never turned positive across the sweep"
+    assert passed is not None, "conservative net EV never turned positive across the sweep"
     assert passed.gates[G.G_NET_EV].status == G.PASS, \
-        "the first record with net EV above zero must pass; anything else is a hidden minimum"
-    assert 0 < passed.net_ev["net_ev_dollars"] < 1.0, "the boundary case should be a thin one"
-    assert r is not None
+        "the first record above the derived bound must pass; anything else is a hidden minimum"
+
+    nev = passed.net_ev
+    expected = F.rounding_uncertainty(nev["contracts"], F.CENT)["bound_dollars"]
+    assert nev["fee_uncertainty_dollars"] == pytest.approx(expected), \
+        "the gate must use the derived bound, not a configured one"
+    assert nev["conservative_net_ev_dollars"] == pytest.approx(
+        nev["net_ev_dollars"] - expected, abs=1e-6)
+    # Thin, and only just over the line: the bound is cents, not a strategy threshold.
+    assert 0 < nev["conservative_net_ev_dollars"] < 1.0
+    assert expected < 0.10, "a transaction-cost bound of more than a dime is not a rounding residual"
+
+
+def test_no_configurable_edge_buffer_exists_anywhere():
+    """The bound is computed. If it ever becomes a setting, it has stopped being a bound."""
+    import inspect
+    src = inspect.getsource(G) + inspect.getsource(F)
+    for banned in ("min_edge", "minimum_edge", "edge_buffer", "ev_buffer", "min_net_ev"):
+        assert banned not in src, f"{banned!r} would make the threshold a policy choice"
+    assert "buffer" not in [f for f in G.GateContext.__dataclass_fields__]
 
 
 # ---- 6. portfolio risk -----------------------------------------------------------------------------
