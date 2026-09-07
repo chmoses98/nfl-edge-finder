@@ -77,8 +77,10 @@ def main():
         for o in rows:
             if o.get("settlement") is not None:
                 settlement = o["settlement"]
-        ex = (execs.get(r["recommendation_id"]) or [None])[0]
-        ev = evaluate(r, rows, settlement=settlement, execution=ex, now=now)
+        # EVERY fill, not the first one. A recommendation filled $20 at 54c and $30 at 55c has two
+        # execution records, and evaluating only one of them understates both the stake and the P/L.
+        fills = execs.get(r["recommendation_id"]) or []
+        ev = evaluate(r, rows, settlement=settlement, executions=fills, now=now)
         if ev.get("close_basis") == "MISSING_CLOSE":
             missing_close += 1
         if ev.get("outcome") == "UNSETTLED":

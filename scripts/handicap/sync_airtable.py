@@ -22,6 +22,7 @@ Exit codes: 0 nothing to do or everything imported, 1 at least one row failed pe
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 import subprocess
 import sys
@@ -31,7 +32,11 @@ from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
+from nfl_edge.execution import fees as FEES            # noqa: E402
+from nfl_edge.execution import quotes as Q             # noqa: E402
 from nfl_edge.handicap import airtable_bridge as AB    # noqa: E402
+from nfl_edge.handicap import gates as G               # noqa: E402
+from nfl_edge.handicap import risk as RISK             # noqa: E402
 from nfl_edge.handicap import store                    # noqa: E402
 
 
@@ -94,8 +99,49 @@ def commit_and_push(ledger_root: str, message: str, *, branch: str = store.BRANC
 
 # ---- sync -----------------------------------------------------------------------------------------
 
+def build_gate_context(market_data_root: str, now, *, max_quote_age_minutes: float,
+                       risk_policy_path: str | None = None):
+    """Assemble what the real-money gates need to look at the world.
+
+    Built once per sync, not per row: the capture index scans manifests and quote files, and rebuilding it
+    for every row would turn a cheap check into an expensive one.
+
+    The portfolio risk report is deliberately NOT built here. It has to be computed per batch, because a
+    portfolio limit is a statement about one slate's set of positions, and a report built across two
+    unrelated Airtable rows would let one run's exposure cap another's.
+    """
+    ctx = G.GateContext(
+        capture_index=Q.CaptureIndex(market_data_root),
+        fee_schedule=FEES.load_fee_schedule(ROOT),
+        now=now,
+        max_quote_age_minutes=max_quote_age_minutes,
+    )
+    ctx.risk_policy = RISK.RiskPolicy.load(ROOT, risk_policy_path)
+    return ctx
+
+
+def _context_for(base_ctx, records):
+    """A per-batch gate context carrying this batch's own portfolio verdict.
+
+    A shallow copy, so the expensive capture index and fee schedule are shared while the risk report is not.
+    """
+    if base_ctx is None:
+        return None
+    ctx = copy.copy(base_ctx)
+    try:
+        ctx.risk_report = RISK.evaluate_records(records, base_ctx.risk_policy)
+    except RISK.RiskPolicyError as e:
+        # A batch with no RECOMMENDED records needs no bankroll and no portfolio verdict; anything else is a
+        # real problem and the risk gate will report it as UNAVAILABLE, which blocks.
+        if any(r.get("decision") == AB.S.RECOMMENDED for r in records):
+            log(f"warn   risk policy could not be evaluated for this batch: {e}")
+        ctx.risk_report = None
+    return ctx
+
+
 def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
-         pusher=commit_and_push, sport: str = AB.SPORT_NFL, update_status: bool = True) -> int:
+         pusher=commit_and_push, sport: str = AB.SPORT_NFL, update_status: bool = True,
+         gate_context=None) -> int:
     now = now or datetime.now(timezone.utc)
 
     try:
@@ -121,8 +167,10 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
             log("ERROR  <no record id>: Airtable row has no record id; skipping")
             continue
         try:
+            records = AB.parse_payload((row.get("fields") or {}).get(AB.F_PAYLOAD))
             plan = AB.plan_run(row, ledger_root, now=now,
-                               base_id=client.base_id, table_id=client.table_id)
+                               base_id=client.base_id, table_id=client.table_id,
+                               gate_context=_context_for(gate_context, records))
         except AB.BridgeError as e:
             log(f"ERROR  {rid}: {e}")
             errors[rid] = str(e)
@@ -221,6 +269,13 @@ def main(argv=None) -> int:
                     help="validate pending rows and report; write nothing, change no Airtable status")
     ap.add_argument("--no-push", action="store_true",
                     help="write records but do not commit or push (local inspection only)")
+    ap.add_argument("--market-data", default="/home/user/_market_data_wt",
+                    help="checkout of the market-data branch; the decision-time price gate reads its "
+                         "capture stream")
+    ap.add_argument("--max-quote-age-minutes", type=float, default=Q.DEFAULT_MAX_QUOTE_AGE_MIN,
+                    help="decision-time executable-price freshness window. The conductor captures roughly "
+                         "every 10 minutes, so the default accepts one on-time capture and rejects a "
+                         "missed one.")
     a = ap.parse_args(argv)
 
     token = os.environ.get("AIRTABLE_TOKEN", "").strip()
@@ -234,13 +289,24 @@ def main(argv=None) -> int:
         log(f"--handicap-root {a.handicap_root} is not a directory")
         return 2
 
+    if not os.path.isdir(a.market_data):
+        # Fail here, loudly, rather than at the gate. Without the capture stream every RECOMMENDED record
+        # in every pending row would be refused for a reason that is really a misconfiguration on this
+        # machine, and the rows would go ERROR when they are in fact perfectly good.
+        log(f"--market-data {a.market_data} is not a directory. The decision-time price gate reads the "
+            "capture stream from the market-data branch; without it no RECOMMENDED record can be verified "
+            "against a live executable price.")
+        return 2
+
     client = AB.AirtableClient(token, a.base_id, a.table_id)
     # --no-push must also withhold the status update: SYNCED asserts durability on the remote, and a local
     # write that was never pushed has not earned it.
     pusher = (lambda *_args, **_kw: log("--no-push: skipping commit/push")) if a.no_push else commit_and_push
     try:
+        ctx = build_gate_context(os.path.abspath(a.market_data), datetime.now(timezone.utc),
+                                 max_quote_age_minutes=a.max_quote_age_minutes)
         return sync(client, os.path.abspath(a.handicap_root), dry_run=a.dry_run, pusher=pusher,
-                    sport=a.sport, update_status=not a.no_push)
+                    sport=a.sport, update_status=not a.no_push, gate_context=ctx)
     except AB.BridgeError as e:
         # Configuration-shaped BridgeErrors (an empty token) reach here; row-shaped ones never do.
         log(f"FATAL: {AB.scrub(e, token)}")

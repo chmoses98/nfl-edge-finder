@@ -196,6 +196,21 @@ def main():
         else:
             incomplete_trades += 1
     manifest["trades"] = {"tickers_with_volume_change": len(trade_candidates), "tickers_fetched": n_trade_tickers, "incomplete": incomplete_trades}
+    # CONFIRMATION LEDGER. Quote rows are change-suppressed, so an unchanged market leaves no trace of having
+    # been seen, and "no row written" is indistinguishable from "we could not reach the market" unless we
+    # record it separately. `last_seen` stamps every ticker this run actually returned as open -- changed or
+    # not -- so the decision-time freshness gate (nfl_edge/execution/quotes.py) can tell a quiet book from a
+    # stale one at TICKER level instead of falling back to the coarser series-level manifest.
+    #
+    # A ticker enters `seen_now` only by being present in a page we successfully received. A series whose
+    # pagination failed part-way is marked PARTIAL in the manifest, but the tickers it DID return were still
+    # genuinely confirmed open; the partiality means other tickers may be missing, not that these are stale.
+    # Ticker-level confirmation is therefore strictly better evidence than the series-level flag, which is
+    # why the gate prefers it.
+    state.setdefault("last_seen", {})
+    for tk in seen_now:
+        state["last_seen"][tk] = run_id
+    manifest["tickers_confirmed_open"] = len(seen_now)
     # markets that vanished from `open` since last run (closed/settled): drop fingerprint so a reappearance is written
     for tk in list(state["fingerprints"]):
         if tk not in seen_now and not do_daily:

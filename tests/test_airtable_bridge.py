@@ -21,7 +21,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "scripts", "handicap"))
 
+from nfl_edge.execution import fees as FEES          # noqa: E402
+from nfl_edge.execution import quotes as Q            # noqa: E402
 from nfl_edge.handicap import airtable_bridge as AB   # noqa: E402
+from nfl_edge.handicap import gates as G              # noqa: E402
+from nfl_edge.handicap import risk as RISK            # noqa: E402
 from nfl_edge.handicap import schema as S             # noqa: E402
 from nfl_edge.handicap import store                   # noqa: E402
 import sync_airtable                                  # noqa: E402
@@ -42,9 +46,17 @@ def rec(rid="rec_bridge0000000000001", **kw):
         season=2026, week=1, game_id="2026_01_NE_SEA", kickoff_utc="2026-09-10T00:20:00+00:00",
         market_ticker="KXNFLGAME-26SEP09NESEA-SEA", market_family="GAME_WINNER", side="YES",
         yes_bid=0.60, yes_ask=0.62, no_bid=0.38, no_ask=0.40, mid=0.61,
-        decision=S.RECOMMENDED, grade="B+", bet_up_to_probability=0.65, recommended_stake=25,
+        market_timestamp="2026-09-05T05:24:59+00:00", minutes_to_kickoff=6890.0,
+        support_state=S.SUPPORT_SUPPORTED, model_version="shadow-0.4.0", artifact_hash="deadbeefcafe",
+        model_probability=0.64,
+        decision=S.RECOMMENDED, grade="B+", bet_up_to_probability=0.65,
+        proposed_stake=25, recommended_stake=25,
         probability_low=0.61, probability_mid=0.66, probability_high=0.71,
         primary_thesis="TEST_ONLY: role expansion not yet priced.",
+        key_supporting_factors=["TEST_ONLY: snap share up"],
+        counterarguments=["TEST_ONLY: the market may already know"],
+        uncertainties=["TEST_ONLY: game script"],
+        source_freshness={"shadow_snapshot": "2026-09-05T05:00:00+00:00"},
         reasoning_tags=["ROLE_EXPANSION"], test_only=True,
     )
     d.update(kw)
@@ -53,6 +65,7 @@ def rec(rid="rec_bridge0000000000001", **kw):
 
 def a_pass(rid="rec_bridge0000000000002", **kw):
     d = dict(decision=S.PASS, grade="PASS", bet_up_to_probability=None, recommended_stake=None,
+             proposed_stake=None,
              primary_thesis="TEST_ONLY: price already reflects the news.",
              reasoning_tags=["MARKET_ALREADY_PRICED"])
     d.update(kw)
@@ -144,6 +157,34 @@ def run_sync(fake, ledger, *, pusher=None, **kw):
     return code, calls, c
 
 
+# ---- gate context ----------------------------------------------------------------------------------
+
+class _FreshIndex:
+    """A CaptureIndex stand-in that confirms one ticker, right now, at a stated ask.
+
+    Real capture files are not needed to test the bridge's ATOMICITY; they are needed to test the gate
+    itself, which tests/test_decision_quotes.py does against real capture layouts. Here the point is that a
+    real recommendation cannot land without a gate context at all.
+    """
+
+    def __init__(self, ask=0.62, confirmed=None, ticker=None):
+        self.ask, self.confirmed, self.ticker = ask, confirmed or NOW, ticker
+
+    def confirmation(self, ticker, series_ticker):
+        return self.confirmed, Q.CONFIRM_TICKER, "run", None
+
+    def last_quote_row(self, ticker, not_after=None):
+        return {"ticker": ticker, "observed_at": self.confirmed.isoformat(), "status": "active",
+                "yes_bid": 0.60, "yes_ask": self.ask, "no_bid": 1 - self.ask, "no_ask": 0.40}
+
+
+def gate_ctx(ask=0.62, **kw):
+    ctx = G.GateContext(capture_index=_FreshIndex(ask=ask), fee_schedule=FEES.load_fee_schedule(ROOT),
+                        now=NOW, **kw)
+    ctx.risk_policy = RISK.RiskPolicy.load(ROOT)
+    return ctx
+
+
 def ledger_recs(ledger):
     return sorted(os.path.basename(p) for p in
                   __import__("glob").glob(os.path.join(ledger, "data", "recommendations", "*", "*", "*.json")))
@@ -218,8 +259,8 @@ def test_test_only_payload_is_importable_and_stays_test_only(ledger):
 
 def test_scorecard_readers_still_exclude_imported_test_only_records(ledger):
     """The whole point of a TEST_ONLY E2E: proving the path without contaminating performance history."""
-    fake = FakeAirtable([{"records": [row([rec(test_only=True), rec("rec_real", test_only=False)])]}])
-    run_sync(fake, ledger)
+    fake = FakeAirtable([{"records": [row([rec(test_only=True), _real(rec, rid="rec_real")])]}])
+    run_sync(fake, ledger, gate_context=gate_ctx())
     visible = store.read_kind(ledger, "recommendations")
     assert [r["recommendation_id"] for r in visible] == ["rec_real"]
     assert len(store.read_kind(ledger, "recommendations", include_test=True)) == 2
@@ -672,10 +713,72 @@ def test_a_receipt_records_where_the_batch_came_from(ledger):
 
 def test_a_receipt_never_stands_in_for_a_recommendation(ledger):
     """Receipts document transport. They must not appear anywhere a decision is counted."""
-    run_sync(FakeAirtable([{"records": [row([rec(test_only=False)])]}]), ledger)
+    run_sync(FakeAirtable([{"records": [row([_real(rec)])]}]), ledger,
+             gate_context=gate_ctx())
     recs = store.read_kind(ledger, "recommendations")
     assert len(recs) == 1
     assert all("payload_sha256" not in r for r in recs)
+
+
+def _real(factory, **kw):
+    """A non-test_only record, sized so the pilot risk policy approves it as proposed.
+
+    The policy caps a B+ at 1.5 units and a unit is 0.5% of bankroll, so $10 on a $2,000 bankroll is exactly
+    at the cap and passes uncapped. Choosing a size the policy would trim would make every test that uses
+    this fixture also a test of the risk gate.
+    """
+    return factory(test_only=False, bankroll_snapshot=2000.0, proposed_stake=10, recommended_stake=10, **kw)
+
+
+def test_a_real_recommendation_needs_a_gate_context(ledger):
+    """The unattended writer must never materialise a real bet without checking the world.
+
+    A missing gate context is a misconfiguration, and the fail-closed answer to a misconfiguration is to
+    refuse the batch -- not to write the bet and hope somebody notices the missing gate record later.
+    """
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [row([_real(rec)])]}]), ledger)
+    assert code == 1, "a real recommendation with no gate context must fail the row"
+    assert ledger_recs(ledger) == [], "nothing may be written"
+
+
+def test_gates_are_recorded_beside_the_recommendation(ledger):
+    """Passing the gates is evidence, and evidence is a record."""
+    run_sync(FakeAirtable([{"records": [row([_real(rec)])]}]), ledger, gate_context=gate_ctx())
+    g = store.read_kind(ledger, "decision_gates")
+    assert len(g) == 1
+    assert g[0]["overall"] == "PASS"
+    assert g[0]["decision_quote"]["executable_price"] == 0.62
+    assert g[0]["gates"][G.G_QUOTE_FRESHNESS]["status"] == "PASS"
+    assert g[0]["net_ev"]["fee_state"] == "KNOWN"
+
+
+def test_a_live_ask_above_the_ceiling_fails_the_whole_batch(ledger):
+    """The recorded ask was fine; the LIVE ask is not. The batch is refused, not trimmed."""
+    payload = [_real(rec, rid="rec_ok1"), _real(a_pass, rid="rec_ok2")]
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [row(payload)]}]), ledger,
+                                gate_context=gate_ctx(ask=0.90))
+    assert code == 1
+    assert ledger_recs(ledger) == [], "the valid PASS in the same batch must not land either"
+
+
+def test_a_stale_decision_time_quote_blocks_a_real_recommendation(ledger):
+    """15 minutes is the window. 40 minutes is not a price, it is a memory."""
+    stale = gate_ctx()
+    stale.capture_index = _FreshIndex(confirmed=NOW - timedelta(minutes=40))
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [row([_real(rec)])]}]), ledger,
+                                gate_context=stale)
+    assert code == 1
+    assert ledger_recs(ledger) == []
+
+
+def test_a_pass_still_lands_on_a_stale_quote(ledger):
+    """A PASS is not gated on price freshness -- staleness is frequently the reason for the pass."""
+    stale = gate_ctx()
+    stale.capture_index = _FreshIndex(confirmed=NOW - timedelta(minutes=400))
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [row([_real(a_pass, rid="rec_p1")])]}]), ledger,
+                                gate_context=stale)
+    assert code == 0
+    assert ledger_recs(ledger) == ["rec_p1.json"]
 
 
 def test_the_bridge_never_rewrites_source_fields(ledger):

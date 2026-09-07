@@ -40,6 +40,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
+from nfl_edge.handicap import gates as G
 from nfl_edge.handicap import schema as S
 from nfl_edge.handicap import store
 
@@ -60,6 +61,7 @@ STATUS_ERROR = "ERROR"                  # permanent data problem; needs a correc
 SPORT_NFL = "NFL"
 
 RECEIPT_KIND = "import_receipts"
+GATES_KIND = "decision_gates"
 
 # ---- timestamp integrity ---------------------------------------------------------------------------
 # The scientific claim this ledger makes is "this opinion existed before kickoff, at this price". Airtable's
@@ -388,6 +390,7 @@ class RunPlan:
     to_write: list = field(default_factory=list)        # [(path, record)] -- absent from the ledger
     already_present: list = field(default_factory=list)  # [path] -- present and byte-identical
     receipt: tuple | None = None                        # (path, receipt dict) or None if already receipted
+    gate_records: list = field(default_factory=list)    # [(path, DecisionGates dict)] for newly written recs
     warnings: list = field(default_factory=list)
     decisions: dict = field(default_factory=dict)       # decision -> count, for the log line
 
@@ -397,7 +400,8 @@ class RunPlan:
 
 
 def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
-             base_id: str = BASE_ID, table_id: str = TABLE_ID) -> RunPlan:
+             base_id: str = BASE_ID, table_id: str = TABLE_ID,
+             gate_context: "G.GateContext | None" = None) -> RunPlan:
     """Validate one row and work out the exact file operations, without performing any of them.
 
     Planning before writing is what makes a batch atomic: every reason to refuse -- schema, coherence,
@@ -444,8 +448,48 @@ def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
                 "overwrite one. To revise a decision, submit a NEW row whose records carry `amends` set to "
                 "the original recommendation_id.")
 
+    _plan_gates(plan, ledger_root, gate_context, now)
     plan.receipt = _plan_receipt(plan, ledger_root, records, base_id, table_id, now)
     return plan
+
+
+def _plan_gates(plan: RunPlan, ledger_root: str, gate_context, now: datetime) -> None:
+    """Run the real-money gates over the records this batch would newly write.
+
+    Only NEW records are gated. A record already durably in the ledger passed its gates when it was written;
+    re-gating it on a replay would test today's market against yesterday's decision and fail for the wrong
+    reason -- which would also break the idempotency guarantee that identical replay is harmless.
+
+    A RECOMMENDED record that fails any gate fails the WHOLE BATCH. That is the same atomicity rule the
+    schema check already follows, for the same reason: a handicap run that is half in the ledger is a run
+    nobody can score, and the missing half looks like decisions that were never made.
+    """
+    if gate_context is None:
+        # No gate context means no situational checks were requested. That is a legitimate mode -- the
+        # bridge is still a transport and the schema still fails closed on everything structural -- but a
+        # REAL recommendation must not slip through unattended. Test-only records may.
+        real = [r for _p, r in plan.to_write
+                if r.get("decision") == S.RECOMMENDED and not r.get("test_only")]
+        if real:
+            raise BridgeError(
+                f"{len(real)} RECOMMENDED record(s) in this batch, but no gate context was supplied, so the "
+                "decision-time price, transaction costs and portfolio limits were never checked. A real "
+                "recommendation is not written unattended without its gates.")
+        return
+
+    for _path, rec in plan.to_write:
+        report = G.evaluate_gates(rec, gate_context)
+        if report.overall == G.FAIL:
+            raise BridgeError(
+                f"GATE FAILURE for {rec['recommendation_id']}: " + "; ".join(report.blocking_reasons) +
+                ". The whole batch is refused -- a partially imported handicap run cannot be scored.")
+        if report.overall == G.NOT_APPLICABLE:
+            continue
+        gpath = _safe_record_path(ledger_root, GATES_KIND, plan.season, plan.week,
+                                  S.new_gates_id(rec["recommendation_id"]))
+        if os.path.exists(gpath):
+            continue                    # gates already recorded for this recommendation; they run once
+        plan.gate_records.append((gpath, report.to_record(test_only=bool(rec.get("test_only")), now=now)))
 
 
 def _plan_receipt(plan: RunPlan, ledger_root: str, records: list, base_id: str, table_id: str,
@@ -499,6 +543,9 @@ def apply_plan(plan: RunPlan) -> list:
     try:
         for path, rec in plan.to_write:
             S.write_record(path, rec)
+            written.append(path)
+        for path, gr in plan.gate_records:
+            S.write_record(path, gr)
             written.append(path)
         if plan.receipt:
             S.write_record(plan.receipt[0], plan.receipt[1])

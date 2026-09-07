@@ -1,0 +1,28 @@
+{
+  "policy_id": "pilot-2026-v1",
+  "description": "Conservative PILOT risk policy for the prospective handicap experiment. Every limit is expressed as a fraction of a bankroll snapshot or as a count of units, never as a hardcoded dollar amount, so the same policy is correct at any bankroll.",
+  "status": "PILOT",
+  "rationale": "The ChatGPT probability layer has ZERO prospective betting history. Nothing here is Kelly, fractional-Kelly or edge-proportional, because sizing proportional to an unvalidated edge estimate is precisely the bet this desk has not earned. Sizing is flat in units with grade-based caps, which is a defensible default that cannot be blamed for a result either way. Kelly may be researched only after the handicap layer demonstrates prospective calibration.",
+  "unit_fraction_of_bankroll": 0.005,
+  "max_stake_per_position_units": 2.0,
+  "max_exposure_per_game_units": 4.0,
+  "max_exposure_per_correlation_group_units": 3.0,
+  "max_slate_exposure_units": 12.0,
+  "max_slate_exposure_fraction_of_bankroll": 0.06,
+  "grade_caps_units": {
+    "A+": 2.0,
+    "A": 2.0,
+    "A-": 1.5,
+    "B+": 1.0,
+    "B": 1.0,
+    "B-": 0.5,
+    "C": 0.5
+  },
+  "round_stakes_to_dollars": true,
+  "min_stake_dollars": 1,
+  "notes": [
+    "max_exposure_per_correlation_group_units is deliberately TIGHTER than the per-game cap. Correlated positions in one game are one bet wearing several tickets, and the qualitative correlation groups in the packet are good enough to notice that even though they are far too coarse to be a covariance matrix.",
+    "The slate cap is enforced as the MORE BINDING of the unit count and the bankroll fraction, so a policy edited in one place cannot loosen the other by accident.",
+    "Exposure is measured in dollars staked, which for a Kalshi long is the maximum loss. It is not notional and it is not contracts."
+  ]
+}

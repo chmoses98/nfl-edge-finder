@@ -290,16 +290,33 @@ A worked minimal payload (replace all timestamps and ids with live values):
     "market_ticker": "KXNFLGAME-26SEP09NESEA-SEA",
     "market_family": "GAME_WINNER",
     "side": "YES",
+    "packet_sha": "9328642968522db8ddcd",
     "yes_bid": 0.60, "yes_ask": 0.62, "no_bid": 0.38, "no_ask": 0.40, "mid": 0.61,
+    "market_timestamp": "2026-09-07T17:58:00+00:00",
+    "minutes_to_kickoff": 3260.0,
+    "support_state": "SUPPORTED",
+    "model_version": "shadow-0.4.0",
+    "artifact_hash": "deadbeefcafe",
+    "model_probability": 0.64,
     "decision": "RECOMMENDED", "grade": "B+",
-    "bet_up_to_probability": 0.65, "recommended_stake": 25,
+    "bet_up_to_probability": 0.65,
+    "proposed_stake": 25, "recommended_stake": 25,
     "probability_low": 0.61, "probability_mid": 0.66, "probability_high": 0.71,
     "primary_thesis": "TEST_ONLY end-to-end bridge verification. Not a real decision.",
+    "key_supporting_factors": ["TEST_ONLY placeholder"],
+    "counterarguments": ["TEST_ONLY placeholder"],
+    "uncertainties": ["TEST_ONLY placeholder"],
+    "source_freshness": {"shadow_snapshot": "2026-09-07T17:30:00+00:00"},
     "reasoning_tags": ["ROLE_EXPANSION"],
     "test_only": true
   }
 ]
 ```
+
+Every field above is required for a `RECOMMENDED` record; see
+[the required-field table](#what-a-recommended-record-must-carry). A `PASS` needs far fewer — decision,
+side, ticker, run id, and a `primary_thesis` saying why — because the cost of an incomplete `PASS` is lost
+information, not lost money.
 
 ---
 
