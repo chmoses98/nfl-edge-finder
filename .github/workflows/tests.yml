@@ -43,30 +43,22 @@ jobs:
         with:
           python-version: '3.11'
 
-      # numpy and polars are the only third-party imports anywhere in tests/. Everything the hardening work
-      # added -- schema, gates, quotes, fees, risk, the bridge -- is stdlib-only by design, so a package
-      # resolution failure can never be what stops the gates being tested.
+      # numpy, polars and pyyaml are the only third-party imports anywhere in tests/. Everything the
+      # hardening work added -- schema, gates, quotes, fees, risk, the bridge -- is stdlib-only by design, so
+      # a package resolution failure can never be what stops the gates being tested.
+      #
+      # pyyaml is not optional: tests/test_workflows_parse.py imports it at module scope, and without it
+      # those 42 tests fail collection rather than skipping. That file exists because an unparseable
+      # workflow once killed 36 consecutive scheduled shadow-pricing runs with nothing noticing.
       - name: Install test dependencies
-        run: python3 -m pip install --quiet pytest numpy polars
+        run: python3 -m pip install --quiet pytest numpy polars pyyaml
 
       - name: Syntax check every module
         run: python3 -m compileall -q nfl_edge scripts tests
 
-      - name: Workflow YAML parses
-        run: |
-          python3 - <<'PY'
-          import glob, sys, yaml
-          bad = []
-          for f in sorted(glob.glob(".github/workflows/*.yml")):
-              try:
-                  yaml.safe_load(open(f))
-                  print(f"ok  {f}")
-              except yaml.YAMLError as e:
-                  bad.append(f"{f}: {e}")
-          if bad:
-              print("\n".join(bad), file=sys.stderr)
-              sys.exit(1)
-          PY
+      # No separate workflow-YAML step: tests/test_workflows_parse.py already parses every workflow and
+      # checks far more than syntax (cron shapes, permissions, checkout targets, branch writes). A second
+      # weaker check here would only be a place for the two to disagree.
 
       - name: Run the suite
         run: python3 -m pytest -q --tb=short
