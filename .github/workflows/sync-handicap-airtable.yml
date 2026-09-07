@@ -1,0 +1,110 @@
+name: Sync handicap runs from Airtable
+
+# ChatGPT cannot write to GitHub: the App exposes write-shaped tools but every branch/file write returns
+# 403 "Resource not accessible by integration". It CAN write to Airtable. So ChatGPT posts one row per
+# handicap run to the `Sports Betting Bridge` base and this workflow carries it into `handicap-data`:
+#
+#   ChatGPT -> Airtable row (READY_FOR_SYNC) -> validate -> immutable JSON -> push -> row becomes SYNCED
+#
+# Nothing here touches `main`'s data, `market-data`, the collectors, or any model. It moves already-made
+# decisions from an inbox into the ledger, and refuses anything it cannot prove is a valid, new, prospective
+# recommendation batch.
+
+on:
+  # Hourly, September through February -- the NFL season plus the playoffs. Airtable's free tier meters
+  # requests per month and an idle poll costs exactly one, so ~750/month in season and none out of it.
+  # Faster polling would buy nothing: the Airtable createdTime is the decision handoff timestamp, so the
+  # scientific record is prospective whether GitHub ingests it in one minute or fifty.
+  schedule:
+    - cron: '23 * * 9-12,1-2 *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'validate pending rows only: write nothing, change no Airtable status'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+# Two importers pushing handicap-data at once could interleave a batch. Queue instead of cancelling: a
+# cancelled run that had already pushed would leave its Airtable rows READY_FOR_SYNC and re-import next hour,
+# which is safe but wasteful, and cancelling mid-push is the one moment worth not being in.
+concurrency:
+  group: nfl-airtable-handicap-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Importer code and the ledger are separate checkouts so no step ever switches branch under the other.
+      # workspace/code   = main (this branch's importer)
+      # workspace/ledger = handicap-data (the immutable record)
+      - name: Checkout importer code (main)
+        uses: actions/checkout@v4
+        with:
+          path: code
+
+      - name: Checkout ledger (handicap-data)
+        uses: actions/checkout@v4
+        with:
+          ref: handicap-data
+          path: ledger
+          # Full history: the push rebases onto origin/handicap-data if another writer got there first, and
+          # a shallow checkout cannot. The branch is a few hundred small JSON files.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # No install step. The importer is stdlib-only (urllib, json, hashlib) precisely so this workflow has
+      # no dependency surface and cannot fail on a package resolution before it ever reaches Airtable.
+
+      - name: Git identity for the ledger
+        working-directory: ledger
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check the Airtable secret is configured
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+        run: |
+          if [ -z "${AIRTABLE_TOKEN}" ]; then
+            echo "::error::AIRTABLE_TOKEN is not configured for this repository."
+            echo "Create a scoped Airtable personal access token (data.records:read + data.records:write,"
+            echo "limited to the Sports Betting Bridge base) and add it under"
+            echo "Settings -> Secrets and variables -> Actions -> New repository secret."
+            echo "See docs/AIRTABLE_BRIDGE.md. Never paste the token into an issue, a log or a PR."
+            exit 1
+          fi
+          echo "AIRTABLE_TOKEN is present (value never printed)."
+
+      - name: Sync pending handicap runs
+        working-directory: code
+        env:
+          # The only place the token is referenced. It is passed through the environment, never on a command
+          # line (argv is world-readable on the runner) and never echoed.
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+        run: |
+          python3 scripts/handicap/sync_airtable.py \
+            --handicap-root ../ledger \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
+
+      - name: Ledger state after sync
+        if: always()
+        working-directory: ledger
+        run: |
+          # `set -eo pipefail` is on, and `find` exits 1 on a directory that does not exist yet (no batch has
+          # ever been bridged). Guard both so a summary step can never fail the run.
+          echo "recommendations on handicap-data: $( { find data/recommendations -name '*.json' 2>/dev/null || true; } | wc -l)"
+          echo "import receipts:                  $( { find data/import_receipts  -name '*.json' 2>/dev/null || true; } | wc -l)"
+          git log --oneline -3

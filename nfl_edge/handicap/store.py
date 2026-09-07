@@ -9,6 +9,7 @@ same file:
       evaluations/<season>/week_<NN>/<evaluation_id>.json
       postmortems/<season>/week_<NN>/<postmortem_id>.json
       runs/<season>/week_<NN>/<handicap_run_id>.json      packet provenance for a run
+      import_receipts/<season>/week_<NN>/<airtable_record_id>.json   transport provenance for a bridged run
 
 Batching is supported at the level of a COMMIT, not a file: a handicap run writes many single-record files in
 one commit. That keeps the conflict surface at zero while still being one reviewable change.
@@ -24,7 +25,11 @@ import json
 import os
 
 BRANCH = "handicap-data"
-KINDS = ("recommendations", "executions", "evaluations", "postmortems", "runs")
+# `import_receipts` is transport provenance, not a decision record: it says which Airtable row carried a
+# batch and what its payload hashed to. It shares the layout so there is one place that knows where a
+# season/week file lives, but nothing in the scorecard reads it and a receipt never stands in for a
+# recommendation.
+KINDS = ("recommendations", "executions", "evaluations", "postmortems", "runs", "import_receipts")
 
 
 def week_dir(root: str, kind: str, season: int, week: int) -> str:

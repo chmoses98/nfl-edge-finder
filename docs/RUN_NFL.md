@@ -37,6 +37,8 @@ MASSIVE NFL DATA COLLECTION        collectors -> market-data branch (continuous)
   -> STRUCTURED HANDICAP PACKET    scripts/handicap/run_nfl.py
   -> CHATGPT INDEPENDENT HANDICAP  <- you are the decision layer here
   -> KALSHI MARKET SELECTION       best-expression comparison, correlation groups
+  -> AIRTABLE RECOMMENDATION RUN   ChatGPT writes one row -- the only write ChatGPT can make
+  -> AIRTABLE -> GITHUB SYNC       sync-handicap-airtable workflow, validates and materialises
   -> IMMUTABLE RECOMMENDATION      handicap-data branch, one file per record
   -> CLOSE / CLV / SETTLEMENT      scripts/handicap/attach_evaluations.py
   -> POSTMORTEM                    named categories, explicit confidence
@@ -113,13 +115,19 @@ displayed price is the user's cost basis. Fee-aware analysis is separate, in `nf
 
 ### 5. Write the records
 
-```bash
-python3 scripts/handicap/validate_recommendations.py payload.json                    # dry run first
-python3 scripts/handicap/validate_recommendations.py payload.json --write \
-    --handicap-root /path/to/handicap-data-worktree
-```
+ChatGPT emits the whole run as **one Airtable row** in the `Sports Betting Bridge` base:
 
-Then commit to the `handicap-data` branch. See **GitHub write-back** below.
+| field | value |
+|---|---|
+| `Sport` | `NFL` |
+| `Status` | `READY_FOR_SYNC` |
+| `Run ID` | the `handicap_run_id`, identical on every record in the payload |
+| `Payload` | the canonical JSON **array** for the whole batch — recommendations, passes, watchlist, alerts |
+
+That is the only write ChatGPT makes. Within the hour the `sync-handicap-airtable` workflow validates the
+batch, materialises one immutable file per record on `handicap-data`, pushes, and flips the row to `SYNCED`.
+
+See **GitHub write-back** below, and `docs/AIRTABLE_BRIDGE.md` for the full contract.
 
 ### 6. User reports actual bets
 
@@ -163,18 +171,49 @@ and market type.
 
 ## GitHub write-back
 
+**ChatGPT cannot write to GitHub.** The integration exposes write-shaped tools, but every branch or file
+write returns `403 Resource not accessible by integration`. Reads work; writes do not. Anything in this
+project that implies ChatGPT commits directly to `handicap-data` is wrong.
+
+The write path is Airtable:
+
+```
+ChatGPT -> Airtable row (READY_FOR_SYNC) -> sync-handicap-airtable workflow
+        -> existing schema validation -> immutable JSON on handicap-data -> push -> row becomes SYNCED
+```
+
+`.github/workflows/sync-handicap-airtable.yml` polls hourly through the season and can be dispatched
+manually. It checks out `main` and `handicap-data` as separate directories, runs
+`scripts/handicap/sync_airtable.py`, and marks a row `SYNCED` **only after the push succeeds** — so a failed
+push leaves the row pending for the next run instead of silently losing a decision.
+
 **One immutable file per record.** That is the conflict-avoidance design: two records written minutes apart
 touch different paths, so there is no shared append-target to serialise against and no merge conflict to
 resolve.
 
-1. Validate locally first — an invalid payload must never reach a commit.
-2. Write each record to `data/<kind>/<season>/week_<NN>/<record_id>.json` on the `handicap-data` branch.
-3. Commit a whole handicap run's records together. Batching happens at the **commit** level, not the file
+1. The bridge validates the whole batch before writing anything — an invalid payload never reaches a commit.
+2. Each record lands at `data/<kind>/<season>/week_<NN>/<record_id>.json` on `handicap-data`.
+3. A whole handicap run's records commit together. Batching happens at the **commit** level, not the file
    level.
-4. Never edit or delete an existing record. To revise, write a new record whose `amends` names the original.
+4. Nothing is ever edited or deleted. To revise, submit a new record whose `amends` names the original.
 
 `write_record` refuses to overwrite an existing path (exit code 3), so immutability is enforced rather than
-trusted.
+trusted. The bridge adds content comparison on top: an identical re-import is absorbed silently, a
+*differing* record under an existing id is a hard conflict that writes nothing.
+
+### Manual / engineering fallback
+
+The direct local path still exists and is the right tool for engineering work, a repair, or a batch produced
+outside ChatGPT:
+
+```bash
+python3 scripts/handicap/validate_recommendations.py payload.json                    # dry run first
+python3 scripts/handicap/validate_recommendations.py payload.json --write \
+    --handicap-root /path/to/handicap-data-worktree
+```
+
+Then commit to `handicap-data` by hand. This bypasses Airtable entirely and leaves no import receipt, which
+is exactly why it is a fallback and not the routine path.
 
 **Limitations.** The branch has no server-side protection: enforcement is client-side, in the validator and
 the writer. Anyone with push access can bypass it. The audit trail is git history, which is why nothing is
