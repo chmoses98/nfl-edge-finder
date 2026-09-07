@@ -205,3 +205,30 @@ def test_the_new_gates_did_not_make_pass_harder_to_record():
         "primary_thesis": "the price already reflects the news",
     }
     assert S.validate_recommendation(minimal_pass) == []
+
+
+def test_no_frozen_week1_code_artifact_was_modified_by_later_work():
+    """The Week-1 freeze names the exact modules its predictions were produced by.
+
+    Those predictions are scored against THAT model. Editing any of the named files -- even harmlessly, even
+    for a hardening session -- would mean the frozen predictions no longer reproduce from the frozen code,
+    and the freeze would be a claim rather than a fact. A later change requires a NEW freeze file.
+
+    Compared against the merge-base with the default branch, so the test asks "did this line of work touch
+    them", which is the question, rather than "have they ever changed".
+    """
+    import subprocess
+    f = load("research", "FREEZE_WEEK1_2026.json")
+    frozen = list(f["code"])
+
+    base = subprocess.run(["git", "merge-base", "HEAD", "origin/main"],
+                          cwd=ROOT, capture_output=True, text=True)
+    if base.returncode != 0:
+        import pytest
+        pytest.skip("no origin/main to compare against in this checkout")
+    changed = subprocess.run(["git", "diff", "--name-only", f"{base.stdout.strip()}..HEAD"],
+                             cwd=ROOT, capture_output=True, text=True).stdout.split()
+    touched = sorted(set(frozen) & set(changed))
+    assert not touched, (
+        f"frozen Week-1 code artifacts were modified: {touched}. The frozen predictions are scored against "
+        "this exact code; a change requires a new freeze file, never an edit to these.")
