@@ -19,8 +19,8 @@ Three failure classes, kept strictly apart, because conflating them is how a tra
                    with its row, a recommendation id already present with different content. The row goes
                    ERROR and a corrected NEW row is the fix. Retrying cannot help.
   TransientError   the wire. 429, 5xx, timeout, unparseable response, a failed push. The row STAYS
-                   READY_FOR_SYNC and the next hour retries. Turning one of these into ERROR would discard a
-                   real recommendation because a socket closed.
+                   READY_FOR_SYNC and the next scheduled run retries. Turning one of these into ERROR would
+                   discard a real recommendation because a socket closed.
   (neither)        the batch is already durably present and identical. Not an error at all -- this is the
                    heal path for "push succeeded, status update failed", which is a state the system will
                    reach eventually and must survive without human help.

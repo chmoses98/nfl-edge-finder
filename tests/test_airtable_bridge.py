@@ -468,7 +468,7 @@ def test_status_update_failure_after_a_good_push_heals_on_the_next_run(ledger):
     assert code == 3 and len(pushes) == 1, "the push happened; only the status update failed"
     assert ledger_recs(ledger) == ["rec_bridge0000000000001.json"]
 
-    # Next hour: the row is still READY_FOR_SYNC and is offered again.
+    # Next scheduled run: the row is still READY_FOR_SYNC and is offered again.
     fake2 = FakeAirtable([{"records": [row([rec()])]}])
     code, pushes, _ = run_sync(fake2, ledger)
     assert code == 0, "the identical record must be recognised, not treated as an overwrite"
@@ -554,14 +554,31 @@ def test_workflow_permissions_are_contents_write_only():
     assert doc["permissions"] == {"contents": "write"}
 
 
-def test_workflow_polls_hourly_in_season_and_supports_manual_dispatch():
+def test_workflow_polls_twice_daily_in_season_and_supports_manual_dispatch():
+    """Cadence is an API-budget decision, so it is pinned rather than left to drift.
+
+    The bridge archives already-made decisions and the prospective timestamp is Airtable's server-side
+    createdTime, so ingestion latency is free. Airtable's free tier meters requests per month and is shared
+    with ChatGPT's own writes, so polling faster spends a scarce resource to buy latency nobody reads.
+    """
     doc = _workflow()
     on = doc.get(True, doc.get("on"))
     cron = on["schedule"][0]["cron"]
     minute, hour, _dom, month, _dow = cron.split()
-    assert hour == "*" and minute.isdigit(), f"expected hourly polling, got {cron!r}"
+    assert hour == "*/12" and minute.isdigit(), f"expected 12-hourly polling, got {cron!r}"
     assert month == "9-12,1-2", f"expected a September-February window, got {month!r}"
-    assert "workflow_dispatch" in on
+    assert "workflow_dispatch" in on, "manual immediate ingestion must stay available"
+
+
+def test_idle_polling_stays_inside_a_modest_monthly_api_budget():
+    """Derived from the cron rather than asserted in prose, so a cadence change cannot silently blow the budget."""
+    on = _workflow().get(True, _workflow().get("on"))
+    hour = on["schedule"][0]["cron"].split()[1]
+    per_day = 24 // int(hour.lstrip("*/")) if hour.startswith("*/") else 24
+    idle_per_month = per_day * 30          # one Airtable request per idle poll, asserted elsewhere
+    assert idle_per_month <= 100, (
+        f"{idle_per_month} idle Airtable reads/month leaves too little headroom for ChatGPT's writes, "
+        "status updates, retries and E2E testing on the free tier")
 
 
 def test_workflow_checks_out_the_ledger_separately_and_never_touches_market_data():

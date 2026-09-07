@@ -124,8 +124,10 @@ ChatGPT emits the whole run as **one Airtable row** in the `Sports Betting Bridg
 | `Run ID` | the `handicap_run_id`, identical on every record in the payload |
 | `Payload` | the canonical JSON **array** for the whole batch — recommendations, passes, watchlist, alerts |
 
-That is the only write ChatGPT makes. Within the hour the `sync-handicap-airtable` workflow validates the
-batch, materialises one immutable file per record on `handicap-data`, pushes, and flips the row to `SYNCED`.
+That is the only write ChatGPT makes. Within twelve hours — or immediately, on manual dispatch — the
+`sync-handicap-airtable` workflow validates the batch, materialises one immutable file per record on
+`handicap-data`, pushes, and flips the row to `SYNCED`. The decision's prospective timestamp is Airtable's
+server-side `createdTime`, so ingestion latency costs the audit trail nothing.
 
 See **GitHub write-back** below, and `docs/AIRTABLE_BRIDGE.md` for the full contract.
 
@@ -182,8 +184,8 @@ ChatGPT -> Airtable row (READY_FOR_SYNC) -> sync-handicap-airtable workflow
         -> existing schema validation -> immutable JSON on handicap-data -> push -> row becomes SYNCED
 ```
 
-`.github/workflows/sync-handicap-airtable.yml` polls hourly through the season and can be dispatched
-manually. It checks out `main` and `handicap-data` as separate directories, runs
+`.github/workflows/sync-handicap-airtable.yml` polls every 12 hours through the season and can be
+dispatched manually for immediate ingestion. It checks out `main` and `handicap-data` as separate directories, runs
 `scripts/handicap/sync_airtable.py`, and marks a row `SYNCED` **only after the push succeeds** — so a failed
 push leaves the row pending for the next run instead of silently losing a decision.
 

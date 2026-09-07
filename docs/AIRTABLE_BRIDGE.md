@@ -11,7 +11,7 @@ So the decision handoff goes through Airtable:
 ```
 ChatGPT handicaps the slate
   -> writes ONE Airtable row per handicap run   (Status = READY_FOR_SYNC)
-  -> sync-handicap-airtable workflow polls hourly
+  -> sync-handicap-airtable workflow polls twice daily (or on manual dispatch)
   -> existing handicap schema validates the batch
   -> immutable JSON files created on handicap-data
   -> git push succeeds
@@ -108,8 +108,8 @@ Airtable's free tier meters API requests per month, so the poll is deliberately 
 
 ```yaml
 schedule:
-  - cron: '23 * * 9-12,1-2 *'   # hourly, September through February (season + playoffs)
-workflow_dispatch:               # manual immediate sync, with an optional dry-run
+  - cron: '23 */12 * 9-12,1-2 *'   # every 12 hours, September through February (season + playoffs)
+workflow_dispatch:                    # manual immediate sync, with an optional dry-run
 ```
 
 | | requests |
@@ -118,10 +118,18 @@ workflow_dispatch:               # manual immediate sync, with an optional dry-r
 | successful sync, any number of rows | **2** (one list + one batched status update, 10 rows per request) |
 | sync with >100 pending rows | +1 per extra page — not a realistic state |
 
-Roughly **750 requests/month in season, 0 out of season**. That is a small fraction of the free allowance.
+Roughly **60 requests/month in season, 0 out of season** — two idle polls a day, plus one extra request on
+each day something is actually waiting. That leaves the large majority of the free allowance for ChatGPT's own
+Airtable writes, status updates, retries, live E2E testing and any future sport's bridge.
 
-Polling every 5–10 minutes would multiply this for no scientific gain: the **Airtable `createdTime` is the
-decision handoff timestamp**, so the record is prospective whether GitHub ingests it in one minute or fifty.
+Polling faster would buy latency this system has no use for. The bridge **archives** decisions that have
+already been made: the prospective timestamp is the **Airtable `createdTime`**, stamped server-side when
+ChatGPT writes the batch, so the scientific record is equally prospective whether GitHub ingests it in one
+minute or twelve hours. Retrospective CLV, calibration, ROI and process analysis all read the ledger long
+after the fact.
+
+When you do want it now — a live E2E, or a batch you want on `handicap-data` immediately — use
+`workflow_dispatch`. That is a zero-latency path that costs the same one or two requests.
 
 Airtable `429`, `5xx`, timeouts and malformed responses are retried with bounded exponential backoff
 (honouring `Retry-After`) and then reported as transient. The bridge fails closed and never hammers the API.
@@ -217,8 +225,10 @@ source row was edited after being synced, which the lifecycle forbids — that i
 
 ## Running it
 
-Scheduled hourly in season. To run immediately: **Actions → Sync handicap runs from Airtable → Run
-workflow**, optionally ticking `dry_run` to validate pending rows without writing or changing any status.
+Scheduled every 12 hours in season (roughly 00:23 and 12:23 UTC). To run immediately: **Actions → Sync
+handicap runs from Airtable → Run workflow**, optionally ticking `dry_run` to validate pending rows without
+writing or changing any status. Manual dispatch is the intended path whenever the twice-daily cadence is too
+slow — it is unchanged and unthrottled.
 
 Locally:
 

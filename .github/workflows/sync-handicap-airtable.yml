@@ -11,12 +11,16 @@ name: Sync handicap runs from Airtable
 # recommendation batch.
 
 on:
-  # Hourly, September through February -- the NFL season plus the playoffs. Airtable's free tier meters
-  # requests per month and an idle poll costs exactly one, so ~750/month in season and none out of it.
-  # Faster polling would buy nothing: the Airtable createdTime is the decision handoff timestamp, so the
-  # scientific record is prospective whether GitHub ingests it in one minute or fifty.
+  # Twice a day, September through February -- the NFL season plus the playoffs. The bridge ARCHIVES
+  # already-made decisions; the prospective timestamp is Airtable's server-side createdTime, stamped when
+  # ChatGPT writes the batch. GitHub ingesting it hours later costs the audit trail nothing, so polling
+  # cadence buys latency we have no use for and spends Airtable free-tier quota we do.
+  #
+  # An idle poll costs exactly one request, so this is ~60 requests/month in season and none out of it,
+  # leaving the bulk of the allowance for ChatGPT's own writes, status updates, retries and E2E testing.
+  # Need it sooner? Use workflow_dispatch -- that is what it is for.
   schedule:
-    - cron: '23 * * 9-12,1-2 *'
+    - cron: '23 */12 * 9-12,1-2 *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -33,8 +37,8 @@ defaults:
     shell: bash -eo pipefail {0}
 
 # Two importers pushing handicap-data at once could interleave a batch. Queue instead of cancelling: a
-# cancelled run that had already pushed would leave its Airtable rows READY_FOR_SYNC and re-import next hour,
-# which is safe but wasteful, and cancelling mid-push is the one moment worth not being in.
+# cancelled run that had already pushed would leave its Airtable rows READY_FOR_SYNC and re-import on the
+# next run, which is safe but wasteful, and cancelling mid-push is the one moment worth not being in.
 concurrency:
   group: nfl-airtable-handicap-sync
   cancel-in-progress: false
