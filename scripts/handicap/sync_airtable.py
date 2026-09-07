@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
+from nfl_edge.execution import depth as DEPTH          # noqa: E402
 from nfl_edge.execution import fees as FEES            # noqa: E402
 from nfl_edge.execution import quotes as Q             # noqa: E402
 from nfl_edge.handicap import airtable_bridge as AB    # noqa: E402
@@ -99,12 +100,17 @@ def commit_and_push(ledger_root: str, message: str, *, branch: str = store.BRANC
 
 # ---- sync -----------------------------------------------------------------------------------------
 
-def build_gate_context(market_data_root: str, now, *, max_quote_age_minutes: float,
-                       risk_policy_path: str | None = None):
+def build_gate_context(market_data_root: str, *, max_quote_age_minutes: float,
+                       max_book_age_minutes: float, risk_policy_path: str | None = None):
     """Assemble what the real-money gates need to look at the world.
 
-    Built once per sync, not per row: the capture index scans manifests and quote files, and rebuilding it
-    for every row would turn a cheap check into an expensive one.
+    NOTE WHAT IS NOT HERE: a `now`. This importer runs every twelve hours and archives decisions that were
+    made hours earlier, so a wall-clock timestamp handed to the gates would evaluate each recommendation
+    against a market that had moved on -- failing calls that were sound when they were made, purely because
+    of ingestion latency. Each record's own `created_at` is the clock; see nfl_edge/handicap/gates.py.
+
+    Built once per sync, not per row: the capture and book indexes scan the capture stream, and rebuilding
+    them for every row would turn a cheap check into an expensive one.
 
     The portfolio risk report is deliberately NOT built here. It has to be computed per batch, because a
     portfolio limit is a statement about one slate's set of positions, and a report built across two
@@ -112,9 +118,10 @@ def build_gate_context(market_data_root: str, now, *, max_quote_age_minutes: flo
     """
     ctx = G.GateContext(
         capture_index=Q.CaptureIndex(market_data_root),
+        book_index=DEPTH.BookIndex(market_data_root),
         fee_schedule=FEES.load_fee_schedule(ROOT),
-        now=now,
         max_quote_age_minutes=max_quote_age_minutes,
+        max_book_age_minutes=max_book_age_minutes,
     )
     ctx.risk_policy = RISK.RiskPolicy.load(ROOT, risk_policy_path)
     return ctx
@@ -273,9 +280,13 @@ def main(argv=None) -> int:
                     help="checkout of the market-data branch; the decision-time price gate reads its "
                          "capture stream")
     ap.add_argument("--max-quote-age-minutes", type=float, default=Q.DEFAULT_MAX_QUOTE_AGE_MIN,
-                    help="decision-time executable-price freshness window. The conductor captures roughly "
+                    help="decision-time executable-price freshness window, measured BACKWARDS FROM EACH "
+                         "RECOMMENDATION'S created_at -- never from now. The conductor captures roughly "
                          "every 10 minutes, so the default accepts one on-time capture and rejects a "
                          "missed one.")
+    ap.add_argument("--max-book-age-minutes", type=float, default=DEPTH.DEFAULT_MAX_BOOK_AGE_MIN,
+                    help="same window for the order book, which is what proves the APPROVED STAKE was "
+                         "executable rather than just the top contract")
     a = ap.parse_args(argv)
 
     token = os.environ.get("AIRTABLE_TOKEN", "").strip()
@@ -303,8 +314,9 @@ def main(argv=None) -> int:
     # write that was never pushed has not earned it.
     pusher = (lambda *_args, **_kw: log("--no-push: skipping commit/push")) if a.no_push else commit_and_push
     try:
-        ctx = build_gate_context(os.path.abspath(a.market_data), datetime.now(timezone.utc),
-                                 max_quote_age_minutes=a.max_quote_age_minutes)
+        ctx = build_gate_context(os.path.abspath(a.market_data),
+                                 max_quote_age_minutes=a.max_quote_age_minutes,
+                                 max_book_age_minutes=a.max_book_age_minutes)
         return sync(client, os.path.abspath(a.handicap_root), dry_run=a.dry_run, pusher=pusher,
                     sport=a.sport, update_status=not a.no_push, gate_context=ctx)
     except AB.BridgeError as e:

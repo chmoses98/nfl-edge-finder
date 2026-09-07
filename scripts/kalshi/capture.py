@@ -126,10 +126,18 @@ def main():
         if tier == "DAILY" and not do_daily:
             continue
         items, complete, info = c.markets(series_ticker=tk, status="open", limit=1000, max_pages=20)
-        manifest["series"][tk] = {"n": len(items), "complete": complete, "tier": tier}
+        obs_ts = now_utc().isoformat()
+        # INFORMATION-AVAILABILITY TIMESTAMP. `observed_at` is stamped when THIS series' fetch returned, not
+        # when the run started -- a run works through ~270 series and takes minutes, so the two differ by a
+        # lot for anything late in the loop. The decision-time gate needs to know when a quote actually
+        # became knowable, and the run-start time claims that was earlier than it was: fine for judging
+        # staleness (conservative), wrong for judging whether evidence predates a decision (anti-conservative
+        # -- it would let a capture taken AFTER the decision look like it came before). Recording the real
+        # per-series time removes the need to choose.
+        manifest["series"][tk] = {"n": len(items), "complete": complete, "tier": tier,
+                                  "observed_at": obs_ts}
         if not complete:
             manifest["partial"] = True; manifest["errors"].append({"series": tk, "info": info})
-        obs_ts = now_utc().isoformat()
         for m in items:
             sem = classify(m)
             fp = fingerprint(m)

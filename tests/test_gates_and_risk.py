@@ -23,15 +23,23 @@ NOW = datetime(2026, 9, 7, 15, 40, tzinfo=timezone.utc)
 
 
 class FakeIndex:
-    """A capture index that confirms one ticker at a stated moment and price."""
+    """A capture index that confirms one ticker at a stated moment and price.
 
-    def __init__(self, ask=0.62, confirmed_minutes_ago=2.0, no_ask=0.40, status="active", present=True):
+    `confirmed_minutes_ago` is relative to the DECISION time, not to wall clock -- which is the whole point
+    of the architecture these tests pin.
+    """
+
+    def __init__(self, ask=0.62, confirmed_minutes_ago=2.0, no_ask=0.40, status="active", present=True,
+                 anchor=None):
         self.ask, self.no_ask, self.status, self.present = ask, no_ask, status, present
-        self.confirmed = NOW - timedelta(minutes=confirmed_minutes_ago)
+        self.confirmed = (anchor or NOW) - timedelta(minutes=confirmed_minutes_ago)
 
-    def confirmation(self, ticker, series_ticker):
+    def confirmation(self, ticker, series_ticker, as_of=None):
         if not self.present:
             return None, None, None, "no capture run confirms this ticker"
+        if as_of is not None and self.confirmed > as_of:
+            return None, None, None, (f"the only capture for {ticker} is at {self.confirmed.isoformat()}, "
+                                      f"AFTER the decision at {as_of.isoformat()}")
         return self.confirmed, Q.CONFIRM_TICKER, "run", None
 
     def last_quote_row(self, ticker, not_after=None):
@@ -39,6 +47,24 @@ class FakeIndex:
             return None
         return {"ticker": ticker, "observed_at": self.confirmed.isoformat(), "status": self.status,
                 "yes_bid": 0.60, "yes_ask": self.ask, "no_bid": 0.36, "no_ask": self.no_ask}
+
+
+class FakeBook:
+    """A book index with a stated ask ladder, deep enough to fill by default."""
+
+    def __init__(self, ladder=None, observed_minutes_ago=2.0, present=True, anchor=None):
+        # ladder is [(yes_ask, size)]; stored as the NO bids the real capture holds.
+        self.ladder = ladder if ladder is not None else [(0.62, 100000.0)]
+        self.observed = (anchor or NOW) - timedelta(minutes=observed_minutes_ago)
+        self.present = present
+
+    def latest_book(self, ticker, as_of):
+        if not self.present or self.observed > as_of:
+            return None
+        return {"ticker": ticker, "observed_at": self.observed.isoformat(), "run_id": "run",
+                "orderbook_fp": {"no_dollars": [[f"{1 - p:.4f}", f"{s}"] for p, s in
+                                                sorted(self.ladder, key=lambda x: -x[0])],
+                                 "yes_dollars": [["0.5000", "10"]]}}
 
 
 def rec(**kw):
@@ -66,10 +92,11 @@ def rec(**kw):
     return d
 
 
-def ctx(index=None, records=None, **kw):
+def ctx(index=None, records=None, book=None, **kw):
     policy = R.RiskPolicy.load(ROOT)
     c = G.GateContext(capture_index=index if index is not None else FakeIndex(),
-                      fee_schedule=F.load_fee_schedule(ROOT), now=NOW, **kw)
+                      book_index=book if book is not None else FakeBook(),
+                      fee_schedule=F.load_fee_schedule(ROOT), **kw)
     c.risk_report = policy.evaluate([R.Proposal.from_record(r) for r in (records or [rec()])], 2000.0)
     return c
 
@@ -106,8 +133,8 @@ def test_a_stale_decision_time_quote_fails_closed():
 
 def test_an_unreachable_capture_stream_blocks_rather_than_waves_through():
     """The critical asymmetry: 'I could not check' must never resolve to 'it is fine'."""
-    report = G.evaluate_gates(rec(), G.GateContext(capture_index=None,
-                                                   fee_schedule=F.load_fee_schedule(ROOT), now=NOW))
+    report = G.evaluate_gates(rec(), G.GateContext(capture_index=None, book_index=FakeBook(),
+                                                   fee_schedule=F.load_fee_schedule(ROOT)))
     assert report.overall == G.FAIL
     assert report.gates[G.G_QUOTE_FRESHNESS].status == G.UNAVAILABLE
 
@@ -230,32 +257,73 @@ def test_availability_gates_do_not_apply_to_game_markets():
 
 # ---- 5. transaction costs --------------------------------------------------------------------------
 
-def test_an_unknown_fee_state_blocks_a_real_recommendation():
-    """A trade whose cost is unknown cannot be shown to survive its cost."""
-    report = run(execution_style=F.MAKER)     # the NFL maker multiplier is unpublished
+def test_an_unverified_fee_state_blocks_a_real_recommendation():
+    """A trade whose cost cannot be established cannot be shown to survive its cost.
+
+    KXNFLSPREAD charges a maker fee but is not listed in any schedule window we hold, so its maker
+    multiplier is UNVERIFIED -- distinct from KXNFLGAME, whose maker multiplier IS published.
+    """
+    r = rec(market_ticker="KXNFLSPREAD-26SEP09NESEA-SEA")
+    report = G.evaluate_gates(r, ctx(records=[r], execution_style=F.MAKER))
     assert report.gates[G.G_NET_EV].status == G.FAIL
     assert "unknown cost is never treated as zero" in report.gates[G.G_NET_EV].reason
+    assert report.net_ev["fee_state"] == F.UNVERIFIED
+
+
+def test_a_published_maker_multiplier_is_not_called_unknown():
+    """KXNFLGAME's maker multiplier IS in the regulatory schedule. Silence in the API object is not doubt."""
+    report = run(execution_style=F.MAKER)
+    assert report.net_ev["fee_state"] == F.KNOWN
+    assert report.gates[G.G_NET_EV].status in (G.PASS, G.FAIL)   # priced either way, never "unknown"
 
 
 def test_a_missing_fee_schedule_blocks_rather_than_assuming_free():
-    report = G.evaluate_gates(rec(), G.GateContext(capture_index=FakeIndex(), fee_schedule=None, now=NOW))
+    report = G.evaluate_gates(rec(), G.GateContext(capture_index=FakeIndex(), book_index=FakeBook(),
+                                                   fee_schedule=None))
     assert report.gates[G.G_NET_EV].status == G.UNAVAILABLE
 
 
-def test_net_ev_is_measured_and_recorded_without_a_minimum_edge_rule():
-    """The primitives exist; the strategy rule deliberately does not. This session did not invent one."""
+def test_a_gross_edge_erased_by_fees_blocks():
+    """The case the desk must never record: fair > ask, and the trade is still worth nothing."""
     thin = rec(probability_mid=0.621)         # a hair over the 0.62 ask: gross positive, net negative
     report = G.evaluate_gates(thin, ctx(records=[thin]))
     assert report.net_ev["net_ev_dollars"] < 0
-    assert report.gates[G.G_NET_EV].status == G.PASS, "no minimum-edge rule is enforced by default"
-    assert "no minimum-edge rule" in report.gates[G.G_NET_EV].reason
-
-
-def test_the_optional_net_ev_gate_can_be_switched_on():
-    thin = rec(probability_mid=0.621)
-    report = G.evaluate_gates(thin, ctx(records=[thin], require_net_ev_positive=True))
     assert report.gates[G.G_NET_EV].status == G.FAIL
     assert report.overall == G.FAIL
+    assert "not a minimum-edge policy" in report.gates[G.G_NET_EV].reason
+
+
+def test_a_clearly_positive_net_ev_passes():
+    fat = rec(probability_mid=0.80)
+    report = G.evaluate_gates(fat, ctx(records=[fat]))
+    assert report.net_ev["net_ev_dollars"] > 0
+    assert report.gates[G.G_NET_EV].status == G.PASS
+
+
+def test_there_is_no_switch_to_turn_the_net_ev_gate_off():
+    """A blocking rule with an off switch is a warning wearing a costume."""
+    import inspect
+    src = inspect.getsource(G)
+    assert "require_net_ev_positive" not in src
+    assert "require_net_ev_positive" not in [f for f in G.GateContext.__dataclass_fields__]
+
+
+def test_no_positive_minimum_beyond_zero_is_invented():
+    """Only <= 0 blocks. A trade worth a fraction of a cent is thin, not disallowed."""
+    r = rec(probability_mid=0.62)
+    # Sweep upward until net EV first turns positive; that record must PASS, not be held to a buffer.
+    passed = None
+    for mid in [0.62 + i * 0.0005 for i in range(1, 60)]:
+        rr = rec(probability_mid=round(mid, 6))
+        rep = G.evaluate_gates(rr, ctx(records=[rr]))
+        if rep.net_ev.get("net_ev_dollars", 0) and rep.net_ev["net_ev_dollars"] > 0:
+            passed = rep
+            break
+    assert passed is not None, "net EV never turned positive across the sweep"
+    assert passed.gates[G.G_NET_EV].status == G.PASS, \
+        "the first record with net EV above zero must pass; anything else is a hidden minimum"
+    assert 0 < passed.net_ev["net_ev_dollars"] < 1.0, "the boundary case should be a thin one"
+    assert r is not None
 
 
 # ---- 6. portfolio risk -----------------------------------------------------------------------------
@@ -268,7 +336,8 @@ def test_the_recorded_stake_must_be_the_stake_the_policy_approved():
 
 
 def test_a_missing_risk_report_blocks():
-    c = G.GateContext(capture_index=FakeIndex(), fee_schedule=F.load_fee_schedule(ROOT), now=NOW)
+    c = G.GateContext(capture_index=FakeIndex(), book_index=FakeBook(),
+                      fee_schedule=F.load_fee_schedule(ROOT))
     assert G.evaluate_gates(rec(), c).gates[G.G_RISK].status == G.UNAVAILABLE
 
 
@@ -382,3 +451,53 @@ def test_the_policy_is_not_kelly():
     thin = policy.evaluate([R.Proposal("rec_a", 10.0, "g", None, "B")], 2000.0).verdicts[0]
     fat = policy.evaluate([R.Proposal("rec_b", 10.0, "g", None, "B")], 2000.0).verdicts[0]
     assert thin.approved_stake == fat.approved_stake, "the policy must not read an edge at all"
+
+
+# ---- 7. full-position executability ------------------------------------------------------------------
+
+def test_a_deep_book_lets_the_full_stake_pass():
+    report = run()
+    assert report.gates[G.G_DEPTH].status == G.PASS, report.blocking_reasons
+    assert report.depth["vwap"] == pytest.approx(0.62)
+
+
+def test_a_book_too_thin_for_the_approved_stake_blocks():
+    """The top ask exists. The POSITION does not."""
+    thin = FakeBook(ladder=[(0.62, 3.0)])          # $1.86 of liquidity against a $10 stake
+    report = G.evaluate_gates(rec(), ctx(book=thin))
+    assert report.gates[G.G_DEPTH].status == G.FAIL
+    assert "can absorb only" in report.gates[G.G_DEPTH].reason
+    assert report.overall == G.FAIL
+
+
+def test_a_missing_book_blocks_rather_than_pricing_at_top_of_book():
+    report = G.evaluate_gates(rec(), ctx(book=FakeBook(present=False)))
+    assert report.gates[G.G_DEPTH].status in G.BLOCKING
+    assert report.overall == G.FAIL
+
+
+def test_a_walk_above_the_ceiling_blocks_even_when_the_top_ask_is_under_it():
+    """The displayed price is affordable; the position is not. This is the case top-of-book hides."""
+    stepped = FakeBook(ladder=[(0.62, 2.0), (0.80, 10000.0)])
+    r = rec(bet_up_to_probability=0.65)
+    report = G.evaluate_gates(r, ctx(records=[r], book=stepped))
+    assert report.gates[G.G_CEILING].status == G.PASS, "the top ask is under the ceiling"
+    assert report.gates[G.G_DEPTH].status == G.FAIL, "but the fill is not"
+    assert "above bet_up_to_probability" in report.gates[G.G_DEPTH].reason
+
+
+def test_net_ev_is_computed_at_the_full_position_vwap_not_the_top_ask():
+    """Pricing the trade at its cheapest contract is how a losing position looks profitable."""
+    stepped = FakeBook(ladder=[(0.62, 2.0), (0.645, 10000.0)])
+    r = rec(probability_mid=0.66, bet_up_to_probability=0.66)
+    report = G.evaluate_gates(r, ctx(records=[r], book=stepped))
+    assert report.net_ev["price_basis"] == "full-position VWAP"
+    assert report.net_ev["executable_price"] > 0.62, "the VWAP, not the 0.62 top ask"
+    assert report.depth["slippage_dollars"] > 0
+
+
+def test_the_depth_record_is_preserved_on_the_gate_record():
+    report = run()
+    body = report.to_record(now=NOW)
+    assert body["depth"]["top_ask"] == pytest.approx(0.62)
+    assert body["decision_as_of"] == report.as_of

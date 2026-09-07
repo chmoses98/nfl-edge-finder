@@ -18,7 +18,8 @@
     coefficient, and the published schedule says it defaults to 0 "unless otherwise indicated" without saying
     what the indicated value is for these series. It is carried as `UNKNOWN` and never defaulted, so
     `net_executable_ev` refuses to produce a net EV for a maker order. This costs nothing operationally —
-    passive execution is rejected on core game markets (H-019), so a real recommendation is a taker order and
+    passive execution is rejected on core game markets by research/passive (Milestone K), so a real
+    recommendation is a taker order and
     the taker path is fully known — but it does mean maker-side research must sweep
     `MAKER_MULTIPLIER_SWEEP` rather than report one number.
 12. **No official gameday inactive feed.** `INACTIVE_CONFIRMED` is reserved and unpopulated; no free source

@@ -188,7 +188,9 @@ hidden default that is too low manufactures profitable passive trades that do no
 failure this design exists to prevent. Research that needs a number sweeps `MAKER_MULTIPLIER_SWEEP` and
 reports every value.
 
-This costs nothing operationally: passive execution was rejected on core game markets under H-019, so a real
+This costs nothing operationally: passive execution was rejected on core game markets by
+`research/passive` (Milestone K) -- not by H-019, which is the favourite/longshot hypothesis, nor by
+H-023, which is the still-open prospective prop-book question. So a real
 recommendation is a **taker** order, and the taker path is fully known.
 
 ### Keeping it traceable

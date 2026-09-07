@@ -356,11 +356,13 @@ class DecisionGates:
     gates_id: str
     schema_version: str
     recommendation_id: str
-    evaluated_at: str
+    evaluated_at: str                               # when the gates RAN (import time)
     decision: str
     overall: str                                    # PASS / FAIL / NOT_APPLICABLE
+    decision_as_of: str | None = None               # the timestamp the gates EVALUATED AT (decision time)
     gates: dict = field(default_factory=dict)       # name -> {status, reason, evidence}
-    decision_quote: dict | None = None              # the freshest confirmed executable quote, verbatim
+    decision_quote: dict | None = None              # the freshest pre-decision executable quote, verbatim
+    depth: dict | None = None                       # full-position VWAP walk -- see execution/depth
     net_ev: dict | None = None                      # gross edge, fees, slippage, net -- see execution/fees
     risk: dict | None = None                        # the portfolio verdict for this record
     blocking_reasons: list = field(default_factory=list)

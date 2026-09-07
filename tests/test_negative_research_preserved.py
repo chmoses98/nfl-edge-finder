@@ -13,7 +13,9 @@ The decisions, from research/ and the frozen Week-1 artifacts:
   1. The independent game model does not beat contemporaneous Kalshi.
   2. Role features failed to transfer to the traded population (H-022) and are OFF by default.
   3. The tail calibrator is NOT deployed.
-  4. Passive execution is rejected on core game markets (H-019).
+  4. Passive execution is rejected on core game markets by research/passive (Milestone K).
+     NOT by H-019, which is the favourite/longshot hypothesis; H-023 is the prospective
+     prop-book passive question and is also not the game-market result.
   5. Disagreement is not called edge, anywhere, in any label.
   6. No real-money validation has been earned.
 """
@@ -77,18 +79,68 @@ def test_the_calibration_module_documents_why_it_is_not_deployed():
 
 # ---- 4. passive execution rejected -----------------------------------------------------------------
 
+def test_the_passive_rejection_is_attributed_to_the_study_that_produced_it():
+    """Governance hygiene, and it is not pedantry.
+
+    Passive execution on core game markets was rejected by the execution/microstructure work in
+    research/passive (Milestone K): 86.2% of decision-time books are one cent wide so no passive level
+    exists, trade-at-level runs 3.6-26.7% against ~99% touch, and reachable orders lose while unreachable
+    ones win.
+
+    H-019 is the favourite/longshot hypothesis on underdog moneylines. H-023 is the PROSPECTIVE prop-book
+    passive question, still open. Neither is the game-market passive result.
+
+    Citing a settled negative result to a live prospective hypothesis is how a registry stops meaning
+    anything: it makes a finished finding look open and an open question look decided.
+    """
+    h019 = load("research", "hypothesis_registry", "H-20260904-019.json")
+    assert "underdog" in h019["target"] and "settlement rate" in h019["target"], \
+        "H-019 is the favourite/longshot hypothesis"
+    assert "passive" not in h019["target"].lower()
+
+    h023 = load("research", "hypothesis_registry", "H-20260904-023.json")
+    assert "passive" in h023["rationale"].lower() and "prop" in h023["target"].lower(), \
+        "H-023 is the prospective PROP-book passive question"
+
+    # Nothing in the codebase may credit the game-market passive rejection to H-019.
+    offenders = []
+    for sub in ("nfl_edge", "scripts", "docs", "tests"):
+        base = os.path.join(ROOT, sub)
+        for dirpath, _dirs, files in os.walk(base):
+            if "hypothesis_registry" in dirpath:
+                continue
+            for fn in files:
+                if not fn.endswith((".py", ".md")):
+                    continue
+                path = os.path.join(dirpath, fn)
+                with open(path) as f:
+                    for i, line in enumerate(f, 1):
+                        low = line.lower()
+                        if "h-019" in low and "passive" in low and "not" not in low:
+                            offenders.append(f"{os.path.relpath(path, ROOT)}:{i}: {line.strip()[:100]}")
+    assert not offenders, ("the game-market passive rejection is research/passive (Milestone K), not "
+                           f"H-019: {offenders}")
+
+
 def test_h019_remains_registered_and_unresolved():
+    """Separately: H-019 itself is still an open prospective hypothesis and must stay one."""
     h = load("research", "hypothesis_registry", "H-20260904-019.json")
     assert h["status"] == "REGISTERED_PROSPECTIVE"
     assert h["oos_result"] is None
 
 
+def test_h023_remains_registered_and_unresolved():
+    h = load("research", "hypothesis_registry", "H-20260904-023.json")
+    assert h["status"] == "REGISTERED_PROSPECTIVE"
+    assert h["oos_result"] is None
+
+
 def test_the_headline_markets_still_charge_a_maker_fee():
-    """The fact that made passive entry unattractive. If it changed, H-019 would need re-running."""
+    """The fact that made passive entry unattractive. If it changed, research/passive needs re-running."""
     reg = load("config", "kalshi_nfl_series.json")["series"]
     for s in ("KXNFLGAME", "KXNFLSPREAD", "KXNFLTOTAL"):
         assert reg[s]["fee_type"] == "quadratic_with_maker_fees", \
-            f"{s} no longer charges a maker fee; H-019's premise has changed and must be re-examined"
+            f"{s} no longer charges a maker fee; the passive study's premise has changed"
 
 
 def test_the_frozen_passive_fee_sweep_is_unchanged():

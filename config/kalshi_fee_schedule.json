@@ -1,40 +1,60 @@
 {
-  "schedule_id": "kalshi-2026-07",
-  "description": "Kalshi trading fee parameters as published in the Kalshi Fee Schedule. Coefficients live here, not in code, so a platform fee change is a config commit with provenance rather than an edit to a formula.",
-  "provenance": {
-    "primary_source": "https://kalshi.com/docs/kalshi-fee-schedule.pdf",
-    "source_label": "Kalshi Fee Schedule, July 2026 revision (7.7.26 update)",
-    "verified_at": "2026-09-07",
-    "verified_by": "documentation review; the Kalshi API was NOT reachable from the session that wrote this file (network egress policy), so the per-series fee_type/fee_multiplier facts below are taken from config/kalshi_nfl_series.json, which IS captured from the live API by scripts/kalshi/build_series_registry.py",
-    "refresh_mechanism": "scripts/kalshi/capture_fee_metadata.py re-captures live per-series fee metadata from GitHub Actions and writes data/kalshi/fees/<date>.json on the market-data branch"
+  "schedule_set_id": "kalshi-nfl-2026",
+  "description": "Kalshi fee parameters, versioned by EFFECTIVE TIME. A recommendation is priced with the schedule in force at its decision timestamp, never with whatever happens to be current when the importer runs twelve hours later.",
+  "source_hierarchy": [
+    {
+      "rank": 1,
+      "id": "REGULATORY_FEE_SCHEDULE",
+      "what": "The Kalshi Fee Schedule filed with the CFTC. Lists BOTH a Maker Multiplier and a Taker Multiplier per non-standard series.",
+      "why_first": "It is the published, dated, regulatory instrument. It is the only source that carries the maker multiplier at all."
+    },
+    {
+      "rank": 2,
+      "id": "SERIES_METADATA",
+      "what": "GET /series/{ticker}: fee_type and fee_multiplier.",
+      "why_second": "Live and machine-readable, but fee_multiplier is the TAKER multiplier only -- the object carries no separate maker parameter. Its silence about maker is not evidence that the maker multiplier is unknown."
+    },
+    {
+      "rank": 3,
+      "id": "FEE_CHANGES",
+      "what": "GET /series/fee_changes: announced future changes.",
+      "why_third": "Forward-looking. Used to build the NEXT schedule window, not to override the one in force."
+    }
+  ],
+  "conflict_policy": "FAIL_CLOSED. Where two sources disagree about a series' multiplier for the same effective window, the fee state for that series is CONFLICTED, net EV cannot be computed, and a RECOMMENDED record on it is refused. A conflict is reported, never silently resolved by rank.",
+  "rounding": {
+    "trade_fee_increment": 0.0001,
+    "trade_fee_mode": "ceil",
+    "balance_precision_default": 0.01,
+    "balance_precision_direct_member": 0.0001,
+    "accumulator_scope": "per_order_across_fills",
+    "rebate_increment": 0.01,
+    "notes": "The trade fee is ceiled to a CENTICENT ($0.0001). The resulting balance change is then floored to the account's balance precision, and the difference is charged as a ROUNDING FEE. That overpayment accumulates per order across all of its fills, taker and maker alike; once the accumulator exceeds one cent a whole-cent REBATE is issued and the accumulator is reduced by a cent. Net fee = trade fee + rounding fee - rebate, never below zero. The accumulator is what makes many small fills converge to the cost of one equivalent fill."
   },
-  "taker": {
-    "formula": "fee = round_up_to_cent(base_coefficient * fee_multiplier * contracts * price * (1 - price))",
-    "base_coefficient": 0.07,
-    "rounding": "ceil",
-    "rounding_increment": 0.01,
-    "rounding_scope": "per_order",
-    "state": "KNOWN",
-    "notes": "Rounding is applied once to the whole order, not per contract. fee_multiplier comes from live series metadata; every NFL series currently reports 1."
-  },
-  "maker": {
-    "formula": "fee = round_up_to_cent(maker_multiplier * base_coefficient * contracts * price * (1 - price))",
-    "base_coefficient": 0.0175,
-    "rounding": "ceil",
-    "rounding_increment": 0.01,
-    "rounding_scope": "per_order",
-    "state": "UNKNOWN",
-    "maker_multiplier": null,
-    "notes": "The published maker formula carries a per-series multiplier M that defaults to 0 unless the series indicates otherwise. Kalshi's series metadata exposes fee_type ('quadratic' vs 'quadratic_with_maker_fees') but NOT the maker multiplier, so M is genuinely unknown for the 25 NFL series that charge a maker fee. It is left null on purpose: a null propagates as FeeState.UNKNOWN and fails the net-EV gate closed. It must never be silently defaulted to a number, because a too-small default manufactures profitable passive trades that do not exist.",
-    "sweep_for_research": [0.0, 0.25, 0.5, 1.0]
-  },
-  "settlement": {
-    "state": "ASSUMED_ZERO",
-    "value": 0.0,
-    "notes": "Kalshi does not currently charge a separate settlement fee on these markets. Recorded explicitly so that the assumption is visible and testable rather than implicit in a missing term."
-  },
-  "fee_type_semantics": {
-    "quadratic": "taker fee only; no maker fee",
-    "quadratic_with_maker_fees": "taker fee AND a maker fee whose multiplier is not exposed by the API"
-  }
+  "schedules": [
+    {
+      "window_id": "2026-07-07",
+      "effective_from": "2026-07-07T00:00:00+00:00",
+      "effective_to": null,
+      "source": "REGULATORY_FEE_SCHEDULE",
+      "source_label": "Kalshi Fee Schedule, 7.7.26 update (https://kalshi.com/docs/kalshi-fee-schedule.pdf)",
+      "verified_at": "2026-09-07",
+      "verified_by": "OPERATOR_ATTESTATION",
+      "verification_note": "The session that wrote this file could not reach kalshi.com or the Kalshi API (network egress policy), so the per-series multipliers below are recorded from the operator's reading of the July 2026 regulatory Fee Schedule and are marked with the evidence that supports each one. scripts/kalshi/capture_fee_metadata.py re-reads the live API from GitHub Actions and reports any disagreement.",
+      "taker_base_coefficient": 0.07,
+      "maker_base_coefficient": 0.0175,
+      "default_taker_multiplier": 1.0,
+      "default_maker_multiplier": 0.0,
+      "default_note": "The published schedule states the maker multiplier is 0 unless a series is listed otherwise. That default applies ONLY to series whose captured fee_type is 'quadratic' (taker-only). A series whose fee_type is 'quadratic_with_maker_fees' charges a maker fee by construction, so a 0 default would be plainly wrong for it -- such a series must be listed below or its maker multiplier is UNVERIFIED.",
+      "series": {
+        "KXNFLGAME": {
+          "maker_multiplier": 1.0,
+          "taker_multiplier": 1.0,
+          "evidence": "REGULATORY_FEE_SCHEDULE, listed non-standard series"
+        }
+      },
+      "settlement_fee_per_contract": 0.0,
+      "settlement_note": "Kalshi does not currently charge a separate settlement fee on these markets. Recorded explicitly so the assumption is visible and testable rather than implicit in a missing term."
+    }
+  ]
 }

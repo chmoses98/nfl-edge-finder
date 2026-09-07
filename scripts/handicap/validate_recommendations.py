@@ -37,6 +37,7 @@ sys.path.insert(0, ROOT)
 
 from datetime import datetime, timezone               # noqa: E402
 
+from nfl_edge.execution import depth as DEPTH         # noqa: E402
 from nfl_edge.execution import fees as FEES           # noqa: E402
 from nfl_edge.execution import quotes as Q            # noqa: E402
 from nfl_edge.handicap import gates as G              # noqa: E402
@@ -71,6 +72,7 @@ def main():
                     help="checkout of the market-data branch. REQUIRED to write a real RECOMMENDED record: "
                          "the decision-time gates read its capture stream.")
     ap.add_argument("--max-quote-age-minutes", type=float, default=Q.DEFAULT_MAX_QUOTE_AGE_MIN)
+    ap.add_argument("--max-book-age-minutes", type=float, default=DEPTH.DEFAULT_MAX_BOOK_AGE_MIN)
     a = ap.parse_args()
 
     try:
@@ -137,9 +139,13 @@ def main():
             return 2
 
         now = datetime.now(timezone.utc)
+        # No `now` on the context: each record is gated as of its own created_at. `now` below is only the
+        # time the gate RAN, which the evidence record stamps alongside the decision time it evaluated at.
         ctx = G.GateContext(capture_index=Q.CaptureIndex(os.path.abspath(a.market_data)),
-                            fee_schedule=FEES.load_fee_schedule(ROOT), now=now,
-                            max_quote_age_minutes=a.max_quote_age_minutes)
+                            book_index=DEPTH.BookIndex(os.path.abspath(a.market_data)),
+                            fee_schedule=FEES.load_fee_schedule(ROOT),
+                            max_quote_age_minutes=a.max_quote_age_minutes,
+                            max_book_age_minutes=a.max_book_age_minutes)
         try:
             ctx.risk_report = RISK.evaluate_records(real_recs, RISK.RiskPolicy.load(ROOT))
         except RISK.RiskPolicyError as e:

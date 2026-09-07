@@ -51,7 +51,7 @@ def rec(rid="rec_bridge0000000000001", **kw):
         model_probability=0.64,
         decision=S.RECOMMENDED, grade="B+", bet_up_to_probability=0.65,
         proposed_stake=25, recommended_stake=25,
-        probability_low=0.61, probability_mid=0.66, probability_high=0.71,
+        probability_low=0.70, probability_mid=0.78, probability_high=0.86,
         primary_thesis="TEST_ONLY: role expansion not yet priced.",
         key_supporting_factors=["TEST_ONLY: snap share up"],
         counterarguments=["TEST_ONLY: the market may already know"],
@@ -159,18 +159,25 @@ def run_sync(fake, ledger, *, pusher=None, **kw):
 
 # ---- gate context ----------------------------------------------------------------------------------
 
+# The records in this file are created at DECISION_AT; the gates evaluate as of that, not as of NOW.
+DECISION_AT = datetime(2026, 9, 5, 5, 25, 1, tzinfo=timezone.utc)
+
+
 class _FreshIndex:
-    """A CaptureIndex stand-in that confirms one ticker, right now, at a stated ask.
+    """A CaptureIndex stand-in that confirms one ticker shortly before the DECISION, at a stated ask.
 
     Real capture files are not needed to test the bridge's ATOMICITY; they are needed to test the gate
-    itself, which tests/test_decision_quotes.py does against real capture layouts. Here the point is that a
-    real recommendation cannot land without a gate context at all.
+    itself, which tests/test_decision_quotes.py and tests/test_decision_time_gates.py do against real
+    capture layouts. Here the point is that a real recommendation cannot land without a gate context at all.
     """
 
     def __init__(self, ask=0.62, confirmed=None, ticker=None):
-        self.ask, self.confirmed, self.ticker = ask, confirmed or NOW, ticker
+        self.ask, self.ticker = ask, ticker
+        self.confirmed = confirmed or (DECISION_AT - timedelta(minutes=2))
 
-    def confirmation(self, ticker, series_ticker):
+    def confirmation(self, ticker, series_ticker, as_of=None):
+        if as_of is not None and self.confirmed > as_of:
+            return None, None, None, "the only capture postdates the decision"
         return self.confirmed, Q.CONFIRM_TICKER, "run", None
 
     def last_quote_row(self, ticker, not_after=None):
@@ -178,9 +185,25 @@ class _FreshIndex:
                 "yes_bid": 0.60, "yes_ask": self.ask, "no_bid": 1 - self.ask, "no_ask": 0.40}
 
 
-def gate_ctx(ask=0.62, **kw):
-    ctx = G.GateContext(capture_index=_FreshIndex(ask=ask), fee_schedule=FEES.load_fee_schedule(ROOT),
-                        now=NOW, **kw)
+class _DeepBook:
+    """A book with enough size at the top ask to fill any pilot stake."""
+
+    def __init__(self, ask=0.62, observed=None):
+        self.ask = ask
+        self.observed = observed or (DECISION_AT - timedelta(minutes=2))
+
+    def latest_book(self, ticker, as_of):
+        if self.observed > as_of:
+            return None
+        return {"ticker": ticker, "observed_at": self.observed.isoformat(), "run_id": "run",
+                "orderbook_fp": {"no_dollars": [[f"{1 - self.ask:.4f}", "100000"]],
+                                 "yes_dollars": [["0.5000", "10"]]}}
+
+
+def gate_ctx(ask=0.62, index=None, book=None, **kw):
+    ctx = G.GateContext(capture_index=index if index is not None else _FreshIndex(ask=ask),
+                        book_index=book if book is not None else _DeepBook(ask=ask),
+                        fee_schedule=FEES.load_fee_schedule(ROOT), **kw)
     ctx.risk_policy = RISK.RiskPolicy.load(ROOT)
     return ctx
 
@@ -791,7 +814,7 @@ def test_a_live_ask_above_the_ceiling_fails_the_whole_batch(ledger):
 def test_a_stale_decision_time_quote_blocks_a_real_recommendation(ledger):
     """15 minutes is the window. 40 minutes is not a price, it is a memory."""
     stale = gate_ctx()
-    stale.capture_index = _FreshIndex(confirmed=NOW - timedelta(minutes=40))
+    stale.capture_index = _FreshIndex(confirmed=DECISION_AT - timedelta(minutes=40))
     code, _calls, _c = run_sync(FakeAirtable([{"records": [row([_real(rec)])]}]), ledger,
                                 gate_context=stale)
     assert code == 1
@@ -801,7 +824,7 @@ def test_a_stale_decision_time_quote_blocks_a_real_recommendation(ledger):
 def test_a_pass_still_lands_on_a_stale_quote(ledger):
     """A PASS is not gated on price freshness -- staleness is frequently the reason for the pass."""
     stale = gate_ctx()
-    stale.capture_index = _FreshIndex(confirmed=NOW - timedelta(minutes=400))
+    stale.capture_index = _FreshIndex(confirmed=DECISION_AT - timedelta(minutes=400))
     code, _calls, _c = run_sync(FakeAirtable([{"records": [row([_real(a_pass, rid="rec_p1")])]}]), ledger,
                                 gate_context=stale)
     assert code == 0

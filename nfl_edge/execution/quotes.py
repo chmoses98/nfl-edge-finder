@@ -15,6 +15,38 @@ freshness requirements, and conflating them is how a desk records a bet at a pri
 This module never touches (A). It reads the capture stream, returns a side-specific executable bid/ask with
 the timestamps that justify it, and says nothing about fair value.
 
+AS OF THE DECISION, NOT AS OF THE IMPORT
+----------------------------------------
+Every question here is asked at the DECISION timestamp, never at the moment the importer happens to run. The
+Airtable bridge is retrospective archival transport on a twelve-hour cadence, so "is this price fresh?"
+evaluated at import time answers a question nobody asked and would fail every recommendation whose game had
+since kicked off.
+
+So `as_of` is the recommendation's `created_at`, and two rules follow from it:
+
+  * Evidence AFTER `as_of` is invisible. A capture that happened after the decision cannot be used to
+    validate the decision -- it is information the handicapper did not have, and using it would let a bet
+    that was stale when made pass because the market was re-captured later.
+  * Freshness is measured from `as_of` backwards. A quote confirmed 4 minutes before the decision is fresh
+    whether the importer reads it 10 seconds or 10 days later. Import latency cannot change whether a
+    historically valid recommendation passes.
+
+WHICH TIMESTAMP MEANS "THE INFORMATION EXISTED"
+-----------------------------------------------
+A capture run works through ~270 series over several minutes, so the run's start time and the moment a given
+series actually came back are materially different. Using run-start for everything is wrong in one direction
+that matters: it claims information was available EARLIER than it was, which would let a capture taken after
+the decision look like it came before.
+
+The manifest therefore records `observed_at` per series, and that is used where present. Where only run-level
+timestamps exist (captures written before that field), the conservative choice is made per question:
+
+    "did this predate the decision?"   ->  the LATEST plausible time (finished_at, else start)
+    "how old is it?"                   ->  the EARLIEST plausible time (started_at)
+
+Both directions round against the recommendation, so an old capture can only ever be judged less usable than
+it really was, never more.
+
 CHANGE-SUPPRESSED CAPTURE, AND WHY "OLD" IS NOT "STALE"
 -------------------------------------------------------
 `scripts/kalshi/capture.py` writes a quote row only when the price fingerprint CHANGES. A market that has not
@@ -84,7 +116,8 @@ class DecisionQuote:
     quote_moved_at: str | None = None         # last observed price CHANGE
     confirmed_at: str | None = None           # last capture confirmation -- freshness is judged on this
     confirmation_basis: str | None = None     # CONFIRM_TICKER / CONFIRM_SERIES
-    age_minutes: float | None = None          # now - confirmed_at
+    as_of: str | None = None                  # the DECISION timestamp every question here was asked at
+    age_minutes: float | None = None          # as_of - confirmed_at. Never wall-clock minus confirmed_at.
     max_age_minutes: float = DEFAULT_MAX_QUOTE_AGE_MIN
     series_ticker: str | None = None
     capture_run_id: str | None = None
@@ -119,7 +152,7 @@ def _f(x):
 
 
 def _run_started_at(run_id: str, manifest: dict | None) -> datetime | None:
-    """A run's time. The manifest's own `started_at` when we have it, else the run id, which encodes it."""
+    """A run's start. The manifest's own `started_at` when we have it, else the run id, which encodes it."""
     if manifest:
         t = _iso(manifest.get("started_at"))
         if t:
@@ -128,6 +161,29 @@ def _run_started_at(run_id: str, manifest: dict | None) -> datetime | None:
         return datetime.strptime(run_id, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
     except (ValueError, TypeError):
         return None
+
+
+def series_times(run_id: str, manifest: dict | None, series_ticker: str | None) -> tuple[datetime | None,
+                                                                                         datetime | None]:
+    """(available_at, age_from) for one series in one run -- the two timestamps, chosen conservatively.
+
+        available_at  the LATEST moment this information could have become knowable. Used to decide whether
+                      the evidence predates a decision. Erring late means an ambiguous capture is treated as
+                      possibly-after the decision and therefore ignored.
+        age_from      the EARLIEST moment it could have been current. Used to measure staleness. Erring
+                      early means an ambiguous capture is treated as older than it may be.
+
+    Where the manifest records this series' own `observed_at` -- the moment its fetch actually returned --
+    both collapse onto that one exact time and no conservatism is needed. Older captures have only run-level
+    timestamps, so the two diverge, and both directions round against the recommendation.
+    """
+    started = _run_started_at(run_id, manifest)
+    entry = ((manifest or {}).get("series") or {}).get(series_ticker) if series_ticker else None
+    exact = _iso((entry or {}).get("observed_at"))
+    if exact is not None:
+        return exact, exact
+    finished = _iso((manifest or {}).get("finished_at"))
+    return (finished or started), started
 
 
 class CaptureIndex:
@@ -196,14 +252,23 @@ class CaptureIndex:
         self.load()
         return self._manifests[-1] if self._manifests else None
 
-    def confirmation(self, ticker: str, series_ticker: str | None) -> tuple[datetime | None, str | None,
-                                                                           str | None, str | None]:
-        """(confirmed_at, basis, run_id, reason-if-none) for one ticker.
+    def confirmation(self, ticker: str, series_ticker: str | None,
+                     as_of: datetime | None = None) -> tuple[datetime | None, str | None,
+                                                             str | None, str | None]:
+        """(confirmed_at, basis, run_id, reason-if-none) -- the newest confirmation AT OR BEFORE `as_of`.
+
+        `as_of` is the DECISION time. A capture that happened after the decision is information the
+        handicapper did not have, so it is invisible here: including it would let a bet that was stale when
+        it was made pass because the market was re-captured later.
 
         Ticker-level confirmation wins when the capture recorded it. `last_seen` is written by
         scripts/kalshi/capture.py for every ticker returned open in a run, changed or not, which is exactly
-        the fact change-suppression otherwise destroys. Captures written before that field existed simply do
-        not have it, and resolution falls back to series-level confirmation rather than failing.
+        the fact change-suppression otherwise destroys.
+
+        But `last_seen` is a MUTABLE file holding only the latest run per ticker, so it cannot answer "which
+        run last saw this ticker as of last Tuesday". When its run is later than `as_of` it is simply not
+        usable evidence for that decision, and resolution falls through to the per-run manifests -- which
+        are immutable, one file per run, and can answer the historical question exactly.
         """
         self.load()
         if not self._manifests:
@@ -212,22 +277,32 @@ class CaptureIndex:
         last_seen = (self._state.get("last_seen") or {}).get(ticker)
         if last_seen:
             run_id = last_seen if isinstance(last_seen, str) else last_seen.get("run_id")
-            for rid, started, _man in reversed(self._manifests):
+            for rid, _started, man in reversed(self._manifests):
                 if rid == run_id:
-                    return started, CONFIRM_TICKER, rid, None
-            t = _run_started_at(str(run_id), None)
-            if t:
-                return t, CONFIRM_TICKER, str(run_id), None
+                    available_at, age_from = series_times(rid, man, series_ticker)
+                    if as_of is None or (available_at is not None and available_at <= as_of):
+                        return age_from, CONFIRM_TICKER, rid, None
+                    break               # this ticker-level record postdates the decision; fall through
+            else:
+                t = _run_started_at(str(run_id), None)
+                if t is not None and (as_of is None or t <= as_of):
+                    return t, CONFIRM_TICKER, str(run_id), None
 
         if not series_ticker:
-            return None, None, None, (f"{ticker}: no ticker-level confirmation in capture state and no "
-                                      "series ticker to fall back on")
-        for rid, started, man in reversed(self._manifests):
+            return None, None, None, (f"{ticker}: no ticker-level confirmation at or before "
+                                      f"{as_of.isoformat() if as_of else 'now'} and no series ticker to "
+                                      "fall back on")
+        for rid, _started, man in reversed(self._manifests):
             entry = (man.get("series") or {}).get(series_ticker)
-            if entry and entry.get("complete"):
-                return started, CONFIRM_SERIES, rid, None
-        return None, None, None, (f"series {series_ticker!r} was not fetched completely in any of the last "
-                                  f"{len(self._manifests)} capture runs")
+            if not (entry and entry.get("complete")):
+                continue
+            available_at, age_from = series_times(rid, man, series_ticker)
+            if as_of is not None and (available_at is None or available_at > as_of):
+                continue                # captured after the decision: not evidence the decision could use
+            return age_from, CONFIRM_SERIES, rid, None
+        return None, None, None, (
+            f"series {series_ticker!r} was not fetched completely in any capture run at or before "
+            f"{as_of.isoformat() if as_of else 'now'} (scanned {len(self._manifests)} runs)")
 
     # ---- last written quote ---------------------------------------------------------------------
     def last_quote_row(self, ticker: str, not_after: datetime | None = None) -> dict | None:
@@ -282,26 +357,40 @@ def _side_prices(row: dict) -> dict:
 
 
 def resolve_decision_quote(index: "CaptureIndex", ticker: str, side: str, *,
-                           series_ticker: str | None = None, now: datetime | None = None,
+                           series_ticker: str | None = None, as_of: datetime | None = None,
+                           now: datetime | None = None,
                            max_age_minutes: float = DEFAULT_MAX_QUOTE_AGE_MIN) -> DecisionQuote:
-    """The freshest CONFIRMED side-specific executable quote, or an explicit refusal.
+    """The freshest CONFIRMED side-specific executable quote AS OF THE DECISION, or an explicit refusal.
+
+    `as_of` is the recommendation's decision timestamp and is the only clock this function reads. Evidence
+    after it is invisible; freshness is measured backwards from it. Import latency therefore cannot change
+    the verdict: a recommendation that was valid when made stays valid when archived twelve hours later, and
+    one that was stale when made cannot be rescued by a later capture.
+
+    (`now` is accepted as the old spelling of the same argument. It is the decision time, not wall clock.)
 
     Returns a DecisionQuote in exactly one of four states, and only FRESH is actionable:
 
-        FRESH        confirmed within `max_age_minutes` and carrying an ask on our side
+        FRESH        confirmed within `max_age_minutes` BEFORE the decision, carrying an ask on our side
         NO_QUOTE     confirmed and current, but there is no usable ask on our side
-        STALE        the newest confirmation is older than the window
-        UNCONFIRMED  no capture run confirms this ticker
+        STALE        the newest pre-decision confirmation is older than the window
+        UNCONFIRMED  no capture run at or before the decision confirms this ticker
 
     Nothing here consults the shadow ledger, so the model's forecast and its snapshot lineage are untouched
     by definition, not by discipline.
     """
-    now = now or datetime.now(timezone.utc)
+    as_of = as_of or now
+    if as_of is None:
+        raise ValueError(
+            "resolve_decision_quote requires the DECISION timestamp. There is no wall-clock default: "
+            "defaulting to now() is exactly the bug this argument exists to prevent, because the importer "
+            "runs hours after the decision it is archiving.")
     side = (side or "YES").upper()
     q = DecisionQuote(ticker=ticker, side=side, state=UNCONFIRMED, max_age_minutes=max_age_minutes,
                       series_ticker=series_ticker)
+    q.as_of = as_of.isoformat()
 
-    confirmed_at, basis, run_id, reason = index.confirmation(ticker, series_ticker)
+    confirmed_at, basis, run_id, reason = index.confirmation(ticker, series_ticker, as_of)
     if confirmed_at is None:
         q.reason = reason
         return q
@@ -309,7 +398,7 @@ def resolve_decision_quote(index: "CaptureIndex", ticker: str, side: str, *,
     q.confirmed_at = confirmed_at.isoformat()
     q.confirmation_basis = basis
     q.capture_run_id = run_id
-    q.age_minutes = round((now - confirmed_at).total_seconds() / 60.0, 2)
+    q.age_minutes = round((as_of - confirmed_at).total_seconds() / 60.0, 2)
 
     row = index.last_quote_row(ticker, not_after=confirmed_at)
     if row is None:
@@ -341,8 +430,8 @@ def resolve_decision_quote(index: "CaptureIndex", ticker: str, side: str, *,
 
     if q.age_minutes > max_age_minutes:
         q.state = STALE
-        q.reason = (f"newest confirmation for {ticker} is {q.age_minutes:.1f} min old, beyond the "
-                    f"{max_age_minutes:.0f} min decision-time freshness window")
+        q.reason = (f"newest confirmation for {ticker} at or before the decision is {q.age_minutes:.1f} min "
+                    f"older than it, beyond the {max_age_minutes:.0f} min decision-time freshness window")
         return q
 
     if q.executable_price is None:
@@ -356,9 +445,10 @@ def resolve_decision_quote(index: "CaptureIndex", ticker: str, side: str, *,
 
 
 def resolve_from_root(md_root: str, ticker: str, side: str, *, series_ticker: str | None = None,
-                      now: datetime | None = None,
+                      as_of: datetime | None = None, now: datetime | None = None,
                       max_age_minutes: float = DEFAULT_MAX_QUOTE_AGE_MIN,
                       max_runs: int = 200) -> DecisionQuote:
     """Convenience wrapper that builds a one-shot index. Prefer reusing a CaptureIndex across a batch."""
     return resolve_decision_quote(CaptureIndex(md_root, max_runs=max_runs), ticker, side,
-                                  series_ticker=series_ticker, now=now, max_age_minutes=max_age_minutes)
+                                  series_ticker=series_ticker, as_of=as_of or now,
+                                  max_age_minutes=max_age_minutes)

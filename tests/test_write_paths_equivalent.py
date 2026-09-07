@@ -39,7 +39,7 @@ def rec(**kw):
         market_timestamp=NOW.isoformat(), minutes_to_kickoff=4320.0,
         support_state=S.SUPPORT_SUPPORTED, model_version="shadow-0.4.0", artifact_hash="cafe",
         model_probability=0.64,
-        probability_low=0.60, probability_mid=0.66, probability_high=0.72,
+        probability_low=0.70, probability_mid=0.78, probability_high=0.86,
         decision=S.RECOMMENDED, grade="B", bet_up_to_probability=0.65,
         proposed_stake=10, recommended_stake=10, bankroll_snapshot=2000.0,
         primary_thesis="thesis", key_supporting_factors=["a"], counterarguments=["b"],
@@ -67,19 +67,28 @@ def ledger_files(ledger, kind="recommendations"):
     return sorted(p.name for p in base.rglob("*.json"))
 
 
-def capture_tree(tmp_path, ask=0.62, minutes_ago=3.0):
-    """A minimal but REAL capture tree, so the gate reads evidence rather than a stub."""
-    when = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
+def capture_tree(tmp_path, ask=0.62, minutes_ago=3.0, depth=100000.0):
+    """A minimal but REAL capture tree, so the gate reads evidence rather than a stub.
+
+    Timestamps are relative to NOW, which is also this fixture's `created_at`: the gates evaluate as of the
+    decision, so a fixture whose capture sits before the decision by `minutes_ago` is what the gate sees.
+    """
+    when = NOW - timedelta(minutes=minutes_ago)
     rid = when.strftime("%Y%m%dT%H%M%SZ")
     day = tmp_path / "md" / "data" / "kalshi" / "capture" / when.strftime("%Y-%m-%d")
-    day.mkdir(parents=True)
+    day.mkdir(parents=True, exist_ok=True)
     (day / f"{rid}.manifest.json").write_text(json.dumps({
-        "run_id": rid, "started_at": when.isoformat(),
-        "series": {"KXNFLGAME": {"n": 40, "complete": True, "tier": "FULL"}}, "partial": False}))
+        "run_id": rid, "started_at": when.isoformat(), "finished_at": when.isoformat(),
+        "series": {"KXNFLGAME": {"n": 40, "complete": True, "tier": "FULL",
+                                 "observed_at": when.isoformat()}}, "partial": False}))
     (day / f"{rid}.quotes.jsonl").write_text(json.dumps({
         "ticker": "KXNFLGAME-26SEP09NESEA-SEA", "series_ticker": "KXNFLGAME",
         "observed_at": when.isoformat(), "status": "active",
         "yes_bid": 0.60, "yes_ask": ask, "no_bid": 1 - ask - 0.02, "no_ask": 0.40}) + "\n")
+    (day / f"{rid}.books.jsonl").write_text(json.dumps({
+        "run_id": rid, "observed_at": when.isoformat(), "ticker": "KXNFLGAME-26SEP09NESEA-SEA",
+        "orderbook_fp": {"no_dollars": [[f"{1 - ask:.4f}", f"{depth}"]],
+                         "yes_dollars": [["0.5000", "10"]]}}) + "\n")
     return str(tmp_path / "md")
 
 
