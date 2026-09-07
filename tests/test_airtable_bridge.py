@@ -733,3 +733,29 @@ def test_a_stale_copy_of_the_example_is_refused():
 def test_the_docs_never_contain_a_token():
     doc = open(os.path.join(ROOT, "docs", "AIRTABLE_BRIDGE.md")).read()
     assert not __import__("re").search(r"\bpat[A-Za-z0-9]{14}\b", doc), "an Airtable PAT is in the docs"
+
+
+# ---- malformed rows from the wire --------------------------------------------------------------------
+
+def test_a_row_with_no_record_id_is_skipped_not_written(ledger):
+    """An id-less row cannot be status-updated, so it must not be planned as though it could."""
+    bad = row([rec()])
+    del bad["id"]
+    fake = FakeAirtable([{"records": [bad]}])
+    code, pushes, _ = run_sync(fake, ledger)
+    assert ledger_recs(ledger) == [] and pushes == []
+    assert not fake.patches, "there is no id to PATCH; the importer must not invent one"
+
+
+def test_an_empty_recommendation_id_cannot_produce_a_dotjson_file(ledger):
+    """`""` resolves to "<week>/.json", whose basename still ends in .json -- the extension check is not enough."""
+    with pytest.raises(AB.BridgeError):
+        AB._safe_record_path(ledger, "recommendations", 2026, 1, "")
+    with pytest.raises(AB.BridgeError):
+        AB._safe_record_path(ledger, "recommendations", 2026, 1, "a/b")
+
+
+def test_a_row_with_a_missing_createdtime_is_refused(ledger):
+    bad = row([rec()])
+    del bad["createdTime"]
+    _expect_error(ledger, [bad])

@@ -364,10 +364,15 @@ def _safe_record_path(root: str, kind: str, season: int, week: int, rid: str) ->
     `schema._ID_RE` already forbids a slash, so traversal is not reachable today. This check is here so that
     it stays unreachable if that regex is ever loosened -- the id on this path came off the internet.
     """
+    if not rid or not S._ID_RE.match(str(rid)):
+        # An empty id resolves to "<week>/.json", whose basename still ends in ".json" -- the extension
+        # check alone is not enough. Every id that reaches a filesystem path is checked against the schema's
+        # own id pattern, because this one came off the internet.
+        raise BridgeError(f"{kind} id {rid!r} is empty or has unsafe characters")
     week_root = os.path.abspath(store.week_dir(root, kind, season, week))
     path = os.path.abspath(store.record_path(root, kind, season, week, rid))
     if os.path.dirname(path) != week_root or not os.path.basename(path).endswith(".json"):
-        raise BridgeError(f"recommendation_id {rid!r} does not resolve to a safe ledger filename")
+        raise BridgeError(f"{kind} id {rid!r} does not resolve to a safe ledger filename")
     return path
 
 
@@ -400,7 +405,9 @@ def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
     """
     now = now or datetime.now(timezone.utc)
     fields = row.get("fields") or {}
-    airtable_id = row.get("id") or ""
+    airtable_id = (row.get("id") or "").strip()
+    if not airtable_id:
+        raise BridgeError("Airtable row has no record id; it cannot be receipted or status-updated")
     run_id = (fields.get(F_RUN_ID) or "").strip()
     created_time = row.get("createdTime")
     airtable_created = _parse_ts("Airtable createdTime", created_time)

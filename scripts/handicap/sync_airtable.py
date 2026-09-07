@@ -115,7 +115,11 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
     # stop the others in the same cycle from landing.
     plans, errors = [], {}
     for row in rows:
-        rid = row.get("id", "<no id>")
+        rid = (row.get("id") or "").strip()
+        if not rid:
+            # Unaddressable: there is no id to PATCH a status onto, so it cannot even be marked ERROR.
+            log("ERROR  <no record id>: Airtable row has no record id; skipping")
+            continue
         try:
             plan = AB.plan_run(row, ledger_root, now=now,
                                base_id=client.base_id, table_id=client.table_id)
