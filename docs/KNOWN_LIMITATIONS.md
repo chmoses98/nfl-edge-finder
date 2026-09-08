@@ -89,15 +89,12 @@
     against the real Automation. `docs/AIRTABLE_BRIDGE.md` carries the exact setup and the E2E procedure.
     What keeps this safe while it is missing is that a row that is not `PREFLIGHT_APPROVED` has not been
     approved: an unanswered request is not a bet.
-26. **The fee-rounding bound is materially larger than a whole-contract model implied, and correctly so.**
-    Kalshi order sizes are fixed-point with a 0.01-contract minimum, so a 16-contract position carries a
-    worst-case fragmentation bound of about $0.17 and a 100-contract position about $1.01. On a small pilot
-    stake that is a real hurdle — roughly 1.7% of a $10 position. It is not a strategy buffer and cannot be
-    tuned; the only levers are evidence (establishing `WHOLE_CONTRACTS_ONLY` for a series from venue
-    metadata, which drops the 100-contract bound to $0.02) and observation (a realised fee is not an
-    estimate and carries no uncertainty term at all). Until one of those lands, thin edges on small stakes
-    will be blocked by transaction-cost uncertainty rather than by the edge itself, and the ledger will
-    record that as the reason.
+26. **The fee-rounding bound is dominated by the balance precision, not the fill count.** With the corrected
+    $0.000001 trade-fee increment it is about $0.0116 on a 16-contract position and $0.0200 on 100 — mostly
+    the one-cent accumulator residual. The `~$0.17` / `~$1.01` figures reported in the previous round were
+    computed with an increment a hundred times too large and are withdrawn. It is not a strategy buffer and
+    cannot be tuned; it shrinks with evidence (`WHOLE_CONTRACTS_ONLY` for a series) or with observation (a
+    realised fee carries no uncertainty term at all).
 27. **Contract granularity is asserted from documentation, not from captured venue metadata.** No field in
     the current per-series registry establishes whether fractional trading is enabled, so every series sits
     at `UNKNOWN` and is priced as fractional. Wiring a captured metadata field into
@@ -108,3 +105,22 @@
     fallback — it can only be later than the outcome, never earlier — so exposure is released later than it
     strictly must be, never earlier. Populating the stronger field when the settlement is actually observed
     is a small improvement to exposure accuracy and changes nothing about safety.
+29. **The fee-rounding semantics are operator-attested, not machine-verified.** `docs.kalshi.com` is
+    unreachable from this environment (network egress policy), so the trade-fee increment ($0.000001), the
+    two balance precisions ($0.01 / $0.0001) and the per-fill rebate cap are recorded from the operator's
+    reading of the current Fee Rounding page, dated in `config/kalshi_fee_schedule.json`. This is the third
+    version of these values in this PR; the first two were wrong, and the second survived review because the
+    worked example available at the time could not distinguish $0.0001 from $0.000001. **No current official
+    worked example has been reproduced**, because none could be fetched — what is pinned instead is the
+    mechanism, against inputs chosen to discriminate between the candidate increments. Reproducing the live
+    example is the first thing to do when the page is reachable.
+30. **Preflight expiry is a judgement, not a measurement.** `MAX_REQUEST_AGE_MIN = 30` bounds how stale the
+    HANDICAP may be at approval (the market is re-priced, so it is not the market that ages). Thirty minutes
+    is two capture cycles of slack for a delayed Automation and is a defensible default, not a calibrated
+    one; nothing has measured how quickly a ChatGPT thesis actually decays, and nothing will until there is
+    a prospective sample.
+31. **The preflight binding protects the bridge, not the manual writer.** A real `RECOMMENDED` record cannot
+    reach the ledger through `sync_airtable.py` without a hash-matched `Approved Payload`. The engineering
+    fallback `validate_recommendations.py --write` still admits one on the strength of running the same
+    gates itself at the record's own `created_at` — which is the same check, done locally, and is why it is
+    allowed; but it is not the same *binding*, and an operator using it is trusted to be an operator.

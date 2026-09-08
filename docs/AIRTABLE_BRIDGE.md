@@ -415,9 +415,41 @@ schedule, and neither is a workaround for the other.
 | status | meaning |
 |---|---|
 | `PREFLIGHT_REQUESTED` | ChatGPT wants a pre-trade verdict on the candidates in `Payload` |
-| `PREFLIGHT_APPROVED` | **every** candidate on the row may be surfaced as a BET, at its approved stake |
-| `PREFLIGHT_BLOCKED` | at least one may not. Per-candidate verdicts are in `Preflight Result`. |
+| `PREFLIGHT_APPROVED` | **every** candidate on the row may be surfaced as a BET, at its approved stake, from `Approved Payload` |
+| `PREFLIGHT_BLOCKED` | at least one may not — including an EXPIRED request. Per-candidate verdicts are in `Preflight Result`. |
 | `PREFLIGHT_ERROR` | the request itself was unusable |
+
+### Three artifacts, three stages
+
+| field | what it is | who writes it |
+|---|---|---|
+| `Payload` | the immutable candidate **request** | ChatGPT, once |
+| `Approved Payload` | the exact canonical batch the worker **approved** — approval timestamp, approved stake, approval-time market state | the preflight worker |
+| `Preflight Result` | the verdict, plus `candidate_payload_sha256`, `approved_payload_sha256`, the Airtable row id, the approval timestamp and a per-candidate gate summary | the preflight worker |
+
+To archive an approved bet, ChatGPT changes **only** `Status: PREFLIGHT_APPROVED → READY_FOR_SYNC` on that
+same row. The importer then:
+
+1. notices the batch contains a real `RECOMMENDED` record;
+2. re-derives `sha256(Approved Payload)` and requires it to equal `approved_payload_sha256`;
+3. requires the result to say `APPROVED` and to name this row;
+4. archives **`Approved Payload`**, never the candidate `Payload`;
+5. independently replays the gates at the approved record's `created_at` — which is the approval time.
+
+**A real `RECOMMENDED` record written straight to `READY_FOR_SYNC` is refused.** So is one whose approved
+batch was edited after approval, one carrying a `BLOCKED`/`EXPIRED`/`ERROR` verdict, and one whose approval
+was issued for a different row. A PASS/WATCHLIST-only batch keeps the simple path: a pass costs nothing, is
+scientifically valuable, and requiring an approval for it would only discourage recording passes.
+
+### Approval time is the decision time
+
+A candidate drafted at 13:00 and preflighted at 13:30 is a **13:30** decision. The worker re-prices the
+record's market state — the two-sided quote, the mid, the market timestamp, the minutes to kickoff — to the
+approval moment and gates it there, so a market that moved against the candidate blocks it. The **handicap**
+is carried forward untouched: no probability, thesis or grade is recomputed.
+
+A request older than `preflight.MAX_REQUEST_AGE_MIN` (30 minutes) comes back **EXPIRED**. The market can be
+re-priced; the thesis cannot. Submit a fresh request rather than approving an opinion nobody has revisited.
 
 **A row that is not `PREFLIGHT_APPROVED` has not been approved.** There is no third state and no default: a
 request that errored, timed out, or was never picked up is not a bet. Silence is never yes.
@@ -427,20 +459,21 @@ request that errored, timed out, or was never picked up is not a bet. Silence is
 and conservative net EV, and each gate's status — plus the outstanding portfolio exposure the caps were
 measured against.
 
-The worker writes **only** `Status` and `Preflight Result`. `Run ID`, `Sport` and `Payload` are source data;
-`AirtableClient.write_fields` enforces the whitelist, so neither leg can rewrite the provenance the import
-receipt exists to prove.
+The worker writes **only** `Status`, `Preflight Result` and `Approved Payload`. `Run ID`, `Sport` and
+`Payload` are source data; `AirtableClient.write_fields` enforces the whitelist, so neither leg can rewrite
+the candidate request — which is what keeps the three stages distinguishable.
 
 ### One-time owner setup
 
-Two things cannot be provisioned from a code change and are the owner's to do once. **Until both exist and a
-live end-to-end run has succeeded, this leg is not operational** — the repository side is complete and
-tested, and that is a different claim.
+Two things cannot be provisioned from a code change and are the owner's to do once — **and they come after
+this PR merges**, because the workflow does not exist on `main` until then. **Until both exist and a live
+end-to-end run has succeeded, this leg is not operational.** The repository side being complete and tested
+is a different claim.
 
 **1. Add the fields and statuses in Airtable.**
-Add `Preflight Result` as a **Long text** field to the `Recommendation Runs` table, and add
-`PREFLIGHT_REQUESTED`, `PREFLIGHT_APPROVED`, `PREFLIGHT_BLOCKED`, `PREFLIGHT_ERROR` as options on the
-existing `Status` single-select.
+Add `Preflight Result` and `Approved Payload` as **Long text** fields on the `Recommendation Runs` table,
+and add `PREFLIGHT_REQUESTED`, `PREFLIGHT_APPROVED`, `PREFLIGHT_BLOCKED`, `PREFLIGHT_ERROR` as options on
+the existing `Status` single-select.
 
 **2. Create a GitHub token and an Airtable Automation.**
 

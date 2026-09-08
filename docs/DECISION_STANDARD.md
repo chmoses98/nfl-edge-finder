@@ -322,38 +322,53 @@ free.
 schedule with a `primary_source` and a `verified_at`. Coefficients are configuration, not literals in code, so
 a platform fee change is a reviewable commit.
 
-### The 2026 fixed-point rounding model
+### The current fixed-point rounding model
 
-A fill is charged in **three separately-named parts**, and the total is **not** `ceil(raw, $0.01)`:
+Five quantities, and they are never collapsed into one another:
 
-| part | what |
+| | what it is |
 |---|---|
-| **raw quadratic fee** | `coefficient × multiplier × contracts × price × (1 − price)` |
-| **trade fee** | the raw fee ceiled to a **centicent** (`$0.0001`) |
-| **rounding fee** | cent-alignment — the balance change is floored to the account's precision and the shortfall charged |
-| **rebate** | the overpayment accumulates **per order across fills**; once it exceeds a cent, a whole-cent rebate is issued and the accumulator drops by a cent |
+| **RAW QUADRATIC** | `coefficient x multiplier x contracts x P x (1-P)`, unrounded |
+| **TRADE FEE** | the raw fee rounded **UP to $0.000001** — six decimal dollars |
+| **ROUNDING FEE** | the shortfall from aligning the resulting balance change to the account's balance precision |
+| **REBATE** | one balance-precision unit, once the accumulator exceeds one — **capped so the fill's own net fee cannot go negative** |
+| **NET EXCHANGE FEE** | `trade + rounding − rebate`, non-negative **by construction**, not by flooring |
 
 ```
-net fee = trade fee + rounding fee − rebate        (never below zero)
+trade_fee     = ceil(raw, $0.000001)
+balance_raw   = -(contracts x price) - trade_fee
+balance       = floor(balance_raw, precision)
+rounding_fee  = balance_raw - balance                       in [0, precision)
+accumulator  += rounding_fee
+if accumulator > precision:
+    rebate    = min(precision, trade_fee + rounding_fee)    <- the cap
+    accumulator -= rebate
+net_fee       = trade_fee + rounding_fee - rebate           >= 0
 ```
 
-The accumulator is the economically load-bearing part: it makes 100 small fills cost **within one cent** of a
-single equivalent fill. Ceiling every fill to the next cent independently overstates a twenty-fill order by
-up to twenty cents; ceiling the whole order to the next cent understates the rounding on a fragmented one.
-Both change whether a marginal trade is worth doing.
+**Balance precision** is `$0.01` for an ordinary account and `$0.0001` for a direct member. The rebate unit
+is one precision unit, so both stay coherent.
 
-All arithmetic is `Decimal`. Kalshi's documented worked example reproduces fill by fill:
+**The increment has been wrong here twice, in opposite directions**, which is why the tests now pin it
+against inputs that actually discriminate. It was `$0.01` (a per-fill cent ceiling, which overstates a
+twenty-fill order by up to twenty cents), then `$0.0001`, and it is `$0.000001`. The worked example
+available during the middle period could not tell `$0.0001` from `$0.000001` — every number in it was
+already aligned to four decimals — so it reproduced perfectly against the wrong rule. A test that cannot
+fail is not evidence.
 
-```
-fill 1   revenue −$0.0550, trade fee $0.0085 → balance −$0.0635 floors to −$0.0700
-         rounding fee $0.0065, accumulator $0.0065, no rebate, net $0.0150
-fill 2   same again → accumulator $0.0130 > $0.01
-         rebate $0.0100, accumulator $0.0030, net $0.0050
-```
+**The rebate cap is the venue's rule, not a defensive choice.** A previous version let an individual fill's
+net fee go negative and floored only the order total, on the reasoning that a rebate is a credit against the
+order. That models a more generous exchange than the real one on exactly the tiny fills where the difference
+shows up. The unabsorbed part of a capped rebate is **deferred, not forfeited**: it stays in the accumulator
+for a later fill to earn.
 
-**Pre-trade** (`entry_fee` / `net_executable_ev`) gives the economically equivalent whole-order cost, which is
-what a decision needs. **Post-trade**, the exchange's own reported fee is authoritative and
-`Execution.fees_paid` carries it; these functions are estimates and are labelled as such wherever recorded.
+The accumulator is what makes many small fills converge on the cost of one equivalent fill, and it persists
+**per order across all of its fills**, taker and maker alike.
+
+**Provenance.** These values are the operator's reading of the current Kalshi Fee Rounding documentation,
+recorded in `config/kalshi_fee_schedule.json` with `verified_by: OPERATOR_ATTESTATION` and a date. This
+environment cannot reach `docs.kalshi.com` (network egress policy), so they are attested, not
+machine-verified — see [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md).
 
 ### Maker and taker multipliers: three sources, ranked, failing closed
 
@@ -467,67 +482,86 @@ contract is how a losing position looks profitable.
 The pre-trade estimate prices the order as **one fill per observed price level**. The venue may fragment it
 further, and the accumulator makes fragmentation *converge* on the equivalent order without *equalling* it —
 so the estimate is optimistic by an amount nobody can know before the order is worked. That amount has a
-derivable worst case, from the mechanism rather than from taste:
+derivable worst case:
 
 ```
 net_fee_order  =  SUM(trade_fee_i) + accumulator_final   (rounding fees minus rebates ARE the accumulator)
 
 CEILING term   WITHIN one price level the raw quadratic is linear in contracts, so SUM(raw_i) == raw_level,
-               and each fill's centicent ceiling adds strictly less than $0.0001. With N fills: < N x $0.0001.
-RESIDUAL term  the accumulator starts at 0, each fill adds < one balance precision, and anything above one
-               precision unit immediately rebates one -- so the final residual is at most $0.01, and the
-               DIFFERENCE from the single-fill estimate's own residual is bounded by the same $0.01. Once
-               per ORDER, not once per level.
+               and each fill's rounding-up adds strictly less than one TRADE_FEE_INCREMENT ($0.000001).
+               With N fills: < N x $0.000001.
+RESIDUAL term  the accumulator is bounded by one balance precision -- re-proved below, because the venue's
+               per-fill rebate cap invalidated the old one-line argument. Once per ORDER, not per level.
 
 N              = SUM over price levels of ceil(contracts_at_level / contract_increment)
 
-bound = N x $0.0001 + $0.01
+bound = N x $0.000001 + balance_precision
 ```
+
+**Re-proving the residual bound under the rebate cap.** The old argument was "anything above one unit
+immediately rebates one", which stops being true when a fill too small to absorb a whole unit rebates less.
+Writing `A` for the accumulator before a fill, `r` for its rounding fee (in `[0, precision)`) and `t` for its
+trade fee, and assuming `A <= precision`:
+
+| case | result |
+|---|---|
+| no trigger (`A + r <= precision`) | `A' = A + r <= precision` |
+| trigger, `t + r >= precision` | `rebate = precision`, so `A' = A + r − precision <= r < precision` |
+| trigger, `t + r < precision` | `rebate = t + r`, so `A' = A − t`. The trigger gives `A > precision − r` and the case gives `t < precision − r`, hence `t < A`: `A'` is positive, and `A' < A <= precision` |
+
+The invariant survives in every case. `tests/test_fees.py` re-checks it by brute force over hundreds of
+random orders at both balance precisions rather than trusting the argument.
 
 **What `N` actually is.** It is set by the venue's minimum fill quantity, **not** by our order being a round
 number. Kalshi order sizes are fixed-point with a documented **0.01-contract** minimum increment, and fills
 of 0.30 or 0.03 contracts are ordinary. Approved stakes are whole **dollars**; the contract quantities they
-buy are routinely fractional (`$10 / 0.62 = 16.13`). An earlier version of this bound assumed a fill was at
-least one whole contract — that was simply false, and `tests/test_fee_freshness.py` now demonstrates a
-5-contract order whose real fragmented cost is **double** what that assumption allowed. A bound the
-mechanism can exceed is not a bound.
+buy are routinely fractional (`$10 / 0.62 = 16.13`).
 
 | granularity state | increment | when |
 |---|---|---|
-| `WHOLE_CONTRACTS_ONLY` | 1 | only when venue metadata **proves** fractional trading is disabled, recorded per series in `config/kalshi_fee_schedule.json` with evidence, in a reviewed commit |
+| `WHOLE_CONTRACTS_ONLY` | 1 | only when venue metadata **proves** fractional trading is disabled, recorded per series with evidence in a reviewed commit |
 | `FRACTIONAL_ENABLED` | 0.01 | fractional trading is known to be on |
-| `UNKNOWN` | 0.01 | **the default.** Priced identically to `FRACTIONAL_ENABLED`: "we could not establish that fractional trading is off" may never shrink a cost bound. |
+| `UNKNOWN` | 0.01 | **the default.** Priced identically to `FRACTIONAL_ENABLED`: "we could not establish that it is off" may never shrink a cost bound. |
 
 **No double-charging.** The bound is summed **per price level** from the observed depth walk
 (`DepthResult.levels_consumed`), because a fill cannot span two levels. The VWAP movement *across* levels is
-already priced exactly by the fee estimate, which is computed from those same levels; this term bounds only
-the fragmentation *within* each level's known quantity, which is the part nobody can see before the order is
-worked. With no observed book the whole quantity is treated as one level — a weaker bound, never a smaller
-one.
+already priced exactly by the fee estimate computed from those same levels; this term bounds only the
+fragmentation *within* each level's known quantity. With no observed book the whole quantity is treated as
+one level — a weaker bound, never a smaller one.
 
 `conservative_net_ev_dollars = net_ev_dollars − bound`, and the gate requires it **above zero**.
 
-This is protection against a **known transaction-cost uncertainty**, not a strategy edge buffer: it is
-computed and never configured, it does not move when the edge moves (only when the size does), and
-`tests/test_gates_and_risk.py` reproduces it independently to assert the gate demands nothing more.
-`tests/test_fee_freshness.py` checks empirically — including full 0.01-granularity shredding across multiple
-price levels — that no fragmentation ever exceeds it.
+**Magnitudes, re-derived under the corrected increment.** The `~$0.17` and `~$1.01` figures reported in the
+previous round were computed with a trade-fee increment a hundred times too large and are **discarded**:
 
-**It is not small, and that is the honest number.** Under `UNKNOWN` granularity a 16-contract position
-carries a bound of about **$0.17**; a 100-contract position about **$1.01**. The lever that shrinks it is
-*evidence* — establishing whole-contract granularity for a series drops that 100-contract bound to $0.02 —
-not preference. See [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md).
+| position | bound | of which ceiling | of which residual |
+|---|---|---|---|
+| 0.90 contracts | $0.0101 | $0.00009 | $0.01 |
+| 16.13 contracts | $0.0116 | $0.0016 | $0.01 |
+| 100 contracts | $0.0200 | $0.0100 | $0.01 |
 
-### A rebate is never discarded
+At ordinary pilot sizes the balance precision, not the fill count, is most of the bound — which is also why
+a direct member's bound is dominated by the ceiling term instead. It remains a **transaction-cost** bound,
+not a strategy edge buffer: computed and never configured, unmoved when the edge moves, and it vanishes
+entirely once a fee is observed rather than modelled.
 
-Re-deriving the bound surfaced a defect in the fee engine itself. `fee_for_fill` floored each fill's net fee
-at zero. On a 0.01-contract fill the trade fee is a fraction of a cent, so a whole-cent rebate landing on it
-makes that fill's net **negative** — and the floor silently threw the credit away, making 200 penny fills
-cost thirteen times the equivalent single fill and destroying the exact property the accumulator exists to
-provide.
+**Honest note on the fractional correction.** With the increment corrected, the whole-contract fill count is
+still a *wrong derivation* — the mechanism genuinely permits 0.01-contract fills — but at ordinary sizes the
+two bounds now differ by cents rather than dollars. `tests/test_fee_freshness.py` demonstrates the
+whole-contract number being exceeded at 150 contracts; it is kept because it is TRUE, not because it is
+bigger.
 
-The exchange never pays you to trade, so the floor belongs on the **order total**, and that is where it now
-lives. Kalshi's documented worked example reproduces unchanged, fill by fill.
+### A capped rebate is deferred, not forfeited
+
+Two wrong answers were tried here before the right one. Flooring each fill's net at zero **discarded** the
+part of a rebate the fill could not absorb, making 200 penny fills cost thirteen times the equivalent single
+fill. Removing the floor entirely let a fill's net go **negative**, which models a more generous exchange
+than the real one.
+
+The venue's actual rule is neither: the rebate is **capped** at that fill's own `trade_fee + rounding_fee`,
+so its net stays at or above zero, and the unabsorbed remainder stays in the accumulator for a later fill to
+earn. Nothing is thrown away and nothing is invented, the identity `net_order == SUM(trade_fee) +
+accumulator_final` holds exactly with no flooring anywhere, and the uncertainty bound above rests on it.
 
 ---
 

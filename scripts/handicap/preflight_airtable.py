@@ -68,14 +68,25 @@ def log(msg: str) -> None:
     print(msg, flush=True)
 
 
-def _summary(results: list, *, run_id: str, now: datetime) -> dict:
-    """What gets written back to Airtable. Small, readable, and legible to a human in a hurry."""
+def _summary(results: list, *, run_id: str, airtable_id: str, candidate_payload: str,
+             approved_payload: str | None, now: datetime) -> dict:
+    """What gets written back to Airtable. Small, readable, and legible to a human in a hurry.
+
+    The two hashes are the load-bearing part. `approved_payload_sha256` is what the importer re-derives from
+    `Approved Payload` before archiving it, so an approved batch cannot be edited between approval and
+    import without the bridge noticing.
+    """
+    approved = bool(results) and all(r.may_be_shown_as_a_bet for r in results)
+    expired = any(r.verdict == P.EXPIRED for r in results)
     return {
         "schema": "preflight-result/1",
         "run_id": run_id,
+        "airtable_record_id": airtable_id,
         "answered_at": now.isoformat(),
-        "verdict": ("APPROVED" if results and all(r.may_be_shown_as_a_bet for r in results)
-                    else "BLOCKED"),
+        "approval_as_of": now.isoformat(),
+        "verdict": "APPROVED" if approved else ("EXPIRED" if expired else "BLOCKED"),
+        "candidate_payload_sha256": AB.payload_sha(candidate_payload),
+        "approved_payload_sha256": AB.payload_sha(approved_payload) if approved_payload else None,
         "n_candidates": len(results),
         "n_approved": sum(1 for r in results if r.may_be_shown_as_a_bet),
         "candidates": [{
@@ -83,7 +94,9 @@ def _summary(results: list, *, run_id: str, now: datetime) -> dict:
             "verdict": r.verdict,
             "may_be_shown_as_a_bet": r.may_be_shown_as_a_bet,
             "surface_as": r.surface_as,
-            "decision_as_of": r.as_of,
+            "candidate_created_at": r.candidate_created_at,
+            "approval_as_of": r.as_of,
+            "request_age_minutes": r.request_age_minutes,
             "proposed_stake": r.proposed_stake,
             "approved_stake": r.approved_stake,
             "blocking_reasons": r.blocking_reasons,
@@ -101,23 +114,38 @@ def _summary(results: list, *, run_id: str, now: datetime) -> dict:
                                      if results else None),
         },
         "note": ("Only candidates with may_be_shown_as_a_bet=true may be surfaced as a BET or a final "
-                 "RECOMMENDED instruction, and only at approved_stake. Everything else is a CANDIDATE, a "
-                 "WATCHLIST entry or a PASS. This answer approves nothing automatically and places nothing."),
+                 "RECOMMENDED instruction, and only at approved_stake, and only from Approved Payload. "
+                 "Move the row to READY_FOR_SYNC to archive it; the importer re-hashes Approved Payload "
+                 "against approved_payload_sha256 and refuses a mismatch. This answer places nothing."),
     }
 
 
-def answer_row(row: dict, *, market_data_root: str, ledger_root: str, now: datetime) -> tuple[str, dict]:
-    """Preflight one Airtable row. Returns the status to write and the result body."""
+def answer_row(row: dict, *, market_data_root: str, ledger_root: str, now: datetime) -> tuple:
+    """Preflight one Airtable row AS OF `now`. Returns (status, result body, approved payload or None).
+
+    `now` is the moment approval is being evaluated, and it is the decision timestamp of everything this
+    approves -- not a stamp on the answer. A candidate drafted at 13:00 and preflighted at 13:30 is a 13:30
+    decision priced at 13:30, or it is not a decision at all.
+    """
     fields = row.get("fields") or {}
     run_id = (fields.get(AB.F_RUN_ID) or "").strip()
-    candidates = AB.parse_payload(fields.get(AB.F_PAYLOAD))
+    candidate_payload = fields.get(AB.F_PAYLOAD)
+    candidates = AB.parse_payload(candidate_payload)
 
     results = P.preflight_batch(
-        candidates, market_data_root=market_data_root, ledger_root=ledger_root, root=ROOT)
-    body = _summary(results, run_id=run_id, now=now)
+        candidates, market_data_root=market_data_root, ledger_root=ledger_root, root=ROOT,
+        approval_as_of=now, request_id=(row.get("id") or "").strip())
+
+    approved_records = [r.approved_record for r in results if r.may_be_shown_as_a_bet]
+    fully_approved = bool(results) and len(approved_records) == len(results)
+    approved_payload = AB.canonical_payload(approved_records) if fully_approved else None
+
+    body = _summary(results, run_id=run_id, airtable_id=(row.get("id") or "").strip(),
+                    candidate_payload=candidate_payload if isinstance(candidate_payload, str) else "",
+                    approved_payload=approved_payload, now=now)
     status = (AB.STATUS_PREFLIGHT_APPROVED if body["verdict"] == "APPROVED"
               else AB.STATUS_PREFLIGHT_BLOCKED)
-    return status, body
+    return status, body, approved_payload
 
 
 def run(client, *, market_data_root: str, ledger_root: str, sport: str = AB.SPORT_NFL,
@@ -144,8 +172,8 @@ def run(client, *, market_data_root: str, ledger_root: str, sport: str = AB.SPOR
             had_error = True
             continue
         try:
-            status, body = answer_row(row, market_data_root=market_data_root,
-                                      ledger_root=ledger_root, now=now)
+            status, body, approved_payload = answer_row(
+                row, market_data_root=market_data_root, ledger_root=ledger_root, now=now)
         except (AB.BridgeError, ValueError, RISK.RiskPolicyError) as e:
             # An unusable request is an ERROR, never an approval. The reason goes back to the row so
             # ChatGPT can see what to fix without anyone reading a workflow log.
@@ -167,8 +195,13 @@ def run(client, *, market_data_root: str, ledger_root: str, sport: str = AB.SPOR
             if not c["may_be_shown_as_a_bet"]:
                 for b in c["blocking_reasons"]:
                     log(f"   blocked {c['recommendation_id']}: {b}")
-        updates[rid] = {AB.F_STATUS: status,
-                        AB.F_PREFLIGHT_RESULT: json.dumps(body, indent=1, default=str)}
+        fields = {AB.F_STATUS: status,
+                  AB.F_PREFLIGHT_RESULT: json.dumps(body, indent=1, default=str)}
+        if approved_payload is not None:
+            # The exact canonical batch this approval authorises. The candidate `Payload` is never touched:
+            # request, approval and ledger record stay three distinguishable artifacts.
+            fields[AB.F_APPROVED_PAYLOAD] = approved_payload
+        updates[rid] = fields
 
     if not update_status:
         log(f"--no-write: NOT updating Airtable; would have answered {len(updates)} row(s)")

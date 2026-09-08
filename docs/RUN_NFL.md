@@ -110,13 +110,22 @@ and a candidate may be shown as `CANDIDATE`, `WATCHLIST` or `PASS` — never as 
 | `Run ID` | the `handicap_run_id` |
 | `Payload` | the candidate array |
 
-An Airtable Automation fires the `Pre-trade preflight` workflow, which runs the gates and writes the verdict
-back within about a minute. Read the row: `PREFLIGHT_APPROVED` means every candidate may be surfaced as a
-BET, **at the `approved_stake` in `Preflight Result`**. `PREFLIGHT_BLOCKED` means at least one may not —
-`Preflight Result` names which and why; surface those as CANDIDATE / WATCHLIST / PASS.
+An Airtable Automation fires the `Pre-trade preflight` workflow, which runs the gates **as of the moment it
+runs** and writes the verdict back within about a minute. Read the row:
 
-**A row that is not `PREFLIGHT_APPROVED` has not been approved.** Errored, timed out, still
+* `PREFLIGHT_APPROVED` — every candidate may be surfaced as a BET, at the `approved_stake`, **exactly as it
+  appears in `Approved Payload`**. To archive it, change only `Status` to `READY_FOR_SYNC` on that same row.
+* `PREFLIGHT_BLOCKED` — at least one may not; `Preflight Result` names which and why. Surface those as
+  CANDIDATE / WATCHLIST / PASS. A verdict of `EXPIRED` means the request sat longer than 30 minutes: the
+  market can be re-priced, the thesis cannot, so submit a **fresh** request.
+
+**A row that is not `PREFLIGHT_APPROVED` has not been approved.** Errored, expired, timed out, still
 `PREFLIGHT_REQUESTED` — none of those is a bet. Silence is never yes.
+
+**The approved record is not the candidate.** Its `created_at` is the approval moment, its market fields are
+the approval-time quote, and its stake is what the risk policy allowed. The handicap — probabilities, grade,
+thesis — is carried through untouched. Do not hand-edit `Approved Payload`: the importer re-hashes it
+against the approval and refuses a mismatch.
 
 Debugging fallback only, when the Automation is down:
 

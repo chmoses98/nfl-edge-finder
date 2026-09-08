@@ -239,7 +239,8 @@ def test_the_pre_trade_path_refuses_the_same_records_the_writers_refuse(tmp_path
     for i, (label, candidate, expect_bet) in enumerate(cases):
         market = {"stale price": stale_md, "thin book": thin_md}.get(label, md)
         try:
-            result = P.preflight(candidate, market_data_root=market, ledger_root=str(ledger), root=ROOT)
+            result = P.preflight(candidate, market_data_root=market, ledger_root=str(ledger), root=ROOT,
+                                 approval_as_of=NOW)
             got = result.may_be_shown_as_a_bet
         except S.ValidationError:
             got = False
@@ -274,7 +275,8 @@ def test_capping_is_an_answer_before_the_trade_and_a_refusal_after_it(tmp_path):
     ledger.mkdir(exist_ok=True)
     oversized = rec(proposed_stake=500, recommended_stake=500)
 
-    pre = P.preflight(oversized, market_data_root=md, ledger_root=str(ledger), root=ROOT)
+    pre = P.preflight(oversized, market_data_root=md, ledger_root=str(ledger), root=ROOT,
+                      approval_as_of=NOW)
     assert pre.may_be_shown_as_a_bet, "the pre-trade answer is a SIZE, not a refusal"
     assert pre.approved_stake == 10 and pre.proposed_stake == 500
 

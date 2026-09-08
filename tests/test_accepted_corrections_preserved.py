@@ -85,10 +85,15 @@ def test_the_ceiling_is_still_a_hard_error_in_the_schema():
 
 # ---- 9-11. the fee engine ----------------------------------------------------------------------------
 
-def test_the_centicent_mechanics_are_intact():
-    assert F.CENTICENT == __import__("decimal").Decimal("0.0001")
+def test_the_fixed_point_fee_mechanics_are_intact():
+    """The decomposition survives; the INCREMENTS are pinned in test_fees against the current venue rules."""
+    from decimal import Decimal                                          # noqa: PLC0415
+    assert F.TRADE_FEE_INCREMENT == Decimal("0.000001")
+    assert F.NON_DIRECT_BALANCE_PRECISION == Decimal("0.01")
+    assert F.DIRECT_BALANCE_PRECISION == Decimal("0.0001")
+    assert not hasattr(F, "CENTICENT"), "the misnamed increment must not come back"
     comp = F.fee_for_fill(0.055, 1, 0.07, 1.0)
-    for part in ("raw_quadratic", "trade_fee", "rounding_fee", "rebate", "net_fee"):
+    for part in ("raw_quadratic", "trade_fee", "rounding_fee", "rebate", "net_fee", "rebate_capped"):
         assert hasattr(comp, part)
 
 
@@ -210,9 +215,14 @@ def test_the_rounding_bound_still_assumes_fractional_fills_by_default():
     assert F.load_fee_schedule(ROOT).granularity_state_for("KXNFLGAME") == F.GRANULARITY_UNKNOWN
 
 
-def test_a_per_fill_rebate_is_still_never_discarded():
-    assert F.fee_for_fill(0.5, 0.01, 0.07, 1.0, accumulator=0.0098).net_fee < 0
-    assert F.fee_for_order([(0.5, 0.01)] * 3, 0.07, 1.0)["net_fee"] >= 0.0
+def test_a_fills_net_fee_is_still_never_negative():
+    """The venue caps the rebate per fill. The unabsorbed credit is deferred, not forfeited."""
+    capped = F.fee_for_fill(0.5, 0.01, 0.07, 1.0, accumulator=0.0098)
+    assert capped.net_fee >= 0.0 and capped.rebate_capped is True
+    assert capped.accumulator_after > 0
+    order = F.fee_for_order([(0.5, 0.01)] * 3, 0.07, 1.0)
+    assert order["net_fee"] >= 0.0
+    assert order["net_fee"] == pytest.approx(order["trade_fee"] + order["accumulator_final"], abs=1e-9)
 
 
 def test_the_documented_fee_change_keys_are_still_first():
@@ -231,6 +241,39 @@ def test_the_pre_trade_leg_is_still_reachable_from_airtable():
 
 def test_the_airtable_payload_is_still_never_rewritten():
     from nfl_edge.handicap import airtable_bridge as AB      # noqa: PLC0415
+    client = AB.AirtableClient("tok", "b", "t", opener=lambda *a, **k: None)
+    with pytest.raises(AB.BridgeError):
+        client.write_fields({"rec1": {AB.F_PAYLOAD: "rewritten"}})
+
+
+# ---- 29-32. the final closure round -------------------------------------------------------------------
+
+def test_the_trade_fee_increment_is_still_six_decimal_dollars():
+    from decimal import Decimal                                          # noqa: PLC0415
+    assert F.TRADE_FEE_INCREMENT == Decimal("0.000001")
+    assert F.rounding_uncertainty(100, F.CENT)["trade_fee_increment"] == pytest.approx(1e-06)
+
+
+def test_fee_change_identity_is_still_per_change_not_per_series():
+    a = {"series_ticker": "K", "scheduled_ts": "2026-10-01T00:00:00Z"}
+    b = {"series_ticker": "K", "scheduled_ts": "2026-12-01T00:00:00Z"}
+    assert F.change_identity(a) != F.change_identity(b)
+    assert F.change_identity({"id": "x"}) == ("id", "x")
+
+
+def test_preflight_still_refuses_to_default_its_own_clock():
+    with pytest.raises(ValueError):
+        P.preflight_batch([], market_data_root=None, ledger_root=None, root=ROOT, approval_as_of=None)
+    assert P.MAX_REQUEST_AGE_MIN > 0
+
+
+def test_a_real_recommendation_still_needs_a_hash_bound_approval():
+    from nfl_edge.handicap import airtable_bridge as AB                  # noqa: PLC0415
+    src = inspect.getsource(AB._canonical_records)
+    assert "approved_payload_sha256" in src
+    assert "verdict" in src
+    assert AB.F_APPROVED_PAYLOAD == "Approved Payload"
+    # And the whitelist still cannot reach the candidate request.
     client = AB.AirtableClient("tok", "b", "t", opener=lambda *a, **k: None)
     with pytest.raises(AB.BridgeError):
         client.write_fields({"rec1": {AB.F_PAYLOAD: "rewritten"}})

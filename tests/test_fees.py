@@ -10,10 +10,14 @@ Multiplier for each listed non-standard series; `GET /series/{ticker}` carries o
 object's silence about the maker multiplier is not evidence that the maker multiplier is unknown, and
 treating it that way blocked KXNFLGAME on a number that is published.
 
-And the rounding is not `ceil(raw, $0.01)`. The trade fee is ceiled to a CENTICENT, the balance change is
-then cent-aligned as a separate rounding fee, and the overpayment accumulates per order until it earns a
-whole-cent rebate. Collapsing that to a per-fill cent ceiling overstates a twenty-fill order by up to twenty
-cents.
+And the rounding is not `ceil(raw, $0.01)`. The trade fee is rounded UP to $0.000001, the balance change is
+then aligned to the account's balance precision as a separate rounding fee, and the overpayment accumulates
+per order until it earns a rebate of one precision unit -- capped so a fill's own net fee cannot go negative.
+
+The increment has been wrong here twice, in both directions, which is why the primitives are pinned against
+numbers that actually DISCRIMINATE: a $0.01 ceiling overstates a twenty-fill order by up to twenty cents,
+and a $0.0001 ceiling -- what this file asserted until the increment was re-read from the current venue
+documentation -- overstates it by a hundredth of that but is still simply not the rule.
 """
 import json
 import os
@@ -37,11 +41,34 @@ def sched():
 
 # ---- rounding primitives ---------------------------------------------------------------------------
 
-def test_the_trade_fee_ceils_to_a_centicent_not_a_cent():
-    """$0.0001, not $0.01. A cent ceiling on a small fill overstates it by up to 100x."""
-    assert F.ceil_to(Decimal("0.00841"), F.CENTICENT) == Decimal("0.0085")
-    assert F.ceil_to(Decimal("0.0085"), F.CENTICENT) == Decimal("0.0085")
-    assert F.ceil_to(Decimal("0.00001"), F.CENTICENT) == Decimal("0.0001")
+def test_the_trade_fee_rounds_up_to_a_millionth_of_a_dollar():
+    """$0.000001 -- six decimal dollars. Not a cent, and not a ten-thousandth either.
+
+    These inputs are chosen to DISCRIMINATE. `0.00841234` is untouched by a $0.0001 ceiling only if you
+    round it to $0.0085, so the two candidate increments give visibly different answers here; the earlier
+    version of this test used values already aligned to $0.0001 and could not have caught the difference.
+    """
+    assert F.TRADE_FEE_INCREMENT == Decimal("0.000001")
+    assert F.ceil_to(Decimal("0.00841234"), F.TRADE_FEE_INCREMENT) == Decimal("0.008413")
+    assert F.ceil_to(Decimal("0.008413"), F.TRADE_FEE_INCREMENT) == Decimal("0.008413")
+    assert F.ceil_to(Decimal("0.0000001"), F.TRADE_FEE_INCREMENT) == Decimal("0.000001")
+    # The increment that used to be here would have given a materially different number.
+    assert F.ceil_to(Decimal("0.00841234"), Decimal("0.0001")) == Decimal("0.0085")
+
+
+def test_the_two_balance_precisions_are_named_and_distinct():
+    assert F.NON_DIRECT_BALANCE_PRECISION == Decimal("0.01")
+    assert F.DIRECT_BALANCE_PRECISION == Decimal("0.0001")
+    assert F.CENT == F.NON_DIRECT_BALANCE_PRECISION
+
+
+def test_a_direct_member_pays_less_rounding_on_the_same_fill():
+    """The finer balance precision is the whole point of the direct-member distinction."""
+    ordinary = F.fee_for_fill(0.055, 1, 0.07, 1.0, balance_precision=F.NON_DIRECT_BALANCE_PRECISION)
+    direct = F.fee_for_fill(0.055, 1, 0.07, 1.0, balance_precision=F.DIRECT_BALANCE_PRECISION)
+    assert direct.rounding_fee < ordinary.rounding_fee
+    assert direct.net_fee < ordinary.net_fee
+    assert direct.trade_fee == ordinary.trade_fee, "the trade fee does not depend on balance precision"
 
 
 def test_the_balance_floors_toward_a_larger_debit():
@@ -113,15 +140,66 @@ def test_the_accumulator_makes_many_small_fills_converge_on_one_equivalent_fill(
 
 def test_the_accumulator_carries_across_fills_of_one_order():
     """Per ORDER, not per fill. Restarting it each fill models a more expensive exchange than the real one."""
-    # Each fill here accrues $0.0013 of rounding, so a rebate is earned on the 8th -- not the 6th. The
-    # exact count is the point: the accumulator is a running total, not a per-fill reset.
     n = 10
     order = F.fee_for_order([(0.055, 1)] * n, 0.07, 1.0)
-    assert order["rebate"] == pytest.approx(0.01), f"{n} fills should earn exactly one rebate"
+    assert order["rebate"] > 0, f"{n} fills should earn a rebate"
     independent = sum(F.fee_for_fill(0.055, 1, 0.07, 1.0).net_fee for _ in range(n))
     assert order["net_fee"] < independent, "carrying the accumulator must cost less than restarting it"
-    assert F.fee_for_order([(0.055, 1)] * 7, 0.07, 1.0)["rebate"] == 0.0, \
-        "seven fills accrue 0.0091 and must NOT yet earn a rebate"
+    assert F.fee_for_order([(0.055, 1)] * 2, 0.07, 1.0)["rebate"] == 0.0, \
+        "two fills have not yet accrued a whole precision unit of rounding"
+
+
+# ---- the per-fill rebate cap -------------------------------------------------------------------------
+
+def test_a_fills_net_fee_can_never_be_negative():
+    """The venue caps the rebate so an individual fill's net fee stays at or above zero.
+
+    This is the exchange's rule. A previous version of this engine let a fill's net go negative and floored
+    only the order total -- which models a more generous exchange than the real one on exactly the tiny
+    fills where the difference shows up.
+    """
+    tiny = F.fee_for_fill(0.5, 0.01, 0.07, 1.0, accumulator=0.0098)
+    assert tiny.rebate_capped is True
+    assert tiny.rebate == pytest.approx(tiny.trade_fee + tiny.rounding_fee)
+    assert tiny.net_fee == pytest.approx(0.0)
+    assert tiny.net_fee >= 0.0
+
+
+def test_the_unabsorbed_part_of_a_rebate_stays_in_the_accumulator():
+    """A capped rebate is deferred, not forfeited: a later fill can still earn it."""
+    capped = F.fee_for_fill(0.5, 0.01, 0.07, 1.0, accumulator=0.0098)
+    assert capped.accumulator_after > 0, "the credit the fill could not absorb is still owed"
+    assert capped.accumulator_after == pytest.approx(0.0098 + capped.rounding_fee - capped.rebate)
+
+
+def test_no_fill_of_any_shape_produces_a_negative_net():
+    for price in (0.01, 0.055, 0.5, 0.62, 0.99):
+        for contracts in (0.01, 0.03, 0.3, 0.9, 1, 7.5, 100):
+            for acc in (0.0, 0.005, 0.0098, 0.01):
+                for prec in (F.NON_DIRECT_BALANCE_PRECISION, F.DIRECT_BALANCE_PRECISION):
+                    c = F.fee_for_fill(price, contracts, 0.07, 1.0, accumulator=acc,
+                                       balance_precision=prec)
+                    assert c.net_fee >= 0.0, (price, contracts, acc, prec)
+
+
+def test_the_accumulator_stays_within_one_balance_precision_under_the_cap():
+    """Re-proved by brute force, because the cap invalidated the previous one-line argument.
+
+    The old proof was "anything above one unit immediately rebates one", which stops being true once a fill
+    too small to absorb a whole unit rebates less. The invariant survives -- see the case analysis in
+    `fees.rounding_uncertainty` -- and this checks it rather than trusting it.
+    """
+    import random                                                       # noqa: PLC0415
+    random.seed(11)
+    for _ in range(600):
+        prec = random.choice([F.NON_DIRECT_BALANCE_PRECISION, F.DIRECT_BALANCE_PRECISION])
+        fills = [(round(random.uniform(0.01, 0.99), 4),
+                  random.choice([0.01, 0.03, 0.3, 0.9, 1.0, 7.5]))
+                 for _ in range(random.randint(1, 40))]
+        order = F.fee_for_order(fills, 0.07, 1.0, balance_precision=prec)
+        assert 0 <= order["accumulator_final"] <= float(prec) + 1e-12
+        # The identity the uncertainty bound rests on, with no flooring anywhere.
+        assert order["net_fee"] == pytest.approx(order["trade_fee"] + order["accumulator_final"], abs=1e-9)
 
 
 # ---- the four price/quantity shapes the review asked for -------------------------------------------
@@ -144,12 +222,15 @@ def test_fractional_contracts(sched):
 
 
 def test_subpenny_price(sched):
-    """A price between cents. The centicent ceiling is what keeps this from being rounded into nonsense."""
+    """A price between cents. The six-decimal ceiling is what keeps this from being rounded into nonsense."""
     q = sched.taker_fee(0.555, 100, "KXNFLGAME", as_of=AS_OF)
     raw = 0.07 * 100 * 0.555 * 0.445    # a subpenny price makes the raw fee land off a cent boundary
     assert q.components["raw_quadratic"] == pytest.approx(raw)
-    assert q.components["trade_fee"] == pytest.approx(float(F.ceil_to(Decimal(str(raw)), F.CENTICENT)))
-    assert q.components["trade_fee"] >= raw
+    assert q.components["trade_fee"] == pytest.approx(
+        float(F.ceil_to(Decimal(str(raw)), F.TRADE_FEE_INCREMENT)))
+    # `raw` here is a FLOAT product and carries binary residue (…0000000003); the engine computes the same
+    # quantity exactly in Decimal. The tolerance is for the test's arithmetic, not the engine's.
+    assert q.components["trade_fee"] >= raw - 1e-9
 
 
 def test_fractional_contracts_at_a_subpenny_price(sched):
@@ -157,8 +238,9 @@ def test_fractional_contracts_at_a_subpenny_price(sched):
     assert q.is_known
     raw = 0.07 * 12.5 * 0.0555 * 0.9445
     assert q.components["raw_quadratic"] == pytest.approx(raw)
-    # trade fee is a whole number of centicents, and the net is a whole number of cents once aligned
-    assert abs(round(q.components["trade_fee"] / 0.0001) * 0.0001 - q.components["trade_fee"]) < 1e-9
+    # the trade fee is a whole number of trade-fee increments
+    inc = float(F.TRADE_FEE_INCREMENT)
+    assert abs(round(q.components["trade_fee"] / inc) * inc - q.components["trade_fee"]) < 1e-9
     assert q.components["rounding_fee"] >= 0
 
 

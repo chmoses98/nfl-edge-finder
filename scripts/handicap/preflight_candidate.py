@@ -35,6 +35,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
@@ -58,7 +59,25 @@ def main(argv=None) -> int:
     ap.add_argument("--bankroll", type=float, default=None,
                     help="override the bankroll snapshot carried on the records")
     ap.add_argument("--json", action="store_true", help="emit the full result objects instead of a summary")
+    ap.add_argument("--approval-as-of", default=None,
+                    help="the moment approval is being evaluated (ISO-8601). Defaults to now, which is "
+                         "correct for an interactive run: you are asking whether to bet RIGHT NOW. Pass an "
+                         "explicit timestamp only to reproduce a past approval.")
     a = ap.parse_args(argv)
+
+    if a.approval_as_of:
+        try:
+            approval = datetime.fromisoformat(a.approval_as_of.replace("Z", "+00:00"))
+        except ValueError:
+            print(f"--approval-as-of {a.approval_as_of!r} is not an ISO-8601 timestamp", file=sys.stderr)
+            return 2
+        if approval.tzinfo is None:
+            approval = approval.replace(tzinfo=timezone.utc)
+    else:
+        # The one place a wall clock is the RIGHT answer: an operator running this interactively is asking
+        # about the market in front of them. The gates still evaluate at this timestamp and the approved
+        # record carries it, so nothing here dates a decision earlier than it was made.
+        approval = datetime.now(timezone.utc)
 
     try:
         payload = json.load(open(a.payload))
@@ -83,6 +102,7 @@ def main(argv=None) -> int:
     try:
         results = P.preflight_batch(
             candidates, market_data_root=a.market_data, ledger_root=a.handicap_root, root=ROOT,
+            approval_as_of=approval,
             max_quote_age_minutes=a.max_quote_age_minutes,
             max_book_age_minutes=a.max_book_age_minutes, bankroll_snapshot=a.bankroll)
     except RISK.RiskPolicyError as e:

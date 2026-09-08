@@ -348,8 +348,9 @@ def test_the_only_thing_above_zero_is_the_derived_fee_rounding_bound():
     # every term traceable to the venue's rules. It is NOT a round number somebody liked, and under the
     # venue's 0.01-contract minimum it is materially bigger than a whole-contract model implied.
     unc = nev["fee_uncertainty"]
-    assert unc["contract_increment"] == pytest.approx(0.01)
-    assert expected == pytest.approx(unc["max_fills"] * 0.0001 + 0.01)
+    assert unc["contract_increment"] == pytest.approx(0.01), "the venue's minimum fill, not our sizing"
+    assert unc["trade_fee_increment"] == pytest.approx(1e-06), "six decimal dollars, not a ten-thousandth"
+    assert expected == pytest.approx(unc["max_fills"] * 1e-06 + 0.01)
     assert unc["max_fills"] == pytest.approx(round(nev["contracts"] / 0.01), abs=1)
 
 

@@ -310,20 +310,40 @@ def test_the_capture_script_never_writes_the_committed_config():
 # ---- the rounding residual ------------------------------------------------------------------------------
 
 def test_the_bound_is_the_ceiling_term_plus_one_accumulator_residual():
-    """N is set by the venue's MINIMUM FILL, not by our order being a round number."""
+    """N is set by the venue's MINIMUM FILL; the ceiling term uses the ACTUAL trade-fee increment."""
     u = F.rounding_uncertainty(100, F.CENT)
     assert u["contract_increment"] == pytest.approx(0.01)
     assert u["max_fills"] == 10000, "100 contracts can arrive as 10000 fills of 0.01"
-    assert u["trade_fee_ceiling_bound"] == pytest.approx(10000 * 0.0001)
+    assert u["trade_fee_increment"] == pytest.approx(1e-06)
+    assert u["trade_fee_ceiling_bound"] == pytest.approx(10000 * 1e-06)
     assert u["accumulator_residual_bound"] == pytest.approx(0.01)
-    assert u["bound_dollars"] == pytest.approx(1.01)
+    assert u["bound_dollars"] == pytest.approx(0.02)
+
+
+def test_the_residual_term_dominates_at_ordinary_sizes():
+    """With the correct $0.000001 increment the accumulator residual is most of the bound, not the ceiling.
+
+    Under the increment this file previously asserted, a 16-contract position carried a $0.17 bound; the
+    ceiling term was a hundred times too large and swamped everything. Those magnitudes are discarded.
+    """
+    u = F.rounding_uncertainty(16.13, F.CENT)
+    assert u["bound_dollars"] == pytest.approx(0.011613, abs=1e-6)
+    assert u["trade_fee_ceiling_bound"] < u["accumulator_residual_bound"]
+
+
+def test_a_direct_member_gets_a_smaller_residual_term():
+    """The residual is one BALANCE PRECISION, so a direct member's bound is dominated by the ceiling."""
+    ordinary = F.rounding_uncertainty(100, F.NON_DIRECT_BALANCE_PRECISION)
+    direct = F.rounding_uncertainty(100, F.DIRECT_BALANCE_PRECISION)
+    assert direct["accumulator_residual_bound"] == pytest.approx(0.0001)
+    assert direct["bound_dollars"] < ordinary["bound_dollars"]
 
 
 def test_a_whole_contract_market_gets_the_much_smaller_bound():
     """The lever that shrinks this is EVIDENCE, not preference."""
     whole = F.rounding_uncertainty(100, F.CENT, granularity_state=F.GRANULARITY_WHOLE)
     assert whole["max_fills"] == 100
-    assert whole["bound_dollars"] == pytest.approx(0.02)
+    assert whole["bound_dollars"] == pytest.approx(0.0101)
 
 
 def test_unknown_granularity_is_priced_exactly_as_fractional():
@@ -368,7 +388,7 @@ def test_the_bound_is_summed_per_price_level_and_never_double_charges_the_walk()
 def test_the_bound_scales_with_size_not_with_price():
     small, large = F.rounding_uncertainty(10, F.CENT), F.rounding_uncertainty(1000, F.CENT)
     assert large["bound_dollars"] > small["bound_dollars"]
-    assert small["bound_dollars"] == pytest.approx(0.01 + 1000 * 0.0001)
+    assert small["bound_dollars"] == pytest.approx(0.01 + 1000 * 1e-06)
 
 
 def test_no_fragmentation_can_exceed_the_bound():
@@ -407,45 +427,49 @@ def test_a_worst_case_penny_granularity_sweep_stays_within_the_bound():
             bound = F.rounding_uncertainty(contracts, F.CENT)["bound_dollars"]
             assert shredded - one <= bound + 1e-9, \
                 f"{n} penny fills at {price}: {shredded} vs {one}, bound {bound}"
-            assert shredded > one, "penny-granularity shredding really is more expensive"
+            # Not asserted the other way round: with the per-fill rebate cap, shredding can occasionally
+            # come out CHEAPER than the equivalent fill. The bound exists to cap the expensive direction,
+            # which is the only one that can make a trade look better than it is.
 
 
-@pytest.mark.parametrize("contracts,price", [(5.0, 0.5), (5.0, 0.62), (10.0, 0.62)])
-def test_the_old_whole_contract_bound_is_actually_violated(contracts, price):
-    """Proof the previous derivation was UNSOUND, not merely loose.
+def test_a_whole_contract_fill_count_is_still_an_unsound_derivation():
+    """The fractional-granularity correction remains necessary, and the honest magnitude is smaller.
 
-    Under the old `N <= ceil(contracts)` assumption a 5-contract order was bounded at 5 fills, so the claimed
-    worst case was `5 * $0.0001 + $0.01`. Shredded at the venue's real 0.01-contract minimum it arrives in
-    500 fills and the true excess is double that bound. A bound that the mechanism can exceed is not a bound,
-    and calling the number behind it "conservative" was wrong.
+    Under the WRONG $0.0001 increment this violation showed up at five contracts. With the correct
+    $0.000001 increment the ceiling term is a hundred times smaller and the accumulator residual dominates,
+    so the assumption has to be pushed harder before it breaks -- but it does break, which is what makes it
+    a wrong derivation rather than a loose one. Reported honestly: at ordinary pilot sizes the two bounds
+    are close, and the reason to keep the fractional one is that it is TRUE, not that it is bigger.
     """
-    old_bound = contracts * 0.0001 + 0.01
+    contracts, price = 150.0, 0.15
+    whole_contract_bound = contracts * float(F.TRADE_FEE_INCREMENT) + 0.01
     n = int(round(contracts / 0.01))
     one = F.fee_for_order([(price, contracts)], 0.07, 1.0)["net_fee"]
     shredded = F.fee_for_order([(price, 0.01)] * n, 0.07, 1.0)["net_fee"]
-    assert shredded - one > old_bound, "the old bound was not conservative under fractional fills"
+    assert shredded - one > whole_contract_bound, \
+        "a fill count derived from whole contracts is not a bound the mechanism respects"
     assert shredded - one <= F.rounding_uncertainty(contracts, F.CENT)["bound_dollars"] + 1e-9
 
 
-def test_a_rebate_bigger_than_its_own_fill_is_not_discarded():
-    """Found while re-deriving the bound: the per-fill `max(net, 0)` floor destroyed real rebates.
+def test_the_per_fill_rebate_cap_is_modelled_and_the_identity_survives_it():
+    """The venue caps a fill's rebate so its net fee cannot go negative -- and the bound still holds.
 
-    On a 0.01-contract fill the trade fee is a fraction of a cent, so a whole-cent rebate landing on it makes
-    that fill's net NEGATIVE. Flooring per fill threw the credit away and made 200 penny fills cost 13x the
-    equivalent single fill -- destroying the exact property the accumulator exists to provide. The exchange
-    never pays you to trade, so the floor belongs on the ORDER TOTAL, and that is where it now lives.
+    A previous version let a fill's net go negative and floored only the order total. That models a more
+    generous exchange than the real one. With the cap restored, `net_order == SUM(trade_fee) + accumulator`
+    holds exactly with no flooring anywhere, which is what the bound rests on.
     """
-    rebate_fill = F.fee_for_fill(0.5, 0.01, 0.07, 1.0, accumulator=0.0098)
-    assert rebate_fill.rebate == pytest.approx(0.01)
-    assert rebate_fill.net_fee < 0, "a per-fill net may be negative; the credit is real"
+    capped = F.fee_for_fill(0.5, 0.01, 0.07, 1.0, accumulator=0.0098)
+    assert capped.net_fee >= 0.0 and capped.rebate_capped is True
+
+    for fills in ([(0.5, 0.01)] * 200, [(0.62, 1.0)] * 13, [(0.05, 0.3)] * 40):
+        order = F.fee_for_order(fills, 0.07, 1.0)
+        assert order["net_fee"] == pytest.approx(
+            order["trade_fee"] + order["accumulator_final"], abs=1e-9)
+        assert order["net_fee"] >= 0.0
 
     one = F.fee_for_order([(0.5, 2.0)], 0.07, 1.0)["net_fee"]
     many = F.fee_for_order([(0.5, 0.01)] * 200, 0.07, 1.0)["net_fee"]
-    assert many == pytest.approx(0.05) and one == pytest.approx(0.04)
-    assert many - one <= 0.0101, "200 penny fills must land within a cent of the equivalent fill"
-
-    # The order total is still floored: the exchange does not pay you to trade.
-    assert F.fee_for_order([(0.5, 0.01)] * 3, 0.07, 1.0)["net_fee"] >= 0.0
+    assert many - one <= F.rounding_uncertainty(2.0, F.CENT)["bound_dollars"] + 1e-9
 
 
 def test_a_multi_level_walk_stays_within_the_per_level_bound():
@@ -470,8 +494,8 @@ def test_the_accumulator_residual_never_exceeds_one_cent():
 def test_conservative_net_ev_is_net_ev_less_the_bound(sched):
     nev = F.net_executable_ev(0.70, 0.62, 100, sched, series_ticker=SERIES, as_of=AS_OF)
     assert nev.is_known
-    expected = F.rounding_uncertainty(100, F.CENT,
-                                      granularity_state=sched.granularity_state_for(SERIES))["bound_dollars"]
+    expected = F.rounding_uncertainty(
+        100, F.CENT, granularity_state=sched.granularity_state_for(SERIES))["bound_dollars"]
     assert nev.fee_uncertainty_dollars == pytest.approx(expected)
     assert nev.conservative_net_ev_dollars == pytest.approx(nev.net_ev_dollars - expected)
     assert nev.fee_uncertainty["derivation"]
@@ -505,3 +529,86 @@ def test_the_schedule_defaults_to_unknown_granularity_and_says_why(sched):
     assert g["fractional_increment"] == 0.01
     assert "0.01-contract minimum" in g["why_unknown_is_the_default"]
     assert "PROVES" in g["how_to_set_a_series_to_whole_contracts"]
+
+
+# ---- fee-change identity: one series can carry several changes ---------------------------------------
+#
+# Keying observations on the series alone collapses every change for that series into whichever the loop saw
+# last -- and because `show_historical=true` is deliberate, one series routinely carries a past change and a
+# scheduled one at the same time. That is exactly how an applicable unmodelled change gets hidden behind a
+# later, harmless one.
+
+def ch(cid=None, *, series=SERIES, ts="2026-11-01T00:00:00Z", fee_type="quadratic", mult=2.0):
+    d = {"series_ticker": series, "scheduled_ts": ts, "fee_type": fee_type, "fee_multiplier": mult}
+    if cid is not None:
+        d["id"] = cid
+    return d
+
+
+def test_the_official_id_is_the_identity_when_present():
+    assert F.change_identity(ch("sfc_1")) == ("id", "sfc_1")
+    assert F.change_identity(ch("sfc_1")) != F.change_identity(ch("sfc_2"))
+
+
+def test_A_two_changes_for_one_series_both_survive(tmp_path, sched):
+    obs = observations(tmp_path, snapshot(AS_OF - timedelta(hours=1), changes=[
+        ch("sfc_1", ts="2026-10-01T00:00:00Z"),
+        ch("sfc_2", ts="2026-12-01T00:00:00Z"),
+    ]))
+    got = obs.announced_changes(AS_OF)
+    assert len(got) == 2
+    assert {c["id"] for c in got} == {"sfc_1", "sfc_2"}
+
+
+def test_B_a_historical_and_a_future_change_on_one_series_both_survive(tmp_path, sched):
+    past, future = AS_OF - timedelta(days=30), AS_OF + timedelta(days=30)
+    obs = observations(tmp_path, snapshot(AS_OF - timedelta(hours=1), changes=[
+        ch("sfc_past", ts=past.isoformat()), ch("sfc_future", ts=future.isoformat()),
+    ]))
+    got = obs.announced_changes(AS_OF)
+    assert len(got) == 2
+    effs = sorted(F._change_effective(c) for c in got)
+    assert effs == [past, future]
+
+
+def test_C_the_same_change_across_weekly_snapshots_is_one_logical_change(tmp_path):
+    weeks = [snapshot(AS_OF - timedelta(days=d), changes=[ch("sfc_1")]) for d in (21, 14, 7)]
+    got = observations(tmp_path, *weeks).announced_changes(AS_OF)
+    assert len(got) == 1
+    assert got[0]["_observed_at"] == (AS_OF - timedelta(days=7)).isoformat(), \
+        "the newest observation of a change wins"
+
+
+def test_D_the_no_id_fallback_is_deterministic_and_still_distinguishes():
+    a = ch(ts="2026-10-01T00:00:00Z")
+    b = ch(ts="2026-12-01T00:00:00Z")
+    assert F.change_identity(a) == F.change_identity(dict(a)), "same change -> same identity, every time"
+    assert F.change_identity(a) != F.change_identity(b), "different scheduled_ts -> different change"
+    assert F.change_identity(a) != F.change_identity(ch(ts="2026-10-01T00:00:00Z", mult=3.0))
+    assert F.change_identity(a) != F.change_identity(ch(ts="2026-10-01T00:00:00Z", fee_type="other"))
+    assert F.change_identity(a)[0] == "derived"
+
+
+def test_D_two_undated_changes_on_one_series_do_not_collapse():
+    """The old key was `(series, effective_at)`; with no `effective_at` both became `(series, None)`."""
+    bare_a = {"series_ticker": SERIES, "fee_multiplier": 2.0}
+    bare_b = {"series_ticker": SERIES, "fee_multiplier": 3.0}
+    assert F.change_identity(bare_a) != F.change_identity(bare_b)
+
+
+def test_E_an_applicable_unmodelled_change_cannot_be_hidden_behind_a_later_one(tmp_path, sched):
+    """The failure this identity fix exists to prevent, end to end at the gate.
+
+    An unmodelled change that took effect BEFORE this decision must still block, even when the same series
+    also carries a later change that does not apply yet.
+    """
+    live = AS_OF - timedelta(days=2)
+    future = AS_OF + timedelta(days=60)
+    obs = observations(tmp_path, snapshot(AS_OF - timedelta(hours=1), changes=[
+        ch("sfc_live", ts=live.isoformat()),
+        ch("sfc_later", ts=future.isoformat()),
+    ]))
+    v = sched.verification(SERIES, AS_OF, obs)
+    assert v["state"] == F.PENDING_CHANGE
+    assert [c["id"] for c in v["pending_changes"]] == ["sfc_live"], \
+        "the live change must survive the presence of a later one"

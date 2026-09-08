@@ -257,6 +257,12 @@ class Recommendation:
 
     # lineage
     amends: str | None = None                       # recommendation_id this supersedes; never an in-place edit
+    # PREFLIGHT LINEAGE. `created_at` on a preflight-approved record is the moment PRE-TRADE APPROVAL was
+    # evaluated, not the moment the draft was written -- so the draft's own timestamp is kept here, and the
+    # Airtable request that produced the approval is named, making the three stages (candidate request,
+    # machine approval, immutable record) traceable to one another after the fact.
+    candidate_created_at: str | None = None
+    preflight_request_airtable_id: str | None = None
     test_only: bool = False                         # TEST_ONLY records are excluded from every report
 
     def to_dict(self):

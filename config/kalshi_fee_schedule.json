@@ -40,13 +40,17 @@
     "series": {}
   },
   "rounding": {
-    "trade_fee_increment": 0.0001,
+    "trade_fee_increment": 1e-06,
     "trade_fee_mode": "ceil",
     "balance_precision_default": 0.01,
     "balance_precision_direct_member": 0.0001,
     "accumulator_scope": "per_order_across_fills",
-    "rebate_increment": 0.01,
-    "notes": "The trade fee is ceiled to a CENTICENT ($0.0001). The resulting balance change is then floored to the account's balance precision, and the difference is charged as a ROUNDING FEE. That overpayment accumulates per order across all of its fills, taker and maker alike; once the accumulator exceeds one cent a whole-cent REBATE is issued and the accumulator is reduced by a cent. Net fee = trade fee + rounding fee - rebate, never below zero. The accumulator is what makes many small fills converge to the cost of one equivalent fill."
+    "rebate_unit": "one balance precision unit",
+    "rebate_cap": "PER FILL. The rebate is capped so an individual fill's net fee cannot become negative; the unabsorbed part stays in the accumulator for a later fill to earn.",
+    "verified_at": "2026-09-08",
+    "verified_by": "OPERATOR_ATTESTATION",
+    "verification_note": "The session that wrote these values could not reach docs.kalshi.com (network egress policy), so they are recorded from the operator's reading of the CURRENT Kalshi Fee Rounding documentation on the date above. A prior version of this file said the trade fee ceiled to $0.0001; that was wrong by two orders of magnitude and survived several reviews because the worked example available at the time could not distinguish the two. Any future change to these values needs the same reviewed treatment as a fee multiplier.",
+    "notes": "The trade fee is the raw quadratic rounded UP to $0.000001. The resulting balance change is then floored to the account's balance precision ($0.01 for an ordinary account, $0.0001 for a direct member), and the shortfall is charged as a ROUNDING FEE. That overpayment accumulates PER ORDER across all of its fills, taker and maker alike; once the accumulator exceeds one balance-precision unit a REBATE of one unit is issued -- capped so that fill's net fee stays at or above zero -- and the accumulator is reduced by whatever was actually rebated. Net fee = trade fee + rounding fee - rebate, non-negative by construction rather than by flooring. The accumulator is what makes many small fills converge toward the cost of one equivalent fill."
   },
   "schedules": [
     {

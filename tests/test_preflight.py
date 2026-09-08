@@ -97,9 +97,15 @@ def candidate(**kw):
     return d
 
 
-def fly(tmp_path, cand=None, *, md=None, led=None, prior=()):
+# Approval happens a couple of minutes after the draft, which is the ordinary case: an Automation fires,
+# a runner starts, the gates run. `approval_as_of` is what everything is judged at.
+APPROVAL = DECISION + timedelta(minutes=2)
+
+
+def fly(tmp_path, cand=None, *, md=None, led=None, prior=(), at=None, **kw):
     return P.preflight(cand or candidate(), market_data_root=md or market_data(tmp_path),
-                       ledger_root=led or ledger(tmp_path, prior), root=ROOT)
+                       ledger_root=led or ledger(tmp_path, prior), root=ROOT,
+                       approval_as_of=at or APPROVAL, **kw)
 
 
 # ---- the happy path ----------------------------------------------------------------------------------
@@ -109,7 +115,8 @@ def test_a_sound_candidate_is_approved_as_a_bet(tmp_path):
     assert r.verdict == P.APPROVED, r.blocking_reasons
     assert r.surface_as == S.RECOMMENDED and r.may_be_shown_as_a_bet
     assert r.approved_stake == 10.0
-    assert r.as_of == DECISION.isoformat(), "evaluated at the DECISION, not at wall clock"
+    assert r.as_of == APPROVAL.isoformat(), "evaluated at the APPROVAL, not at the draft time"
+    assert r.candidate_created_at == DECISION.isoformat(), "the draft's own timestamp is kept as lineage"
 
 
 def test_a_candidate_is_evaluated_as_the_recommendation_it_would_become(tmp_path):
@@ -207,9 +214,10 @@ def test_a_stale_price_cannot_reach_the_bet_state(tmp_path):
 
 def test_an_unreadable_ledger_cannot_reach_the_bet_state(tmp_path):
     """Cumulative caps against a book we cannot see are not caps. Fail closed."""
-    report = R.report_for_batch([candidate(decision=S.RECOMMENDED)], R.RiskPolicy.load(ROOT), None)
+    rec = candidate(decision=S.RECOMMENDED, created_at=APPROVAL.isoformat())
+    report = R.report_for_batch([rec], R.RiskPolicy.load(ROOT), None)
     ctx = P.build_context(market_data(tmp_path), root=ROOT, risk_report=report)
-    gr = G.evaluate_gates(candidate(decision=S.RECOMMENDED), ctx)
+    gr = G.evaluate_gates(rec, ctx)
     assert gr.gates[G.G_RISK].status == G.UNAVAILABLE
     assert "could not be read" in gr.gates[G.G_RISK].reason
 
@@ -226,21 +234,23 @@ def test_preflight_and_the_delayed_import_reach_the_same_verdict(tmp_path):
     for cand, expect_bet in [(candidate(), True),
                              (candidate(probability_mid=0.5601, probability_low=0.56,
                                         probability_high=0.57), False)]:
-        pre = P.preflight(cand, market_data_root=md, ledger_root=led, root=ROOT)
-        rec_as_filed = dict(cand, decision=S.RECOMMENDED,
-                            recommended_stake=pre.approved_stake or cand["recommended_stake"])
+        pre = P.preflight(cand, market_data_root=md, ledger_root=led, root=ROOT,
+                          approval_as_of=APPROVAL)
+        # The importer replays the APPROVED RECORD, which is what the ledger archives.
+        rec_as_filed = pre.approved_record or dict(cand, decision=S.RECOMMENDED,
+                                                   created_at=APPROVAL.isoformat())
         report = R.report_for_batch([rec_as_filed], R.RiskPolicy.load(ROOT), led)
         ctx = P.build_context(md, root=ROOT, risk_report=report)
         imported = G.evaluate_gates(rec_as_filed, ctx)
         assert pre.may_be_shown_as_a_bet is expect_bet
         assert (imported.overall == G.PASS) is expect_bet, \
             "the delayed replay must reach the verdict preflight reached"
-        assert imported.as_of == pre.as_of, "both must judge at the decision timestamp"
+        assert imported.as_of == pre.as_of, "both must judge at the APPROVAL timestamp"
 
 
 def test_the_import_replay_does_not_depend_on_when_it_runs(tmp_path):
     md, led = market_data(tmp_path), ledger(tmp_path)
-    rec_as_filed = candidate(decision=S.RECOMMENDED)
+    rec_as_filed = candidate(decision=S.RECOMMENDED, created_at=APPROVAL.isoformat())
     report = R.report_for_batch([rec_as_filed], R.RiskPolicy.load(ROOT), led)
     first = G.evaluate_gates(rec_as_filed, P.build_context(md, root=ROOT, risk_report=report))
     second = G.evaluate_gates(rec_as_filed, P.build_context(md, root=ROOT, risk_report=report))
@@ -256,14 +266,15 @@ def test_preflight_does_not_reimplement_the_gates():
     assert "R.report_for_batch" in src, "preflight must use the shared cumulative portfolio report"
     # Forwarding a default is fine; RE-DECIDING with it is not. These are the shapes of a copied rule.
     for smell in ("max_exposure_per", "bet_up_to_probability >", "net_ev_dollars <=",
-                  "age_minutes >", "vwap >", "walk_book", "entry_fee("):
+                  "vwap >", "walk_book", "entry_fee("):
         assert smell not in src, f"{smell!r} looks like gate arithmetic copied into preflight"
 
 
 def test_preflight_writes_nothing(tmp_path):
     md, led = market_data(tmp_path), ledger(tmp_path)
     before = sorted(os.walk(led))
-    P.preflight(candidate(), market_data_root=md, ledger_root=led, root=ROOT)
+    P.preflight(candidate(), market_data_root=md, ledger_root=led, root=ROOT,
+                approval_as_of=APPROVAL)
     assert sorted(os.walk(led)) == before, "preflight is a check, not a write"
 
 
@@ -288,7 +299,8 @@ def test_a_batch_is_sized_together_not_one_at_a_time(tmp_path):
     md, led = market_data(tmp_path), ledger(tmp_path)
     cands = [candidate(recommendation_id=f"rec_pf000000000000000{i}", proposed_stake=15,
                        recommended_stake=15) for i in (1, 2, 3)]
-    results = P.preflight_batch(cands, market_data_root=md, ledger_root=led, root=ROOT)
+    results = P.preflight_batch(cands, market_data_root=md, ledger_root=led, root=ROOT,
+                                approval_as_of=APPROVAL)
     approved = sum(r.approved_stake or 0 for r in results if r.may_be_shown_as_a_bet)
     assert approved <= 30.0, "the correlation group cap is 3u = $30 across the whole slate"
     assert not all(r.may_be_shown_as_a_bet for r in results)

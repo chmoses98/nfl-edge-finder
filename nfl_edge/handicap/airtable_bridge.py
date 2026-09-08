@@ -56,6 +56,10 @@ F_RUN_ID, F_SPORT, F_STATUS, F_PAYLOAD, F_NOTES = "Run ID", "Sport", "Status", "
 # request and the verdict can never be confused for one another, and so the importer's rule -- it writes
 # Status and nothing else -- survives untouched.
 F_PREFLIGHT_RESULT = "Preflight Result"
+# The exact canonical batch the preflight worker APPROVED. `Payload` stays the immutable candidate request;
+# this is the machine-approved decision. Three distinguishable stages -- request, approval, ledger record --
+# and the importer archives the middle one, not the first.
+F_APPROVED_PAYLOAD = "Approved Payload"
 
 STATUS_TEST_ONLY = "TEST_ONLY"          # connectivity scratch; scheduled polling ignores it entirely
 STATUS_READY = "READY_FOR_SYNC"         # ChatGPT is done writing; GitHub may ingest
@@ -221,13 +225,16 @@ class AirtableClient:
         self.write_fields({rid: {F_STATUS: st} for rid, st in updates.items()},
                           allowed={F_STATUS})
 
-    def write_fields(self, updates: dict, *, allowed=frozenset({F_STATUS, F_PREFLIGHT_RESULT})) -> None:
+    def write_fields(self, updates: dict,
+                     *, allowed=frozenset({F_STATUS, F_PREFLIGHT_RESULT, F_APPROVED_PAYLOAD})) -> None:
         """Batch field writes, 10 records per request -- Airtable's documented maximum.
 
         `allowed` is a whitelist, not documentation. `Run ID`, `Sport` and `Payload` are SOURCE DATA once a
         row has been submitted; rewriting any of them would destroy the provenance the import receipt exists
         to prove. The importer passes `{Status}` and so can only ever write a status; the pre-trade leg
-        additionally writes its own verdict field, and neither can reach the payload.
+        additionally writes its verdict and the approved batch. Neither can reach `Payload`, which is what
+        keeps the candidate REQUEST, the machine APPROVAL and the ledger RECORD three distinguishable
+        artifacts rather than one field that quietly became something else.
         """
         for fields in updates.values():
             bad = set(fields) - set(allowed)
@@ -264,6 +271,15 @@ def _esc(v: str) -> str:
 
 def payload_sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def canonical_payload(records: list) -> str:
+    """The exact bytes an approved batch is hashed and transported as.
+
+    One serialisation, used by the worker to write `Approved Payload` and by the importer to re-hash it, so
+    the binding is a byte comparison rather than a hopeful re-encoding.
+    """
+    return json.dumps(records, indent=1, sort_keys=True, default=str)
 
 
 def parse_payload(text) -> list[dict]:
@@ -433,6 +449,9 @@ class RunPlan:
     gate_records: list = field(default_factory=list)    # [(path, DecisionGates dict)] for newly written recs
     warnings: list = field(default_factory=list)
     decisions: dict = field(default_factory=dict)       # decision -> count, for the log line
+    # Which of the row's two payloads was archived, and the hash binding that let it be.
+    payload_source: str = "candidate payload"
+    approved_sha: str | None = None
 
     @property
     def writes_nothing(self) -> bool:
@@ -458,12 +477,19 @@ def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
 
     raw = fields.get(F_PAYLOAD)
     sha = payload_sha(raw if isinstance(raw, str) else json.dumps(raw, sort_keys=True))
-    records = parse_payload(raw)
+    candidate_records = parse_payload(raw)
+
+    # WHICH PAYLOAD IS CANONICAL. `Payload` is the immutable candidate REQUEST. A real RECOMMENDED record is
+    # archived from `Approved Payload` -- the exact batch the pre-trade worker approved -- and only after its
+    # hash is re-derived here and matched against the hash recorded in `Preflight Result`. Without that, a
+    # row could be written straight to READY_FOR_SYNC and walk a bet into the ledger having passed nothing.
+    records, source, approved_sha = _canonical_records(fields, candidate_records, airtable_id)
     warnings = check_batch(records, run_id=run_id, airtable_created=airtable_created, now=now)
 
     season, week = records[0]["season"], records[0]["week"]
     plan = RunPlan(airtable_id=airtable_id, run_id=run_id, created_time=created_time, sha=sha,
-                   season=season, week=week, warnings=warnings)
+                   season=season, week=week, warnings=warnings,
+                   payload_source=source, approved_sha=approved_sha)
 
     for rec in records:
         plan.decisions[rec.get("decision")] = plan.decisions.get(rec.get("decision"), 0) + 1
@@ -491,6 +517,75 @@ def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
     _plan_gates(plan, ledger_root, gate_context, now)
     plan.receipt = _plan_receipt(plan, ledger_root, records, base_id, table_id, now)
     return plan
+
+
+def _needs_preflight(records: list) -> bool:
+    """Does this batch contain a real bet? TEST_ONLY and PASS/WATCHLIST/RESEARCH_ALERT risk no capital."""
+    return any(r.get("decision") == S.RECOMMENDED and not r.get("test_only") for r in records or [])
+
+
+def _canonical_records(fields: dict, candidate_records: list, airtable_id: str) -> tuple:
+    """The records this row actually archives, and the proof it is allowed to.
+
+    A batch with no real RECOMMENDED record keeps the simple path: a PASS is scientifically valuable, costs
+    nothing, and requiring a pre-trade approval for it would only discourage recording passes.
+
+    A batch WITH one is different. It is archived from `Approved Payload`, and only when:
+
+      * a `Preflight Result` exists, is readable, says APPROVED, and names this Airtable row;
+      * `Approved Payload` re-hashes to the `approved_payload_sha256` that result recorded.
+
+    Anything else -- no approval, a blocked or expired one, a payload edited after approval, an approval for
+    a different row -- is refused. That is what makes "a direct READY_FOR_SYNC row cannot bypass preflight" a
+    property of the importer rather than a convention.
+    """
+    approved_raw = fields.get(F_APPROVED_PAYLOAD)
+    result_raw = fields.get(F_PREFLIGHT_RESULT)
+    has_approved = isinstance(approved_raw, str) and approved_raw.strip()
+
+    if not _needs_preflight(candidate_records) and not has_approved:
+        return candidate_records, "candidate payload (no real recommendation in this batch)", None
+
+    if not has_approved:
+        raise BridgeError(
+            "this row carries a real RECOMMENDED record but no `Approved Payload`. A bet reaches the ledger "
+            "only through pre-trade approval: submit it as PREFLIGHT_REQUESTED, and move the row to "
+            "READY_FOR_SYNC once it comes back PREFLIGHT_APPROVED. Writing READY_FOR_SYNC directly does not "
+            "make a decision approved, it only skips the check.")
+
+    if not isinstance(result_raw, str) or not result_raw.strip():
+        raise BridgeError("`Approved Payload` is present but `Preflight Result` is not; there is no "
+                          "approval to bind it to")
+    try:
+        result = json.loads(result_raw)
+    except (ValueError, TypeError) as e:
+        raise BridgeError(f"`Preflight Result` is not valid JSON: {e}") from None
+    if not isinstance(result, dict):
+        raise BridgeError("`Preflight Result` is not an object")
+
+    if result.get("verdict") != "APPROVED":
+        raise BridgeError(
+            f"the preflight verdict on this row is {result.get('verdict')!r}, not APPROVED. A blocked, "
+            "expired or errored request can never become a canonical recommendation.")
+    claimed_row = result.get("airtable_record_id")
+    if claimed_row and claimed_row != airtable_id:
+        raise BridgeError(
+            f"the `Preflight Result` on row {airtable_id} was issued for row {claimed_row}; an approval is "
+            "not transferable between requests")
+
+    expected = result.get("approved_payload_sha256")
+    actual = payload_sha(approved_raw)
+    if not expected:
+        raise BridgeError("`Preflight Result` records no approved_payload_sha256, so `Approved Payload` "
+                          "cannot be bound to the approval")
+    if expected != actual:
+        raise BridgeError(
+            f"`Approved Payload` hashes to {actual} but the approval was issued for {expected}. The approved "
+            "batch has been altered since it was approved; it is not what passed the gates and will not be "
+            "archived.")
+
+    records = parse_payload(approved_raw)
+    return records, "approved payload (preflight-bound)", actual
 
 
 def _plan_gates(plan: RunPlan, ledger_root: str, gate_context, now: datetime) -> None:
@@ -558,6 +653,8 @@ def _plan_receipt(plan: RunPlan, ledger_root: str, records: list, base_id: str, 
         "airtable_base_id": base_id,
         "airtable_table_id": table_id,
         "airtable_record_id": plan.airtable_id,
+        "payload_source": plan.payload_source,
+        "approved_payload_sha256": plan.approved_sha,
         "airtable_created_time": plan.created_time,
         "run_id": plan.run_id,
         "season": plan.season,

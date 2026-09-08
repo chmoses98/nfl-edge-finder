@@ -39,6 +39,25 @@ is narrow and is the part that genuinely differs before the trade:
   * the verdict is expressed as what the candidate may be CALLED -- and a blocked candidate may be called a
     PASS, a WATCHLIST entry or a CANDIDATE, but never a BET.
 
+APPROVAL TIME IS THE DECISION TIME
+---------------------------------
+A candidate drafted at 13:00 and preflighted at 13:30 is not a 13:00 decision. If the gates ran against the
+candidate's own `created_at`, an approval at 13:30 would be an AUDIT of a 13:00 opportunity -- correct about
+a market that no longer exists, and delivered as though it were a live instruction.
+
+So the clock is `approval_as_of`: the moment pre-trade approval is actually evaluated. The executable market
+state on the approved record is refreshed to that moment -- the ask, the bid, the mid, the market timestamp
+and the minutes to kickoff -- and every gate is then evaluated against it. If the market moved against the
+candidate in those thirty minutes, the ceiling or the depth walk blocks it, which is the point.
+
+The HANDICAP does not move. `probability_low/mid/high`, `model_probability`, the thesis and the grade are
+the handicapper's opinion from the packet and are carried forward untouched; nothing here recomputes a
+predictive model. What is refreshed is the market, because that is the half that goes stale in minutes.
+
+A request can also simply be too old to approve at all. Past `MAX_REQUEST_AGE_MIN` the handicap itself is
+stale even if the market is fresh, and the answer is EXPIRED -- submit a new one -- rather than an approval
+built on a thesis nobody has looked at in an hour.
+
 WHAT IT STILL DOES NOT DO
 -------------------------
 It places nothing, orders nothing, and writes nothing to the ledger. A PASS here is permission for a human to
@@ -62,6 +81,14 @@ CANDIDATE = "CANDIDATE"
 
 APPROVED = "APPROVED"      # may be shown to the owner as a BET, at `approved_stake`
 BLOCKED = "BLOCKED"        # may be shown as a candidate/watchlist/pass. Never as a bet.
+EXPIRED = "EXPIRED"        # the request sat too long to produce a prospectively defensible approval
+
+# How long a preflight request stays answerable. Not a market-freshness number -- the gates handle that, and
+# the approved record carries approval-time prices anyway. This bounds the HANDICAP: past half an hour the
+# thesis, the grade and the probability band come from a packet nobody has revisited, and approving on them
+# would be dressing a stale opinion in a fresh price. Two capture cycles of slack for a delayed Automation,
+# and no more.
+MAX_REQUEST_AGE_MIN = 30.0
 
 
 @dataclass
@@ -70,7 +97,10 @@ class PreflightResult:
     candidate_id: str | None
     verdict: str
     surface_as: str                       # RECOMMENDED when approved; CANDIDATE/PASS otherwise
-    as_of: str | None = None
+    as_of: str | None = None              # the APPROVAL timestamp every gate was evaluated at
+    candidate_created_at: str | None = None   # when the draft was made, for lineage
+    request_age_minutes: float | None = None
+    approved_record: dict | None = None   # the exact canonical record this approval authorises
     proposed_stake: float | None = None
     approved_stake: float | None = None
     blocking_reasons: list = field(default_factory=list)
@@ -117,27 +147,102 @@ def build_context(market_data_root: str | None, *, root: str, risk_report=None,
     return ctx
 
 
+def _refresh_market_state(rec: dict, ctx, as_of: datetime) -> dict:
+    """Re-price the record's MARKET fields at the approval moment. The handicap is left alone.
+
+    Everything replaced here goes stale in minutes -- the two-sided quote, the mid, the market timestamp,
+    the time to kickoff. Everything untouched is the handicapper's opinion from the packet:
+    `probability_low/mid/high`, `model_probability`, the grade, the thesis, the ceiling. Nothing in this
+    module recomputes a predictive model.
+
+    When no fresh quote can be confirmed the record is left exactly as submitted and the freshness gate
+    blocks it a moment later, which is the correct answer and a better one than a half-refreshed record.
+    """
+    if ctx.capture_index is None:
+        return rec
+    side = rec.get("side", "YES")
+    ticker = rec.get("market_ticker")
+    dq = Q.resolve_decision_quote(ctx.capture_index, ticker, side,
+                                  series_ticker=G._series_of(ticker), as_of=as_of,
+                                  max_age_minutes=ctx.max_quote_age_minutes)
+    if not dq.is_actionable:
+        return rec
+
+    out = dict(rec)
+    for field_name, value in (("yes_bid", dq.yes_bid), ("yes_ask", dq.yes_ask),
+                              ("no_bid", dq.no_bid), ("no_ask", dq.no_ask)):
+        if value is not None:
+            out[field_name] = value
+    if dq.yes_bid is not None and dq.yes_ask is not None:
+        out["mid"] = round((float(dq.yes_bid) + float(dq.yes_ask)) / 2.0, 6)
+    out["market_timestamp"] = dq.confirmed_at or as_of.isoformat()
+
+    ko = _ts(rec.get("kickoff_utc"))
+    if ko is not None:
+        out["minutes_to_kickoff"] = round((ko - as_of).total_seconds() / 60.0, 2)
+    return out
+
+
+def _ts(value):
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
 def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_root: str | None,
-                    root: str, policy: R.RiskPolicy | None = None,
+                    root: str, approval_as_of: datetime, policy: R.RiskPolicy | None = None,
                     max_quote_age_minutes: float = Q.DEFAULT_MAX_QUOTE_AGE_MIN,
                     max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN,
+                    max_request_age_minutes: float = MAX_REQUEST_AGE_MIN,
+                    request_id: str | None = None,
                     bankroll_snapshot: float | None = None) -> list:
-    """Preflight a slate of candidates together.
+    """Preflight a slate of candidates together, AS OF the moment approval is being evaluated.
 
     Together, not one at a time, because the portfolio limits are statements about a SET of positions: three
     candidates in one correlation group are individually fine and jointly over the cap, and checking them
     separately would approve all three. The cumulative book from earlier runs is folded in by
     `risk.report_for_batch`, so a candidate is measured against everything already outstanding as well as
     against its own slate.
+
+    `approval_as_of` is REQUIRED and is the decision timestamp of anything this approves. There is no
+    default: falling back to the candidate's own `created_at` is precisely the bug this argument exists to
+    prevent, because the workflow runs minutes-to-hours after the draft was written.
     """
+    if approval_as_of is None:
+        raise ValueError(
+            "preflight_batch requires `approval_as_of`, the moment pre-trade approval is being evaluated. "
+            "Gating at the candidate's own created_at would audit a historical opportunity and present the "
+            "result as a live instruction.")
+    if approval_as_of.tzinfo is None:
+        approval_as_of = approval_as_of.replace(tzinfo=timezone.utc)
     policy = policy or R.RiskPolicy.load(root)
 
-    # Every candidate is evaluated as the RECOMMENDED record it would become. A candidate is by definition
-    # not yet recommended, and `evaluate_gates` correctly declines to gate a non-RECOMMENDED record -- so
-    # asking it about the candidate as-is would return NOT_APPLICABLE and approve nothing safely at all.
-    provisional = [dict(c, decision=S.RECOMMENDED) for c in candidates]
+    ctx = build_context(market_data_root, root=root,
+                        max_quote_age_minutes=max_quote_age_minutes,
+                        max_book_age_minutes=max_book_age_minutes)
+
+    # Every candidate is evaluated as the RECOMMENDED record it would become, at the APPROVAL time, with its
+    # market state re-priced to that moment. A candidate is by definition not yet recommended, and
+    # `evaluate_gates` correctly declines to gate a non-RECOMMENDED record -- so asking it about the
+    # candidate as-is would return NOT_APPLICABLE and approve nothing safely at all.
+    provisional, ages = [], {}
+    for c in candidates:
+        drafted = _ts(c.get("created_at"))
+        ages[c.get("recommendation_id")] = (
+            None if drafted is None else round((approval_as_of - drafted).total_seconds() / 60.0, 2))
+        p = _refresh_market_state(c, ctx, approval_as_of)
+        p = dict(p, decision=S.RECOMMENDED, created_at=approval_as_of.isoformat(),
+                 candidate_created_at=c.get("created_at"))
+        if request_id:
+            p["preflight_request_airtable_id"] = request_id
+        provisional.append(p)
 
     report = R.report_for_batch(provisional, policy, ledger_root, bankroll_snapshot)
+    ctx.risk_report = report
     outstanding = getattr(report, "outstanding", None) or {}
 
     # The stake the owner is shown is the stake the policy APPROVED. Writing it onto the provisional record
@@ -149,13 +254,11 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
         if v is not None and v.is_actionable:
             p["recommended_stake"] = v.approved_stake
 
-    ctx = build_context(market_data_root, root=root, risk_report=report,
-                        max_quote_age_minutes=max_quote_age_minutes,
-                        max_book_age_minutes=max_book_age_minutes)
-
     out = []
     for original, p in zip(candidates, provisional):
-        out.append(_one(original, p, ctx, report, outstanding))
+        out.append(_one(original, p, ctx, report, outstanding,
+                        age_minutes=ages.get(original.get("recommendation_id")),
+                        max_request_age_minutes=max_request_age_minutes))
     return out
 
 
@@ -164,14 +267,40 @@ def preflight(candidate: dict, **kw) -> PreflightResult:
     return preflight_batch([candidate], **kw)[0]
 
 
-def _one(original: dict, provisional: dict, ctx, report, outstanding) -> PreflightResult:
+def _one(original: dict, provisional: dict, ctx, report, outstanding, *,
+         age_minutes=None, max_request_age_minutes=MAX_REQUEST_AGE_MIN) -> PreflightResult:
     rid = provisional.get("recommendation_id")
     v = report.verdict_for(rid)
     res = PreflightResult(
         candidate_id=rid, verdict=BLOCKED, surface_as=CANDIDATE,
+        as_of=provisional.get("created_at"),
+        candidate_created_at=original.get("created_at"),
+        request_age_minutes=age_minutes,
         proposed_stake=original.get("proposed_stake", original.get("recommended_stake")),
         approved_stake=(v.approved_stake if v is not None and v.is_actionable else None),
         outstanding=outstanding or None)
+
+    # 0. EXPIRY. Before anything else, because an old request cannot be rescued by a good market: the
+    #    handicap it carries is the stale half, and no amount of fresh price makes a forgotten thesis
+    #    prospective again.
+    if age_minutes is None:
+        res.verdict = EXPIRED
+        res.blocking_reasons.append(
+            "the candidate carries no parseable created_at, so its age at approval cannot be established")
+        return res
+    if age_minutes < 0:
+        res.verdict = EXPIRED
+        res.blocking_reasons.append(
+            f"the candidate is dated {abs(age_minutes):.1f} min in the FUTURE relative to this approval; "
+            "a request cannot predate nothing")
+        return res
+    if age_minutes > max_request_age_minutes:
+        res.verdict = EXPIRED
+        res.blocking_reasons.append(
+            f"the preflight request is {age_minutes:.1f} min old, beyond the {max_request_age_minutes:.0f} "
+            "min window. The market can be re-priced; the handicap cannot. Submit a fresh request rather "
+            "than approving a thesis nobody has revisited.")
+        return res
 
     # 1. STRUCTURAL. The same schema the importer will apply. A candidate that could not be filed as a
     #    recommendation must not be shown as one either; discovering that twelve hours later is the whole
@@ -182,7 +311,7 @@ def _one(original: dict, provisional: dict, ctx, report, outstanding) -> Preflig
         res.blocking_reasons.append(f"schema: {e}")
         return res
 
-    # 2. SITUATIONAL. Byte for byte the checks the importer will replay.
+    # 2. SITUATIONAL. Byte for byte the checks the importer will replay, at the APPROVAL timestamp.
     gr = G.evaluate_gates(provisional, ctx)
     res.as_of = gr.as_of
     res.gates = {k: g.to_dict() for k, g in gr.gates.items()}
@@ -198,6 +327,9 @@ def _one(original: dict, provisional: dict, ctx, report, outstanding) -> Preflig
             "the risk policy approved no stake for this candidate, so there is nothing to bet")
         return res
 
+    # 3. The exact record this approval authorises. Not a description of one -- the canonical thing the
+    #    ledger will archive, so there is nothing left for a later step to reinterpret.
+    res.approved_record = provisional
     res.verdict, res.surface_as = APPROVED, S.RECOMMENDED
     return res
 

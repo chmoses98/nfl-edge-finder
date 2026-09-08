@@ -5,7 +5,7 @@ THREE THINGS THAT ARE OFTEN COLLAPSED INTO ONE, AND MUST NOT BE
 Kalshi charges a fill in three separately-named parts, and the total is not `ceil(raw, $0.01)`:
 
     RAW QUADRATIC FEE   coefficient * multiplier * contracts * price * (1 - price)
-    TRADE FEE           the raw fee ceiled to a CENTICENT ($0.0001)
+    TRADE FEE           the raw fee rounded UP to a TRADE_FEE_INCREMENT ($0.000001)
     ROUNDING FEE        cent-alignment: the resulting balance change is floored to the account's balance
                         precision, and the shortfall is charged
     REBATE              the rounding overpayment accumulates PER ORDER across all of its fills; once the
@@ -98,8 +98,17 @@ SOURCE_RANK = {SRC_REGULATORY: 1, SRC_SERIES_METADATA: 2, SRC_FEE_CHANGES: 3}
 FEE_TYPE_TAKER_ONLY = "quadratic"
 FEE_TYPE_WITH_MAKER = "quadratic_with_maker_fees"
 
-CENTICENT = Decimal("0.0001")
-CENT = Decimal("0.01")
+# CURRENT venue rounding parameters. Named for the concepts, because the last time these were named after a
+# guess ("CENTICENT") the wrong number survived three reviews inside a correct-looking word.
+#
+# Provenance: the operator's reading of the current Kalshi Fee Rounding documentation, 2026-09-08. This
+# environment cannot reach docs.kalshi.com (network egress policy), so these values are OPERATOR-ATTESTED and
+# are recorded as such in config/kalshi_fee_schedule.json. See docs/KNOWN_LIMITATIONS.md.
+TRADE_FEE_INCREMENT = Decimal("0.000001")        # the trade fee rounds UP to six decimal dollars
+NON_DIRECT_BALANCE_PRECISION = Decimal("0.01")   # ordinary accounts settle to the cent
+DIRECT_BALANCE_PRECISION = Decimal("0.0001")     # direct members settle four decimals finer
+
+CENT = NON_DIRECT_BALANCE_PRECISION              # the default balance precision, by its ordinary name
 
 # Research-only sweep for a maker multiplier that is genuinely unverified. Never a default.
 MAKER_MULTIPLIER_SWEEP = (0.0, 0.25, 0.5, 1.0)
@@ -119,7 +128,7 @@ def _d(x) -> Decimal:
     return x if isinstance(x, Decimal) else Decimal(str(x))
 
 
-def ceil_to(value, increment=CENTICENT) -> Decimal:
+def ceil_to(value, increment=TRADE_FEE_INCREMENT) -> Decimal:
     """Round UP to the next increment. Exact: Decimal, not binary floating point."""
     v, inc = _d(value), _d(increment)
     if v <= 0:
@@ -151,12 +160,13 @@ def _iso(t):
 class FeeComponents:
     """One fill's fee, decomposed exactly as the exchange decomposes it."""
     raw_quadratic: float
-    trade_fee: float               # raw, ceiled to a centicent
-    rounding_fee: float            # cent-alignment on the balance change
-    rebate: float                  # whole cent, when the accumulator crosses one
-    net_fee: float                 # trade + rounding - rebate, floored at zero
+    trade_fee: float               # raw, ceiled UP to TRADE_FEE_INCREMENT ($0.000001)
+    rounding_fee: float            # balance-precision alignment on the resulting balance change
+    rebate: float                  # one balance-precision unit, CAPPED so net_fee cannot go negative
+    net_fee: float                 # trade + rounding - rebate; >= 0 by construction, not by flooring
     balance_change: float          # what the account actually moves by (negative for a buy)
     accumulator_after: float
+    rebate_capped: bool = False    # True when the fill could not absorb a whole rebate unit
 
     def to_dict(self) -> dict:
         return dict(self.__dict__)
@@ -170,34 +180,36 @@ def fee_for_fill(price, contracts, coefficient, multiplier, *, accumulator=0.0,
     it is per ORDER, across all of its fills, taker and maker alike. Starting each fill from zero would model
     a different, more expensive exchange than the real one.
     """
+    precision = _d(balance_precision)
     p, c = _d(price), _d(contracts)
     raw = _d(coefficient) * _d(multiplier) * c * p * (Decimal(1) - p)
-    trade_fee = ceil_to(raw, CENTICENT)
+    trade_fee = ceil_to(raw, TRADE_FEE_INCREMENT)
 
     # A buy debits the position cost plus the fee. The account's balance moves in its own precision, and the
     # shortfall from flooring that debit is charged as the rounding fee.
     revenue = -(c * p)
     balance_raw = revenue - trade_fee
-    balance = floor_to(balance_raw, balance_precision)
-    rounding_fee = balance_raw - balance                       # >= 0
+    balance = floor_to(balance_raw, precision)
+    rounding_fee = balance_raw - balance                       # in [0, precision)
 
     acc = _d(accumulator) + rounding_fee
     rebate = Decimal("0")
-    if acc > CENT:
-        rebate = CENT
-        acc -= CENT
+    capped = False
+    if acc > precision:
+        # The rebate is CAPPED so an individual fill's net fee cannot become negative. This is the venue's
+        # rule, not a defensive choice of ours, and it is the difference between modelling the exchange and
+        # modelling something more convenient: a tiny fill simply cannot absorb a whole precision unit of
+        # credit, and the unabsorbed part stays in the accumulator for a later fill to earn.
+        rebate = min(precision, trade_fee + rounding_fee)
+        capped = rebate < precision
+        acc -= rebate
 
-    # SIGNED, and not floored at zero here. A rebate is a credit against the ORDER, and on a small fill it
-    # legitimately exceeds that fill's own fee -- flooring per fill would silently discard the credit and
-    # destroy the one property the accumulator exists to provide, that many small fills converge on the cost
-    # of one equivalent fill. The exchange never pays you to trade, so the floor belongs on the ORDER TOTAL;
-    # `fee_for_order` applies it there.
-    net = trade_fee + rounding_fee - rebate
+    net = trade_fee + rounding_fee - rebate                    # >= 0 by construction
 
     return FeeComponents(
         raw_quadratic=float(raw), trade_fee=float(trade_fee), rounding_fee=float(rounding_fee),
         rebate=float(rebate), net_fee=float(net), balance_change=float(balance),
-        accumulator_after=float(acc))
+        accumulator_after=float(acc), rebate_capped=capped)
 
 
 def fee_for_order(fills, coefficient, multiplier, *, balance_precision=CENT) -> dict:
@@ -208,6 +220,7 @@ def fee_for_order(fills, coefficient, multiplier, *, balance_precision=CENT) -> 
     together.
     """
     acc = Decimal("0")
+    capped = 0
     out, totals = [], {"raw_quadratic": Decimal("0"), "trade_fee": Decimal("0"),
                        "rounding_fee": Decimal("0"), "rebate": Decimal("0"),
                        "net_fee": Decimal("0"), "contracts": Decimal("0"), "cost": Decimal("0")}
@@ -215,6 +228,7 @@ def fee_for_order(fills, coefficient, multiplier, *, balance_precision=CENT) -> 
         comp = fee_for_fill(price, contracts, coefficient, multiplier,
                             accumulator=acc, balance_precision=balance_precision)
         acc = _d(comp.accumulator_after)
+        capped += 1 if comp.rebate_capped else 0
         out.append(comp)
         for k, v in (("raw_quadratic", comp.raw_quadratic), ("trade_fee", comp.trade_fee),
                      ("rounding_fee", comp.rounding_fee),
@@ -222,13 +236,14 @@ def fee_for_order(fills, coefficient, multiplier, *, balance_precision=CENT) -> 
             totals[k] += _d(v)
         totals["contracts"] += _d(contracts)
         totals["cost"] += _d(contracts) * _d(price)
-    # The floor lives here, on the whole order: the exchange never pays you to trade, but a single fill's
-    # net CAN be negative when a whole-cent rebate lands on a fill whose own fee is a fraction of a cent.
-    net_total = totals["net_fee"]
-    if net_total < 0:
-        net_total = Decimal("0")
-    totals["net_fee"] = net_total
-    return {"fills": out, "accumulator_final": float(acc),
+    # No floor here, and none needed. Every fill's net is non-negative by construction because the rebate is
+    # capped at that fill's own fee, so the order total cannot be negative either. The exact identity
+    #
+    #     net_fee_order == SUM(trade_fee_i) + accumulator_final
+    #
+    # follows directly (the rounding fees minus the rebates ARE the accumulator, which starts at zero), and
+    # `rounding_uncertainty` depends on it.
+    return {"fills": out, "accumulator_final": float(acc), "rebates_capped": capped,
             **{k: float(v) for k, v in totals.items()}}
 
 
@@ -256,7 +271,8 @@ def contract_increment(state: str) -> Decimal:
     return CONTRACT_INCREMENT_WHOLE if state == GRANULARITY_WHOLE else CONTRACT_INCREMENT_FRACTIONAL
 
 
-def rounding_uncertainty(contracts, balance_precision=CENT, trade_fee_increment=CENTICENT, *,
+def rounding_uncertainty(contracts, balance_precision=CENT,
+                         trade_fee_increment=TRADE_FEE_INCREMENT, *,
                          granularity_state: str = GRANULARITY_UNKNOWN,
                          contract_increment_override=None, levels=None) -> dict:
     """A WORST-CASE bound on how much more a FRAGMENTED order can cost than the same order in one fill.
@@ -273,11 +289,24 @@ def rounding_uncertainty(contracts, balance_precision=CENT, trade_fee_increment=
                 linear in contracts, so `SUM(raw_i) == raw_level`, and each fill's ceiling to a centicent
                 adds strictly less than one centicent. With N fills the excess is therefore < N centicents.
 
-      RESIDUAL. The accumulator is bounded by one balance precision: it starts at 0, each fill adds a
-                rounding fee strictly below one precision unit, and any value above one precision unit
-                immediately rebates one. So the final residual is at most one precision unit, and the
-                single-fill estimate carries a residual of its own that is at least zero -- the DIFFERENCE
-                is bounded by one precision unit. Once per ORDER, not once per level.
+      RESIDUAL. The accumulator is bounded by one balance precision. This needed re-proving once the venue's
+                per-fill REBATE CAP was modelled, because a fill too small to absorb a whole precision unit
+                of credit no longer drains the accumulator by a full unit -- so the old one-line argument
+                ("anything above one unit immediately rebates one") no longer applies. Writing `A` for the
+                accumulator before a fill, `r` for its rounding fee (in [0, precision)) and `t` for its
+                trade fee, and assuming A <= precision:
+
+                  no trigger (A + r <= precision)   ->  A' = A + r <= precision.
+                  trigger, t + r >= precision       ->  rebate = precision, A' = A + r - precision <= r
+                                                        < precision.
+                  trigger, t + r <  precision       ->  rebate = t + r, so A' = A - t. The trigger gives
+                                                        A > precision - r and the case gives t < precision
+                                                        - r, hence t < A: A' is positive, and A' < A
+                                                        <= precision.
+
+                So A <= precision is preserved in every case, and the single-fill estimate carries a
+                residual of its own that is at least zero -- the DIFFERENCE is bounded by one precision
+                unit. `tests/test_fees.py` re-checks this by brute force rather than trusting the argument. Once per ORDER, not once per level.
 
       bound = N * trade_fee_increment  +  balance_precision
 
@@ -335,6 +364,8 @@ def rounding_uncertainty(contracts, balance_precision=CENT, trade_fee_increment=
     return {
         "max_fills": max_fills,
         "contract_increment": float(step),
+        "trade_fee_increment": float(inc),
+        "balance_precision": float(prec),
         "granularity_state": granularity_state,
         "levels_basis": basis,
         "trade_fee_ceiling_bound": float(ceiling_bound),
@@ -557,7 +588,7 @@ class FeeSchedule:
         order = fee_for_order(fills or [(price, contracts)], coef, value, balance_precision=precision)
         hypothesis = " [multiplier is a HYPOTHESIS, not measured]" if maker_multiplier is not None else ""
         basis = (f"{execution_style}: ceil({coef} * M={value} * C={contracts} * P={price} * "
-                 f"{1 - float(price):.4f}) to {CENTICENT}, then cent-alignment on a {precision} balance, "
+                 f"{1 - float(price):.4f}) up to {TRADE_FEE_INCREMENT}, then alignment on a {precision} balance, "
                  f"accumulator across {len(order['fills'])} fill(s){hypothesis}")
         return FeeQuote(round(order["net_fee"], 6), KNOWN, basis, execution_style, series_ticker,
                         contracts, price, components=order, multipliers=m.to_dict())
@@ -758,7 +789,14 @@ class FeeObservations:
         return best
 
     def announced_changes(self, as_of: datetime | None = None) -> list:
-        """Every announced fee change captured at or before `as_of`, newest snapshot wins per series."""
+        """Every DISTINCT announced fee change captured at or before `as_of`.
+
+        Deduplication is by the CHANGE, not by the series. Because `show_historical=true` is deliberate, one
+        series routinely carries several changes -- a past one and a scheduled one, or two scheduled at
+        different times -- and the same change reappears in every weekly snapshot. Keying on the series
+        alone collapses all of them into whichever the loop happened to see last, which is exactly how an
+        applicable unmodelled change gets hidden behind a later, harmless one.
+        """
         cutoff = _iso(as_of)
         seen: dict = {}
         for d in self._all():
@@ -766,14 +804,29 @@ class FeeObservations:
             if t is None or (cutoff is not None and t > cutoff):
                 continue
             for ch in ((d.get("fee_changes") or {}).get("changes") or []):
-                key = (ch.get("series_ticker"), str(ch.get("effective_at")))
-                seen[key] = dict(ch, _observed_at=d.get("retrieved_at"))
-        return [seen[k] for k in sorted(seen, key=lambda k: (str(k[0]), str(k[1])))]
+                seen[change_identity(ch)] = dict(ch, _observed_at=d.get("retrieved_at"))
+        return [seen[k] for k in sorted(seen, key=lambda k: tuple(str(x) for x in k))]
 
 
 # `scheduled_ts` is what the documented response actually carries. The other names are defensive.
 CHANGE_EFFECTIVE_KEYS = ("scheduled_ts",                                        # documented
                          "effective_at", "effective_time", "effective_from", "effective_date")
+
+
+def change_identity(ch: dict) -> tuple:
+    """A stable identity for one announced fee change, so weekly snapshots converge on ONE logical change.
+
+    The documented response carries an `id`; when it is present that IS the identity, because the venue
+    already decided what counts as the same change. The fallback is deterministic and includes everything
+    that distinguishes two changes on one series -- the canonical effective timestamp, the fee type and the
+    multiplier -- so two changes on the same series can never collapse into one another.
+    """
+    cid = ch.get("id")
+    if cid not in (None, ""):
+        return ("id", str(cid))
+    eff = _change_effective(ch)
+    return ("derived", str(ch.get("series_ticker")), eff.isoformat() if eff else "",
+            str(ch.get("fee_type")), str(ch.get("fee_multiplier")))
 
 
 def _change_effective(ch) -> datetime | None:

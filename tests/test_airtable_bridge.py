@@ -72,11 +72,35 @@ def a_pass(rid="rec_bridge0000000000002", **kw):
     return rec(rid, **d)
 
 
-def row(records, *, rid="recE2E00000000001", run_id=RUN_ID, created=CREATED, payload=None):
+def row(records, *, rid="recE2E00000000001", run_id=RUN_ID, created=CREATED, payload=None,
+        approved=None, result=None):
     body = payload if payload is not None else json.dumps(records)
-    return {"id": rid, "createdTime": created,
-            "fields": {AB.F_RUN_ID: run_id, AB.F_SPORT: "NFL", AB.F_STATUS: AB.STATUS_READY,
-                       AB.F_PAYLOAD: body}}
+    fields = {AB.F_RUN_ID: run_id, AB.F_SPORT: "NFL", AB.F_STATUS: AB.STATUS_READY, AB.F_PAYLOAD: body}
+    if approved is not None:
+        fields[AB.F_APPROVED_PAYLOAD] = approved
+    if result is not None:
+        fields[AB.F_PREFLIGHT_RESULT] = result
+    return {"id": rid, "createdTime": created, "fields": fields}
+
+
+def approved_row(records, *, rid="recE2E00000000001", verdict="APPROVED", tamper=False, **kw):
+    """A row carrying the preflight binding a real recommendation now needs to reach the ledger.
+
+    `Payload` stays the candidate request; `Approved Payload` is the exact approved batch, hashed into
+    `Preflight Result`. `tamper` edits the approved batch AFTER the hash is taken, which is the attack the
+    binding exists to catch.
+    """
+    approved_text = AB.canonical_payload(records)
+    sha = AB.payload_sha(approved_text)
+    if tamper:
+        edited = [dict(r) for r in records]
+        edited[0]["recommended_stake"] = 500
+        approved_text = AB.canonical_payload(edited)
+    result = json.dumps({
+        "schema": "preflight-result/1", "verdict": verdict, "airtable_record_id": rid,
+        "approved_payload_sha256": sha, "answered_at": CREATED,
+    })
+    return row(records, rid=rid, approved=approved_text, result=result, **kw)
 
 
 @pytest.fixture
@@ -282,7 +306,7 @@ def test_test_only_payload_is_importable_and_stays_test_only(ledger):
 
 def test_scorecard_readers_still_exclude_imported_test_only_records(ledger):
     """The whole point of a TEST_ONLY E2E: proving the path without contaminating performance history."""
-    fake = FakeAirtable([{"records": [row([rec(test_only=True), _real(rec, rid="rec_real")])]}])
+    fake = FakeAirtable([{"records": [approved_row([rec(test_only=True), _real(rec, rid="rec_real")])]}])
     run_sync(fake, ledger, gate_context=gate_ctx())
     visible = store.read_kind(ledger, "recommendations")
     assert [r["recommendation_id"] for r in visible] == ["rec_real"]
@@ -763,7 +787,7 @@ def test_a_receipt_records_where_the_batch_came_from(ledger):
 
 def test_a_receipt_never_stands_in_for_a_recommendation(ledger):
     """Receipts document transport. They must not appear anywhere a decision is counted."""
-    run_sync(FakeAirtable([{"records": [row([_real(rec)])]}]), ledger,
+    run_sync(FakeAirtable([{"records": [approved_row([_real(rec)])]}]), ledger,
              gate_context=gate_ctx())
     recs = store.read_kind(ledger, "recommendations")
     assert len(recs) == 1
@@ -793,7 +817,7 @@ def test_a_real_recommendation_needs_a_gate_context(ledger):
 
 def test_gates_are_recorded_beside_the_recommendation(ledger):
     """Passing the gates is evidence, and evidence is a record."""
-    run_sync(FakeAirtable([{"records": [row([_real(rec)])]}]), ledger, gate_context=gate_ctx())
+    run_sync(FakeAirtable([{"records": [approved_row([_real(rec)])]}]), ledger, gate_context=gate_ctx())
     g = store.read_kind(ledger, "decision_gates")
     assert len(g) == 1
     assert g[0]["overall"] == "PASS"
@@ -929,3 +953,92 @@ def test_a_row_with_a_missing_createdtime_is_refused(ledger):
     bad = row([rec()])
     del bad["createdTime"]
     _expect_error(ledger, [bad])
+
+
+# ---- the approved payload is what gets archived ------------------------------------------------------
+#
+# The candidate `Payload` is the immutable REQUEST. A real bet is archived from `Approved Payload` -- the
+# exact batch the pre-trade worker approved -- and only when its hash matches the one the approval recorded.
+# Without that binding, a row written straight to READY_FOR_SYNC walks a bet into the ledger having passed
+# nothing at all.
+
+def test_D_a_real_recommendation_without_a_preflight_approval_is_refused(ledger):
+    _expect_error(ledger, [row([_real(rec)])],
+                  contains="no `Approved Payload`")
+
+
+def test_a_real_recommendation_with_an_approval_is_imported(ledger):
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [approved_row([_real(rec)])]}]), ledger,
+                                gate_context=gate_ctx())
+    assert code == 0
+    assert len(store.read_kind(ledger, "recommendations")) == 1
+
+
+def test_C_an_approved_payload_edited_after_approval_is_refused(ledger):
+    """The hash binding, doing the one job it exists for."""
+    _expect_error(ledger, [approved_row([_real(rec)], tamper=True)],
+                  contains="has been altered since it was approved")
+
+
+def test_G_a_blocked_approval_can_never_become_a_canonical_record(ledger):
+    for verdict in ("BLOCKED", "EXPIRED", "ERROR"):
+        _expect_error(ledger, [approved_row([_real(rec)], verdict=verdict)],
+                      contains="not APPROVED")
+
+
+def test_an_approval_issued_for_a_different_row_is_refused(ledger):
+    r = approved_row([_real(rec)], rid="recE2E00000000001")
+    body = json.loads(r["fields"][AB.F_PREFLIGHT_RESULT])
+    body["airtable_record_id"] = "recSOMEOTHERROW1"
+    r["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
+    _expect_error(ledger, [r], contains="not transferable")
+
+
+def test_an_approved_payload_with_no_result_to_bind_it_is_refused(ledger):
+    r = approved_row([_real(rec)])
+    del r["fields"][AB.F_PREFLIGHT_RESULT]
+    _expect_error(ledger, [r], contains="no approval to bind it to")
+
+
+def test_E_only_the_approved_payload_is_canonical(ledger):
+    """The request and the approval legitimately differ -- the risk policy caps stakes. Only one is archived.
+
+    `Payload` asks for $500. The approval authorises $10. The ledger must contain $10 and nothing else, and
+    the receipt must say which artifact it came from.
+    """
+    def sized(**kw):
+        return rec("rec_bind00000000001", test_only=False, bankroll_snapshot=2000.0, **kw)
+
+    wanted = sized(proposed_stake=500, recommended_stake=500)
+    granted = sized(proposed_stake=500, recommended_stake=10)
+    r = approved_row([granted])
+    r["fields"][AB.F_PAYLOAD] = json.dumps([wanted])
+
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [r]}]), ledger, gate_context=gate_ctx())
+    assert code == 0
+    recs = store.read_kind(ledger, "recommendations")
+    assert len(recs) == 1
+    assert recs[0]["recommended_stake"] == 10, "the approved size is archived, not the requested one"
+    assert recs[0]["proposed_stake"] == 500, "what was asked for is preserved beside what was approved"
+
+    receipt = store.read_kind(ledger, "import_receipts")[0]
+    assert receipt["payload_source"] == "approved payload (preflight-bound)"
+    assert receipt["approved_payload_sha256"]
+
+
+def test_a_pass_only_batch_still_takes_the_simple_path(ledger):
+    """A PASS costs nothing and is scientifically valuable. Requiring an approval for it would only
+    discourage recording passes, which is the last thing this ledger wants."""
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [row([a_pass(test_only=False)])]}]), ledger,
+                                gate_context=gate_ctx())
+    assert code == 0
+    recs = store.read_kind(ledger, "recommendations")
+    assert len(recs) == 1 and recs[0]["decision"] == "PASS"
+    assert store.read_kind(ledger, "import_receipts")[0]["payload_source"].startswith("candidate payload")
+
+
+def test_a_test_only_recommendation_still_takes_the_simple_path(ledger):
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [row([rec(test_only=True)])]}]), ledger,
+                                gate_context=gate_ctx())
+    assert code == 0
+    assert len(store.read_kind(ledger, "recommendations", include_test=True)) == 1

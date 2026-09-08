@@ -24,6 +24,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "scripts", "handicap"))
 from nfl_edge.handicap import airtable_bridge as AB       # noqa: E402
+from nfl_edge.handicap import gates as G                  # noqa: E402
+from nfl_edge.handicap import preflight as P              # noqa: E402
+from nfl_edge.handicap import risk as R                   # noqa: E402
 from nfl_edge.handicap import schema as S                 # noqa: E402
 
 import preflight_airtable as W                            # noqa: E402
@@ -85,7 +88,8 @@ def test_a_sound_candidate_comes_back_approved(tmp_path):
     assert c["may_be_shown_as_a_bet"] is True
     assert c["approved_stake"] == 10
     assert c["surface_as"] == S.RECOMMENDED
-    assert c["decision_as_of"] == candidate()["created_at"], "answered at the DECISION, not at dispatch time"
+    assert c["approval_as_of"] == NOW.isoformat(), "the decision timestamp is the APPROVAL time"
+    assert c["candidate_created_at"] == candidate()["created_at"], "the draft time is kept as lineage"
 
 
 def test_the_answer_carries_what_the_owner_needs_to_act_on(tmp_path):
@@ -255,3 +259,147 @@ def test_a_test_only_candidate_round_trips_without_touching_a_live_market(tmp_pa
     assert body["run_id"] == "E2E-PREFLIGHT"
     assert body["candidates"][0]["may_be_shown_as_a_bet"] is False
     assert fake.written["recPF0000000001"][AB.F_STATUS] == AB.STATUS_PREFLIGHT_BLOCKED
+
+
+# ---- approval time, not draft time -------------------------------------------------------------------
+#
+# A candidate drafted at 13:00 and preflighted at 13:30 is not a 13:00 decision. Approving it as one is an
+# AUDIT of an opportunity that may no longer exist, delivered as though it were a live instruction.
+
+DRAFT = datetime(2026, 9, 9, 13, 0, tzinfo=timezone.utc)
+
+
+def at(minutes):
+    return DRAFT + timedelta(minutes=minutes)
+
+
+def go_at(tmp_path, rows, minutes, **kw):
+    fake = FakeAirtable(rows)
+    code = W.run(fake, market_data_root=kw.pop("md", None) or market_data(tmp_path),
+                 ledger_root=kw.pop("led", None) or ledger(tmp_path), now=at(minutes), **kw)
+    return code, fake
+
+
+def test_A_an_immediate_request_may_be_approved(tmp_path):
+    code, fake = go_at(tmp_path, [row([candidate()])], 2)
+    assert code == 0
+    assert fake.written["recPF0000000001"][AB.F_STATUS] == AB.STATUS_PREFLIGHT_APPROVED
+    c = result_of(fake)["candidates"][0]
+    assert c["approval_as_of"] == at(2).isoformat()
+    assert c["request_age_minutes"] == pytest.approx(2.0)
+
+
+def test_B_a_request_delayed_past_its_window_expires(tmp_path):
+    code, fake = go_at(tmp_path, [row([candidate()])], 90)
+    assert code == 0, "an expired request is an answer, not a pipeline failure"
+    assert fake.written["recPF0000000001"][AB.F_STATUS] == AB.STATUS_PREFLIGHT_BLOCKED
+    body = result_of(fake)
+    assert body["verdict"] == "EXPIRED"
+    c = body["candidates"][0]
+    assert c["verdict"] == P.EXPIRED and c["may_be_shown_as_a_bet"] is False
+    assert any("Submit a fresh request" in b for b in c["blocking_reasons"])
+    assert AB.F_APPROVED_PAYLOAD not in fake.written["recPF0000000001"], \
+        "an expired request produces no approved payload to archive"
+
+
+def test_C_the_market_state_used_is_the_one_at_approval_not_at_draft(tmp_path):
+    """Two captures: 0.56 near the draft, 0.58 just before approval. The approved record must say 0.58."""
+    md = market_data(tmp_path, ask=0.56, minutes_before=4.0)
+    market_data(tmp_path, ask=0.58, minutes_before=-18.0, name="md")   # 18 min AFTER the draft
+    code, fake = go_at(tmp_path, [row([candidate()])], 20, md=md)
+    assert code == 0
+    approved = json.loads(fake.written["recPF0000000001"][AB.F_APPROVED_PAYLOAD])[0]
+    assert approved["yes_ask"] == pytest.approx(0.58), "the record must carry the approval-time ask"
+    assert approved["created_at"] == at(20).isoformat()
+    assert approved["candidate_created_at"] == DRAFT.isoformat()
+    assert approved["minutes_to_kickoff"] < candidate()["minutes_to_kickoff"], \
+        "time to kickoff is recomputed at approval"
+
+
+def test_D_a_worse_current_ask_above_the_ceiling_blocks(tmp_path):
+    """The candidate's ceiling is 0.59. If the market has moved to 0.61 by approval time, it is not a bet."""
+    md = market_data(tmp_path, ask=0.56, minutes_before=4.0)
+    market_data(tmp_path, ask=0.61, minutes_before=-18.0, name="md",
+                ladder=[(0.61, 100000.0)])
+    code, fake = go_at(tmp_path, [row([candidate()])], 20, md=md)
+    assert code == 0
+    assert fake.written["recPF0000000001"][AB.F_STATUS] == AB.STATUS_PREFLIGHT_BLOCKED
+    c = result_of(fake)["candidates"][0]
+    assert c["may_be_shown_as_a_bet"] is False
+    assert any("NOT ACTIONABLE" in b or "ceiling" in b or "bet_up_to" in b
+               for b in c["blocking_reasons"]), c["blocking_reasons"]
+
+
+def test_E_depth_that_thinned_out_by_approval_time_blocks(tmp_path):
+    md = market_data(tmp_path, ask=0.56, minutes_before=4.0)
+    market_data(tmp_path, ask=0.56, minutes_before=-18.0, name="md", ladder=[(0.56, 2.0)])
+    code, fake = go_at(tmp_path, [row([candidate(proposed_stake=50, recommended_stake=50)])], 20, md=md)
+    assert code == 0
+    c = result_of(fake)["candidates"][0]
+    assert c["may_be_shown_as_a_bet"] is False
+    assert any("full_position_executable" in b or "absorb only" in b for b in c["blocking_reasons"]), \
+        c["blocking_reasons"]
+
+
+def test_F_an_improved_market_is_recorded_at_the_approval_price(tmp_path):
+    """A better price is fine. What is not fine is a record that claims the price it was drafted at."""
+    md = market_data(tmp_path, ask=0.56, minutes_before=4.0)
+    market_data(tmp_path, ask=0.54, minutes_before=-18.0, name="md")
+    code, fake = go_at(tmp_path, [row([candidate()])], 20, md=md)
+    assert code == 0
+    approved = json.loads(fake.written["recPF0000000001"][AB.F_APPROVED_PAYLOAD])[0]
+    assert approved["yes_ask"] == pytest.approx(0.54)
+    assert approved["yes_ask"] != candidate()["yes_ask"]
+
+
+def test_G_the_delayed_archival_replay_reproduces_the_approval(tmp_path):
+    """The importer replays the APPROVED record at ITS created_at -- which is the approval time."""
+    md, led = market_data(tmp_path), ledger(tmp_path)
+    _code, fake = go_at(tmp_path, [row([candidate()])], 2, md=md, led=led)
+    approved = json.loads(fake.written["recPF0000000001"][AB.F_APPROVED_PAYLOAD])
+
+    report = R.report_for_batch(approved, R.RiskPolicy.load(ROOT), led)
+    ctx = P.build_context(md, root=ROOT, risk_report=report)
+    replayed = G.evaluate_gates(approved[0], ctx)
+    assert replayed.overall == G.PASS
+    assert replayed.as_of == at(2).isoformat(), "the replay judges at the approval timestamp"
+    assert replayed.decision_quote["executable_price"] == pytest.approx(
+        result_of(fake)["candidates"][0]["executable_price"])
+
+
+def test_the_handicap_is_carried_forward_untouched(tmp_path):
+    """The MARKET is re-priced at approval. The model's opinion is not recomputed."""
+    _code, fake = go_at(tmp_path, [row([candidate()])], 2)
+    approved = json.loads(fake.written["recPF0000000001"][AB.F_APPROVED_PAYLOAD])[0]
+    src = candidate()
+    for field in ("probability_low", "probability_mid", "probability_high", "model_probability",
+                  "model_version", "grade", "bet_up_to_probability", "primary_thesis", "artifact_hash"):
+        assert approved[field] == src[field], f"{field} must not move between draft and approval"
+
+
+# ---- the approved payload is bound to the approval ----------------------------------------------------
+
+def test_A_the_approved_payload_carries_the_capped_stake(tmp_path):
+    _code, fake = go_at(tmp_path, [row([candidate(proposed_stake=50, recommended_stake=50)])], 2)
+    approved = json.loads(fake.written["recPF0000000001"][AB.F_APPROVED_PAYLOAD])[0]
+    assert approved["recommended_stake"] == 20, "grade A caps at 2u = $20"
+    assert approved["proposed_stake"] == 50, "what was wanted is preserved beside what was approved"
+
+
+def test_B_the_original_payload_is_never_rewritten(tmp_path):
+    original = row([candidate(proposed_stake=50, recommended_stake=50)])
+    before = original["fields"][AB.F_PAYLOAD]
+    _code, fake = go_at(tmp_path, [original], 2)
+    assert AB.F_PAYLOAD not in fake.written["recPF0000000001"], "the request is provenance"
+    assert original["fields"][AB.F_PAYLOAD] == before
+
+
+def test_the_result_hashes_both_payloads(tmp_path):
+    _code, fake = go_at(tmp_path, [row([candidate()])], 2)
+    written = fake.written["recPF0000000001"]
+    body = json.loads(written[AB.F_PREFLIGHT_RESULT])
+    assert body["approved_payload_sha256"] == AB.payload_sha(written[AB.F_APPROVED_PAYLOAD])
+    assert body["candidate_payload_sha256"]
+    assert body["candidate_payload_sha256"] != body["approved_payload_sha256"], \
+        "the approved batch is not the candidate batch"
+    assert body["airtable_record_id"] == "recPF0000000001"
