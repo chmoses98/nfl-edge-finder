@@ -344,7 +344,8 @@ def test_the_only_thing_above_zero_is_the_derived_fee_rounding_bound():
         nev["net_ev_dollars"] - expected, abs=1e-6)
     assert 0 < nev["conservative_net_ev_dollars"] < 1.0, "the boundary case should be a thin one"
 
-    # The bound is exactly the worst-case fill count times a centicent, plus one accumulator residual --
+    # The bound is exactly the worst-case fill count times one trade-fee increment, plus one
+    # accumulator residual --
     # every term traceable to the venue's rules. It is NOT a round number somebody liked, and under the
     # venue's 0.01-contract minimum it is materially bigger than a whole-contract model implied.
     unc = nev["fee_uncertainty"]

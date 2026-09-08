@@ -124,8 +124,15 @@ runs** and writes the verdict back within about a minute. Read the row:
 
 **The approved record is not the candidate.** Its `created_at` is the approval moment, its market fields are
 the approval-time quote, and its stake is what the risk policy allowed. The handicap — probabilities, grade,
-thesis — is carried through untouched. Do not hand-edit `Approved Payload`: the importer re-hashes it
-against the approval and refuses a mismatch.
+thesis — is carried through untouched.
+
+**Do not hand-edit `Approved Payload` or `Preflight Result`.** The approval is signed with a key that exists
+only in GitHub Actions, and the importer verifies that signature against the row's own id, Run ID and both
+payload hashes. An edited payload, a copied approval or a hand-written one is refused — there is no way to
+produce a valid approval except by asking for one.
+
+**Expiry is measured from when Airtable stamped the row**, not from the `created_at` in your payload. An old
+request cannot be refreshed by re-dating the candidate.
 
 Debugging fallback only, when the Automation is down:
 

@@ -24,6 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "scripts", "handicap"))
 from nfl_edge.handicap import airtable_bridge as AB       # noqa: E402
+from nfl_edge.handicap import approval as APPROVAL        # noqa: E402
 from nfl_edge.handicap import gates as G                  # noqa: E402
 from nfl_edge.handicap import preflight as P              # noqa: E402
 from nfl_edge.handicap import risk as R                   # noqa: E402
@@ -33,6 +34,7 @@ import preflight_airtable as W                            # noqa: E402
 from test_preflight import candidate, ledger, market_data  # noqa: E402,F401
 
 NOW = datetime(2026, 9, 9, 13, 5, tzinfo=timezone.utc)
+SIGNING_KEY = ("test-preflight-signing-key-0123456789abcdef" * 2).encode()
 
 
 class FakeAirtable:
@@ -59,14 +61,21 @@ class FakeAirtable:
             self.written.setdefault(rid, {}).update(fields)
 
 
-def row(candidates, rid="recPF0000000001", status=AB.STATUS_PREFLIGHT_REQUESTED, run_id="20260909T130000Z"):
-    return {"id": rid, "createdTime": NOW.isoformat(),
+# The request row is stamped by Airtable when ChatGPT writes it -- at the draft moment, not later. That
+# server timestamp, not the candidate's self-reported one, is what the expiry control measures from.
+REQUEST_CREATED = datetime(2026, 9, 9, 13, 0, tzinfo=timezone.utc)
+
+
+def row(candidates, rid="recPF0000000001", status=AB.STATUS_PREFLIGHT_REQUESTED, run_id="20260909T130000Z",
+        created=None):
+    return {"id": rid, "createdTime": (created or REQUEST_CREATED).isoformat(),
             "fields": {AB.F_SPORT: AB.SPORT_NFL, AB.F_STATUS: status, AB.F_RUN_ID: run_id,
                        AB.F_PAYLOAD: json.dumps(candidates)}}
 
 
 def go(tmp_path, rows, *, md=None, led=None, **kw):
     fake = FakeAirtable(rows)
+    kw.setdefault("signing_key", SIGNING_KEY)
     code = W.run(fake, market_data_root=md or market_data(tmp_path),
                  ledger_root=led or ledger(tmp_path), now=NOW, **kw)
     return code, fake
@@ -275,6 +284,7 @@ def at(minutes):
 
 def go_at(tmp_path, rows, minutes, **kw):
     fake = FakeAirtable(rows)
+    kw.setdefault("signing_key", SIGNING_KEY)
     code = W.run(fake, market_data_root=kw.pop("md", None) or market_data(tmp_path),
                  ledger_root=kw.pop("led", None) or ledger(tmp_path), now=at(minutes), **kw)
     return code, fake
@@ -403,3 +413,84 @@ def test_the_result_hashes_both_payloads(tmp_path):
     assert body["candidate_payload_sha256"] != body["approved_payload_sha256"], \
         "the approved batch is not the candidate batch"
     assert body["airtable_record_id"] == "recPF0000000001"
+
+
+# ---- the approval is signed ---------------------------------------------------------------------------
+
+def test_an_approval_is_signed_with_the_worker_key(tmp_path):
+    _code, fake = go_at(tmp_path, [row([candidate()])], 2)
+    written = fake.written["recPF0000000001"]
+    body = json.loads(written[AB.F_PREFLIGHT_RESULT])
+    assert body["approval_schema"] == APPROVAL.APPROVAL_SCHEMA
+    assert body["approval_signature_algorithm"] == APPROVAL.SIGNATURE_ALGORITHM
+    assert body["approval_signature"]
+
+    # It verifies against the row's own facts -- which is exactly what the importer will do.
+    verified = APPROVAL.verify(
+        body, key=SIGNING_KEY, airtable_record_id="recPF0000000001", run_id="20260909T130000Z",
+        candidate_payload=json.dumps([candidate()]), approved_payload=written[AB.F_APPROVED_PAYLOAD])
+    assert verified.approval_as_of == at(2)
+
+
+def test_a_blocked_row_carries_no_signature(tmp_path):
+    """Nothing to authenticate: there is no approved batch."""
+    md = market_data(tmp_path, ladder=[(0.56, 2.0)])
+    _code, fake = go_at(tmp_path, [row([candidate(proposed_stake=50, recommended_stake=50)])], 2, md=md)
+    body = json.loads(fake.written["recPF0000000001"][AB.F_PREFLIGHT_RESULT])
+    assert "approval_signature" not in body
+
+
+def test_the_worker_refuses_to_issue_an_unsigned_approval(tmp_path):
+    """An approval the importer would refuse is not issued at all."""
+    fake = FakeAirtable([row([candidate()])])
+    code = W.run(fake, market_data_root=market_data(tmp_path), ledger_root=ledger(tmp_path),
+                 now=at(2), signing_key=None)
+    assert code == 1
+    assert fake.written["recPF0000000001"][AB.F_STATUS] == AB.STATUS_PREFLIGHT_ERROR
+    assert AB.F_APPROVED_PAYLOAD not in fake.written["recPF0000000001"]
+
+
+def test_the_signing_key_is_never_written_to_airtable(tmp_path):
+    _code, fake = go_at(tmp_path, [row([candidate()])], 2)
+    blob = json.dumps(fake.written)
+    assert SIGNING_KEY.decode() not in blob
+    assert APPROVAL.SIGNING_KEY_ENV not in blob
+
+
+# ---- expiry is measured from Airtable's clock ---------------------------------------------------------
+
+def test_an_old_request_cannot_refresh_itself_with_a_new_candidate_timestamp(tmp_path):
+    """The candidate timestamp is written by the requester. Airtable's server clock is not.
+
+    The row was stamped at 13:00. The candidate claims it was drafted at 13:50, which would make a 13:55
+    approval look five minutes old if its own clock governed. It does not.
+    """
+    late_claim = candidate(created_at=at(50).isoformat())
+    _code, fake = go_at(tmp_path, [row([late_claim])], 55)
+    body = result_of(fake)
+    assert body["verdict"] == "EXPIRED"
+    c = body["candidates"][0]
+    assert "Airtable server createdTime" in c["request_age_basis"]
+    assert c["request_age_minutes"] == pytest.approx(55.0), "measured from the row, not the claim"
+
+
+def test_the_age_basis_is_reported_so_the_two_clocks_cannot_be_confused(tmp_path):
+    _code, fake = go_at(tmp_path, [row([candidate()])], 2)
+    c = result_of(fake)["candidates"][0]
+    assert c["request_age_basis"] == "Airtable server createdTime"
+    assert c["request_age_minutes"] == pytest.approx(2.0)
+
+
+def test_each_row_is_stamped_when_its_own_preflight_runs(tmp_path):
+    """A batch takes time to work through; the last row must not be dated as though it were the first."""
+    stamps = iter([at(1), at(9)])
+    fake = FakeAirtable([row([candidate()], rid="recPF0000000001"),
+                         row([candidate(recommendation_id="rec_pf0000000000000002")],
+                             rid="recPF0000000002")])
+    code = W.run(fake, market_data_root=market_data(tmp_path), ledger_root=ledger(tmp_path),
+                 signing_key=SIGNING_KEY, clock=lambda: next(stamps))
+    assert code == 0
+    first = json.loads(fake.written["recPF0000000001"][AB.F_PREFLIGHT_RESULT])["approval_as_of"]
+    second = json.loads(fake.written["recPF0000000002"][AB.F_PREFLIGHT_RESULT])["approval_as_of"]
+    assert first == at(1).isoformat() and second == at(9).isoformat()
+    assert first != second, "one global stamp would date the whole batch at the workflow start"

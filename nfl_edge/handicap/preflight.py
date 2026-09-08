@@ -72,6 +72,7 @@ from datetime import datetime, timezone
 from nfl_edge.execution import depth as D
 from nfl_edge.execution import fees as F
 from nfl_edge.execution import quotes as Q
+from nfl_edge.handicap import approval as A
 from nfl_edge.handicap import gates as G
 from nfl_edge.handicap import risk as R
 from nfl_edge.handicap import schema as S
@@ -83,12 +84,9 @@ APPROVED = "APPROVED"      # may be shown to the owner as a BET, at `approved_st
 BLOCKED = "BLOCKED"        # may be shown as a candidate/watchlist/pass. Never as a bet.
 EXPIRED = "EXPIRED"        # the request sat too long to produce a prospectively defensible approval
 
-# How long a preflight request stays answerable. Not a market-freshness number -- the gates handle that, and
-# the approved record carries approval-time prices anyway. This bounds the HANDICAP: past half an hour the
-# thesis, the grade and the probability band come from a packet nobody has revisited, and approving on them
-# would be dressing a stale opinion in a fresh price. Two capture cycles of slack for a delayed Automation,
-# and no more.
-MAX_REQUEST_AGE_MIN = 30.0
+# One number, owned by the approval contract, so the worker's expiry and the importer's window can never
+# drift apart. See nfl_edge/handicap/approval.py for why it bounds the HANDICAP rather than the market.
+MAX_REQUEST_AGE_MIN = A.MAX_REQUEST_AGE.total_seconds() / 60.0
 
 
 @dataclass
@@ -100,6 +98,7 @@ class PreflightResult:
     as_of: str | None = None              # the APPROVAL timestamp every gate was evaluated at
     candidate_created_at: str | None = None   # when the draft was made, for lineage
     request_age_minutes: float | None = None
+    request_age_basis: str | None = None  # which clock the age was measured from
     approved_record: dict | None = None   # the exact canonical record this approval authorises
     proposed_stake: float | None = None
     approved_stake: float | None = None
@@ -198,7 +197,7 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
                     max_quote_age_minutes: float = Q.DEFAULT_MAX_QUOTE_AGE_MIN,
                     max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN,
                     max_request_age_minutes: float = MAX_REQUEST_AGE_MIN,
-                    request_id: str | None = None,
+                    request_id: str | None = None, request_created_at: datetime | None = None,
                     bankroll_snapshot: float | None = None) -> list:
     """Preflight a slate of candidates together, AS OF the moment approval is being evaluated.
 
@@ -211,6 +210,12 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
     `approval_as_of` is REQUIRED and is the decision timestamp of anything this approves. There is no
     default: falling back to the candidate's own `created_at` is precisely the bug this argument exists to
     prevent, because the workflow runs minutes-to-hours after the draft was written.
+
+    `request_created_at` is Airtable's SERVER timestamp for the request row, and it is what the expiry
+    control is measured from. The candidate's own `created_at` is written by the requester and can say
+    anything -- an hours-old request must not be able to refresh itself by claiming a new draft time. When
+    there is no Airtable row at all (an operator running the CLI by hand) the candidate's timestamp is the
+    only clock available and is used, which the result records so nobody mistakes one for the other.
     """
     if approval_as_of is None:
         raise ValueError(
@@ -229,11 +234,19 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
     # market state re-priced to that moment. A candidate is by definition not yet recommended, and
     # `evaluate_gates` correctly declines to gate a non-RECOMMENDED record -- so asking it about the
     # candidate as-is would return NOT_APPLICABLE and approve nothing safely at all.
+    # The expiry clock. Airtable's server timestamp when there is one, because it is the half of the
+    # provenance the requester cannot write.
+    request_at = request_created_at
+    if request_at is not None and request_at.tzinfo is None:
+        request_at = request_at.replace(tzinfo=timezone.utc)
+    age_basis = ("Airtable server createdTime" if request_at is not None
+                 else "the candidate's own created_at (no Airtable request row)")
+
     provisional, ages = [], {}
     for c in candidates:
-        drafted = _ts(c.get("created_at"))
+        clock = request_at if request_at is not None else _ts(c.get("created_at"))
         ages[c.get("recommendation_id")] = (
-            None if drafted is None else round((approval_as_of - drafted).total_seconds() / 60.0, 2))
+            None if clock is None else round((approval_as_of - clock).total_seconds() / 60.0, 2))
         p = _refresh_market_state(c, ctx, approval_as_of)
         p = dict(p, decision=S.RECOMMENDED, created_at=approval_as_of.isoformat(),
                  candidate_created_at=c.get("created_at"))
@@ -258,6 +271,7 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
     for original, p in zip(candidates, provisional):
         out.append(_one(original, p, ctx, report, outstanding,
                         age_minutes=ages.get(original.get("recommendation_id")),
+                        age_basis=age_basis,
                         max_request_age_minutes=max_request_age_minutes))
     return out
 
@@ -268,14 +282,14 @@ def preflight(candidate: dict, **kw) -> PreflightResult:
 
 
 def _one(original: dict, provisional: dict, ctx, report, outstanding, *,
-         age_minutes=None, max_request_age_minutes=MAX_REQUEST_AGE_MIN) -> PreflightResult:
+         age_minutes=None, age_basis="", max_request_age_minutes=MAX_REQUEST_AGE_MIN) -> PreflightResult:
     rid = provisional.get("recommendation_id")
     v = report.verdict_for(rid)
     res = PreflightResult(
         candidate_id=rid, verdict=BLOCKED, surface_as=CANDIDATE,
         as_of=provisional.get("created_at"),
         candidate_created_at=original.get("created_at"),
-        request_age_minutes=age_minutes,
+        request_age_minutes=age_minutes, request_age_basis=age_basis,
         proposed_stake=original.get("proposed_stake", original.get("recommended_stake")),
         approved_stake=(v.approved_stake if v is not None and v.is_actionable else None),
         outstanding=outstanding or None)
@@ -286,20 +300,20 @@ def _one(original: dict, provisional: dict, ctx, report, outstanding, *,
     if age_minutes is None:
         res.verdict = EXPIRED
         res.blocking_reasons.append(
-            "the candidate carries no parseable created_at, so its age at approval cannot be established")
+            "no usable request timestamp, so the age of this request at approval cannot be established")
         return res
     if age_minutes < 0:
         res.verdict = EXPIRED
         res.blocking_reasons.append(
-            f"the candidate is dated {abs(age_minutes):.1f} min in the FUTURE relative to this approval; "
-            "a request cannot predate nothing")
+            f"the request is dated {abs(age_minutes):.1f} min in the FUTURE relative to this approval "
+            f"(measured from {age_basis}); an approval cannot answer a request that does not exist yet")
         return res
     if age_minutes > max_request_age_minutes:
         res.verdict = EXPIRED
         res.blocking_reasons.append(
-            f"the preflight request is {age_minutes:.1f} min old, beyond the {max_request_age_minutes:.0f} "
-            "min window. The market can be re-priced; the handicap cannot. Submit a fresh request rather "
-            "than approving a thesis nobody has revisited.")
+            f"the preflight request is {age_minutes:.1f} min old measured from {age_basis}, beyond the "
+            f"{max_request_age_minutes:.0f} min window. The market can be re-priced; the handicap cannot. "
+            "Submit a fresh request rather than approving a thesis nobody has revisited.")
         return res
 
     # 1. STRUCTURAL. The same schema the importer will apply. A candidate that could not be filed as a

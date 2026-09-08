@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.join(ROOT, "scripts", "handicap"))
 from nfl_edge.execution import fees as FEES          # noqa: E402
 from nfl_edge.execution import quotes as Q            # noqa: E402
 from nfl_edge.handicap import airtable_bridge as AB   # noqa: E402
+from nfl_edge.handicap import approval as APPROVAL     # noqa: E402
 from nfl_edge.handicap import gates as G              # noqa: E402
 from nfl_edge.handicap import risk as RISK            # noqa: E402
 from nfl_edge.handicap import schema as S             # noqa: E402
@@ -83,24 +84,47 @@ def row(records, *, rid="recE2E00000000001", run_id=RUN_ID, created=CREATED, pay
     return {"id": rid, "createdTime": created, "fields": fields}
 
 
-def approved_row(records, *, rid="recE2E00000000001", verdict="APPROVED", tamper=False, **kw):
-    """A row carrying the preflight binding a real recommendation now needs to reach the ledger.
+SIGNING_KEY = ("test-preflight-signing-key-0123456789abcdef" * 2).encode()
 
-    `Payload` stays the candidate request; `Approved Payload` is the exact approved batch, hashed into
-    `Preflight Result`. `tamper` edits the approved batch AFTER the hash is taken, which is the attack the
-    binding exists to catch.
+# Approval happens a few minutes after the request row is stamped, which is the ordinary case.
+APPROVAL_AT = (AB._parse_ts("createdTime", CREATED) + timedelta(minutes=8)).isoformat()
+
+
+def approved_row(records, *, rid="recE2E00000000001", verdict="APPROVED", tamper=False,
+                 run_id=RUN_ID, approval_at=None, sign_as_row=None, sign_as_run=None,
+                 sign=True, key=None, candidate=None, **kw):
+    """A row carrying the AUTHENTICATED preflight approval a real recommendation now needs.
+
+    `Payload` stays the candidate request; `Approved Payload` is the exact approved batch, whose hash and
+    timestamp are covered by an HMAC signature the importer verifies against the row's own facts.
+
+    The knobs are the attacks: `tamper` edits the approved batch after signing, `sign=False` fabricates a
+    self-consistent but unsigned approval, and `sign_as_row` / `sign_as_run` sign for a different request.
     """
-    approved_text = AB.canonical_payload(records)
-    sha = AB.payload_sha(approved_text)
+    approval_at = approval_at or APPROVAL_AT
+    stamped = [dict(r, created_at=approval_at) for r in records]
+    approved_text = AB.canonical_payload(stamped)
+    candidate_records = candidate if candidate is not None else records
+    candidate_text = json.dumps(candidate_records)
+
+    body = {
+        "schema": "preflight-result/1", "verdict": verdict, "airtable_record_id": rid,
+        "run_id": run_id, "answered_at": approval_at, "approval_as_of": approval_at,
+        "candidate_payload_sha256": AB.payload_sha(candidate_text),
+        "approved_payload_sha256": AB.payload_sha(approved_text),
+    }
+    if sign:
+        body.update(APPROVAL.issue(
+            key=key or SIGNING_KEY, airtable_record_id=sign_as_row or rid,
+            run_id=sign_as_run or run_id, candidate_payload=candidate_text,
+            approved_payload=approved_text, approval_as_of=approval_at))
     if tamper:
-        edited = [dict(r) for r in records]
+        edited = [dict(r) for r in stamped]
         edited[0]["recommended_stake"] = 500
         approved_text = AB.canonical_payload(edited)
-    result = json.dumps({
-        "schema": "preflight-result/1", "verdict": verdict, "airtable_record_id": rid,
-        "approved_payload_sha256": sha, "answered_at": CREATED,
-    })
-    return row(records, rid=rid, approved=approved_text, result=result, **kw)
+
+    return row(records, rid=rid, run_id=run_id, payload=candidate_text,
+               approved=approved_text, result=json.dumps(body), **kw)
 
 
 @pytest.fixture
@@ -177,6 +201,7 @@ def run_sync(fake, ledger, *, pusher=None, **kw):
     def default_pusher(root, message):
         calls.append(message)
     c = client(fake)
+    kw.setdefault("signing_key", SIGNING_KEY)
     code = sync_airtable.sync(c, ledger, now=NOW, pusher=pusher or default_pusher, **kw)
     return code, calls, c
 
@@ -195,9 +220,9 @@ class _FreshIndex:
     capture layouts. Here the point is that a real recommendation cannot land without a gate context at all.
     """
 
-    def __init__(self, ask=0.62, confirmed=None, ticker=None):
+    def __init__(self, ask=0.62, confirmed=None, ticker=None, anchor=None):
         self.ask, self.ticker = ask, ticker
-        self.confirmed = confirmed or (DECISION_AT - timedelta(minutes=2))
+        self.confirmed = confirmed or ((anchor or DECISION_AT) - timedelta(minutes=2))
 
     def confirmation(self, ticker, series_ticker, as_of=None):
         if as_of is not None and self.confirmed > as_of:
@@ -212,9 +237,9 @@ class _FreshIndex:
 class _DeepBook:
     """A book with enough size at the top ask to fill any pilot stake."""
 
-    def __init__(self, ask=0.62, observed=None):
+    def __init__(self, ask=0.62, observed=None, anchor=None):
         self.ask = ask
-        self.observed = observed or (DECISION_AT - timedelta(minutes=2))
+        self.observed = observed or ((anchor or DECISION_AT) - timedelta(minutes=2))
 
     def latest_book(self, ticker, as_of):
         if self.observed > as_of:
@@ -224,9 +249,15 @@ class _DeepBook:
                                  "yes_dollars": [["0.5000", "10"]]}}
 
 
-def gate_ctx(ask=0.62, index=None, book=None, **kw):
-    ctx = G.GateContext(capture_index=index if index is not None else _FreshIndex(ask=ask),
-                        book_index=book if book is not None else _DeepBook(ask=ask),
+def gate_ctx(ask=0.62, index=None, book=None, anchor=None, **kw):
+    """`anchor` is the moment the capture is fresh AT -- i.e. the decision being gated.
+
+    For a preflight-approved row that is the APPROVAL time, not the request time: the gates evaluate at the
+    approved record's created_at, and a capture fresh at 13:00 is 18 minutes stale for a 13:18 approval.
+    That is the architecture working, so the fixture has to say which moment it is describing.
+    """
+    ctx = G.GateContext(capture_index=index if index is not None else _FreshIndex(ask=ask, anchor=anchor),
+                        book_index=book if book is not None else _DeepBook(ask=ask, anchor=anchor),
                         fee_schedule=FEES.load_fee_schedule(ROOT), **kw)
     ctx.risk_policy = RISK.RiskPolicy.load(ROOT)
     return ctx
@@ -1011,8 +1042,7 @@ def test_E_only_the_approved_payload_is_canonical(ledger):
 
     wanted = sized(proposed_stake=500, recommended_stake=500)
     granted = sized(proposed_stake=500, recommended_stake=10)
-    r = approved_row([granted])
-    r["fields"][AB.F_PAYLOAD] = json.dumps([wanted])
+    r = approved_row([granted], candidate=[wanted])
 
     code, _calls, _c = run_sync(FakeAirtable([{"records": [r]}]), ledger, gate_context=gate_ctx())
     assert code == 0
@@ -1022,7 +1052,7 @@ def test_E_only_the_approved_payload_is_canonical(ledger):
     assert recs[0]["proposed_stake"] == 500, "what was asked for is preserved beside what was approved"
 
     receipt = store.read_kind(ledger, "import_receipts")[0]
-    assert receipt["payload_source"] == "approved payload (preflight-bound)"
+    assert receipt["payload_source"] == "approved payload (preflight-bound, signature verified)"
     assert receipt["approved_payload_sha256"]
 
 
@@ -1042,3 +1072,207 @@ def test_a_test_only_recommendation_still_takes_the_simple_path(ledger):
                                 gate_context=gate_ctx())
     assert code == 0
     assert len(store.read_kind(ledger, "recommendations", include_test=True)) == 1
+
+
+# ---- the approval is AUTHENTICATED, not merely self-consistent ---------------------------------------
+#
+# A hash the approval carries about its own payload proves the two agree. It does not prove the preflight
+# worker issued either of them: anyone who can write Airtable can write a payload AND a hash of that payload.
+# The signature is what turns "a direct READY_FOR_SYNC row cannot bypass preflight" from an etiquette into a
+# property. The key exists only as a GitHub Actions secret.
+
+def test_A_an_authentic_signature_is_accepted(ledger):
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [approved_row([_real(rec)])]}]), ledger,
+                                gate_context=gate_ctx())
+    assert code == 0
+    assert len(store.read_kind(ledger, "recommendations")) == 1
+
+
+def test_B_an_edited_approved_payload_with_the_old_signature_is_rejected(ledger):
+    _expect_error(ledger, [approved_row([_real(rec)], tamper=True)],
+                  contains="has been altered since it was approved")
+
+
+def test_C_a_fabricated_payload_and_hash_without_a_signature_is_rejected(ledger):
+    """THE bypass this exists to close. Both halves forged and perfectly self-consistent."""
+    _expect_error(ledger, [approved_row([_real(rec)], sign=False)],
+                  contains="carries no signature")
+
+
+def test_C_a_fabricated_signature_is_rejected(ledger):
+    r = approved_row([_real(rec)])
+    body = json.loads(r["fields"][AB.F_PREFLIGHT_RESULT])
+    body["approval_signature"] = "0" * 64
+    r["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
+    _expect_error(ledger, [r], contains="signature does not verify")
+
+
+def test_C_an_approval_signed_with_the_wrong_key_is_rejected(ledger):
+    _expect_error(ledger, [approved_row([_real(rec)], key=b"a-different-key-" * 4)],
+                  contains="signature does not verify")
+
+
+def test_D_a_fabricated_APPROVED_verdict_is_rejected(ledger):
+    """Flipping the verdict on a genuinely blocked row does not make it approved."""
+    r = approved_row([_real(rec)], verdict="BLOCKED")
+    body = json.loads(r["fields"][AB.F_PREFLIGHT_RESULT])
+    body["verdict"] = "APPROVED"
+    r["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
+    # The verdict is not itself signed -- but every fact that matters is, and the row cannot produce a
+    # signature for a batch the worker never approved.
+    _expect_error(ledger, [r], contains="signature does not verify")
+
+
+def test_E_a_signature_copied_to_another_row_is_rejected(ledger):
+    _expect_error(ledger, [approved_row([_real(rec)], sign_as_row="recSOMEOTHERROW1")],
+                  contains="signature does not verify")
+
+
+def test_E_an_approval_naming_no_row_at_all_is_rejected(ledger):
+    """A missing field must never be the easy way past a check."""
+    r = approved_row([_real(rec)])
+    body = json.loads(r["fields"][AB.F_PREFLIGHT_RESULT])
+    del body["airtable_record_id"]
+    r["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
+    _expect_error(ledger, [r], contains="names no airtable_record_id")
+
+
+def test_F_a_signature_copied_to_another_run_is_rejected(ledger):
+    _expect_error(ledger, [approved_row([_real(rec)], sign_as_run="20260101T000000Z")],
+                  contains="signature does not verify")
+
+
+def test_G_a_changed_approval_timestamp_is_rejected(ledger):
+    r = approved_row([_real(rec)])
+    body = json.loads(r["fields"][AB.F_PREFLIGHT_RESULT])
+    body["approval_as_of"] = (AB._parse_ts("x", APPROVAL_AT) + timedelta(minutes=1)).isoformat()
+    r["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
+    _expect_error(ledger, [r], contains="signature does not verify")
+
+
+def test_H_a_changed_candidate_payload_is_rejected(ledger):
+    """The request is signed too, so the record of what was asked for cannot be rewritten either."""
+    r = approved_row([_real(rec)])
+    r["fields"][AB.F_PAYLOAD] = json.dumps([_real(rec, primary_thesis="a different thesis entirely")])
+    _expect_error(ledger, [r], contains="candidate `Payload` has changed")
+
+
+def test_I_a_missing_signing_key_fails_a_real_recommendation_closed(ledger):
+    fake = FakeAirtable([{"records": [approved_row([_real(rec)])]}])
+    code, _calls, _c = run_sync(fake, ledger, gate_context=gate_ctx(), signing_key=None)
+    assert code == 1
+    assert store.read_kind(ledger, "recommendations") == []
+
+
+def test_a_missing_signing_key_does_not_stop_a_pass_being_recorded(ledger):
+    """A pass costs nothing and the ledger wants them. Only real money needs an authenticated approval."""
+    fake = FakeAirtable([{"records": [row([a_pass(test_only=False)])]}])
+    code, _calls, _c = run_sync(fake, ledger, gate_context=gate_ctx(), signing_key=None)
+    assert code == 0
+    assert len(store.read_kind(ledger, "recommendations")) == 1
+
+
+def test_an_unknown_approval_schema_is_rejected(ledger):
+    r = approved_row([_real(rec)])
+    body = json.loads(r["fields"][AB.F_PREFLIGHT_RESULT])
+    body["approval_schema"] = "preflight-approval/99"
+    r["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
+    _expect_error(ledger, [r], contains="unknown approval schema")
+
+
+# ---- the two provenance clocks ------------------------------------------------------------------------
+
+def test_A_a_row_created_at_1300_approved_at_1318_is_valid(ledger):
+    """The headline case the old timestamp rule would have rejected: 13:18 > 13:00 + 5 min."""
+    created = AB._parse_ts("x", CREATED)
+    approval_at = created + timedelta(minutes=18)
+    r = approved_row([_real(rec)], approval_at=approval_at.isoformat())
+    code, _calls, _c = run_sync(FakeAirtable([{"records": [r]}]), ledger,
+                                gate_context=gate_ctx(anchor=approval_at))
+    assert code == 0
+    archived = store.read_kind(ledger, "recommendations")[0]
+    assert archived["created_at"] == (created + timedelta(minutes=18)).isoformat()
+
+
+def test_B_the_same_approval_still_archives_twelve_hours_later(ledger):
+    """Import latency is not evidence about the approval. `now` here is the twelve-hourly importer."""
+    created = AB._parse_ts("x", CREATED)
+    approval_at = created + timedelta(minutes=18)
+    r = approved_row([_real(rec)], approval_at=approval_at.isoformat())
+    fake = FakeAirtable([{"records": [r]}])
+    code = sync_airtable.sync(client(fake), ledger, now=created + timedelta(hours=12),
+                              pusher=lambda *a: None, signing_key=SIGNING_KEY,
+                              gate_context=gate_ctx(anchor=approval_at))
+    assert code == 0
+    assert len(store.read_kind(ledger, "recommendations")) == 1
+
+
+def test_C_an_approval_beyond_the_request_age_window_is_rejected(ledger):
+    created = AB._parse_ts("x", CREATED)
+    _expect_error(ledger, [approved_row([_real(rec)],
+                                        approval_at=(created + timedelta(minutes=90)).isoformat())],
+                  contains="beyond the 30 min window")
+
+
+def test_D_an_old_request_cannot_refresh_itself_with_a_new_candidate_timestamp(ledger):
+    """The candidate timestamp is written by the requester. Airtable's server clock is not.
+
+    The row was stamped at CREATED. The candidate claims to have been drafted 89 minutes later, which would
+    make the request look minutes old if the candidate's own clock governed. It does not.
+    """
+    created = AB._parse_ts("x", CREATED)
+    fresh_claim = (created + timedelta(minutes=89)).isoformat()
+    r = approved_row([_real(rec, created_at=fresh_claim)],
+                     approval_at=(created + timedelta(minutes=90)).isoformat())
+    _expect_error(ledger, [r], contains="beyond the 30 min window")
+
+
+def test_an_approval_predating_its_own_request_is_rejected(ledger):
+    created = AB._parse_ts("x", CREATED)
+    _expect_error(ledger, [approved_row([_real(rec)],
+                                        approval_at=(created - timedelta(minutes=30)).isoformat())],
+                  contains="predates the Airtable request")
+
+
+def test_E_a_record_not_dated_at_the_signed_approval_is_rejected(ledger):
+    """Every record in an approved batch carries the approval timestamp, exactly."""
+    created = AB._parse_ts("x", CREATED)
+    approval_at = (created + timedelta(minutes=8)).isoformat()
+    stamped = [_real(rec, created_at=approval_at)]
+    r = approved_row(stamped, approval_at=approval_at)
+    # Re-stamp the approved payload one second off, and re-sign for the altered payload so the ONLY thing
+    # wrong is the record's own date.
+    off = [dict(stamped[0], created_at=(created + timedelta(minutes=8, seconds=1)).isoformat())]
+    approved_text = AB.canonical_payload(off)
+    body = json.loads(r["fields"][AB.F_PREFLIGHT_RESULT])
+    body["approved_payload_sha256"] = AB.payload_sha(approved_text)
+    body.update(APPROVAL.issue(
+        key=SIGNING_KEY, airtable_record_id=r["id"], run_id=RUN_ID,
+        candidate_payload=r["fields"][AB.F_PAYLOAD], approved_payload=approved_text,
+        approval_as_of=approval_at))
+    r["fields"][AB.F_APPROVED_PAYLOAD] = approved_text
+    r["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
+    _expect_error(ledger, [r], contains="but the signed approval is for")
+
+
+def test_F_an_approval_at_or_after_kickoff_is_rejected(ledger):
+    created = AB._parse_ts("x", CREATED)
+    approval_at = (created + timedelta(minutes=10)).isoformat()
+    r = approved_row([_real(rec, kickoff_utc=(created + timedelta(minutes=5)).isoformat())],
+                     approval_at=approval_at)
+    _expect_error(ledger, [r], contains="at or after kickoff")
+
+
+def test_G_the_simple_pass_path_keeps_the_original_provenance_rule(ledger):
+    """No preflight, no approval clock: a PASS still may not postdate its own Airtable row."""
+    created = AB._parse_ts("x", CREATED)
+    late = a_pass(test_only=False, created_at=(created + timedelta(hours=2)).isoformat())
+    _expect_error(ledger, [row([late])], contains="cannot be written after it was submitted")
+
+
+def test_the_candidate_request_is_still_held_to_the_anti_backfill_rule(ledger):
+    """The approval clock replaces the rule for the APPROVED record only. The request keeps its own."""
+    created = AB._parse_ts("x", CREATED)
+    backfilled = _real(rec, created_at=(created - timedelta(days=3)).isoformat())
+    r = approved_row([backfilled])
+    _expect_error(ledger, [r], contains="does not accept backfilled recommendations")

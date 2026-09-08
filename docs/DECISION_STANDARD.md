@@ -349,12 +349,26 @@ net_fee       = trade_fee + rounding_fee - rebate           >= 0
 **Balance precision** is `$0.01` for an ordinary account and `$0.0001` for a direct member. The rebate unit
 is one precision unit, so both stay coherent.
 
+**The current official worked example**, reproduced exactly by `fee_for_fill` and pinned in
+`tests/test_fees.py` — one contract at $0.055 under the ordinary 0.07 taker coefficient, so no synthetic
+coefficient is needed:
+
+```
+signed revenue    -$0.055000
+model fee          $0.00363825    = 0.07 x 1 x 0.055 x 0.945
+trade fee          $0.003639      = rounded UP to $0.000001
+aligned change    -$0.060000      = floored to a cent
+rounding fee       $0.001361      = (-0.058639) - (-0.060000)
+trade + rounding   $0.005000
+```
+
 **The increment has been wrong here twice, in opposite directions**, which is why the tests now pin it
 against inputs that actually discriminate. It was `$0.01` (a per-fill cent ceiling, which overstates a
-twenty-fill order by up to twenty cents), then `$0.0001`, and it is `$0.000001`. The worked example
-available during the middle period could not tell `$0.0001` from `$0.000001` — every number in it was
-already aligned to four decimals — so it reproduced perfectly against the wrong rule. A test that cannot
-fail is not evidence.
+twenty-fill order by up to twenty cents), then `$0.0001`, and it is `$0.000001`. The example carried here
+during the middle period gave a trade fee of `$0.0085` for that same fill — a superseded fee regime whose
+every number was already aligned to four decimals, so it reproduced *perfectly* against the wrong rule. A
+test that cannot fail is not evidence, and a tripwire now fails the build if that number reappears as
+current documentation.
 
 **The rebate cap is the venue's rule, not a defensive choice.** A previous version let an individual fill's
 net fee go negative and floored only the order total, on the reasoning that a rebate is a credit against the

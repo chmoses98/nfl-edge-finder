@@ -9,23 +9,33 @@ Kalshi charges a fill in three separately-named parts, and the total is not `cei
     ROUNDING FEE        cent-alignment: the resulting balance change is floored to the account's balance
                         precision, and the shortfall is charged
     REBATE              the rounding overpayment accumulates PER ORDER across all of its fills; once the
-                        accumulator exceeds a cent, a whole-cent rebate is issued and the accumulator drops
-                        by a cent
+                        accumulator exceeds one balance-precision unit a rebate of one unit is issued --
+                        CAPPED so that fill's own net fee cannot go negative, with the unabsorbed remainder
+                        left in the accumulator for a later fill to earn
 
-    NET FEE = TRADE FEE + ROUNDING FEE - REBATE          (never below zero)
+    NET FEE = TRADE FEE + ROUNDING FEE - REBATE          (non-negative by construction, not by flooring)
 
-The accumulator is the part that matters economically: it is what makes twenty small fills cost the same as
-one equivalent large fill. A model that ceils every fill to the next cent independently overstates a
-twenty-fill order by up to twenty cents, and a model that ceils the whole order to the next cent understates
-the rounding on a fragmented one. Both are wrong in ways that change whether a marginal trade is worth doing.
+Balance precision is $0.01 for an ordinary account and $0.0001 for a direct member.
 
-Worked example from Kalshi's fee-rounding documentation, reproduced by `fee_for_fill` and pinned in
-tests/test_fees.py:
+The accumulator is the part that matters economically: it is what makes twenty small fills cost close to one
+equivalent large fill. A model that ceils every fill to the next cent independently overstates a twenty-fill
+order by up to twenty cents, and a model that ceils the whole order to the next cent understates the rounding
+on a fragmented one. Both are wrong in ways that change whether a marginal trade is worth doing.
 
-    fill 1   revenue -$0.0550, trade fee $0.0085  ->  balance -$0.0635 floored to -$0.0700
-             rounding fee $0.0065, accumulator $0.0065, no rebate, net fee $0.0150
-    fill 2   same again                            ->  accumulator $0.0130 > $0.01
-             rebate $0.0100, accumulator $0.0030, net fee $0.0050
+The CURRENT worked example from Kalshi's Fee Rounding documentation, reproduced exactly by `fee_for_fill`
+and pinned in tests/test_fees.py -- one contract at $0.055 under the ordinary 0.07 taker coefficient:
+
+    signed revenue    -$0.055000
+    model fee          $0.00363825    = 0.07 x 1 x 0.055 x 0.945
+    trade fee          $0.003639      = rounded UP to $0.000001
+    aligned change    -$0.060000      = floored to a cent
+    rounding fee       $0.001361
+    trade + rounding   $0.005000
+
+An older version of this docstring carried a different example for the same fill, with a trade fee of
+$0.0085. That was a superseded fee regime, and it survived here for a while precisely because every number
+in it was already aligned to four decimals -- so it reproduced perfectly against a rounding increment that
+was wrong by two orders of magnitude. A test that cannot fail is not evidence.
 
 PRE-TRADE VS POST-TRADE
 -----------------------
@@ -286,8 +296,9 @@ def rounding_uncertainty(contracts, balance_precision=CENT,
 
       CEILING.  `net_fee = SUM(trade_fee_i) + accumulator_final` (the rounding fees minus the rebates ARE
                 the accumulator, since it starts at zero). WITHIN ONE PRICE LEVEL the raw quadratic is
-                linear in contracts, so `SUM(raw_i) == raw_level`, and each fill's ceiling to a centicent
-                adds strictly less than one centicent. With N fills the excess is therefore < N centicents.
+                linear in contracts, so `SUM(raw_i) == raw_level`, and each fill's rounding-up adds
+                strictly less than one TRADE_FEE_INCREMENT. With N fills the excess is therefore
+                < N * TRADE_FEE_INCREMENT.
 
       RESIDUAL. The accumulator is bounded by one balance precision. This needed re-proving once the venue's
                 per-fill REBATE CAP was modelled, because a fill too small to absorb a whole precision unit

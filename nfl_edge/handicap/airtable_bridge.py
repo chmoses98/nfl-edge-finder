@@ -40,6 +40,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
+from nfl_edge.handicap import approval as APPROVAL
 from nfl_edge.handicap import gates as G
 from nfl_edge.handicap import schema as S
 from nfl_edge.handicap import store
@@ -316,11 +317,17 @@ def _parse_ts(name: str, value) -> datetime:
 
 
 def check_timestamps(rec: dict, airtable_created: datetime, now: datetime) -> None:
-    """The anti-backfill rule, judged against the one timestamp ChatGPT does not control.
+    """The anti-backfill rule for a CANDIDATE REQUEST, judged against the one timestamp ChatGPT cannot write.
 
-    Airtable stamps createdTime server-side. A recommendation that claims to predate its own row by more than
-    a day, or that postdates it, or that was written after the game started, is not prospective evidence --
-    whatever else it may be.
+    Airtable stamps createdTime server-side. A request that claims to predate its own row by more than a day,
+    or that postdates it, or that was written after the game started, is not prospective evidence -- whatever
+    else it may be.
+
+    NOT the rule for a machine-approved record. Under the pre-trade architecture the row is a REQUEST and the
+    approved recommendation is made later, at approval time, so "may not postdate the row by more than five
+    minutes" would reject the architecture working correctly. Approved records go through
+    `approval.check_approval_window` and `_check_approved_timestamps` instead, which are stricter about the
+    thing that matters: the record must be dated at the SIGNED approval instant, exactly.
     """
     created = _parse_ts("created_at", rec.get("created_at"))
     if created > airtable_created + CLOCK_SKEW_TOLERANCE:
@@ -347,7 +354,8 @@ def check_timestamps(rec: dict, airtable_created: datetime, now: datetime) -> No
                 f"{ko.isoformat()}; the decision handoff must be prospective")
 
 
-def check_batch(records: list, *, run_id: str, airtable_created: datetime, now: datetime) -> list:
+def check_batch(records: list, *, run_id: str, airtable_created: datetime, now: datetime,
+                approval=None) -> list:
     """Everything that must be true of a BATCH, on top of what the schema says about each record.
 
     Per-record validity is `schema.validate_recommendation` and is not restated here. What is added is the
@@ -399,7 +407,14 @@ def check_batch(records: list, *, run_id: str, airtable_created: datetime, now: 
             raise BridgeError(f"{label} ({rid}) season/week must be integers, got {season!r}/{week!r}")
         slates.add((season, week))
 
-        check_timestamps(rec, airtable_created, now)
+        # An APPROVED batch is judged by the approval clock (`_check_approved_timestamps`), not by the
+        # candidate rule -- the whole point of the new architecture is that the recommendation is made
+        # later, by the worker, at approval time. The candidate records in that same row are still put
+        # through the rule below; `plan_run` runs this function over both payloads for exactly that reason.
+        if approval is None:
+            check_timestamps(rec, airtable_created, now)
+        elif airtable_created > now + CLOCK_SKEW_TOLERANCE:
+            raise BridgeError(f"Airtable createdTime {airtable_created.isoformat()} is in the future")
 
     if len(slates) > 1:
         raise BridgeError(
@@ -460,7 +475,7 @@ class RunPlan:
 
 def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
              base_id: str = BASE_ID, table_id: str = TABLE_ID,
-             gate_context: "G.GateContext | None" = None) -> RunPlan:
+             gate_context: "G.GateContext | None" = None, signing_key=None) -> RunPlan:
     """Validate one row and work out the exact file operations, without performing any of them.
 
     Planning before writing is what makes a batch atomic: every reason to refuse -- schema, coherence,
@@ -483,8 +498,15 @@ def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
     # archived from `Approved Payload` -- the exact batch the pre-trade worker approved -- and only after its
     # hash is re-derived here and matched against the hash recorded in `Preflight Result`. Without that, a
     # row could be written straight to READY_FOR_SYNC and walk a bet into the ledger having passed nothing.
-    records, source, approved_sha = _canonical_records(fields, candidate_records, airtable_id)
-    warnings = check_batch(records, run_id=run_id, airtable_created=airtable_created, now=now)
+    records, source, approved_sha, verified = _canonical_records(
+        fields, candidate_records, airtable_id, run_id, airtable_created, signing_key)
+    # The CANDIDATE request is still judged by the old anti-backfill discipline -- that clock did not change,
+    # and a request that claims to predate its own row by a day is still not prospective evidence. What the
+    # approval clock replaces is only the rule about the machine-approved record.
+    if verified is not None:
+        check_batch(candidate_records, run_id=run_id, airtable_created=airtable_created, now=now)
+    warnings = check_batch(records, run_id=run_id, airtable_created=airtable_created, now=now,
+                           approval=verified)
 
     season, week = records[0]["season"], records[0]["week"]
     plan = RunPlan(airtable_id=airtable_id, run_id=run_id, created_time=created_time, sha=sha,
@@ -524,27 +546,30 @@ def _needs_preflight(records: list) -> bool:
     return any(r.get("decision") == S.RECOMMENDED and not r.get("test_only") for r in records or [])
 
 
-def _canonical_records(fields: dict, candidate_records: list, airtable_id: str) -> tuple:
-    """The records this row actually archives, and the proof it is allowed to.
+def _canonical_records(fields: dict, candidate_records: list, airtable_id: str, run_id: str,
+                      airtable_created: datetime, signing_key) -> tuple:
+    """The records this row actually archives, and the AUTHENTICATED proof it is allowed to.
 
     A batch with no real RECOMMENDED record keeps the simple path: a PASS is scientifically valuable, costs
     nothing, and requiring a pre-trade approval for it would only discourage recording passes.
 
-    A batch WITH one is different. It is archived from `Approved Payload`, and only when:
+    A batch WITH one is archived from `Approved Payload`, and only when the approval in `Preflight Result`
+    says APPROVED and VERIFIES under the worker's HMAC key against this row's own facts. Hash agreement
+    alone is not enough and never was: anyone who can write Airtable can write a payload and a hash of that
+    payload, and the two agree perfectly. Forging an approval requires the signing key, which lives only in
+    GitHub Actions.
 
-      * a `Preflight Result` exists, is readable, says APPROVED, and names this Airtable row;
-      * `Approved Payload` re-hashes to the `approved_payload_sha256` that result recorded.
-
-    Anything else -- no approval, a blocked or expired one, a payload edited after approval, an approval for
-    a different row -- is refused. That is what makes "a direct READY_FOR_SYNC row cannot bypass preflight" a
-    property of the importer rather than a convention.
+    Anything else -- no approval, a blocked or expired verdict, an edited payload, an approval lifted from
+    another row or run, a missing signing key -- is refused. That is what makes "a direct READY_FOR_SYNC row
+    cannot bypass preflight" a property of the importer rather than a convention.
     """
     approved_raw = fields.get(F_APPROVED_PAYLOAD)
     result_raw = fields.get(F_PREFLIGHT_RESULT)
+    candidate_raw = fields.get(F_PAYLOAD)
     has_approved = isinstance(approved_raw, str) and approved_raw.strip()
 
     if not _needs_preflight(candidate_records) and not has_approved:
-        return candidate_records, "candidate payload (no real recommendation in this batch)", None
+        return candidate_records, "candidate payload (no real recommendation in this batch)", None, None
 
     if not has_approved:
         raise BridgeError(
@@ -567,25 +592,56 @@ def _canonical_records(fields: dict, candidate_records: list, airtable_id: str) 
         raise BridgeError(
             f"the preflight verdict on this row is {result.get('verdict')!r}, not APPROVED. A blocked, "
             "expired or errored request can never become a canonical recommendation.")
-    claimed_row = result.get("airtable_record_id")
-    if claimed_row and claimed_row != airtable_id:
-        raise BridgeError(
-            f"the `Preflight Result` on row {airtable_id} was issued for row {claimed_row}; an approval is "
-            "not transferable between requests")
 
-    expected = result.get("approved_payload_sha256")
-    actual = payload_sha(approved_raw)
-    if not expected:
-        raise BridgeError("`Preflight Result` records no approved_payload_sha256, so `Approved Payload` "
-                          "cannot be bound to the approval")
-    if expected != actual:
+    if signing_key is None:
         raise BridgeError(
-            f"`Approved Payload` hashes to {actual} but the approval was issued for {expected}. The approved "
-            "batch has been altered since it was approved; it is not what passed the gates and will not be "
-            "archived.")
+            f"no {APPROVAL.SIGNING_KEY_ENV} available, so this approval cannot be authenticated. A real "
+            "recommendation is not archived on an approval we cannot verify; fail closed rather than trust "
+            "a self-consistent one.")
+    try:
+        verified = APPROVAL.verify(
+            result, key=signing_key, airtable_record_id=airtable_id, run_id=run_id,
+            candidate_payload=candidate_raw if isinstance(candidate_raw, str) else "",
+            approved_payload=approved_raw)
+        APPROVAL.check_approval_window(verified.approval_as_of, airtable_created)
+    except APPROVAL.ApprovalError as e:
+        raise BridgeError(str(e)) from None
 
     records = parse_payload(approved_raw)
-    return records, "approved payload (preflight-bound)", actual
+    _check_approved_timestamps(records, verified, airtable_created)
+    return records, "approved payload (preflight-bound, signature verified)", \
+        verified.approved_payload_sha256, verified
+
+
+def _check_approved_timestamps(records: list, verified, airtable_created: datetime) -> None:
+    """The APPROVAL clock on the machine-approved record.
+
+    The old rule -- a recommendation may not postdate its Airtable row by more than five minutes -- is
+    deliberately NOT applied here. It was right when the row was the finished recommendation; under the
+    pre-trade architecture the row is a request and the recommendation is made later, by the worker, at
+    approval time. Applying it would reject the correct behaviour.
+
+    What replaces it is stricter in the way that matters: every approved record must be dated at the SIGNED
+    approval instant, exactly. Not near it, not within a tolerance -- the signature covers `approval_as_of`,
+    so a record carrying any other `created_at` was not the record that was approved.
+    """
+    signed = verified.approval_as_of
+    for i, rec in enumerate(records):
+        created = _parse_ts(f"approved payload[{i}] created_at", rec.get("created_at"))
+        if created != signed:
+            raise BridgeError(
+                f"approved payload[{i}] ({rec.get('recommendation_id')}) is dated {created.isoformat()} but "
+                f"the signed approval is for {signed.isoformat()}. Every record in an approved batch carries "
+                "the approval timestamp; one that does not is not the record that was approved.")
+        kickoff = rec.get("kickoff_utc")
+        if kickoff:
+            ko = _parse_ts("kickoff_utc", kickoff)
+            if signed >= ko:
+                raise BridgeError(
+                    f"the approval at {signed.isoformat()} is at or after kickoff {ko.isoformat()}; a "
+                    "post-kickoff approval is not a prediction")
+    if airtable_created is None:
+        raise BridgeError("the row carries no Airtable createdTime to judge the approval against")
 
 
 def _plan_gates(plan: RunPlan, ledger_root: str, gate_context, now: datetime) -> None:

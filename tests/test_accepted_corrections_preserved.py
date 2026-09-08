@@ -277,3 +277,77 @@ def test_a_real_recommendation_still_needs_a_hash_bound_approval():
     client = AB.AirtableClient("tok", "b", "t", opener=lambda *a, **k: None)
     with pytest.raises(AB.BridgeError):
         client.write_fields({"rec1": {AB.F_PAYLOAD: "rewritten"}})
+
+
+# ---- 33-36. the merge-blocker round -------------------------------------------------------------------
+
+def test_no_current_documentation_calls_the_trade_fee_increment_a_centicent():
+    """"Centicent" is $0.0001. The trade-fee increment is $0.000001. The word may only appear as history."""
+    import glob                                                          # noqa: PLC0415
+    offenders = []
+    for pattern in ("nfl_edge/**/*.py", "scripts/**/*.py", "config/*.json", "docs/*.md"):
+        for path in glob.glob(os.path.join(ROOT, pattern), recursive=True):
+            with open(path) as fh:
+                for i, line in enumerate(fh, 1):
+                    low = line.lower()
+                    if "centicent" not in low:
+                        continue
+                    # Allowed only where the line itself marks the term as wrong or historical.
+                    if any(w in low for w in ("wrong", "guess", "was ", "older", "obsolete", "historic")):
+                        continue
+                    offenders.append(f"{os.path.relpath(path, ROOT)}:{i}: {line.strip()[:100]}")
+    assert not offenders, f"stale 'centicent' wording describing the CURRENT increment: {offenders}"
+
+
+def test_the_approval_signature_is_still_required_and_verified():
+    from nfl_edge.handicap import approval as A                          # noqa: PLC0415
+    assert A.SIGNATURE_ALGORITHM == "HMAC-SHA256"
+    assert set(A.SIGNED_FIELDS) == {
+        "schema", "airtable_record_id", "run_id",
+        "candidate_payload_sha256", "approved_payload_sha256", "approval_as_of"}
+    with pytest.raises(A.ApprovalError):
+        A.signing_key(env={})
+    with pytest.raises(A.ApprovalError):
+        A.signing_key(env={A.SIGNING_KEY_ENV: "too-short"})
+    # And the importer refuses without one.
+    from nfl_edge.handicap import airtable_bridge as AB                  # noqa: PLC0415
+    assert "signing_key is None" in inspect.getsource(AB._canonical_records)
+
+
+def test_the_signing_key_is_never_committed_anywhere():
+    """The secret may be NAMED in the operating code. It may never carry a VALUE there.
+
+    Looks for a long secret-shaped literal assigned next to the key's name -- the shape a real key would
+    have if somebody pasted one in "just to test it".
+    """
+    import glob                                                          # noqa: PLC0415
+    import re                                                            # noqa: PLC0415
+    from nfl_edge.handicap import approval as A                          # noqa: PLC0415
+
+    # NAME = "PREFLIGHT_SIGNING_KEY" is the constant itself; a VALUE would be a long opaque literal.
+    leak = re.compile(r"(?i)(signing[_-]?key|" + re.escape(A.SIGNING_KEY_ENV)
+                      + r")\s*[:=]\s*[\"'][^\"'\n]{32,}[\"']")
+    offenders = []
+    for pattern in ("nfl_edge/**/*.py", "scripts/**/*.py", "config/*.json",
+                    ".github/workflows/*.yml", "docs/*.md"):
+        for path in glob.glob(os.path.join(ROOT, pattern), recursive=True):
+            for i, line in enumerate(open(path).read().splitlines(), 1):
+                if "secrets." in line or "openssl rand" in line:
+                    continue                     # a secret REFERENCE, or the instruction to generate one
+                if leak.search(line):
+                    offenders.append(f"{os.path.relpath(path, ROOT)}:{i}")
+    assert not offenders, f"something key-shaped is committed: {offenders}"
+
+    # And the only way to obtain it is the environment.
+    assert "os.environ" in inspect.getsource(A.signing_key)
+
+
+def test_the_two_provenance_clocks_are_still_separate():
+    from nfl_edge.handicap import airtable_bridge as AB                  # noqa: PLC0415
+    from nfl_edge.handicap import approval as A                          # noqa: PLC0415
+    # The candidate rule still exists and still forbids postdating the row.
+    assert "cannot be written after it was submitted" in inspect.getsource(AB.check_timestamps)
+    # The approval rule is a different function with a different bound.
+    assert "predates the Airtable request" in inspect.getsource(A.check_approval_window)
+    assert A.MAX_REQUEST_AGE.total_seconds() / 60 == P.MAX_REQUEST_AGE_MIN, \
+        "the worker's expiry and the importer's window must be one number"

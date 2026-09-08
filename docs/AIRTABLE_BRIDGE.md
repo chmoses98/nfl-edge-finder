@@ -431,25 +431,83 @@ To archive an approved bet, ChatGPT changes **only** `Status: PREFLIGHT_APPROVED
 same row. The importer then:
 
 1. notices the batch contains a real `RECOMMENDED` record;
-2. re-derives `sha256(Approved Payload)` and requires it to equal `approved_payload_sha256`;
-3. requires the result to say `APPROVED` and to name this row;
-4. archives **`Approved Payload`**, never the candidate `Payload`;
-5. independently replays the gates at the approved record's `created_at` — which is the approval time.
+2. **verifies the approval's HMAC signature** against this row's own facts (below);
+3. requires the verdict to be `APPROVED`;
+4. checks the approval clock — at or after the request, and inside the request-age window;
+5. requires every approved record to be dated at the **signed** approval instant, exactly;
+6. archives **`Approved Payload`**, never the candidate `Payload`;
+7. independently replays the gates at the approved record's `created_at` — which is the approval time.
 
-**A real `RECOMMENDED` record written straight to `READY_FOR_SYNC` is refused.** So is one whose approved
-batch was edited after approval, one carrying a `BLOCKED`/`EXPIRED`/`ERROR` verdict, and one whose approval
-was issued for a different row. A PASS/WATCHLIST-only batch keeps the simple path: a pass costs nothing, is
-scientifically valuable, and requiring an approval for it would only discourage recording passes.
+### The approval is authenticated, not merely self-consistent
 
-### Approval time is the decision time
+A hash the approval carries about its own payload proves the two agree. It does **not** prove the preflight
+worker produced either of them — anyone able to write Airtable can write a payload *and* a hash of that
+payload, and the two agree perfectly. So the worker signs, with a key that exists only as a GitHub Actions
+secret:
 
-A candidate drafted at 13:00 and preflighted at 13:30 is a **13:30** decision. The worker re-prices the
+```
+message = compact_sorted_json({
+    "schema":                   "preflight-approval/1",
+    "airtable_record_id":       <this row>,
+    "run_id":                   <this row's Run ID>,
+    "candidate_payload_sha256": sha256(Payload),
+    "approved_payload_sha256":  sha256(Approved Payload),
+    "approval_as_of":           <the approval instant>,
+})
+approval_signature = HMAC-SHA256(PREFLIGHT_SIGNING_KEY, message)
+```
+
+`Preflight Result` carries `approval_schema`, `approval_signature_algorithm` and `approval_signature`. The
+importer **rebuilds that message from what it can see for itself** — this row's id, this row's Run ID, the
+hashes it computed from the two payloads in front of it — and compares with `hmac.compare_digest`. Only
+`approval_as_of` is taken from the result, because it is the one fact only the worker knows.
+
+So a signature lifted onto another row, another run, an edited approved batch or an edited candidate request
+reconstructs a *different* message and fails, with no separate rule needed for each. They get separate
+checks anyway, first, because "signature mismatch" is a useless thing to read at 01:00 when what actually
+happened is that somebody edited a payload.
+
+**`PREFLIGHT_SIGNING_KEY` exists only in GitHub Actions.** Never in Airtable, never in the Automation, never
+in ChatGPT, never in this repository. It is deliberately *not* `AIRTABLE_TOKEN`: a credential should have one
+purpose, and rotating Airtable access must not invalidate approval authentication.
+
+**Refused, fail-closed:** a real `RECOMMENDED` written straight to `READY_FOR_SYNC`; a missing or bad
+signature; an unknown approval schema; a missing `airtable_record_id` (a missing field is never the easy way
+past a check); a row-id, Run-ID, candidate-hash, approved-hash or timestamp mismatch; a
+`BLOCKED`/`EXPIRED`/`ERROR` verdict; and a missing signing key. A PASS/WATCHLIST-only batch keeps the simple
+path and is unaffected by a missing key: a pass costs nothing, is scientifically valuable, and requiring an
+authenticated approval for it would only discourage recording passes.
+
+### Two provenance clocks
+
+A candidate drafted at 13:00 and preflighted at 13:18 is a **13:18** decision. The worker re-prices the
 record's market state — the two-sided quote, the mid, the market timestamp, the minutes to kickoff — to the
 approval moment and gates it there, so a market that moved against the candidate blocks it. The **handicap**
 is carried forward untouched: no probability, thesis or grade is recomputed.
 
-A request older than `preflight.MAX_REQUEST_AGE_MIN` (30 minutes) comes back **EXPIRED**. The market can be
-re-priced; the thesis cannot. Submit a fresh request rather than approving an opinion nobody has revisited.
+That means the old timestamp rule cannot apply to the approved record. It said a recommendation may not
+postdate its Airtable row by more than five minutes, which was right when the row *was* the finished
+recommendation and is wrong when the row is a **request**:
+
+| clock | what it proves | rule |
+|---|---|---|
+| **request** — Airtable server `createdTime` | the candidate request existed by then | candidate `created_at` may not postdate it (bar 5 min skew) nor predate it by more than 24 h — **unchanged** |
+| **approval** — the signed `approval_as_of` | the worker made this decision then | at or after `createdTime` (bar skew); no later than `createdTime + 30 min + skew`; before kickoff; and **every approved record is dated exactly at it** |
+
+The old "may not postdate the row" rule is **never** applied to the machine-approved record. What replaces
+it is stricter where it matters: the signature covers `approval_as_of`, so a record carrying any other
+`created_at` was not the record that was approved.
+
+**Expiry is measured from Airtable's server clock, not the candidate's.** The candidate timestamp is written
+by the requester and can say anything; an hours-old request must not be able to refresh itself by claiming a
+new draft time. Past 30 minutes the answer is **EXPIRED** — the market can be re-priced, the thesis cannot.
+
+Approval is stamped **per row**, at the moment that row's preflight actually runs. A batch of requests takes
+time to work through, and with a fifteen-minute quote window the last one must not be dated as though it
+were the first.
+
+A PASS/WATCHLIST-only batch that never went through preflight keeps the original request-clock rule
+unchanged.
 
 **A row that is not `PREFLIGHT_APPROVED` has not been approved.** There is no third state and no default: a
 request that errored, timed out, or was never picked up is not a bet. Silence is never yes.
@@ -477,8 +535,19 @@ the existing `Status` single-select.
 
 **2. Create a GitHub token and an Airtable Automation.**
 
-Create a **fine-grained personal access token** scoped to `chmoses98/nfl-edge-finder` only, with a single
-permission:
+First, generate the approval signing key **once** and store it as a repository Actions secret named
+`PREFLIGHT_SIGNING_KEY`:
+
+```bash
+openssl rand -hex 32          # Settings -> Secrets and variables -> Actions -> New repository secret
+```
+
+Both the preflight workflow and the archival importer read it from Actions. It must never be pasted into
+Airtable, the Automation script, ChatGPT, an issue, a log or this repository. Rotating it invalidates
+approvals that have not yet been archived, which is the correct behaviour: re-request them.
+
+Then create a **fine-grained personal access token** scoped to `chmoses98/nfl-edge-finder` only, with a
+single permission:
 
 | permission | level | why |
 |---|---|---|

@@ -56,6 +56,7 @@ sys.path.insert(0, ROOT)
 from nfl_edge.execution import depth as DEPTH          # noqa: E402
 from nfl_edge.execution import quotes as Q             # noqa: E402
 from nfl_edge.handicap import airtable_bridge as AB    # noqa: E402
+from nfl_edge.handicap import approval as APPROVAL     # noqa: E402
 from nfl_edge.handicap import preflight as P           # noqa: E402
 from nfl_edge.handicap import risk as RISK             # noqa: E402
 
@@ -97,6 +98,7 @@ def _summary(results: list, *, run_id: str, airtable_id: str, candidate_payload:
             "candidate_created_at": r.candidate_created_at,
             "approval_as_of": r.as_of,
             "request_age_minutes": r.request_age_minutes,
+            "request_age_basis": r.request_age_basis,
             "proposed_stake": r.proposed_stake,
             "approved_stake": r.approved_stake,
             "blocking_reasons": r.blocking_reasons,
@@ -120,37 +122,63 @@ def _summary(results: list, *, run_id: str, airtable_id: str, candidate_payload:
     }
 
 
-def answer_row(row: dict, *, market_data_root: str, ledger_root: str, now: datetime) -> tuple:
+def answer_row(row: dict, *, market_data_root: str, ledger_root: str, now: datetime,
+               signing_key=None) -> tuple:
     """Preflight one Airtable row AS OF `now`. Returns (status, result body, approved payload or None).
 
     `now` is the moment approval is being evaluated, and it is the decision timestamp of everything this
     approves -- not a stamp on the answer. A candidate drafted at 13:00 and preflighted at 13:30 is a 13:30
-    decision priced at 13:30, or it is not a decision at all.
+    decision priced at 13:30, or it is not a decision at all. It is stamped PER ROW, at the moment that row's
+    preflight actually runs, because a batch of requests can take meaningful time to work through and the
+    last one must not be dated as though it were the first.
+
+    The expiry clock is Airtable's SERVER `createdTime`, not the candidate's self-reported `created_at`: the
+    requester writes one of those and not the other.
     """
     fields = row.get("fields") or {}
+    airtable_id = (row.get("id") or "").strip()
     run_id = (fields.get(AB.F_RUN_ID) or "").strip()
     candidate_payload = fields.get(AB.F_PAYLOAD)
     candidates = AB.parse_payload(candidate_payload)
+    request_created = AB._parse_ts("Airtable createdTime", row.get("createdTime"))
 
     results = P.preflight_batch(
         candidates, market_data_root=market_data_root, ledger_root=ledger_root, root=ROOT,
-        approval_as_of=now, request_id=(row.get("id") or "").strip())
+        approval_as_of=now, request_id=airtable_id, request_created_at=request_created)
 
     approved_records = [r.approved_record for r in results if r.may_be_shown_as_a_bet]
     fully_approved = bool(results) and len(approved_records) == len(results)
     approved_payload = AB.canonical_payload(approved_records) if fully_approved else None
 
-    body = _summary(results, run_id=run_id, airtable_id=(row.get("id") or "").strip(),
+    body = _summary(results, run_id=run_id, airtable_id=airtable_id,
                     candidate_payload=candidate_payload if isinstance(candidate_payload, str) else "",
                     approved_payload=approved_payload, now=now)
+
+    if approved_payload is not None:
+        # SIGN it. A hash the approval carries about itself proves only that the approval is self-consistent;
+        # anyone who can write Airtable can write both halves. The signature is what makes the importer's
+        # refusal to archive an unapproved bet a property rather than an etiquette.
+        if signing_key is None:
+            raise APPROVAL.ApprovalError(
+                f"{APPROVAL.SIGNING_KEY_ENV} is not available, so this approval cannot be signed. An "
+                "unsigned approval would be refused by the importer, so it is not issued at all.")
+        body.update(APPROVAL.issue(
+            key=signing_key, airtable_record_id=airtable_id, run_id=run_id,
+            candidate_payload=candidate_payload if isinstance(candidate_payload, str) else "",
+            approved_payload=approved_payload, approval_as_of=now.isoformat()))
+
     status = (AB.STATUS_PREFLIGHT_APPROVED if body["verdict"] == "APPROVED"
               else AB.STATUS_PREFLIGHT_BLOCKED)
     return status, body, approved_payload
 
 
 def run(client, *, market_data_root: str, ledger_root: str, sport: str = AB.SPORT_NFL,
-        now: datetime | None = None, update_status: bool = True) -> int:
-    now = now or datetime.now(timezone.utc)
+        now: datetime | None = None, update_status: bool = True, signing_key=None,
+        clock=None) -> int:
+    # `clock` supplies the PER-ROW approval instant. Stamping once at workflow start would date the last row
+    # in a batch as though it had been evaluated at the same moment as the first, and with a fifteen-minute
+    # quote window that difference is not cosmetic. `now` pins it for tests.
+    clock = clock or (lambda: now or datetime.now(timezone.utc))
 
     try:
         rows = client.list_by_status(AB.STATUS_PREFLIGHT_REQUESTED, sport=sport)
@@ -173,8 +201,9 @@ def run(client, *, market_data_root: str, ledger_root: str, sport: str = AB.SPOR
             continue
         try:
             status, body, approved_payload = answer_row(
-                row, market_data_root=market_data_root, ledger_root=ledger_root, now=now)
-        except (AB.BridgeError, ValueError, RISK.RiskPolicyError) as e:
+                row, market_data_root=market_data_root, ledger_root=ledger_root, now=clock(),
+                signing_key=signing_key)
+        except (AB.BridgeError, ValueError, RISK.RiskPolicyError, APPROVAL.ApprovalError) as e:
             # An unusable request is an ERROR, never an approval. The reason goes back to the row so
             # ChatGPT can see what to fix without anyone reading a workflow log.
             log(f"ERROR  {rid}: {AB.scrub(e, '')}")
@@ -183,7 +212,7 @@ def run(client, *, market_data_root: str, ledger_root: str, sport: str = AB.SPOR
                 AB.F_STATUS: AB.STATUS_PREFLIGHT_ERROR,
                 AB.F_PREFLIGHT_RESULT: json.dumps(
                     {"schema": "preflight-result/1", "verdict": "ERROR",
-                     "answered_at": now.isoformat(), "error": str(e)[:2000],
+                     "answered_at": clock().isoformat(), "error": str(e)[:2000],
                      "note": "An unanswered or errored request is NOT an approval."}, indent=1),
             }
             continue
@@ -235,6 +264,13 @@ def main(argv=None) -> int:
     if not token:
         log("AIRTABLE_TOKEN is not set. See docs/AIRTABLE_BRIDGE.md.")
         return 2
+    try:
+        key = APPROVAL.signing_key()
+    except APPROVAL.ApprovalError as e:
+        # Fail here, before reading Airtable. An approval this worker cannot sign is one the importer will
+        # refuse, so issuing it would only produce a row that looks approved and can never be archived.
+        log(str(e))
+        return 2
     for label, path in (("--market-data", a.market_data), ("--handicap-root", a.handicap_root)):
         if not os.path.isdir(path):
             log(f"{label} {path} is not a directory. Preflight needs the capture stream (executable price "
@@ -246,7 +282,7 @@ def main(argv=None) -> int:
     try:
         return run(client, market_data_root=os.path.abspath(a.market_data),
                    ledger_root=os.path.abspath(a.handicap_root), sport=a.sport,
-                   update_status=not a.no_write)
+                   update_status=not a.no_write, signing_key=key)
     except AB.BridgeError as e:
         log(f"FATAL: {AB.scrub(e, token)}")
         return 2

@@ -36,6 +36,7 @@ from nfl_edge.execution import depth as DEPTH          # noqa: E402
 from nfl_edge.execution import fees as FEES            # noqa: E402
 from nfl_edge.execution import quotes as Q             # noqa: E402
 from nfl_edge.handicap import airtable_bridge as AB    # noqa: E402
+from nfl_edge.handicap import approval as APPROVAL     # noqa: E402
 from nfl_edge.handicap import gates as G               # noqa: E402
 from nfl_edge.handicap import preflight as PF          # noqa: E402
 from nfl_edge.handicap import risk as RISK             # noqa: E402
@@ -157,7 +158,7 @@ def _context_for(base_ctx, records):
 
 def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
          pusher=commit_and_push, sport: str = AB.SPORT_NFL, update_status: bool = True,
-         gate_context=None) -> int:
+         gate_context=None, signing_key=None) -> int:
     now = now or datetime.now(timezone.utc)
 
     # The ledger the gates measure cumulative exposure against MUST be the ledger being written. Binding it
@@ -197,7 +198,8 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
             records = AB.parse_payload((row.get("fields") or {}).get(AB.F_PAYLOAD))
             plan = AB.plan_run(row, ledger_root, now=now,
                                base_id=client.base_id, table_id=client.table_id,
-                               gate_context=_context_for(gate_context, records))
+                               gate_context=_context_for(gate_context, records),
+                               signing_key=signing_key)
         except AB.BridgeError as e:
             log(f"ERROR  {rid}: {e}")
             errors[rid] = str(e)
@@ -329,6 +331,16 @@ def main(argv=None) -> int:
             "against a live executable price.")
         return 2
 
+    # The approval-verification key. Absent, a batch containing a real RECOMMENDED fails closed at the
+    # binding check; a PASS-only batch still imports, which is why this is a warning here and a refusal
+    # there rather than a hard exit that would also stop passes being recorded.
+    signing_key = None
+    try:
+        signing_key = APPROVAL.signing_key()
+    except APPROVAL.ApprovalError as e:
+        log(f"WARNING: {e}")
+        log("real RECOMMENDED records will be refused this run; PASS/WATCHLIST batches are unaffected")
+
     client = AB.AirtableClient(token, a.base_id, a.table_id)
     # --no-push must also withhold the status update: SYNCED asserts durability on the remote, and a local
     # write that was never pushed has not earned it.
@@ -339,7 +351,8 @@ def main(argv=None) -> int:
                                  max_book_age_minutes=a.max_book_age_minutes,
                                  ledger_root=os.path.abspath(a.handicap_root))
         return sync(client, os.path.abspath(a.handicap_root), dry_run=a.dry_run, pusher=pusher,
-                    sport=a.sport, update_status=not a.no_push, gate_context=ctx)
+                    sport=a.sport, update_status=not a.no_push, gate_context=ctx,
+                    signing_key=signing_key)
     except AB.BridgeError as e:
         # Configuration-shaped BridgeErrors (an empty token) reach here; row-shaped ones never do.
         log(f"FATAL: {AB.scrub(e, token)}")

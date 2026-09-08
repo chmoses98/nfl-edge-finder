@@ -85,36 +85,65 @@ def test_decimal_arithmetic_leaves_no_binary_residue():
 
 # ---- the documented worked example -------------------------------------------------------------------
 
-def test_the_documented_rounding_example_is_reproduced_exactly():
-    """Kalshi's fee-rounding documentation, fill by fill.
+def test_the_current_official_worked_example_is_reproduced_exactly():
+    """The CURRENT Kalshi Fee Rounding example, number for number.
 
-        fill 1  revenue -$0.0550, trade fee $0.0085 -> balance -$0.0635 floors to -$0.0700
-                rounding fee $0.0065, accumulator $0.0065, no rebate, net $0.0150
-        fill 2  same again -> accumulator $0.0130 > $0.01
-                rebate $0.0100, accumulator $0.0030, net $0.0050
+        signed revenue        -$0.055000
+        model fee              $0.00363825      = 0.07 x 1 x 0.055 x 0.945
+        trade fee              $0.003639        = ceil to $0.000001
+        aligned change        -$0.060000        = floor to a cent of (-0.055 - 0.003639)
+        rounding fee           $0.001361        = (-0.058639) - (-0.060000)
+        trade + rounding       $0.005000
 
-    The published example gives the trade fee directly rather than the quadratic behind it, so this pins the
-    ROUNDING layer -- which is the part that was wrong -- against the exact numbers. The quadratic itself is
-    pinned algebraically above and below.
+    Note that no synthetic coefficient is needed: the example is one contract at $0.055 under the ordinary
+    0.07 taker coefficient, and the model fee falls out exactly. The example this replaced gave a trade fee
+    of $0.0085 on the same price and quantity -- a different fee regime, kept in this file long after it
+    stopped being current, and reproducing perfectly against the wrong rounding rule because every number in
+    it was already aligned to four decimals.
     """
-    # A (coefficient * multiplier) that makes the quadratic land on the documented $0.0085 trade fee for a
-    # 1-contract fill at $0.055.
-    price, contracts = Decimal("0.055"), Decimal("1")
-    coef = Decimal("0.0085") / (contracts * price * (Decimal(1) - price))
+    c = F.fee_for_fill(Decimal("0.055"), 1, Decimal("0.07"), 1,
+                       balance_precision=F.NON_DIRECT_BALANCE_PRECISION)
+    assert c.raw_quadratic == pytest.approx(0.00363825)
+    assert c.trade_fee == pytest.approx(0.003639)
+    assert c.balance_change == pytest.approx(-0.060000)
+    assert c.rounding_fee == pytest.approx(0.001361)
+    assert c.trade_fee + c.rounding_fee == pytest.approx(0.005000)
+    assert c.rebate == 0.0, "one fill has not yet accrued a whole precision unit"
+    assert c.net_fee == pytest.approx(0.005000)
 
-    f1 = F.fee_for_fill(price, contracts, coef, 1)
-    assert f1.trade_fee == pytest.approx(0.0085)
-    assert f1.balance_change == pytest.approx(-0.07)
-    assert f1.rounding_fee == pytest.approx(0.0065)
-    assert f1.rebate == 0.0
-    assert f1.accumulator_after == pytest.approx(0.0065)
-    assert f1.net_fee == pytest.approx(0.0150)
 
-    f2 = F.fee_for_fill(price, contracts, coef, 1, accumulator=f1.accumulator_after)
-    assert f2.rounding_fee == pytest.approx(0.0065)
-    assert f2.rebate == pytest.approx(0.01), "the accumulator crossed a cent and must rebate one"
-    assert f2.accumulator_after == pytest.approx(0.0030)
-    assert f2.net_fee == pytest.approx(0.0050)
+def test_the_obsolete_worked_example_is_not_presented_as_current():
+    """A tripwire, because this exact number outlived its own documentation once already.
+
+    `$0.0085` was the trade fee in an OLDER Kalshi example for a 1-contract fill at $0.055. Under the
+    current rules that fill's trade fee is `$0.003639`. Anything in the operating code or documentation
+    still offering the old number as the current worked example is stale by construction.
+    """
+    import glob                                                          # noqa: PLC0415
+    import os as _os                                                     # noqa: PLC0415
+
+    offenders = []
+    for pattern in ("nfl_edge/**/*.py", "scripts/**/*.py", "config/*.json", "docs/*.md"):
+        for path in glob.glob(_os.path.join(ROOT, pattern), recursive=True):
+            if _os.path.basename(path) == _os.path.basename(__file__):
+                continue                      # this file names the obsolete number in order to forbid it
+            with open(path) as f:
+                for i, line in enumerate(f, 1):
+                    low = line.lower()
+                    if "0.0085" not in line:
+                        continue
+                    if not any(w in low for w in ("example", "documented", "trade fee")):
+                        continue
+                    # Allowed only where the line itself marks the number as superseded.
+                    if any(w in low for w in ("supersede", "older", "obsolete", "historic", "wrong",
+                                              "no longer", "used to", "prior", "previous")):
+                        continue
+                    offenders.append(f"{_os.path.relpath(path, ROOT)}:{i}: {line.strip()[:100]}")
+    assert not offenders, ("the obsolete $0.0085 worked example is still presented as current; the current "
+                           f"trade fee for that fill is $0.003639: {offenders}")
+
+    # And the current one really is what the engine produces.
+    assert F.fee_for_fill(Decimal("0.055"), 1, Decimal("0.07"), 1).trade_fee == pytest.approx(0.003639)
 
 
 def test_the_accumulator_makes_many_small_fills_converge_on_one_equivalent_fill():
@@ -266,7 +295,7 @@ def test_the_published_maker_multiplier_is_known_not_unknown(sched):
 
 
 def test_the_maker_fee_for_a_listed_series_is_priceable(sched):
-    """0.0175 * 1 * 100 * 0.25 = $0.4375, ceiled to a centicent then cent-aligned."""
+    """0.0175 * 1 * 100 * 0.25 = $0.4375, rounded up to a trade-fee increment then cent-aligned."""
     q = sched.maker_fee(0.50, 100, "KXNFLGAME", as_of=AS_OF)
     assert q.is_known
     assert q.components["trade_fee"] == pytest.approx(0.4375)

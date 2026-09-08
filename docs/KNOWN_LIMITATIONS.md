@@ -107,13 +107,13 @@
     is a small improvement to exposure accuracy and changes nothing about safety.
 29. **The fee-rounding semantics are operator-attested, not machine-verified.** `docs.kalshi.com` is
     unreachable from this environment (network egress policy), so the trade-fee increment ($0.000001), the
-    two balance precisions ($0.01 / $0.0001) and the per-fill rebate cap are recorded from the operator's
-    reading of the current Fee Rounding page, dated in `config/kalshi_fee_schedule.json`. This is the third
-    version of these values in this PR; the first two were wrong, and the second survived review because the
-    worked example available at the time could not distinguish $0.0001 from $0.000001. **No current official
-    worked example has been reproduced**, because none could be fetched — what is pinned instead is the
-    mechanism, against inputs chosen to discriminate between the candidate increments. Reproducing the live
-    example is the first thing to do when the page is reachable.
+    two balance precisions ($0.01 / $0.0001) and the per-fill rebate cap are recorded from the reviewer's
+    reading of the current Fee Rounding page, dated in `config/kalshi_fee_schedule.json`. The **current
+    official worked example is now reproduced exactly** (one contract at $0.055: model fee $0.00363825,
+    trade fee $0.003639, aligned change -$0.060000, rounding fee $0.001361), which is real evidence — but it
+    was transcribed here rather than fetched. This is the third version of these values in this PR; the
+    second survived review because the example carried at the time was internally consistent against the
+    wrong rule.
 30. **Preflight expiry is a judgement, not a measurement.** `MAX_REQUEST_AGE_MIN = 30` bounds how stale the
     HANDICAP may be at approval (the market is re-priced, so it is not the market that ages). Thirty minutes
     is two capture cycles of slack for a delayed Automation and is a defensible default, not a calibrated
@@ -124,3 +124,18 @@
     fallback `validate_recommendations.py --write` still admits one on the strength of running the same
     gates itself at the record's own `created_at` — which is the same check, done locally, and is why it is
     allowed; but it is not the same *binding*, and an operator using it is trusted to be an operator.
+32. **The approval signature authenticates the worker, not the handicapper.** `PREFLIGHT_SIGNING_KEY`
+    proves that the GitHub preflight worker issued exactly this approval for exactly this row, run, pair of
+    payloads and instant. It does not prove anything about who wrote the candidate, and it does not defend
+    against someone who can already run GitHub Actions in this repository — that is what branch protection
+    and the repository's own access control are for. Anyone holding the key can mint approvals, so it is a
+    repository secret and nothing else; rotating it invalidates approvals not yet archived, which is
+    correct.
+33. **The 30-minute request window is enforced in two places and could drift.** `preflight` refuses to
+    issue an approval past it and the importer refuses to archive one; both read
+    `approval.MAX_REQUEST_AGE`, and a test asserts they are the same number. If a future change gives the
+    worker a longer window than the importer accepts, the symptom is an approval the owner acts on and the
+    ledger then rejects — visible, but late.
+34. **A rejected approval leaves the Airtable row in a state a human must resolve.** The importer marks the
+    row ERROR and says why; nothing automatically re-requests preflight, because a bet that failed its
+    binding should be looked at rather than retried.

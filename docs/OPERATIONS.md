@@ -137,9 +137,15 @@ ChatGPT writes a PREFLIGHT_REQUESTED row
 **A row that is not `PREFLIGHT_APPROVED` has not been approved.** Errored, timed out, never picked up — none
 of those is a bet. Silence is never yes.
 
-One-time owner setup (the Airtable field and statuses, the fine-grained GitHub token with `Actions: read and
-write`, and the Automation script) is in `docs/AIRTABLE_BRIDGE.md`, along with the TEST_ONLY E2E procedure.
-Until that E2E has passed once, this leg is designed and not proven live.
+One-time owner setup — **after this PR merges**, because the workflow does not exist on `main` until then —
+is in `docs/AIRTABLE_BRIDGE.md`: the `Preflight Result` and `Approved Payload` fields plus the four
+`PREFLIGHT_*` statuses; the `PREFLIGHT_SIGNING_KEY` Actions secret (`openssl rand -hex 32`, stored only
+there); the fine-grained GitHub token with `Actions: read and write`; the Automation script; and the
+TEST_ONLY E2E. Until that E2E has passed once, this leg is designed and not proven live.
+
+**`PREFLIGHT_SIGNING_KEY` is what makes an approval an approval.** Without it the worker refuses to issue
+one and the importer refuses to archive a real recommendation — a PASS still records. Never put it in
+Airtable, the Automation, ChatGPT, an issue or a log.
 
 **Debugging fallbacks, not the operating workflow.** Run the workflow by hand (`workflow_dispatch`, with
 `dry_run` to see verdicts without writing), or run the CLI locally:

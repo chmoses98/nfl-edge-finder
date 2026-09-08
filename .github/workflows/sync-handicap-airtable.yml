@@ -106,6 +106,18 @@ jobs:
             exit 1
           fi
           echo "AIRTABLE_TOKEN is present (value never printed)."
+      - name: Check the approval signing secret is configured
+        env:
+          PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
+        run: |
+          if [ -z "${PREFLIGHT_SIGNING_KEY}" ]; then
+            echo "::error::PREFLIGHT_SIGNING_KEY is not configured for this repository."
+            echo "A pre-trade approval is authenticated, not merely self-consistent. Generate one strong"
+            echo "random key (e.g. openssl rand -hex 32) and add it under Settings -> Secrets and variables"
+            echo "-> Actions. It must never be stored in Airtable, the Automation, ChatGPT or this repo."
+            exit 1
+          fi
+          echo "PREFLIGHT_SIGNING_KEY is present (value never printed)."
 
       - name: Sync pending handicap runs
         working-directory: code

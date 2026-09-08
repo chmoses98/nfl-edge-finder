@@ -94,11 +94,27 @@ jobs:
             exit 1
           fi
           echo "AIRTABLE_TOKEN is present (value never printed)."
+      - name: Check the approval signing secret is configured
+        env:
+          PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
+        run: |
+          if [ -z "${PREFLIGHT_SIGNING_KEY}" ]; then
+            echo "::error::PREFLIGHT_SIGNING_KEY is not configured for this repository."
+            echo "A pre-trade approval is authenticated, not merely self-consistent. Generate one strong"
+            echo "random key (e.g. openssl rand -hex 32) and add it under Settings -> Secrets and variables"
+            echo "-> Actions. It must never be stored in Airtable, the Automation, ChatGPT or this repo."
+            exit 1
+          fi
+          echo "PREFLIGHT_SIGNING_KEY is present (value never printed)."
 
       - name: Answer pending preflight requests
         working-directory: code
         env:
           AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          # Authenticates the pre-trade approval. It exists ONLY here: never in Airtable, never in the
+          # Automation, never in ChatGPT, never in this repository. Without it the worker will not issue an
+          # approval and the importer will not archive a real recommendation.
+          PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
         run: |
           python3 scripts/handicap/preflight_airtable.py \
             --market-data ../market-data \
