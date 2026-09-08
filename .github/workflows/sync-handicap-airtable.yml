@@ -117,18 +117,30 @@ jobs:
             exit 1
           fi
           echo "AIRTABLE_TOKEN is present (value never printed)."
+      # WARNS, never exits. Unlike the token above, this secret is not a prerequisite for the JOB: a
+      # PASS/WATCHLIST-only row needs no authenticated approval and must still be archived. Exiting here
+      # would stop the importer before it ran, so the per-row disposition it implements -- defer the real
+      # recommendation, import the passes -- would never happen, and the job would look like a hard failure
+      # when the correct outcome is "some work done, one thing to fix".
+      #
+      # scripts/handicap/sync_airtable.py is the authority. It resolves the key from its own environment and
+      # decides per row: a real approved recommendation is deferred (READY_FOR_SYNC, exit 2), a PASS
+      # imports, badly signed data is still ERROR. The preflight WORKER keeps a hard check, because it can
+      # issue nothing at all without a key.
       - name: Check the approval signing secret is configured
         env:
           PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
         run: |
           if [ -z "${PREFLIGHT_SIGNING_KEY}" ]; then
-            echo "::error::PREFLIGHT_SIGNING_KEY is not configured for this repository."
+            echo "::warning::PREFLIGHT_SIGNING_KEY is not configured; rows carrying a real RECOMMENDED"
+            echo "record will be DEFERRED (left READY_FOR_SYNC, never ERROR, nothing written) and the run"
+            echo "will exit 2. PASS/WATCHLIST rows still import."
             echo "A pre-trade approval is authenticated, not merely self-consistent. Generate one strong"
             echo "random key (e.g. openssl rand -hex 32) and add it under Settings -> Secrets and variables"
             echo "-> Actions. It must never be stored in Airtable, the Automation, ChatGPT or this repo."
-            exit 1
+          else
+            echo "PREFLIGHT_SIGNING_KEY is present (value never printed)."
           fi
-          echo "PREFLIGHT_SIGNING_KEY is present (value never printed)."
 
       - name: Sync pending handicap runs
         working-directory: code

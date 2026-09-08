@@ -518,6 +518,13 @@ recommendation is required. This is the same philosophy the bridge already appli
 `AIRTABLE_TOKEN`, extended to the second secret: infrastructure failure must never permanently condemn good
 data. `PASS`/`WATCHLIST` rows in the same run are unaffected and still land.
 
+**The two workflows gate on the signing key differently, on purpose.** `preflight.yml` **hard-fails**
+without it: a worker that cannot sign can only produce rows that look approved and can never be archived.
+`sync-handicap-airtable.yml` only **warns**: a `PASS`/`WATCHLIST` row needs no authenticated approval and
+must still reach the ledger, and a whole-job precheck would stop the importer before it could apply the
+per-row disposition above. `AIRTABLE_TOKEN` stays a hard prerequisite for both — nothing can be read without
+it. The script, not the workflow, is the authority on what happens to each row.
+
 **Both secrets must be declared on the step that runs the importer.** A GitHub Actions step's `env:` is
 scoped to that step, so the earlier "is the secret configured?" check proves only that the secret *exists* —
 it does not put it into the importer's process. `tests/test_workflow_secret_wiring.py` reads the actual YAML

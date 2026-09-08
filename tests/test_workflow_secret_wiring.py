@@ -25,11 +25,19 @@ Two halves, both necessary:
 
 Neither is redundant. Structure without behaviour would have let the importer condemn the row anyway;
 behaviour without structure is what let the wiring bug ship.
+
+The follow-up review found the same lesson one step earlier: the importer's per-row disposition -- defer the
+real recommendation, still import the passes -- is unreachable unless the importer RUNS. The sync workflow's
+preliminary signing-key check exited 1, so in production the job stopped before any of that logic. Section E
+executes the check steps' actual shell bodies: the pre-trade WORKER hard-fails without a key (it can sign
+nothing), the ARCHIVAL IMPORTER only warns (a pass needs no approval), and AIRTABLE_TOKEN stays a hard
+prerequisite for both because nothing can be read without it.
 """
 import glob
 import json
 import os
 import re
+import subprocess
 import sys
 
 import pytest
@@ -195,6 +203,115 @@ def test_D_the_importer_reads_the_key_from_its_own_environment_not_from_a_workfl
     assert "APPROVAL.signing_key()" in src, "the importer must resolve the key itself"
     key_src = open(os.path.join(ROOT, "nfl_edge", "handicap", "approval.py")).read()
     assert "os.environ" in key_src
+
+
+# ---- E. the two workflows gate on the key DIFFERENTLY, on purpose ------------------------------------
+#
+# The importer's per-row disposition -- defer the real recommendation, still import the passes -- only ever
+# happens if the importer RUNS. A whole-job precheck that exits before it would make that logic unreachable
+# and turn "some work done, one thing to fix" into a hard failure. So:
+#
+#   preflight.yml               HARD. The worker can issue NOTHING without a key; answering requests it
+#                               cannot sign would only produce rows that look approved and can never be
+#                               archived.
+#   sync-handicap-airtable.yml  WARN. A PASS/WATCHLIST row needs no authenticated approval and must still
+#                               reach the ledger. The script decides per row.
+#
+# These run the check steps' actual shell bodies, so the assertion is about what the runner would do.
+
+
+def _check_step(doc, name):
+    """The step whose shell body tests the named secret for emptiness."""
+    hits = [s for _job, s in _steps(doc) if f'-z "${{{name}}}"' in (s.get("run") or "")]
+    assert len(hits) == 1, f"expected exactly one step checking {name}, found {len(hits)}"
+    return hits[0]
+
+
+def _run_check(step, **env):
+    """Execute the check step's body exactly as the runner would: bash -eo pipefail, env-scoped secrets."""
+    return subprocess.run(["bash", "-eo", "pipefail", "-c", step["run"]],
+                          env={**os.environ, **env}, capture_output=True, text=True)
+
+
+def test_E_the_preflight_worker_hard_fails_without_a_signing_key():
+    """No key, no signature, no approval worth issuing. Fail before pretending to answer anything."""
+    step = _check_step(_doc(PREFLIGHT_YML), KEY_ENV)
+    r = _run_check(step, **{KEY_ENV: ""})
+    assert r.returncode != 0, (
+        "preflight.yml must stop when the signing key is missing; a worker that cannot sign can only "
+        f"produce rows that look approved and can never be archived. Output: {r.stdout}")
+    assert "::error::" in r.stdout
+
+
+def test_E_the_importer_precheck_only_warns_without_a_signing_key():
+    """THE FIX. Exiting here would stop the importer before it could import the passes.
+
+    The reviewed inconsistency: the script's per-row deferral was correct and unreachable in production,
+    because a preliminary step exited 1 and the job never got to it.
+    """
+    step = _check_step(_doc(SYNC_YML), KEY_ENV)
+    r = _run_check(step, **{KEY_ENV: ""})
+    assert r.returncode == 0, (
+        "sync-handicap-airtable.yml must NOT exit when the signing key is missing: a PASS/WATCHLIST row "
+        f"needs no approval and must still be archived. Output: {r.stdout}{r.stderr}")
+    assert "::warning::" in r.stdout, "a missing key must still be legible in the run summary"
+    assert "::error::" not in r.stdout
+    assert "DEFERRED" in r.stdout and "READY_FOR_SYNC" in r.stdout,         "the warning must say what actually happens to the rows"
+
+
+def test_E_the_airtable_token_stays_a_hard_prerequisite_in_both():
+    """Nothing can be read at all without it, so there is no partial work to protect."""
+    for path in (SYNC_YML, PREFLIGHT_YML):
+        step = _check_step(_doc(path), TOKEN_ENV)
+        r = _run_check(step, **{TOKEN_ENV: ""})
+        assert r.returncode != 0, f"{os.path.basename(path)} must stop without {TOKEN_ENV}: {r.stdout}"
+        assert "::error::" in r.stdout
+
+
+def test_E_both_check_steps_pass_when_the_secrets_are_present():
+    """The warning path must not be a check that has quietly stopped checking."""
+    for path in (SYNC_YML, PREFLIGHT_YML):
+        doc = _doc(path)
+        for name in (TOKEN_ENV, KEY_ENV):
+            r = _run_check(_check_step(doc, name), **{name: "x" * 64})
+            assert r.returncode == 0, f"{os.path.basename(path)}/{name}: {r.stdout}{r.stderr}"
+            assert "::error::" not in r.stdout and "::warning::" not in r.stdout
+            assert "x" * 64 not in r.stdout, "the value itself must never be printed"
+
+
+def test_E_a_pass_row_survives_the_production_sequence_with_no_key(ledger):
+    """End to end through the STEPS, not just the script: precheck, then importer, both without a key.
+
+    This is the test the reviewed inconsistency would have failed: the precheck exited 1, so the importer
+    never ran and the pass never landed.
+    """
+    from tests.test_airtable_bridge import a_pass, row as plain_row      # noqa: PLC0415
+
+    precheck = _run_check(_check_step(_doc(SYNC_YML), KEY_ENV), **{KEY_ENV: ""})
+    assert precheck.returncode == 0, "the job would have stopped here"
+
+    fake = FakeAirtable([{"records": [plain_row([a_pass("rec_pass_prod", test_only=False)],
+                                                rid="recPRODPASS00001")]}])
+    code, pushes, _c = run_sync(fake, ledger, gate_context=gate_ctx(), signing_key=None)
+    assert code == 0
+    assert fake.status_updates == {"recPRODPASS00001": AB.STATUS_SYNCED}
+    assert [r["recommendation_id"] for r in store.read_kind(ledger, "recommendations")] == \
+        ["rec_pass_prod"]
+    assert len(pushes) == 1
+
+
+def test_E_a_real_row_survives_the_production_sequence_with_no_key(ledger):
+    """Same sequence, real recommendation: deferred, never ERROR, configuration exit."""
+    precheck = _run_check(_check_step(_doc(SYNC_YML), KEY_ENV), **{KEY_ENV: ""})
+    assert precheck.returncode == 0
+
+    row_obj = _approved_row_for(rid="recPRODREAL00001")
+    fake = FakeAirtable([{"records": [row_obj]}])
+    code, pushes, _c = run_sync(fake, ledger, gate_context=gate_ctx(), signing_key=None)
+    assert code == 2
+    assert fake.status_updates == {}, "left READY_FOR_SYNC"
+    assert store.read_kind(ledger, "recommendations") == []
+    assert pushes == []
 
 
 # ---- the behaviour the wiring protects ----------------------------------------------------------------

@@ -385,3 +385,32 @@ def test_a_misconfigured_runner_still_cannot_condemn_a_good_row():
         "the missing-key refusal must be raised as a configuration failure, not a data failure"
     sync = open(os.path.join(ROOT, "scripts", "handicap", "sync_airtable.py")).read()
     assert sync.index("except AB.ConfigurationError") < sync.index("except AB.BridgeError")
+
+
+def test_the_two_workflows_still_gate_on_the_signing_key_differently():
+    """The worker cannot sign without a key; the importer can still archive passes without one.
+
+    A whole-job precheck on the importer would make its per-row deferral unreachable in production, which is
+    exactly the inconsistency the review found. Executed for real in tests/test_workflow_secret_wiring.py.
+    """
+    import subprocess                                                    # noqa: PLC0415
+    import yaml                                                          # noqa: PLC0415
+    from nfl_edge.handicap import approval as A                          # noqa: PLC0415
+
+    def check_step(workflow, name):
+        with open(os.path.join(ROOT, ".github", "workflows", workflow)) as f:
+            doc = yaml.safe_load(f)
+        hits = [s for job in doc["jobs"].values() for s in job["steps"]
+                if f'-z "${{{name}}}"' in (s.get("run") or "")]
+        assert len(hits) == 1, f"{workflow}: expected one step checking {name}"
+        return hits[0]["run"]
+
+    def run(body, value):
+        return subprocess.run(["bash", "-eo", "pipefail", "-c", body],
+                              env={**os.environ, A.SIGNING_KEY_ENV: value},
+                              capture_output=True, text=True).returncode
+
+    assert run(check_step("preflight.yml", A.SIGNING_KEY_ENV), "") != 0, \
+        "the preflight worker must hard-fail without a signing key"
+    assert run(check_step("sync-handicap-airtable.yml", A.SIGNING_KEY_ENV), "") == 0, \
+        "the importer's precheck must only warn, or PASS rows can never be archived without a key"
