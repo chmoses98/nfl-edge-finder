@@ -126,10 +126,18 @@ def main():
         if tier == "DAILY" and not do_daily:
             continue
         items, complete, info = c.markets(series_ticker=tk, status="open", limit=1000, max_pages=20)
-        manifest["series"][tk] = {"n": len(items), "complete": complete, "tier": tier}
+        obs_ts = now_utc().isoformat()
+        # INFORMATION-AVAILABILITY TIMESTAMP. `observed_at` is stamped when THIS series' fetch returned, not
+        # when the run started -- a run works through ~270 series and takes minutes, so the two differ by a
+        # lot for anything late in the loop. The decision-time gate needs to know when a quote actually
+        # became knowable, and the run-start time claims that was earlier than it was: fine for judging
+        # staleness (conservative), wrong for judging whether evidence predates a decision (anti-conservative
+        # -- it would let a capture taken AFTER the decision look like it came before). Recording the real
+        # per-series time removes the need to choose.
+        manifest["series"][tk] = {"n": len(items), "complete": complete, "tier": tier,
+                                  "observed_at": obs_ts}
         if not complete:
             manifest["partial"] = True; manifest["errors"].append({"series": tk, "info": info})
-        obs_ts = now_utc().isoformat()
         for m in items:
             sem = classify(m)
             fp = fingerprint(m)
@@ -196,6 +204,21 @@ def main():
         else:
             incomplete_trades += 1
     manifest["trades"] = {"tickers_with_volume_change": len(trade_candidates), "tickers_fetched": n_trade_tickers, "incomplete": incomplete_trades}
+    # CONFIRMATION LEDGER. Quote rows are change-suppressed, so an unchanged market leaves no trace of having
+    # been seen, and "no row written" is indistinguishable from "we could not reach the market" unless we
+    # record it separately. `last_seen` stamps every ticker this run actually returned as open -- changed or
+    # not -- so the decision-time freshness gate (nfl_edge/execution/quotes.py) can tell a quiet book from a
+    # stale one at TICKER level instead of falling back to the coarser series-level manifest.
+    #
+    # A ticker enters `seen_now` only by being present in a page we successfully received. A series whose
+    # pagination failed part-way is marked PARTIAL in the manifest, but the tickers it DID return were still
+    # genuinely confirmed open; the partiality means other tickers may be missing, not that these are stale.
+    # Ticker-level confirmation is therefore strictly better evidence than the series-level flag, which is
+    # why the gate prefers it.
+    state.setdefault("last_seen", {})
+    for tk in seen_now:
+        state["last_seen"][tk] = run_id
+    manifest["tickers_confirmed_open"] = len(seen_now)
     # markets that vanished from `open` since last run (closed/settled): drop fingerprint so a reappearance is written
     for tk in list(state["fingerprints"]):
         if tk not in seen_now and not do_daily:

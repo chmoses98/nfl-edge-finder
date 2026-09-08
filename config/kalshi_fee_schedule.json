@@ -1,0 +1,81 @@
+{
+  "schedule_set_id": "kalshi-nfl-2026",
+  "description": "Kalshi fee parameters, versioned by EFFECTIVE TIME. A recommendation is priced with the schedule in force at its decision timestamp, never with whatever happens to be current when the importer runs twelve hours later.",
+  "source_hierarchy": [
+    {
+      "rank": 1,
+      "id": "REGULATORY_FEE_SCHEDULE",
+      "what": "The Kalshi Fee Schedule filed with the CFTC. Lists BOTH a Maker Multiplier and a Taker Multiplier per non-standard series.",
+      "why_first": "It is the published, dated, regulatory instrument. It is the only source that carries the maker multiplier at all."
+    },
+    {
+      "rank": 2,
+      "id": "SERIES_METADATA",
+      "what": "GET /series/{ticker}: fee_type and fee_multiplier.",
+      "why_second": "Live and machine-readable, but fee_multiplier is the TAKER multiplier only -- the object carries no separate maker parameter. Its silence about maker is not evidence that the maker multiplier is unknown."
+    },
+    {
+      "rank": 3,
+      "id": "FEE_CHANGES",
+      "what": "GET /series/fee_changes: announced future changes.",
+      "why_third": "Forward-looking. Used to build the NEXT schedule window, not to override the one in force."
+    }
+  ],
+  "conflict_policy": "FAIL_CLOSED. Where two sources disagree about a series' multiplier for the same effective window, the fee state for that series is CONFLICTED, net EV cannot be computed, and a RECOMMENDED record on it is refused. A conflict is reported, never silently resolved by rank.",
+  "verification_policy": {
+    "max_verification_age_days": 45,
+    "check_cadence": "weekly, via the fee-health job in .github/workflows/kalshi-fee-health.yml",
+    "why_this_cadence": "Fee schedules change on the order of once or twice a year and are announced in advance through GET /series/fee_changes, so a ten-minute cadence would buy nothing. A weekly check against a 45-day tolerance means three consecutive missed checks before real recommendations block -- enough slack for a broken runner, not enough for a months-old unchecked registry to price real money.",
+    "on_change": "CAPTURE, SURFACE, BLOCK, REVIEW. An observed difference or an announced change is written to the append-only fee observations on market-data, fails the health job loudly, blocks affected real recommendations through the fee_schedule_established gate, and requires a reviewed edit to this file adding a NEW effective window. Nothing auto-edits this file: an API response must never silently rewrite the schedule that every historical net-EV number in the ledger was computed against.",
+    "historical_windows": "Existing windows are never modified or removed. A change adds a window with its own effective_from and closes the previous window's effective_to, so a past decision keeps being priced with the schedule that was actually in force when it was made.",
+    "observations_path": "market-data: data/kalshi/fees/<YYYY-MM-DD>.json"
+  },
+  "contract_granularity": {
+    "default_state": "UNKNOWN",
+    "fractional_increment": 0.01,
+    "whole_increment": 1,
+    "what_this_controls": "The worst-case fill count in nfl_edge/execution/fees.rounding_uncertainty, which bounds how much more a fragmented order can cost than the same order in one fill per price level.",
+    "why_unknown_is_the_default": "Kalshi order sizes are fixed-point with a documented 0.01-contract minimum increment, and fills of 0.30 or 0.03 contracts are ordinary. A whole-dollar approved stake buys a FRACTIONAL number of contracts ($10 at 0.62 is 16.13), so nothing about our own sizing implies whole-contract fills. UNKNOWN is priced identically to FRACTIONAL_ENABLED: 'we could not establish that fractional trading is disabled' may never shrink a cost bound.",
+    "how_to_set_a_series_to_whole_contracts": "Only with venue metadata that PROVES fractional trading is disabled for that series. Add it under `series` as {\"KXWHATEVER\": {\"state\": \"WHOLE_CONTRACTS_ONLY\", \"evidence\": \"...\", \"verified_at\": \"YYYY-MM-DD\"}} in a reviewed commit, exactly as a fee multiplier is recorded. Never infer it from a silent API object.",
+    "series": {}
+  },
+  "rounding": {
+    "trade_fee_increment": 1e-06,
+    "trade_fee_mode": "ceil",
+    "balance_precision_default": 0.01,
+    "balance_precision_direct_member": 0.0001,
+    "accumulator_scope": "per_order_across_fills",
+    "rebate_unit": "one balance precision unit",
+    "rebate_cap": "PER FILL. The rebate is capped so an individual fill's net fee cannot become negative; the unabsorbed part stays in the accumulator for a later fill to earn.",
+    "verified_at": "2026-09-08",
+    "verified_by": "OPERATOR_ATTESTATION",
+    "verification_note": "The session that wrote these values could not reach docs.kalshi.com (network egress policy), so they are recorded from the operator's reading of the CURRENT Kalshi Fee Rounding documentation on the date above. A prior version of this file said the trade fee ceiled to $0.0001; that was wrong by two orders of magnitude and survived several reviews because the worked example available at the time could not distinguish the two. Any future change to these values needs the same reviewed treatment as a fee multiplier.",
+    "notes": "The trade fee is the raw quadratic rounded UP to $0.000001. The resulting balance change is then floored to the account's balance precision ($0.01 for an ordinary account, $0.0001 for a direct member), and the shortfall is charged as a ROUNDING FEE. That overpayment accumulates PER ORDER across all of its fills, taker and maker alike; once the accumulator exceeds one balance-precision unit a REBATE of one unit is issued -- capped so that fill's net fee stays at or above zero -- and the accumulator is reduced by whatever was actually rebated. Net fee = trade fee + rounding fee - rebate, non-negative by construction rather than by flooring. The accumulator is what makes many small fills converge toward the cost of one equivalent fill."
+  },
+  "schedules": [
+    {
+      "window_id": "2026-07-07",
+      "effective_from": "2026-07-07T00:00:00+00:00",
+      "effective_to": null,
+      "source": "REGULATORY_FEE_SCHEDULE",
+      "source_label": "Kalshi Fee Schedule, 7.7.26 update (https://kalshi.com/docs/kalshi-fee-schedule.pdf)",
+      "verified_at": "2026-09-07",
+      "verified_by": "OPERATOR_ATTESTATION",
+      "verification_note": "The session that wrote this file could not reach kalshi.com or the Kalshi API (network egress policy), so the per-series multipliers below are recorded from the operator's reading of the July 2026 regulatory Fee Schedule and are marked with the evidence that supports each one. scripts/kalshi/capture_fee_metadata.py re-reads the live API from GitHub Actions and reports any disagreement.",
+      "taker_base_coefficient": 0.07,
+      "maker_base_coefficient": 0.0175,
+      "default_taker_multiplier": 1.0,
+      "default_maker_multiplier": 0.0,
+      "default_note": "The published schedule states the maker multiplier is 0 unless a series is listed otherwise. That default applies ONLY to series whose captured fee_type is 'quadratic' (taker-only). A series whose fee_type is 'quadratic_with_maker_fees' charges a maker fee by construction, so a 0 default would be plainly wrong for it -- such a series must be listed below or its maker multiplier is UNVERIFIED.",
+      "series": {
+        "KXNFLGAME": {
+          "maker_multiplier": 1.0,
+          "taker_multiplier": 1.0,
+          "evidence": "REGULATORY_FEE_SCHEDULE, listed non-standard series"
+        }
+      },
+      "settlement_fee_per_contract": 0.0,
+      "settlement_note": "Kalshi does not currently charge a separate settlement fee on these markets. Recorded explicitly so the assumption is visible and testable rather than implicit in a missing term."
+    }
+  ]
+}

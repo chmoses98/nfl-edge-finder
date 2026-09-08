@@ -45,7 +45,15 @@ def _forecast_metrics(pairs):
             "mean_signed_error": round(_mean([p - r for p, r in ps]), 6)}
 
 
-def build_scorecard(recommendations: list, evaluations: list, executions: list) -> dict:
+def build_scorecard(recommendations: list, evaluations: list, executions: list,
+                    decision_gates: list | None = None) -> dict:
+    """Every metric, for three forecasters, on the identical resolved set.
+
+    `decision_gates` is optional: it is the record of what the real-money gates saw at import time, and it is
+    what makes "how often did a stale price stop a bet" answerable at all. Without it those counts are
+    reported as unavailable rather than as zero, because zero rejections and no rejection data look identical
+    and mean opposite things.
+    """
     ev_by_rec = {e["recommendation_id"]: e for e in evaluations}
     ex_by_rec = defaultdict(list)
     for x in executions:
@@ -67,6 +75,11 @@ def build_scorecard(recommendations: list, evaluations: list, executions: list) 
         "n_executions": len(executions),
         "by_decision": dict(_count(r.get("decision") for r in recommendations)),
     }
+    out["exposure"] = _exposure(recommendations, ex_by_rec)
+    out["gate_activity"] = _gate_activity(decision_gates)
+    out["data_quality"] = _data_quality(recommendations, evaluations, ev_by_rec)
+    out["power"] = _power(resolved)
+
     if not resolved:
         out["status"] = "NO RESOLVED RECOMMENDATIONS"
         out["note"] = ("The ledger begins prospectively and nothing is backfilled, so there is no history "
@@ -80,6 +93,96 @@ def build_scorecard(recommendations: list, evaluations: list, executions: list) 
     out["breakdowns"] = _breakdowns(resolved, ex_by_rec)
     out["recommended_vs_pass"] = _rec_vs_pass(resolved)
     return out
+
+
+def _power(resolved) -> dict:
+    """Say out loud when the sample cannot support a conclusion.
+
+    A Brier score on eleven contracts is a number, not evidence. The thresholds are conventional and
+    deliberately unflattering; the point is that the report refuses to be read as a result until it has
+    earned it, rather than leaving a reader to notice the n themselves.
+    """
+    n = len([1 for r, _ in resolved if r.get("decision") == "RECOMMENDED"])
+    if n == 0:
+        verdict, note = "EMPTY", "No resolved RECOMMENDED positions. Nothing here is a measurement."
+    elif n < 30:
+        verdict, note = "UNDERPOWERED", (
+            f"{n} resolved positions. Far too few to separate skill from variance on any metric here; "
+            "treat every number as a process check, not a result.")
+    elif n < 100:
+        verdict, note = "WEAK", (
+            f"{n} resolved positions. Enough to catch a gross process failure, not enough to establish an "
+            "edge. CLV is the only metric with meaningful signal at this n.")
+    else:
+        verdict, note = "DEVELOPING", (
+            f"{n} resolved positions. Report confidence intervals alongside every point estimate; this is "
+            "still a small sample by any wagering standard.")
+    return {"n_resolved_recommended": n, "verdict": verdict, "note": note}
+
+
+def _exposure(recommendations, ex_by_rec) -> dict:
+    """Concentration by game and by correlation group.
+
+    Correlated positions in one game are one thesis wearing several tickets. The groups are qualitative and
+    are reported as counts and dollars, never multiplied into a covariance estimate that does not exist.
+    Exposure is measured on RECOMMENDED records only -- a PASS carries none.
+    """
+    by_game, by_group = defaultdict(lambda: {"n": 0, "recommended_stake": 0.0, "executed_stake": 0.0}), \
+        defaultdict(lambda: {"n": 0, "recommended_stake": 0.0, "executed_stake": 0.0})
+    for r in recommendations:
+        if r.get("decision") != "RECOMMENDED":
+            continue
+        executed = sum(float(x.get("stake") or 0) for x in ex_by_rec.get(r["recommendation_id"], []))
+        for key, table in ((r.get("game_id"), by_game), (r.get("correlation_group"), by_group)):
+            if not key:
+                continue
+            table[key]["n"] += 1
+            table[key]["recommended_stake"] += float(r.get("recommended_stake") or 0)
+            table[key]["executed_stake"] += executed
+    def _fin(t):
+        return {k: {kk: (round(vv, 2) if isinstance(vv, float) else vv) for kk, vv in v.items()}
+                for k, v in sorted(t.items())}
+    return {
+        "by_game": _fin(by_game),
+        "by_correlation_group": _fin(by_group),
+        "max_game_recommended_stake": round(max((v["recommended_stake"] for v in by_game.values()),
+                                                default=0.0), 2),
+        "max_correlation_group_recommended_stake": round(
+            max((v["recommended_stake"] for v in by_group.values()), default=0.0), 2),
+        "note": ("Correlation groups are QUALITATIVE tags from the packet, not a covariance matrix. They "
+                 "are good enough to notice same-thesis concentration and nowhere near good enough to size "
+                 "against."),
+    }
+
+
+def _gate_activity(decision_gates) -> dict:
+    """What the real-money gates actually did. Unavailable is not the same as zero."""
+    if decision_gates is None:
+        return {"available": False,
+                "note": ("No decision-gate records were supplied, so gate rejections cannot be counted. "
+                         "That is not the same as there having been none.")}
+    counts = defaultdict(int)
+    for g in decision_gates:
+        counts[f"overall_{g.get('overall')}"] += 1
+        for name, res in (g.get("gates") or {}).items():
+            if isinstance(res, dict) and res.get("status") not in (None, "PASS", "NOT_APPLICABLE"):
+                counts[f"{name}_{res.get('status')}"] += 1
+    return {"available": True, "n_gate_records": len(decision_gates), "counts": dict(sorted(counts.items()))}
+
+
+def _data_quality(recommendations, evaluations, ev_by_rec) -> dict:
+    """The rates that say how much of the ledger is actually usable."""
+    taken = [r for r in recommendations if r.get("decision") == "RECOMMENDED"]
+    missing_close = sum(1 for e in evaluations if e.get("close_basis") == "MISSING_CLOSE")
+    no_eval = sum(1 for r in taken if r["recommendation_id"] not in ev_by_rec)
+    return {
+        "n_evaluations": len(evaluations),
+        "missing_close_count": missing_close,
+        "missing_close_rate": (round(missing_close / len(evaluations), 4) if evaluations else None),
+        "recommended_without_evaluation": no_eval,
+        "support_states": dict(sorted(_count(r.get("support_state") for r in taken).items(),
+                                      key=lambda kv: str(kv[0]))),
+    }
 
 
 def _count(it):
@@ -102,16 +205,67 @@ def _side_prob(p, side):
 
 
 def _headline(resolved, ex_by_rec):
+    """Money and CLV for one group of resolved recommendations.
+
+    P/L IS COUNTED ONCE PER RECOMMENDATION, NOT ONCE PER FILL. The evaluation already aggregates every fill
+    (see nfl_edge/handicap/evaluate.aggregate_executions), so its `gross_pnl` is the whole position's result.
+    Adding it inside a loop over executions -- which this function used to do -- multiplied the P/L of any
+    recommendation filled more than once by the number of fills, while the stake summed correctly. A $20/$30
+    two-fill winner reported roughly double its true profit on a correct stake, so the ROI was wrong in the
+    most flattering possible direction.
+
+    Stake and contracts come from the evaluation for the same reason: one place aggregates fills, and the
+    scorecard reads that place rather than re-deriving it differently.
+    """
     taken = [(r, e) for r, e in resolved if r.get("decision") == "RECOMMENDED"]
     wins = sum(1 for r, e in taken if e.get("outcome") == "WIN")
     clv = [e.get("clv") for _, e in taken]
     clv_x = [e.get("clv_executable") for _, e in taken]
-    staked = pnl = 0.0
+
+    staked = gross = net = est_net = fees_actual = fees_est = 0.0
+    # Both start True and are only ever falsified: a desk-level net exists only if every position has one.
+    net_complete = est_net_complete = True
+    fills_counted = fills_reconciled = 0
+    n_executed = n_fills = 0
+    slippage = []
+    fee_bases = set()
     for r, e in taken:
-        for x in ex_by_rec.get(r["recommendation_id"], []):
-            staked += x.get("stake") or 0
-            if e.get("pnl") is not None:
-                pnl += e["pnl"]
+        fills = ex_by_rec.get(r["recommendation_id"], [])
+        if fills:
+            n_executed += 1
+            n_fills += len(fills)
+        # Prefer the evaluation's aggregate; fall back to summing stakes only where it is absent, so a
+        # legacy evaluation written before 1.1.0 still contributes a stake.
+        st = e.get("gross_dollars_staked")
+        staked += float(st) if st is not None else sum(float(x.get("stake") or 0) for x in fills)
+        g = e.get("gross_pnl", e.get("pnl"))
+        if g is not None:
+            gross += float(g)
+            # The desk's realised net is the sum of realised nets, and it exists only if every contributing
+            # position has one. Falling back to gross for an unreconciled position would price its fees at
+            # zero and report the result as though it had been measured.
+            if e.get("net_pnl") is not None:
+                net += float(e["net_pnl"])
+            else:
+                net_complete = False
+            if e.get("estimated_net_pnl") is not None:
+                est_net += float(e["estimated_net_pnl"])
+            elif e.get("net_pnl") is not None:
+                est_net += float(e["net_pnl"])
+            else:
+                est_net_complete = False
+            if e.get("fills_total"):
+                fills_counted += int(e["fills_total"])
+                fills_reconciled += int(e.get("fills_with_actual_fees") or 0)
+        if e.get("fees_paid") is not None:
+            fees_actual += float(e["fees_paid"])
+        if e.get("fees_estimated") is not None:
+            fees_est += float(e["fees_estimated"])
+        if e.get("fees_basis"):
+            fee_bases.add(e["fees_basis"])
+        if e.get("entry_slippage") is not None:
+            slippage.append(float(e["entry_slippage"]))
+
     return {
         "recommendations_resolved": len(taken),
         "wins": wins, "losses": len(taken) - wins,
@@ -121,10 +275,36 @@ def _headline(resolved, ex_by_rec):
         "positive_clv_rate": None if not clv else round(
             sum(1 for c in clv if c is not None and c > 0) / max(len([c for c in clv if c is not None]), 1), 4),
         "dollars_staked": round(staked, 2),
-        "pnl": round(pnl, 2),
-        "roi": None if staked <= 0 else round(pnl / staked, 4),
-        "note": ("CLV and ROI are reported without fees, matching the price basis the user actually sees. "
-                 "Fee-aware analysis is separate."),
+        "gross_pnl": round(gross, 2),
+        "total_fees_paid": round(fees_actual, 2),
+        "total_fees_estimated": round(fees_est, 2) if fees_est else None,
+        "fees_basis": ("MIXED" if len(fee_bases - {"NONE"}) > 1
+                       else (sorted(fee_bases - {"NONE"}) or ["NONE"])[0]),
+        # REALISED. None whenever any contributing position's transaction costs are unreconciled.
+        "net_pnl": round(net, 2) if net_complete else None,
+        "estimated_net_pnl": round(est_net, 2) if est_net_complete else None,
+        "fee_reconciliation": {
+            "fills_counted": fills_counted,
+            "fills_with_actual_fees": fills_reconciled,
+            "coverage": None if not fills_counted else round(fills_reconciled / fills_counted, 4),
+            "actual_net_available": net_complete,
+        },
+        "gross_roi": None if staked <= 0 else round(gross / staked, 4),
+        "net_roi": (None if staked <= 0 or not net_complete else round(net / staked, 4)),
+        "estimated_net_roi": (None if staked <= 0 or not est_net_complete
+                              else round(est_net / staked, 4)),
+        "n_recommendations_executed": n_executed,
+        "n_fills": n_fills,
+        "execution_rate": None if not taken else round(n_executed / len(taken), 4),
+        "mean_entry_slippage": None if not slippage else round(_mean(slippage), 6),
+        # `pnl` is retained as the pre-1.1.0 name for gross P/L so existing readers do not silently change
+        # meaning. New readers use gross_pnl / net_pnl.
+        "pnl": round(gross, 2),
+        "roi": None if staked <= 0 else round(gross / staked, 4),
+        "note": ("CLV is reported WITHOUT fees on purpose: CLV asks whether the market moved toward us and "
+                 "transaction costs ask whether the bankroll grew. gross_roi is before fees; net_roi is "
+                 "after the fees the venue actually charged. Estimated fees are reported separately and "
+                 "never reduce net_pnl."),
     }
 
 

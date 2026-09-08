@@ -173,6 +173,21 @@ class KalshiClient:
     def series(self, ticker: str):
         return self.get(f"series/{ticker}")
 
+    def series_fee_changes(self, show_historical: bool = True):
+        """Announced, scheduled fee changes -- the third source in the fee hierarchy.
+
+        `GET /series/{ticker}` reports the fee regime IN FORCE. This endpoint reports changes that have been
+        ANNOUNCED, which is the only way to know the committed schedule is about to stop being right before
+        it stops being right.
+
+        `show_historical=True` by default, and that default matters. The fee-health job runs weekly; with
+        upcoming-only semantics a change announced on a Tuesday and effective the following Monday would
+        drop out of the feed before the next successful capture, and the evidence that it ever existed would
+        be gone. Historical + upcoming means a missed week loses nothing.
+        """
+        return self.get("series/fee_changes",
+                        {"show_historical": "true" if show_historical else "false"})
+
     def events(self, series_ticker: str | None = None, status: str | None = None, with_nested_markets: bool = False, **kw):
         return self.paginate("events", {"series_ticker": series_ticker, "status": status,
                                         "with_nested_markets": "true" if with_nested_markets else None}, "events", **kw)

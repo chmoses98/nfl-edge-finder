@@ -1,5 +1,8 @@
 # Airtable bridge
 
+> Airtable is transport. GitHub is canonical. The standard a record must satisfy before it reaches the
+> canonical ledger is [`DECISION_STANDARD.md`](DECISION_STANDARD.md).
+
 **Airtable is a transport inbox. `handicap-data` remains the canonical ledger.**
 
 ChatGPT cannot write to GitHub. The GitHub integration exposes write-shaped tools, but every branch or file
@@ -10,6 +13,7 @@ So the decision handoff goes through Airtable:
 
 ```
 ChatGPT handicaps the slate
+  -> PRE-TRADE PREFLIGHT (scripts/handicap/preflight_candidate.py) approves or blocks each candidate
   -> writes ONE Airtable row per handicap run   (Status = READY_FOR_SYNC)
   -> sync-handicap-airtable workflow polls twice daily (or on manual dispatch)
   -> existing handicap schema validates the batch
@@ -64,7 +68,7 @@ would break batch atomicity.
 | Status | Meaning |
 |---|---|
 | `TEST_ONLY` | connectivity/scratch row. **Scheduled polling ignores it entirely** — it is excluded by the server-side filter, so it costs nothing and can never be imported. |
-| `READY_FOR_SYNC` | ChatGPT has finished writing the batch; GitHub may ingest it. This is the only status the importer picks up. |
+| `READY_FOR_SYNC` | ChatGPT has finished writing the batch **and every RECOMMENDED record in it has already passed pre-trade preflight at its approved stake**; GitHub may ingest it. This is the only status the importer picks up. |
 | `SYNCED` | every record in the payload was validated and is **durably present on `handicap-data`, and the push succeeded**. |
 | `ERROR` | a permanent payload/schema/conflict problem. Fix by submitting a **corrected new row**, never by editing the failed one. |
 
@@ -123,9 +127,17 @@ each day something is actually waiting. That leaves the large majority of the fr
 Airtable writes, status updates, retries, live E2E testing and any future sport's bridge.
 
 Polling faster would buy latency this system has no use for. The bridge **archives** decisions that have
-already been made: the prospective timestamp is the **Airtable `createdTime`**, stamped server-side when
-ChatGPT writes the batch, so the scientific record is equally prospective whether GitHub ingests it in one
-minute or twelve hours. Retrospective CLV, calibration, ROI and process analysis all read the ledger long
+already been made and already approved, and neither clock that makes them prospective is read from the
+import run:
+
+* **request provenance** — the **Airtable `createdTime`**, stamped server-side when ChatGPT writes the row.
+  It proves the candidate request existed by then, and preflight expiry is measured from it.
+* **decision provenance** — the signed **`approval_as_of`**, which is also the `created_at` on every record
+  in `Approved Payload`. It proves when the bet was approved, at prices confirmed then.
+
+A row's `createdTime` is **not** the timestamp of the recommendation it carries; that is the signed approval
+instant, minutes later. Either way the scientific record is equally prospective whether GitHub ingests it in
+one minute or twelve hours. Retrospective CLV, calibration, ROI and process analysis all read the ledger long
 after the fact.
 
 When you do want it now — a live E2E, or a batch you want on `handicap-data` immediately — use
@@ -180,6 +192,8 @@ The distinction that matters: **permanent data problems become `ERROR`; infrastr
 | batch spans two slates, or duplicate ids | nothing written | `ERROR` |
 | recommendation id exists with different content | nothing written, original untouched | `ERROR` |
 | `Payload` edited after a prior sync (hash mismatch) | nothing written | `ERROR` |
+| **a real `RECOMMENDED` record fails a decision gate** | nothing written | `ERROR` |
+| **a real `RECOMMENDED` record with no gate context** | nothing written | `ERROR` |
 | Airtable unreachable / timeout / `5xx` | nothing written | stays `READY_FOR_SYNC` |
 | Airtable `429` | retried, then deferred | stays `READY_FOR_SYNC` |
 | token rejected (`401`/`403`) | nothing written | stays `READY_FOR_SYNC` |
@@ -189,8 +203,46 @@ The distinction that matters: **permanent data problems become `ERROR`; infrastr
 A rejected token is deliberately **not** an `ERROR`: a misconfigured secret must never permanently condemn a
 real recommendation.
 
-Exit codes: `0` nothing to do or all imported · `1` at least one row failed permanently · `2` configuration
-problem · `3` transient failure, work still pending.
+### The decision gates
+
+Beyond per-record schema validity, every **new** `RECOMMENDED` record is checked against the world **as it
+was at the decision**: was the executable price confirmed and fresh then, was the ask under the stated
+ceiling then, is the player identity resolved, was availability resolved, are the transaction costs known,
+was the full approved stake executable from observed depth, and does the portfolio have room. See
+[`DECISION_STANDARD.md` §8](DECISION_STANDARD.md#8-the-gates).
+
+**This is the point most easily got wrong, and it is why the twelve-hour cadence is safe.** The bridge is
+retrospective archival transport; ingestion is when a decision is *filed*, not when it is *made*. Gating
+against the market at import time would reject a perfectly sound 13:00 call because the 01:00 sync found the
+game already kicked off. Every market gate therefore reads the record's own `created_at`, evidence captured
+after it is invisible, and freshness is measured backwards from it — so a recommendation that was valid when
+made stays valid however late the importer runs, and one that was stale when made cannot be rescued by a
+later capture. Airtable's `createdTime` keeps its separate job as the anti-backfill bound.
+
+Three properties of how that is wired into this transport:
+
+* **A gate failure fails the whole batch**, exactly like a schema failure. The atomicity rule is the same and
+  for the same reason: a handicap run that is half in the ledger is a run nobody can score, and the missing
+  half looks like decisions that were never made.
+* **Only NEW records are gated.** A record already durably in the ledger passed its gates when it was
+  written; re-gating it on a replay would test today's market against yesterday's decision and fail for the
+  wrong reason — and would break the guarantee that identical replay is harmless.
+* **Gate results go into a separate `decision_gates` record**, never into the recommendation. The
+  recommendation must hash identically on every replay for the idempotency comparison to work, and gate
+  results are import-time observations that differ between replays by definition. Keeping them apart is what
+  lets "identical replay is harmless" and "gates ran and passed" both be true.
+
+`TEST_ONLY` records keep full structural schema validation and skip the live-market gates — they risk no
+capital, and gating them would make the E2E depend on the live state of a market their fake ticker does not
+have.
+
+Exit codes: `0` nothing to do or all imported · `1` at least one row failed permanently (`ERROR`) · `2` a
+configuration problem on the runner, **including rows deferred because the approval signing key was absent**
+· `3` transient failure, work still pending.
+
+**A row is only ever marked `ERROR` for something wrong with the ROW.** A missing secret, an unreachable
+Airtable and a failed push are problems with the machine or the wire, and none of them may condemn good data
+— see [Configuration failures are retryable](#configuration-failures-are-retryable).
 
 ---
 
@@ -199,6 +251,9 @@ problem · `3` transient failure, work still pending.
 Airtable stamps `createdTime` server-side — it is the one timestamp ChatGPT cannot forge — so every payload
 timestamp is judged against it. **There is no backfill and never will be.**
 
+Two clocks, never interchangeable. `createdTime` is **request** provenance; the signed `approval_as_of` is
+**decision** provenance. The rules below govern the **candidate request** in `Payload`:
+
 * `created_at` must be ISO-8601 **with an explicit timezone**.
 * `created_at` may be at most **5 minutes after** `createdTime` (clock skew between two machines).
 * `created_at` may be at most **24 hours before** `createdTime`. Handicapping then submitting takes hours,
@@ -206,6 +261,12 @@ timestamp is judged against it. **There is no backfill and never will be.**
 * `createdTime` may not be in the future.
 * If `kickoff_utc` is present, **both** `created_at` and `createdTime` must precede kickoff. A post-kickoff
   recommendation is not a prediction.
+
+The **machine-approved** records in `Approved Payload` are judged by the approval clock instead, and never by
+the rule above: each is dated **exactly** at the signed `approval_as_of`, which must be at or after
+`createdTime` (bar skew), no later than `createdTime + 30 min + skew`, and before kickoff. Applying the
+candidate rule to an approved record would reject the architecture working correctly — a 13:00 request
+approved at 13:18 is exactly what preflight is supposed to produce.
 
 Every import also writes a small receipt:
 
@@ -233,9 +294,18 @@ slow — it is unchanged and unthrottled.
 Locally:
 
 ```bash
-AIRTABLE_TOKEN=... python3 scripts/handicap/sync_airtable.py --handicap-root /path/to/handicap-data-wt --dry-run
-AIRTABLE_TOKEN=... python3 scripts/handicap/sync_airtable.py --handicap-root /path/to/handicap-data-wt
+AIRTABLE_TOKEN=... python3 scripts/handicap/sync_airtable.py \
+    --handicap-root /path/to/handicap-data-wt --market-data /path/to/market-data-wt --dry-run
+AIRTABLE_TOKEN=... python3 scripts/handicap/sync_airtable.py \
+    --handicap-root /path/to/handicap-data-wt --market-data /path/to/market-data-wt
 ```
+
+`--market-data` must point at a `market-data` checkout: the decision-time price gate reads its capture
+stream, and without it no `RECOMMENDED` record can be verified against a live executable price. The sync
+refuses to start rather than importing real recommendations ungated.
+
+`--max-quote-age-minutes` (default 15) is the freshness window. The conductor captures roughly every 10
+minutes, so the default accepts one on-time capture and rejects a missed one.
 
 `--no-push` writes records locally without committing, pushing, or touching any Airtable status.
 
@@ -290,16 +360,33 @@ A worked minimal payload (replace all timestamps and ids with live values):
     "market_ticker": "KXNFLGAME-26SEP09NESEA-SEA",
     "market_family": "GAME_WINNER",
     "side": "YES",
+    "packet_sha": "9328642968522db8ddcd",
     "yes_bid": 0.60, "yes_ask": 0.62, "no_bid": 0.38, "no_ask": 0.40, "mid": 0.61,
+    "market_timestamp": "2026-09-07T17:58:00+00:00",
+    "minutes_to_kickoff": 3260.0,
+    "support_state": "SUPPORTED",
+    "model_version": "shadow-0.4.0",
+    "artifact_hash": "deadbeefcafe",
+    "model_probability": 0.64,
     "decision": "RECOMMENDED", "grade": "B+",
-    "bet_up_to_probability": 0.65, "recommended_stake": 25,
+    "bet_up_to_probability": 0.65,
+    "proposed_stake": 25, "recommended_stake": 25,
     "probability_low": 0.61, "probability_mid": 0.66, "probability_high": 0.71,
     "primary_thesis": "TEST_ONLY end-to-end bridge verification. Not a real decision.",
+    "key_supporting_factors": ["TEST_ONLY placeholder"],
+    "counterarguments": ["TEST_ONLY placeholder"],
+    "uncertainties": ["TEST_ONLY placeholder"],
+    "source_freshness": {"shadow_snapshot": "2026-09-07T17:30:00+00:00"},
     "reasoning_tags": ["ROLE_EXPANSION"],
     "test_only": true
   }
 ]
 ```
+
+Every field above is required for a `RECOMMENDED` record; the authoritative list is
+[`DECISION_STANDARD.md` §2](DECISION_STANDARD.md#2-what-a-recommended-record-must-carry). A `PASS` needs far fewer — decision,
+side, ticker, run id, and a `primary_thesis` saying why — because the cost of an incomplete `PASS` is lost
+information, not lost money.
 
 ---
 
@@ -314,3 +401,263 @@ payload carrying `evaluation_id`, `execution_id` or `postmortem_id` is refused w
 **Extension point** (deliberately not built): supporting execution payloads would mean adding a kind
 discriminator to the batch check in `airtable_bridge.check_batch` and a second entry in the write path in
 `plan_run`. That is a small change and should stay small — this is a transport, not a workflow engine.
+
+
+---
+
+## The PRE-TRADE leg (event-driven) — separate from everything above
+
+Everything above this line is the **recommendation** transport: twelve-hourly archival movement of a
+decision that has already been made and already been approved. It is not changing.
+
+This section is a **different leg with a different job and a different cadence**. It answers the question
+"may this candidate be shown to the owner as a BET?" — before the owner acts, not twelve hours afterwards.
+
+```
+ChatGPT
+  → writes a PREFLIGHT_REQUESTED row (candidates in Payload)
+  → an Airtable Automation calls the preflight workflow                     ← one-time owner setup
+  → the workflow checks out main + market-data + handicap-data
+  → scripts/handicap/preflight_airtable.py runs the SAME gates the ledger later replays
+  → the row becomes PREFLIGHT_APPROVED or PREFLIGHT_BLOCKED, verdict in `Preflight Result`
+  → ChatGPT reads the row
+  → ONLY an APPROVED candidate may be surfaced as a BET, and only at `approved_stake`
+  → the final recommendation is then submitted READY_FOR_SYNC for normal archival transport
+```
+
+### Why event-driven, and why the archival leg stays twelve-hourly
+
+A confirmed executable quote is fresh for **fifteen minutes** and the owner needs the answer inside that
+window. Polling for it would also spend the Airtable free-tier allowance the archival importer depends on,
+to buy latency on a leg that has no use for it. So: preflight is invoked by an event, the importer is a
+schedule, and neither is a workaround for the other.
+
+### Statuses and fields
+
+| status | meaning |
+|---|---|
+| `PREFLIGHT_REQUESTED` | ChatGPT wants a pre-trade verdict on the candidates in `Payload` |
+| `PREFLIGHT_APPROVED` | **every** candidate on the row may be surfaced as a BET, at its approved stake, from `Approved Payload` |
+| `PREFLIGHT_BLOCKED` | at least one may not — including an EXPIRED request. Per-candidate verdicts are in `Preflight Result`. |
+| `PREFLIGHT_ERROR` | the request itself was unusable |
+
+### Three artifacts, three stages
+
+| field | what it is | who writes it |
+|---|---|---|
+| `Payload` | the immutable candidate **request** | ChatGPT, once |
+| `Approved Payload` | the exact canonical batch the worker **approved** — approval timestamp, approved stake, approval-time market state | the preflight worker |
+| `Preflight Result` | the verdict, plus `candidate_payload_sha256`, `approved_payload_sha256`, the Airtable row id, the approval timestamp and a per-candidate gate summary | the preflight worker |
+
+To archive an approved bet, ChatGPT changes **only** `Status: PREFLIGHT_APPROVED → READY_FOR_SYNC` on that
+same row. The importer then:
+
+1. notices the batch contains a real `RECOMMENDED` record;
+2. **verifies the approval's HMAC signature** against this row's own facts (below);
+3. requires the verdict to be `APPROVED`;
+4. checks the approval clock — at or after the request, and inside the request-age window;
+5. requires every approved record to be dated at the **signed** approval instant, exactly;
+6. archives **`Approved Payload`**, never the candidate `Payload`;
+7. independently replays the gates at the approved record's `created_at` — which is the approval time.
+
+### The approval is authenticated, not merely self-consistent
+
+A hash the approval carries about its own payload proves the two agree. It does **not** prove the preflight
+worker produced either of them — anyone able to write Airtable can write a payload *and* a hash of that
+payload, and the two agree perfectly. So the worker signs, with a key that exists only as a GitHub Actions
+secret:
+
+```
+message = compact_sorted_json({
+    "schema":                   "preflight-approval/1",
+    "airtable_record_id":       <this row>,
+    "run_id":                   <this row's Run ID>,
+    "candidate_payload_sha256": sha256(Payload),
+    "approved_payload_sha256":  sha256(Approved Payload),
+    "approval_as_of":           <the approval instant>,
+})
+approval_signature = HMAC-SHA256(PREFLIGHT_SIGNING_KEY, message)
+```
+
+`Preflight Result` carries `approval_schema`, `approval_signature_algorithm` and `approval_signature`. The
+importer **rebuilds that message from what it can see for itself** — this row's id, this row's Run ID, the
+hashes it computed from the two payloads in front of it — and compares with `hmac.compare_digest`. Only
+`approval_as_of` is taken from the result, because it is the one fact only the worker knows.
+
+So a signature lifted onto another row, another run, an edited approved batch or an edited candidate request
+reconstructs a *different* message and fails, with no separate rule needed for each. They get separate
+checks anyway, first, because "signature mismatch" is a useless thing to read at 01:00 when what actually
+happened is that somebody edited a payload.
+
+**`PREFLIGHT_SIGNING_KEY` exists only in GitHub Actions.** Never in Airtable, never in the Automation, never
+in ChatGPT, never in this repository. It is deliberately *not* `AIRTABLE_TOKEN`: a credential should have one
+purpose, and rotating Airtable access must not invalidate approval authentication.
+
+**Refused, fail-closed:** a real `RECOMMENDED` written straight to `READY_FOR_SYNC`; a missing or bad
+signature; an unknown approval schema; a missing `airtable_record_id` (a missing field is never the easy way
+past a check); a row-id, Run-ID, candidate-hash, approved-hash or timestamp mismatch; a
+`BLOCKED`/`EXPIRED`/`ERROR` verdict; and a missing signing key. A PASS/WATCHLIST-only batch keeps the simple
+path and is unaffected by a missing key: a pass costs nothing, is scientifically valuable, and requiring an
+authenticated approval for it would only discourage recording passes.
+
+#### Configuration failures are retryable
+
+A missing signing key is **not** in that list of data failures, even though it appears in the same code path.
+It is a property of the runner, not of the row: the row may carry a perfectly valid, correctly signed
+approval that this process simply cannot check. The importer therefore raises `ConfigurationError` — a class
+of its own, deliberately not a `BridgeError` — and the sync **defers** the row:
+
+| | row status | ledger | exit |
+|---|---|---|---|
+| bad data (forged signature, edited payload, conflict) | `ERROR` — needs a corrected **new** row | untouched | `1` |
+| **no signing key on this runner** | **stays `READY_FOR_SYNC`** | untouched | `2` |
+| Airtable unreachable, push rejected | stays `READY_FOR_SYNC` | rolled back | `3` |
+
+Correct the configuration, re-run, and the **same row** imports unchanged. Nothing is rewritten and no new
+recommendation is required. This is the same philosophy the bridge already applied to a rejected
+`AIRTABLE_TOKEN`, extended to the second secret: infrastructure failure must never permanently condemn good
+data. `PASS`/`WATCHLIST` rows in the same run are unaffected and still land.
+
+**The two workflows gate on the signing key differently, on purpose.** `preflight.yml` **hard-fails**
+without it: a worker that cannot sign can only produce rows that look approved and can never be archived.
+`sync-handicap-airtable.yml` only **warns**: a `PASS`/`WATCHLIST` row needs no authenticated approval and
+must still reach the ledger, and a whole-job precheck would stop the importer before it could apply the
+per-row disposition above. `AIRTABLE_TOKEN` stays a hard prerequisite for both — nothing can be read without
+it. The script, not the workflow, is the authority on what happens to each row.
+
+**Both secrets must be declared on the step that runs the importer.** A GitHub Actions step's `env:` is
+scoped to that step, so the earlier "is the secret configured?" check proves only that the secret *exists* —
+it does not put it into the importer's process. `tests/test_workflow_secret_wiring.py` reads the actual YAML
+and fails if either script's step stops receiving what the script reads, and asserts that neither secret is
+ever placed on a command line (argv is world-readable on the runner).
+
+### Two provenance clocks
+
+A candidate drafted at 13:00 and preflighted at 13:18 is a **13:18** decision. The worker re-prices the
+record's market state — the two-sided quote, the mid, the market timestamp, the minutes to kickoff — to the
+approval moment and gates it there, so a market that moved against the candidate blocks it. The **handicap**
+is carried forward untouched: no probability, thesis or grade is recomputed.
+
+That means the old timestamp rule cannot apply to the approved record. It said a recommendation may not
+postdate its Airtable row by more than five minutes, which was right when the row *was* the finished
+recommendation and is wrong when the row is a **request**:
+
+| clock | what it proves | rule |
+|---|---|---|
+| **request** — Airtable server `createdTime` | the candidate request existed by then | candidate `created_at` may not postdate it (bar 5 min skew) nor predate it by more than 24 h — **unchanged** |
+| **approval** — the signed `approval_as_of` | the worker made this decision then | at or after `createdTime` (bar skew); no later than `createdTime + 30 min + skew`; before kickoff; and **every approved record is dated exactly at it** |
+
+The old "may not postdate the row" rule is **never** applied to the machine-approved record. What replaces
+it is stricter where it matters: the signature covers `approval_as_of`, so a record carrying any other
+`created_at` was not the record that was approved.
+
+**Expiry is measured from Airtable's server clock, not the candidate's.** The candidate timestamp is written
+by the requester and can say anything; an hours-old request must not be able to refresh itself by claiming a
+new draft time. Past 30 minutes the answer is **EXPIRED** — the market can be re-priced, the thesis cannot.
+
+Approval is stamped **per row**, at the moment that row's preflight actually runs. A batch of requests takes
+time to work through, and with a fifteen-minute quote window the last one must not be dated as though it
+were the first.
+
+A PASS/WATCHLIST-only batch that never went through preflight keeps the original request-clock rule
+unchanged.
+
+**A row that is not `PREFLIGHT_APPROVED` has not been approved.** There is no third state and no default: a
+request that errored, timed out, or was never picked up is not a bet. Silence is never yes.
+
+`Preflight Result` is a long-text field carrying `preflight-result/1` JSON: per candidate the verdict,
+`approved_stake`, `blocking_reasons`, the executable price, the full-position VWAP and worst fill, net EV
+and conservative net EV, and each gate's status — plus the outstanding portfolio exposure the caps were
+measured against.
+
+The worker writes **only** `Status`, `Preflight Result` and `Approved Payload`. `Run ID`, `Sport` and
+`Payload` are source data; `AirtableClient.write_fields` enforces the whitelist, so neither leg can rewrite
+the candidate request — which is what keeps the three stages distinguishable.
+
+### One-time owner setup
+
+Two things cannot be provisioned from a code change and are the owner's to do once — **and they come after
+this PR merges**, because the workflow does not exist on `main` until then. **Until both exist and a live
+end-to-end run has succeeded, this leg is not operational.** The repository side being complete and tested
+is a different claim.
+
+**1. Add the fields and statuses in Airtable.**
+Add `Preflight Result` and `Approved Payload` as **Long text** fields on the `Recommendation Runs` table,
+and add `PREFLIGHT_REQUESTED`, `PREFLIGHT_APPROVED`, `PREFLIGHT_BLOCKED`, `PREFLIGHT_ERROR` as options on
+the existing `Status` single-select.
+
+**2. Create a GitHub token and an Airtable Automation.**
+
+First, generate the approval signing key **once** and store it as a repository Actions secret named
+`PREFLIGHT_SIGNING_KEY`:
+
+```bash
+openssl rand -hex 32          # Settings -> Secrets and variables -> Actions -> New repository secret
+```
+
+Both the preflight workflow and the archival importer read it from Actions — the worker signs with it, the
+importer verifies with it — and both pass it to their script through `env:`, never on a command line. It must
+never be pasted into Airtable, the Automation script, ChatGPT, an issue, a log or this repository. Rotating
+it invalidates approvals that have not yet been archived, which is the correct behaviour: re-request them.
+
+Until the secret exists, a real recommendation is **deferred, not lost**: the row stays `READY_FOR_SYNC` and
+imports unchanged on the first run after the secret is added.
+
+Then create a **fine-grained personal access token** scoped to `chmoses98/nfl-edge-finder` only, with a
+single permission:
+
+| permission | level | why |
+|---|---|---|
+| **Actions** | Read and write | the minimum that can call `workflow_dispatch`. Nothing else is needed. |
+
+Do **not** grant `Contents: write`. It would also work — via `repository_dispatch` — but it is a strictly
+larger blast radius: a leaked `contents: write` token can push to any branch, including the ledger. An
+`actions: write` token can only start workflows that already exist in the repository. The workflow accepts
+`repository_dispatch` as well, for an Automation that prefers it; the narrower grant is the documented
+default.
+
+Then in Airtable: **Automations → Create → Trigger: When record matches conditions** (Table
+`Recommendation Runs`, condition `Status is PREFLIGHT_REQUESTED`) → **Action: Run script**:
+
+```js
+// Airtable Automation script. The token lives in the Automation's secret input, never in this repository.
+const GITHUB_PAT = input.config().githubPat;   // Automations → this script → Input variables
+const res = await fetch(
+  "https://api.github.com/repos/chmoses98/nfl-edge-finder/actions/workflows/preflight.yml/dispatches",
+  { method: "POST",
+    headers: { "Authorization": `Bearer ${GITHUB_PAT}`,
+               "Accept": "application/vnd.github+json",
+               "X-GitHub-Api-Version": "2022-11-28" },
+    body: JSON.stringify({ ref: "main" }) });
+if (res.status !== 204) throw new Error(`workflow_dispatch failed: ${res.status} ${await res.text()}`);
+```
+
+The workflow answers **every** pending `PREFLIGHT_REQUESTED` row, so the dispatch carries no payload and two
+requests arriving together cost one run.
+
+`AIRTABLE_TOKEN` is already configured as a repository secret for the importer; the preflight workflow uses
+the same one. No credential is ever committed.
+
+### TEST_ONLY end-to-end
+
+Same discipline as the importer's E2E, and the same reason it is safe: a `TEST_ONLY` candidate risks no
+capital, is excluded from every report, and the situational gates do not apply to it — so it can name a
+ticker that does not exist.
+
+1. Write one row: `Sport = NFL`, `Status = PREFLIGHT_REQUESTED`, `Run ID = E2E-PREFLIGHT`, `Payload` = a
+   one-element array containing a complete candidate with `"test_only": true` and a fake ticker.
+2. The Automation fires; the workflow runs.
+3. The row should land on **`PREFLIGHT_BLOCKED`** with a `Preflight Result` whose single candidate has
+   `may_be_shown_as_a_bet: false`. That is the correct answer, and a `TEST_ONLY` probe coming back approved
+   would itself be the bug.
+4. Nothing is written to any ledger branch. Preflight files no records.
+
+`tests/test_preflight_transport.py` runs this whole leg against a fake Airtable, including the TEST_ONLY
+probe, so the repository side is proven before the Automation exists. What the live run proves is the two
+things tests cannot: that the Automation fires and that the token works.
+
+### Debugging fallbacks — not the operating workflow
+
+If the Automation is down, the owner can run the workflow by hand (`workflow_dispatch`, with `dry_run` to
+see verdicts without writing), or run `scripts/handicap/preflight_candidate.py` locally against a candidate
+file. Both are for debugging. Requiring either for a routine bet is what this leg exists to remove.

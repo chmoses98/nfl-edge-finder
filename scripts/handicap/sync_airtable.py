@@ -17,11 +17,17 @@ would let a failed push turn into permanent data loss, because the next poll wou
 after means the worst case is a row that is re-imported, which the idempotency check absorbs silently.
 
 Exit codes: 0 nothing to do or everything imported, 1 at least one row failed permanently (ERROR),
-2 configuration problem, 3 a transient failure left work pending (rows stay READY_FOR_SYNC for the next run).
+2 a configuration problem on THIS RUNNER (including rows deferred because the approval signing key was
+absent -- those rows stay READY_FOR_SYNC and import unchanged once it is wired), 3 a transient failure left
+work pending (rows stay READY_FOR_SYNC for the next run).
+
+A row is only ever marked ERROR for something wrong with the ROW. A missing secret, an unreachable Airtable
+and a failed push are all problems with the machine or the wire, and none of them may condemn good data.
 """
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 import subprocess
 import sys
@@ -31,7 +37,14 @@ from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
+from nfl_edge.execution import depth as DEPTH          # noqa: E402
+from nfl_edge.execution import fees as FEES            # noqa: E402
+from nfl_edge.execution import quotes as Q             # noqa: E402
 from nfl_edge.handicap import airtable_bridge as AB    # noqa: E402
+from nfl_edge.handicap import approval as APPROVAL     # noqa: E402
+from nfl_edge.handicap import gates as G               # noqa: E402
+from nfl_edge.handicap import preflight as PF          # noqa: E402
+from nfl_edge.handicap import risk as RISK             # noqa: E402
 from nfl_edge.handicap import store                    # noqa: E402
 
 
@@ -94,9 +107,75 @@ def commit_and_push(ledger_root: str, message: str, *, branch: str = store.BRANC
 
 # ---- sync -----------------------------------------------------------------------------------------
 
+def build_gate_context(market_data_root: str, *, max_quote_age_minutes: float,
+                       max_book_age_minutes: float, risk_policy_path: str | None = None,
+                       ledger_root: str | None = None):
+    """Assemble what the real-money gates need to look at the world.
+
+    Built by `preflight.build_context`, which is the SAME assembly the pre-trade path uses. That is not
+    tidiness: the importer's job is to independently REPLAY the checks that approved the bet hours earlier,
+    and a replay against a differently-assembled context would prove nothing about the decision.
+
+    NOTE WHAT IS NOT HERE: a `now`. This importer runs every twelve hours and archives decisions that were
+    made hours earlier, so a wall-clock timestamp handed to the gates would evaluate each recommendation
+    against a market that had moved on -- failing calls that were sound when they were made, purely because
+    of ingestion latency. Each record's own `created_at` is the clock; see nfl_edge/handicap/gates.py.
+
+    Built once per sync, not per row: the capture and book indexes scan the capture stream, and rebuilding
+    them for every row would turn a cheap check into an expensive one.
+
+    The portfolio risk report is deliberately NOT built here. It is computed per batch by `_context_for`,
+    against the whole committed book -- see the note there.
+    """
+    ctx = PF.build_context(market_data_root, root=ROOT,
+                           max_quote_age_minutes=max_quote_age_minutes,
+                           max_book_age_minutes=max_book_age_minutes)
+    ctx.risk_policy = RISK.RiskPolicy.load(ROOT, risk_policy_path)
+    ctx.ledger_root = ledger_root
+    return ctx
+
+
+def _context_for(base_ctx, records):
+    """A per-batch gate context carrying this batch's portfolio verdict against the WHOLE book.
+
+    A shallow copy, so the expensive capture index and fee schedule are shared while the risk report is not.
+
+    The verdict is per batch and the EXPOSURE is not. A portfolio limit is a statement about the desk's total
+    position, so `report_for_batch` adds the batch to everything already outstanding in the ledger --
+    unfilled approvals before kickoff, filled and unsettled stake, across every earlier handicap run and
+    Airtable row. Sizing a batch against itself alone is how two 2u positions in one correlation group both
+    clear a 3u cap.
+    """
+    if base_ctx is None:
+        return None
+    ctx = copy.copy(base_ctx)
+    try:
+        ctx.risk_report = RISK.report_for_batch(
+            records, base_ctx.risk_policy, getattr(base_ctx, "ledger_root", None))
+    except RISK.RiskPolicyError as e:
+        # A batch with no RECOMMENDED records needs no bankroll and no portfolio verdict; anything else is a
+        # real problem and the risk gate will report it as UNAVAILABLE, which blocks.
+        if any(r.get("decision") == AB.S.RECOMMENDED for r in records):
+            log(f"warn   risk policy could not be evaluated for this batch: {e}")
+        ctx.risk_report = None
+    return ctx
+
+
 def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
-         pusher=commit_and_push, sport: str = AB.SPORT_NFL, update_status: bool = True) -> int:
+         pusher=commit_and_push, sport: str = AB.SPORT_NFL, update_status: bool = True,
+         gate_context=None, signing_key=None) -> int:
     now = now or datetime.now(timezone.utc)
+
+    # The ledger the gates measure cumulative exposure against MUST be the ledger being written. Binding it
+    # here rather than trusting the caller removes the one way this could go quietly wrong: a context built
+    # against a different checkout would size every batch against somebody else's book.
+    if gate_context is not None:
+        existing = getattr(gate_context, "ledger_root", None)
+        if existing and os.path.abspath(existing) != os.path.abspath(ledger_root):
+            raise AB.BridgeError(
+                f"the gate context measures outstanding exposure against {existing} but this sync writes to "
+                f"{ledger_root}; portfolio caps would be checked against the wrong book")
+        gate_context.ledger_root = ledger_root
 
     try:
         rows = client.list_ready(sport=sport)
@@ -113,7 +192,10 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
 
     # Plan every row before writing any of them, and keep the rows independent: one corrupt batch must not
     # stop the others in the same cycle from landing.
-    plans, errors = [], {}
+    # `deferred` is the third disposition: rows this runner could not JUDGE, as opposed to rows it judged
+    # bad. They are left exactly as they are -- READY_FOR_SYNC, never ERROR, nothing written -- so the same
+    # row imports on the next run once the configuration is corrected.
+    plans, errors, deferred = [], {}, {}
     for row in rows:
         rid = (row.get("id") or "").strip()
         if not rid:
@@ -121,8 +203,20 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
             log("ERROR  <no record id>: Airtable row has no record id; skipping")
             continue
         try:
+            records = AB.parse_payload((row.get("fields") or {}).get(AB.F_PAYLOAD))
             plan = AB.plan_run(row, ledger_root, now=now,
-                               base_id=client.base_id, table_id=client.table_id)
+                               base_id=client.base_id, table_id=client.table_id,
+                               gate_context=_context_for(gate_context, records),
+                               signing_key=signing_key)
+        except AB.ConfigurationError as e:
+            # Listed BEFORE BridgeError deliberately: this is the one failure raised while inspecting a row
+            # that is not about the row. Leaving it in the ERROR bucket is how a misconfigured runner
+            # permanently destroys a valid, signed, gate-passing recommendation.
+            log(f"CONFIG {rid}: {e}")
+            log(f"       left {AB.STATUS_READY}; nothing written, nothing marked {AB.STATUS_ERROR}. Fix the "
+                "configuration and re-run: this same row imports unchanged.")
+            deferred[rid] = str(e)
+            continue
         except AB.BridgeError as e:
             log(f"ERROR  {rid}: {e}")
             errors[rid] = str(e)
@@ -137,6 +231,8 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
 
     if dry_run:
         log("\n(dry run -- nothing written, nothing committed, no Airtable status changed)")
+        if deferred:
+            return 2
         return 1 if errors else 0
 
     # Write. A row that fails here is a permanent problem with that row only; its files are rolled back.
@@ -192,9 +288,19 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
             log("the next run will recognise these records as already imported and set the status then")
             return 3
 
+    if deferred:
+        log(f"{len(deferred)} row(s) deferred on configuration, still {AB.STATUS_READY}: "
+            + ", ".join(sorted(deferred)))
+
     log(f"total Airtable requests this run: {client.request_count}")
+    # Precedence. A failed push comes first: the ledger is not durable and the next run must re-import
+    # regardless. Then configuration, which is the most actionable thing an operator can be told and is the
+    # only code that says "good rows are waiting on you". Row-level ERROR is last because those rows are
+    # already recorded as ERROR in Airtable and no exit code will change them.
     if not pushed:
         return 3
+    if deferred:
+        return 2
     return 1 if errors else 0
 
 
@@ -221,6 +327,17 @@ def main(argv=None) -> int:
                     help="validate pending rows and report; write nothing, change no Airtable status")
     ap.add_argument("--no-push", action="store_true",
                     help="write records but do not commit or push (local inspection only)")
+    ap.add_argument("--market-data", default="/home/user/_market_data_wt",
+                    help="checkout of the market-data branch; the decision-time price gate reads its "
+                         "capture stream")
+    ap.add_argument("--max-quote-age-minutes", type=float, default=Q.DEFAULT_MAX_QUOTE_AGE_MIN,
+                    help="decision-time executable-price freshness window, measured BACKWARDS FROM EACH "
+                         "RECOMMENDATION'S created_at -- never from now. The conductor captures roughly "
+                         "every 10 minutes, so the default accepts one on-time capture and rejects a "
+                         "missed one.")
+    ap.add_argument("--max-book-age-minutes", type=float, default=DEPTH.DEFAULT_MAX_BOOK_AGE_MIN,
+                    help="same window for the order book, which is what proves the APPROVED STAKE was "
+                         "executable rather than just the top contract")
     a = ap.parse_args(argv)
 
     token = os.environ.get("AIRTABLE_TOKEN", "").strip()
@@ -234,13 +351,49 @@ def main(argv=None) -> int:
         log(f"--handicap-root {a.handicap_root} is not a directory")
         return 2
 
+    if not os.path.isdir(a.market_data):
+        # Fail here, loudly, rather than at the gate. Without the capture stream every RECOMMENDED record
+        # in every pending row would be refused for a reason that is really a misconfiguration on this
+        # machine, and the rows would go ERROR when they are in fact perfectly good.
+        log(f"--market-data {a.market_data} is not a directory. The decision-time price gate reads the "
+            "capture stream from the market-data branch; without it no RECOMMENDED record can be verified "
+            "against a live executable price.")
+        return 2
+
+    # The approval-verification key. Absent, a batch containing a real RECOMMENDED is DEFERRED at the
+    # binding check -- left READY_FOR_SYNC, never ERROR -- while a PASS-only batch still imports. That is
+    # why this is a warning here rather than a hard exit: exiting now would also stop passes being recorded,
+    # and passes are scientifically valuable and risk nothing.
+    #
+    # The workflow checks this secret in an earlier step, but a step's env does not reach this process, so
+    # the check up there is not evidence down here. This is the only place that finding out actually
+    # matters, and tests/test_workflow_secret_wiring.py is what stops the wiring regressing again.
+    signing_key = None
+    try:
+        signing_key = APPROVAL.signing_key()
+    except APPROVAL.ApprovalError as e:
+        log(f"WARNING: {e}")
+        log("rows carrying a real RECOMMENDED record will be DEFERRED this run: left READY_FOR_SYNC, never "
+            "ERROR, nothing written. Wire the secret and re-run and the same rows import unchanged.")
+        log("PASS/WATCHLIST batches are unaffected.")
+
     client = AB.AirtableClient(token, a.base_id, a.table_id)
     # --no-push must also withhold the status update: SYNCED asserts durability on the remote, and a local
     # write that was never pushed has not earned it.
     pusher = (lambda *_args, **_kw: log("--no-push: skipping commit/push")) if a.no_push else commit_and_push
     try:
+        ctx = build_gate_context(os.path.abspath(a.market_data),
+                                 max_quote_age_minutes=a.max_quote_age_minutes,
+                                 max_book_age_minutes=a.max_book_age_minutes,
+                                 ledger_root=os.path.abspath(a.handicap_root))
         return sync(client, os.path.abspath(a.handicap_root), dry_run=a.dry_run, pusher=pusher,
-                    sport=a.sport, update_status=not a.no_push)
+                    sport=a.sport, update_status=not a.no_push, gate_context=ctx,
+                    signing_key=signing_key)
+    except AB.ConfigurationError as e:
+        # Belt and braces: `sync` handles these per row, so reaching here means one escaped a path that does
+        # not yet defer. Exit 2, never 1: nothing about it says a row is bad.
+        log(f"CONFIGURATION: {AB.scrub(e, token)}")
+        return 2
     except AB.BridgeError as e:
         # Configuration-shaped BridgeErrors (an empty token) reach here; row-shaped ones never do.
         log(f"FATAL: {AB.scrub(e, token)}")

@@ -1,0 +1,76 @@
+name: Kalshi Fee Health
+
+# Weekly reconciliation of the committed fee schedule against Kalshi.
+#
+# WHY WEEKLY. Fee schedules change on the order of once or twice a year and are announced in advance
+# through GET /series/fee_changes, so a high-frequency check would buy nothing. What this cadence buys is
+# the guarantee the pre-trade gate depends on: a real recommendation can never be priced off a registry
+# nobody has confirmed in months. config/kalshi_fee_schedule.json sets the tolerance
+# (verification_policy.max_verification_age_days = 45), so three consecutive missed runs are absorbed and a
+# genuinely abandoned registry is not.
+#
+# WHAT IT DOES NOT DO. It never edits config/kalshi_fee_schedule.json or config/kalshi_nfl_series.json. An
+# API response must not silently rewrite the schedule that every historical net-EV number in the ledger was
+# computed against. A change is captured to the append-only observations on market-data, surfaces here as a
+# failed job, blocks affected real recommendations through the fee_schedule_established gate, and waits for
+# a reviewed commit adding a NEW effective window.
+#
+# Read-only public GETs. This repository has no order surface.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 8 * * 1'   # Mondays, ahead of the week's slate
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-write
+  cancel-in-progress: false
+
+jobs:
+  fee-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # The existing observations are needed so freshness is measured against the newest clean capture and
+      # not only against the committed attestation.
+      - name: Fetch existing fee observations
+        run: |
+          git fetch origin market-data --depth=1 || true
+          mkdir -p data/kalshi/fees
+          git archive origin/market-data data/kalshi/fees 2>/dev/null | tar -x || true
+          ls -l data/kalshi/fees 2>/dev/null || echo "no prior fee observations"
+
+      - name: Capture live fee metadata and announced fee changes
+        id: capture
+        continue-on-error: true
+        run: |
+          python3 scripts/kalshi/capture_fee_metadata.py --out . --check
+
+      - name: Publish observation to market-data branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/fees --message "kalshi fee health $(date -u +'%Y-%m-%dT%H:%M:%SZ') (${{ github.event_name }})"
+
+      # Loud, and after the publish, so the evidence is durable even when the check fails.
+      - name: Fail if the committed fee schedule is not clean
+        if: steps.capture.outcome != 'success'
+        run: |
+          echo "::error::The committed Kalshi fee schedule disagrees with the live API, is missing a window"
+          echo "::error::for an announced change, or has gone unverified past its policy window."
+          echo "::error::Review the observation just published to market-data under data/kalshi/fees/,"
+          echo "::error::then commit a REVIEWED update to config/kalshi_fee_schedule.json that ADDS a new"
+          echo "::error::effective window (closing the previous window's effective_to) -- never edits an"
+          echo "::error::existing one. Until that lands, real recommendations on affected series are"
+          echo "::error::blocked by the fee_schedule_established gate, which is the intended behaviour."
+          exit 1

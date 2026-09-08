@@ -1,0 +1,17 @@
+# Everything the test suite transitively imports, and nothing else.
+#
+# Derived by walking the import graph from tests/ through nfl_edge and scripts, not by reading the top of
+# each test file: the first CI run passed locally and failed on the runner because a test imported
+# nfl_edge.research.player_distributions INSIDE the test body, which imports pandas. A missing dependency
+# does not skip that test -- it fails it, or fails collection for the whole module.
+#
+# tests/test_ci_dependencies.py re-walks the graph and fails if this file falls behind.
+#
+# The hardening work itself -- schema, gates, quotes, fees, risk, the bridge -- is deliberately stdlib-only,
+# so a package resolution failure can never be what stops the real-money gates being tested.
+pytest
+numpy
+pandas
+polars
+scipy
+pyyaml

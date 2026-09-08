@@ -1,5 +1,8 @@
 # RUN NFL
 
+> The operating standard this workflow has to satisfy — required fields, the freshness policy, fees, risk
+> limits and the price/P&L vocabulary — is [`DECISION_STANDARD.md`](DECISION_STANDARD.md).
+
 **The model is the quantitative foundation. ChatGPT is the decision layer. The market is the benchmark.
 The ledger is the memory.**
 
@@ -37,8 +40,10 @@ MASSIVE NFL DATA COLLECTION        collectors -> market-data branch (continuous)
   -> STRUCTURED HANDICAP PACKET    scripts/handicap/run_nfl.py
   -> CHATGPT INDEPENDENT HANDICAP  <- you are the decision layer here
   -> KALSHI MARKET SELECTION       best-expression comparison, correlation groups
+  -> PRE-TRADE PREFLIGHT           Airtable PREFLIGHT_REQUESTED -> preflight workflow -> APPROVED/BLOCKED
+                                   (event-driven; BEFORE anything is shown as a BET)
   -> AIRTABLE RECOMMENDATION RUN   ChatGPT writes one row -- the only write ChatGPT can make
-  -> AIRTABLE -> GITHUB SYNC       sync-handicap-airtable workflow, validates and materialises
+  -> AIRTABLE -> GITHUB SYNC       sync-handicap-airtable workflow, REPLAYS the same gates and materialises
   -> IMMUTABLE RECOMMENDATION      handicap-data branch, one file per record
   -> CLOSE / CLV / SETTLEMENT      scripts/handicap/attach_evaluations.py
   -> POSTMORTEM                    named categories, explicit confidence
@@ -90,9 +95,61 @@ Then, for each game you open:
 * answer the game's **KEY QUESTIONS**. They are generated from that game's actual data and are aimed at how
   this packet could be wrong.
 
-### 4. Produce recommendations and passes
+### 4. Produce CANDIDATES, and preflight them before anything is called a bet
 
-For each contract seriously considered, emit a record. The shape the user reads:
+For each contract seriously considered, emit a record. Until it has passed preflight it is a **CANDIDATE**,
+and a candidate may be shown as `CANDIDATE`, `WATCHLIST` or `PASS` — never as a BET or a final
+`RECOMMENDED` instruction.
+
+**How ChatGPT actually invokes it.** Write ONE Airtable row:
+
+| field | value |
+|---|---|
+| `Sport` | `NFL` |
+| `Status` | `PREFLIGHT_REQUESTED` |
+| `Run ID` | the `handicap_run_id` |
+| `Payload` | the candidate array |
+
+An Airtable Automation fires the `Pre-trade preflight` workflow, which runs the gates **as of the moment it
+runs** and writes the verdict back within about a minute. Read the row:
+
+* `PREFLIGHT_APPROVED` — every candidate may be surfaced as a BET, at the `approved_stake`, **exactly as it
+  appears in `Approved Payload`**. To archive it, change only `Status` to `READY_FOR_SYNC` on that same row.
+* `PREFLIGHT_BLOCKED` — at least one may not; `Preflight Result` names which and why. Surface those as
+  CANDIDATE / WATCHLIST / PASS. A verdict of `EXPIRED` means the request sat longer than 30 minutes: the
+  market can be re-priced, the thesis cannot, so submit a **fresh** request.
+
+**A row that is not `PREFLIGHT_APPROVED` has not been approved.** Errored, expired, timed out, still
+`PREFLIGHT_REQUESTED` — none of those is a bet. Silence is never yes.
+
+**The approved record is not the candidate.** Its `created_at` is the approval moment, its market fields are
+the approval-time quote, and its stake is what the risk policy allowed. The handicap — probabilities, grade,
+thesis — is carried through untouched.
+
+**Do not hand-edit `Approved Payload` or `Preflight Result`.** The approval is signed with a key that exists
+only in GitHub Actions, and the importer verifies that signature against the row's own id, Run ID and both
+payload hashes. An edited payload, a copied approval or a hand-written one is refused — there is no way to
+produce a valid approval except by asking for one.
+
+**Expiry is measured from when Airtable stamped the row**, not from the `created_at` in your payload. An old
+request cannot be refreshed by re-dating the candidate.
+
+Debugging fallback only, when the Automation is down:
+
+```
+python3 scripts/handicap/preflight_candidate.py candidates.json \
+    --market-data /home/user/_market_data_wt --handicap-root /home/user/_ledger_wt
+```
+
+Exit `0` means approved, exit `5` blocked. Neither path places anything or writes any record.
+
+Preflight runs the same gates the ledger will later replay — decision-time price freshness, the ceiling,
+full-position depth, the fee schedule, net EV, identity, availability, and the **cumulative** portfolio caps
+— against the candidate's own `created_at`. That ordering is the point: the Airtable importer runs every
+twelve hours, so without this step the first check on a bet the owner placed at 13:01 would happen at 01:00.
+See [`DECISION_STANDARD.md`](DECISION_STANDARD.md) §0.
+
+The shape the user reads, once approved:
 
 ```
 BET
@@ -113,6 +170,53 @@ ledger will ever produce, and it only works if passes are recorded with equal ca
 Prices are **Kalshi probability as displayed**. Fees are not folded into `bet_up_to_probability` — the
 displayed price is the user's cost basis. Fee-aware analysis is separate, in `nfl_edge/execution/fees.py`.
 
+#### What a RECOMMENDED record must carry
+
+A `RECOMMENDED` record asks the user to risk money, and the ledger is immutable — a defective one is
+permanent. So the full professional decision record is **required**, and every shortfall is a hard rejection
+rather than a warning:
+
+* **identity / lineage** — `packet_sha`, `season`, `week`, `game_id`, `kickoff_utc`, `market_family`
+* **market state** — `market_timestamp`, `minutes_to_kickoff`, and the **side-specific executable ask**
+  (`yes_ask` for YES, `no_ask` for NO). A midpoint is not accepted in its place.
+* **handicap** — the full probability band, `bet_up_to_probability`, a grade, a positive whole-dollar stake,
+  and non-empty `key_supporting_factors`, `counterarguments` and `uncertainties`
+* **lineage** — `support_state` and `source_freshness`; plus `model_version` and `model_probability` where
+  `support_state` is `SUPPORTED`
+
+**The ceiling is a ceiling.** If the executable ask is *above* `bet_up_to_probability`, the record is
+refused. The ledger must never be able to say "BET up to 58%" while the book is asking 61%.
+
+`PASS`, `WATCHLIST` and `RESEARCH_ALERT` stay deliberately cheap to write — see
+[`DECISION_STANDARD.md`](DECISION_STANDARD.md) §2 for why the asymmetry is the design and not an oversight.
+
+#### The gates — run at preflight, replayed on ingestion
+
+Beyond the record's own coherence, a real recommendation is checked against the **world**. The same gate
+module runs twice: once **before** the bet is shown (step 4) and again when the importer archives it, which
+is an independent replay from the capture stream rather than the first look. Any of these blocks it — and so
+does a gate that could not reach its evidence, because "I could not check" must never resolve to "it is
+fine":
+
+| gate | blocks when |
+|---|---|
+| decision-time price freshness | no capture-confirmed executable quote within 15 minutes **before the decision** |
+| ceiling | the ask **at the decision** was above `bet_up_to_probability` |
+| player identity | the Kalshi → GSIS mapping is unresolved |
+| player availability | availability is missing, UNKNOWN, blocking, stale, or read after the decision |
+| full-position executability | the approved stake cannot be filled from observed depth, or the fill walks above the ceiling |
+| fee schedule established | no committed window covers the decision, an announced Kalshi fee change is unmodelled, the fee-change feed could not be read, or the schedule has gone unverified past 45 days |
+| transaction costs | costs are not `KNOWN`, or net executable EV — or **conservative** net EV, after the derived fee-rounding residual — is **≤ $0** at the full-position VWAP |
+| portfolio risk | a per-position, grade, game, correlation-group or slate limit binds **cumulatively**, counting exposure already outstanding from earlier runs (a settlement releases exposure only as of a moment the outcome was available); or the committed ledger could not be read |
+
+**Everything above is evaluated as of the recommendation's own `created_at`, not as of the import.** The
+sync runs every twelve hours and archives decisions made hours earlier; judging them against the market at
+import time would fail every call whose game had since kicked off. Import latency cannot change a verdict.
+Only the risk gate runs on import-time state, and only because it reads no market data at all.
+
+A failure fails the **whole batch**, and the reason is named in the workflow log. Full detail:
+[`DECISION_STANDARD.md`](DECISION_STANDARD.md) §3–§8.
+
 ### 5. Write the records
 
 ChatGPT emits the whole run as **one Airtable row** in the `Sports Betting Bridge` base:
@@ -120,28 +224,46 @@ ChatGPT emits the whole run as **one Airtable row** in the `Sports Betting Bridg
 | field | value |
 |---|---|
 | `Sport` | `NFL` |
-| `Status` | `READY_FOR_SYNC` |
+| `Status` | `READY_FOR_SYNC` — asserts the batch **already passed pre-trade approval** |
 | `Run ID` | the `handicap_run_id`, identical on every record in the payload |
 | `Payload` | the canonical JSON **array** for the whole batch — recommendations, passes, watchlist, alerts |
 
-That is the only write ChatGPT makes. Within twelve hours — or immediately, on manual dispatch — the
-`sync-handicap-airtable` workflow validates the batch, materialises one immutable file per record on
-`handicap-data`, pushes, and flips the row to `SYNCED`. The decision's prospective timestamp is Airtable's
-server-side `createdTime`, so ingestion latency costs the audit trail nothing.
+That is the only write ChatGPT makes. `READY_FOR_SYNC` is an assertion, not a request: it says the
+recommendation **has already been through preflight** at the approved stake. Within twelve hours — or
+immediately, on manual dispatch — the `sync-handicap-airtable` workflow independently **replays** the gates
+from the capture stream, materialises one immutable file per record on `handicap-data` plus its
+`DecisionGates` evidence, pushes, and flips the row to `SYNCED`. The decision's prospective timestamp is
+Airtable's server-side `createdTime`, so ingestion latency costs the audit trail nothing.
+
+The twelve-hour cadence stays. It is right for archival transport, and it is no longer load-bearing for
+safety.
 
 See **GitHub write-back** below, and `docs/AIRTABLE_BRIDGE.md` for the full contract.
 
-### 6. User reports actual bets
+### 6. User reports actual bets — one record per FILL
 
 The user may not take every recommendation, and may get a different price. That is an **execution** record,
-never an edit to the recommendation:
+never an edit to the recommendation. This is what lets recommendation quality and bankroll performance be
+measured separately.
+
+**One record per FILL, not per position.** A recommendation is routinely filled in pieces at different
+prices, and each piece is its own immutable record:
 
 ```json
-{"execution_id": "exe_...", "recommendation_id": "rec_...", "executed_at": "...",
- "actual_price": 0.64, "stake": 25, "side": "YES", "notes": "filled 2c worse"}
+[
+ {"execution_id": "exe_a", "recommendation_id": "rec_...", "executed_at": "...",
+  "actual_price": 0.54, "stake": 20, "contracts": 37.037037, "side": "YES", "fees_paid": 0.35},
+ {"execution_id": "exe_b", "recommendation_id": "rec_...", "executed_at": "...",
+  "actual_price": 0.55, "stake": 30, "contracts": 54.545455, "side": "YES", "fees_paid": 0.52}
+]
 ```
 
-This is what lets recommendation quality and bankroll performance be measured separately.
+Economics are computed per fill and summed, so `BUY YES up to 58%` filled `$20 @ 54%` and `$30 @ 55%` scores
+a `$41.58` gross win — not the number a single blended price would give. Never record a fake single-price
+fill; the stake-weighted average IS computed and is labelled `average_execution_price` (DERIVED).
+
+`fees_paid` is what the venue charged. Set `fees_are_estimated: true` if it is modelled rather than observed
+— an estimated fee is carried and reported but **never** reduces realised P/L.
 
 ### 7. Close, CLV, settlement
 
@@ -168,6 +290,12 @@ python3 scripts/handicap/scorecard.py --handicap-root <wt>
 Compares **model vs market vs ChatGPT handicap** on the same resolved contracts, and RECOMMENDED vs PASS,
 broken down by grade, market family, reasoning tag, time to kickoff, price bucket, model agreement, driver
 and market type.
+
+Also reports **gross ROI and net ROI after actual fees** (separately — see
+[`DECISION_STANDARD.md`](DECISION_STANDARD.md) §1), total fees, mean entry slippage, the share of
+recommendations that were actually executed, exposure by game and by correlation group, the missing-close
+rate, gate-rejection counts, and an explicit **statistical power verdict**. An empty or underpowered sample
+says so in words rather than printing zeros that read like measurements.
 
 ---
 

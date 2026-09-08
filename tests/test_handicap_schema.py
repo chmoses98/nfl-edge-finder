@@ -18,17 +18,36 @@ from nfl_edge.handicap import store        # noqa: E402
 
 
 def _rec(**kw):
+    """A COMPLETE RECOMMENDED record -- the professional minimum, not the parser minimum.
+
+    Every field here is one the schema now requires before a record may ask the user to risk money. The
+    fixture is deliberately the full thing: a test that starts from an under-specified record and passes
+    proves only that the validator was not looking.
+    """
     d = dict(
         recommendation_id="rec_test0000000000001", schema_version=S.HANDICAP_SCHEMA_VERSION,
         created_at="2026-09-05T00:00:00+00:00", handicap_run_id="20260905T000000Z", packet_sha="abc",
         season=2026, week=1, game_id="2026_01_NE_SEA", kickoff_utc="2026-09-10T00:20:00+00:00",
         market_ticker="KXNFLGAME-26SEP09NESEA-SEA", market_family="GAME_WINNER", side="YES",
         yes_bid=0.60, yes_ask=0.62, no_bid=0.38, no_ask=0.40, mid=0.61,
-        decision=S.RECOMMENDED, grade="B", bet_up_to_probability=0.65, recommended_stake=25,
+        market_timestamp="2026-09-05T00:00:00+00:00", minutes_to_kickoff=7220.0,
+        support_state=S.SUPPORT_SUPPORTED, model_version="shadow-0.4.0", artifact_hash="deadbeef",
+        model_probability=0.64,
+        probability_low=0.60, probability_mid=0.66, probability_high=0.72,
+        decision=S.RECOMMENDED, grade="B", bet_up_to_probability=0.65,
+        proposed_stake=25, recommended_stake=25,
         primary_thesis="thesis",
+        key_supporting_factors=["a"], counterarguments=["b"], uncertainties=["c"],
+        source_freshness={"shadow_snapshot": "2026-09-05T00:00:00+00:00"},
     )
     d.update(kw)
     return d
+
+
+def _pass(**kw):
+    """A PASS record. Deliberately allowed to be much thinner than a RECOMMENDED one."""
+    return _rec(decision=S.PASS, grade="PASS", bet_up_to_probability=None,
+                recommended_stake=None, proposed_stake=None, **kw)
 
 
 # ---- validation ------------------------------------------------------------------------------------
@@ -73,10 +92,33 @@ def test_stake_must_be_whole_dollars():
         S.validate_recommendation(_rec(recommended_stake=12.5))
 
 
-def test_unactionable_ceiling_warns_but_does_not_block():
-    """A ceiling below the ask is a real inconsistency, but the handicapper may be posting a resting view."""
-    warns = S.validate_recommendation(_rec(bet_up_to_probability=0.50, yes_ask=0.62))
-    assert any("not currently actionable" in w for w in warns)
+def test_ask_above_the_ceiling_is_refused_not_warned():
+    """The ceiling is a ceiling.
+
+    This was a warning. It is now a hard failure, because the canonical ledger must never be able to record
+    "BET up to 0.58" while the book is asking 0.61 -- that is an instruction nobody should follow, preserved
+    forever in an immutable record.
+    """
+    with pytest.raises(S.ValidationError, match="NOT ACTIONABLE"):
+        S.validate_recommendation(_rec(bet_up_to_probability=0.50, yes_ask=0.62))
+
+
+def test_ceiling_exactly_at_the_ask_is_actionable():
+    """At the ask is payable. Only ABOVE the ceiling is refused."""
+    assert S.validate_recommendation(_rec(bet_up_to_probability=0.62, yes_ask=0.62)) == []
+
+
+def test_the_no_side_is_checked_against_the_no_ask():
+    """A NO position pays the NO ask. Checking it against the YES ask would gate the wrong number."""
+    with pytest.raises(S.ValidationError, match="NOT ACTIONABLE"):
+        S.validate_recommendation(_rec(side="NO", no_ask=0.40, bet_up_to_probability=0.35))
+    assert S.validate_recommendation(_rec(side="NO", no_ask=0.40, bet_up_to_probability=0.45)) == []
+
+
+def test_recommended_without_an_executable_ask_is_refused():
+    """A midpoint is not a price you can pay, and is not accepted in place of one."""
+    with pytest.raises(S.ValidationError, match="executable YES ask"):
+        S.validate_recommendation(_rec(yes_ask=None, mid=0.61))
 
 
 def test_unknown_reasoning_tag_warns_rather_than_blocks():
@@ -85,8 +127,7 @@ def test_unknown_reasoning_tag_warns_rather_than_blocks():
 
 
 def test_pass_without_a_reason_warns():
-    warns = S.validate_recommendation(_rec(decision=S.PASS, grade="PASS", primary_thesis="",
-                                           bet_up_to_probability=None))
+    warns = S.validate_recommendation(_pass(primary_thesis=""))
     assert any("PASS without a stated reason" in w for w in warns)
 
 
@@ -97,11 +138,24 @@ def test_bad_decision_and_side_are_refused():
         S.validate_recommendation(_rec(side="BOTH"))
 
 
-def test_execution_requires_a_positive_whole_dollar_stake():
+def test_execution_requires_a_positive_stake():
     ex = dict(execution_id="exe_1", recommendation_id="rec_1", executed_at="x", side="YES",
               actual_price=0.5, stake=0)
-    with pytest.raises(S.ValidationError, match="positive whole-dollar"):
+    with pytest.raises(S.ValidationError, match="positive dollar amount"):
         S.validate_execution(ex)
+
+
+def test_execution_stake_may_be_fractional():
+    """A partial fill is not a whole number of dollars, and refusing one would push it out of the ledger."""
+    assert S.validate_execution(dict(execution_id="exe_1", recommendation_id="rec_1", executed_at="x",
+                                     side="YES", actual_price=0.54, stake=13.5, contracts=25.0)) == []
+
+
+def test_execution_stake_must_match_contracts_times_price():
+    """stake = contracts * price is an identity. A record where it fails describes two different fills."""
+    with pytest.raises(S.ValidationError, match="does not match contracts"):
+        S.validate_execution(dict(execution_id="exe_1", recommendation_id="rec_1", executed_at="x",
+                                  side="YES", actual_price=0.50, stake=20, contracts=100.0))
 
 
 def test_postmortem_requires_a_known_category():

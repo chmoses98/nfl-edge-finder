@@ -28,6 +28,7 @@ experiment with zero history.
 | **N** handicap intelligence layer | **NEW, done this session** — `RUN NFL` builds a full slate packet in ~8s: every listed market, model and market-implied distributions, team/QB profiles, injuries with a real capture diff, weather, movement, matchup, best-expression groups, correlation tags, generated key questions | run weekly from Week 1 |
 | **O** recommendation / evaluation layer | **NEW, built, zero history** — immutable four-record ledger on `handicap-data`, CLV/settlement evaluation, postmortem categories, model-vs-market-vs-ChatGPT scorecard | first real recommendations at Week 1 |
 | **P** production / real money | **NOT EARNED** | requires a real prospective sample showing positive CLV *and* calibration, on contracts that were actually executable |
+| **Q** last-mile operating standard | **NEW, done 2026-09-07** — RECOMMENDED fails closed on an incomplete decision record, an ask above its own ceiling, a stale decision-time price, unresolved player identity, unresolved availability, unknown transaction costs, or a portfolio limit. Fee engine rebuilt against the published formulas with the unknown maker multiplier kept explicit. Multi-fill P/L corrected. Pilot risk policy added. See `docs/DECISION_STANDARD.md` | operate it; the gates have never yet refused a real bet because there has never been one |
 
 ## The current experiment
 
@@ -38,6 +39,8 @@ Sample: **zero resolved recommendations.** Nothing is backfilled and nothing wil
 the empty state rather than printing zeros.
 
 ## What is settled and should not be reopened
+
+*(pinned by `tests/test_negative_research_preserved.py`, which fails the build if any of these moves)*
 
 * Independent projections do not beat contemporaneous Kalshi pricing on outcomes (E).
 * Role/opportunity features do not transfer to the traded population (F, H-022 — three for three).

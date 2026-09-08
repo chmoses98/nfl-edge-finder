@@ -6,15 +6,31 @@ name: Sync handicap runs from Airtable
 #
 #   ChatGPT -> Airtable row (READY_FOR_SYNC) -> validate -> immutable JSON -> push -> row becomes SYNCED
 #
-# Nothing here touches `main`'s data, `market-data`, the collectors, or any model. It moves already-made
+# Nothing here WRITES to `main`'s data, `market-data`, the collectors, or any model. It moves already-made
 # decisions from an inbox into the ledger, and refuses anything it cannot prove is a valid, new, prospective
-# recommendation batch.
+# recommendation batch -- for a real bet, that proof is an authenticated pre-trade approval, which is why
+# this job needs the signing key and not only the Airtable token.
+#
+# It does READ `market-data`, and must: a real recommendation is checked against the freshest CONFIRMED
+# executable quote before it becomes canonical, and that quote lives in the capture stream. Without the
+# checkout there is no evidence, and no evidence fails the gate closed -- so the sync refuses to start
+# rather than importing real recommendations unverified. See docs/DECISION_STANDARD.md.
 
 on:
   # Twice a day, September through February -- the NFL season plus the playoffs. The bridge ARCHIVES
-  # already-made decisions; the prospective timestamp is Airtable's server-side createdTime, stamped when
-  # ChatGPT writes the batch. GitHub ingesting it hours later costs the audit trail nothing, so polling
-  # cadence buys latency we have no use for and spends Airtable free-tier quota we do.
+  # decisions that were already made and already approved, so ingestion latency costs the audit trail
+  # nothing: neither clock it relies on is read from this run.
+  #
+  #   REQUEST provenance  = Airtable's server-side createdTime, stamped when ChatGPT writes the row. It
+  #                         proves the candidate request existed by then, and it is what preflight expiry
+  #                         is measured from.
+  #   DECISION provenance = the signed `approval_as_of` in `Preflight Result`, which is also the
+  #                         `created_at` on every record in `Approved Payload`. It proves WHEN the bet was
+  #                         approved, at prices confirmed then.
+  #
+  # A row's createdTime is NOT the prospective timestamp of the recommendation it carries; that is the
+  # signed approval instant, minutes later. Polling faster would buy latency we have no use for and spend
+  # Airtable free-tier quota we do.
   #
   # An idle poll costs exactly one request, so this is ~60 requests/month in season and none out of it,
   # leaving the bulk of the allowance for ChatGPT's own writes, status updates, retries and E2E testing.
@@ -65,6 +81,16 @@ jobs:
           # a shallow checkout cannot. The branch is a few hundred small JSON files.
           fetch-depth: 0
 
+      # READ-ONLY. The decision-time price gate resolves the freshest confirmed executable quote from the
+      # capture stream. depth 1 is enough and is what keeps this cheap: the gate reads the newest manifests,
+      # state.json and quote files, never the history.
+      - name: Checkout market data (market-data)
+        uses: actions/checkout@v4
+        with:
+          ref: market-data
+          path: market-data
+          fetch-depth: 1
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -91,16 +117,49 @@ jobs:
             exit 1
           fi
           echo "AIRTABLE_TOKEN is present (value never printed)."
+      # WARNS, never exits. Unlike the token above, this secret is not a prerequisite for the JOB: a
+      # PASS/WATCHLIST-only row needs no authenticated approval and must still be archived. Exiting here
+      # would stop the importer before it ran, so the per-row disposition it implements -- defer the real
+      # recommendation, import the passes -- would never happen, and the job would look like a hard failure
+      # when the correct outcome is "some work done, one thing to fix".
+      #
+      # scripts/handicap/sync_airtable.py is the authority. It resolves the key from its own environment and
+      # decides per row: a real approved recommendation is deferred (READY_FOR_SYNC, exit 2), a PASS
+      # imports, badly signed data is still ERROR. The preflight WORKER keeps a hard check, because it can
+      # issue nothing at all without a key.
+      - name: Check the approval signing secret is configured
+        env:
+          PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
+        run: |
+          if [ -z "${PREFLIGHT_SIGNING_KEY}" ]; then
+            echo "::warning::PREFLIGHT_SIGNING_KEY is not configured; rows carrying a real RECOMMENDED"
+            echo "record will be DEFERRED (left READY_FOR_SYNC, never ERROR, nothing written) and the run"
+            echo "will exit 2. PASS/WATCHLIST rows still import."
+            echo "A pre-trade approval is authenticated, not merely self-consistent. Generate one strong"
+            echo "random key (e.g. openssl rand -hex 32) and add it under Settings -> Secrets and variables"
+            echo "-> Actions. It must never be stored in Airtable, the Automation, ChatGPT or this repo."
+          else
+            echo "PREFLIGHT_SIGNING_KEY is present (value never printed)."
+          fi
 
       - name: Sync pending handicap runs
         working-directory: code
         env:
-          # The only place the token is referenced. It is passed through the environment, never on a command
-          # line (argv is world-readable on the runner) and never echoed.
+          # BOTH secrets have to be declared HERE. A step's `env:` is scoped to that step and nothing else,
+          # so the two checks above prove only that the secrets EXIST -- they do not put either into this
+          # process. The importer read AIRTABLE_TOKEN and PREFLIGHT_SIGNING_KEY from its own environment,
+          # and with the signing key missing it could not authenticate an approval it had just been handed:
+          # a correctly signed, gate-passing recommendation would be refused because the RUNNER was wired
+          # wrong. Proving a secret exists is not the same as passing it.
+          #
+          # Both are passed through the environment, never on a command line (argv is world-readable on the
+          # runner), never echoed, and never written to disk.
           AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
         run: |
           python3 scripts/handicap/sync_airtable.py \
             --handicap-root ../ledger \
+            --market-data ../market-data \
             ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
 
       - name: Ledger state after sync
@@ -111,4 +170,13 @@ jobs:
           # ever been bridged). Guard both so a summary step can never fail the run.
           echo "recommendations on handicap-data: $( { find data/recommendations -name '*.json' 2>/dev/null || true; } | wc -l)"
           echo "import receipts:                  $( { find data/import_receipts  -name '*.json' 2>/dev/null || true; } | wc -l)"
+          echo "decision gate records:            $( { find data/decision_gates   -name '*.json' 2>/dev/null || true; } | wc -l)"
           git log --oneline -3
+
+      # The append-only property is what makes this branch evidence. write_record enforces it in the
+      # application and a server-side ruleset should prevent a bypass (docs/OPERATIONS.md), but neither is
+      # visible from here -- so the history is checked directly, every run, right after we wrote to it.
+      - name: Verify the ledger history is still append-only
+        if: always()
+        working-directory: code
+        run: python3 scripts/handicap/verify_append_only.py --handicap-root ../ledger
