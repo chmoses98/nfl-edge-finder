@@ -431,9 +431,39 @@ timestamp** — a capture taken after a decision is not evidence about it, exact
 | state | meaning | gate |
 |---|---|---|
 | `VERIFIED` | a window is in force and was confirmed within the policy age **by a capture whose fee-change feed parsed** | pass |
-| `PENDING_CHANGE` | Kalshi announced a change effective at or before this decision and no committed window covers it | **FAIL** |
+| `PENDING_CHANGE` | Kalshi announced a change effective **after the applicable window began** and at or before this decision, and no committed window covers it | **FAIL** |
 | `STALE_VERIFICATION` | in force, but the last confirmation is older than `max_verification_age_days` (45) | **FAIL** |
 | `NO_SCHEDULE` | no committed window covers this timestamp at all | **UNAVAILABLE** (blocks) |
+
+**A historical announcement is evidence, not a permanent accusation.** `show_historical=true` means the feed
+carries every change Kalshi has ever announced — the first live run returned 145, going back to October
+2025. For a decision at `T` under the window `W` in force at `T`, each announced change with effective
+instant `E` is classified:
+
+| classification | condition | decision gate | health job |
+|---|---|---|---|
+| `covered_changes` | a committed window begins exactly at `E` | pass | quiet |
+| `historical_superseded_changes` | `E < W.effective_from` — `W` is the later **reviewed** statement of the same regime | pass | recorded only |
+| `live_unmodelled_changes` | `W.effective_from ≤ E ≤ T`, no window at `E` | **FAIL** (`PENDING_CHANGE`) | fails |
+| `upcoming_unmodelled_changes` | `E > T`, no window at `E` | pass — a future change is not this decision's regime | **fails, in advance** |
+| `undated_changes` | no usable effective time | never clears anything | fails |
+
+The two consumers differ on purpose. The gate asks *"what regime is this decision priced under?"*; the health
+job asks *"is there anything a human must review before it bites?"* — which is why an upcoming change is
+loud there and silent here. Everything is classified as of the **decision timestamp**, never wall clock, so
+a historical decision classifies today exactly as it did then.
+
+Without this rule the correct configuration was unreachable: every announcement in the venue's history would
+have had to be back-filled as a window, forever, and a genuinely live change would sit invisible inside a
+list of 145. The first live run proved it — a 1 January `KXNFLGAME` announcement made every September
+decision `PENDING_CHANGE` while the 7 July reviewed window already stated maker 1 / taker 1 for that series
+and the live API still agreed with it.
+
+The health job's **failure** set is additionally scoped to series in the committed registry (plus
+exchange-wide announcements carrying no series ticker). The feed covers all of Kalshi; a fee change on a
+crypto perpetual cannot make an NFL net-EV number wrong, and a check that is permanently red for reasons no
+bet can touch is one nobody reads. Scoping applies to the failure only — every change is still classified
+and written to the observation.
 
 Weekly against a 45-day tolerance absorbs three consecutive missed runs and does not absorb a months-old
 unchecked registry. Fee schedules change on the order of once or twice a year and are announced in advance,
