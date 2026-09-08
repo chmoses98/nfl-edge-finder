@@ -189,19 +189,41 @@ def main():
     snapshot["schedule_verification"] = schedule.verification(
         None, at, FEES.FeeObservations(a.out) if a.out else None)
 
-    # A change is UNMODELLED when the committed schedule carries no window starting at its effective time.
-    # That is true whether the change is already live (which blocks real recommendations now) or still in
-    # the future (which is a deadline, and is reported as one).
-    unmodelled = []
-    for ch in snapshot["fee_changes"].get("changes") or []:
-        eff = FEES._change_effective(ch)
-        if eff is None:
-            unmodelled.append(dict(ch, status="UNDATED"))
-            continue
-        if any(FEES._iso(w.get("effective_from")) == eff for w in schedule.windows):
-            continue
-        unmodelled.append(dict(ch, status="LIVE" if eff <= at else "SCHEDULED"))
+    # Every announced change is classified against the window in force at `at` -- see
+    # FeeSchedule.classify_changes. `show_historical=true` means this feed carries changes from years back,
+    # and a change that PREDATES the applicable reviewed window was superseded by it: the window is the
+    # later, human-checked statement of the same regime. Treating those as permanent blockers made every
+    # historical announcement a standing failure, which is noise, and noise is how a real one gets missed.
+    #
+    # The raw feed is written to the observation untouched either way. Nothing here deletes evidence.
+    classified = schedule.classify_changes(snapshot["fee_changes"].get("changes") or [], at)
+    for kind, changes in classified.items():
+        snapshot[kind] = changes
+
+    # ACTIONABLE = the ones a human has to do something about. Live ones block real recommendations now;
+    # upcoming ones need a reviewed future window before their effective time; undated ones cannot be
+    # placed in time at all, so they are never assumed harmless. Superseded ones are not here, and that is
+    # the fix. The key keeps its name so existing readers of the observation keep working.
+    #
+    # SCOPED TO SERIES THIS REPOSITORY PRICES, plus exchange-wide announcements that carry no series at
+    # all. The feed covers all of Kalshi -- crypto perps, weather, indices -- and a fee change on a series
+    # no gate will ever quote cannot make one of our net-EV numbers wrong. The decision gate is already
+    # per-series for exactly this reason (`verification(series, ...)`), so a health job that failed
+    # exchange-wide would be permanently red for reasons no bet can touch, and a permanently red check is
+    # one nobody reads. Everything is still classified and written to the observation; only the FAILURE
+    # set is scoped, and adding a series to the registry brings its changes into scope immediately.
+    def in_scope(ch):
+        t = ch.get("series_ticker")
+        return t is None or t in reg
+
+    unmodelled = ([dict(ch, status="LIVE") for ch in classified[FEES.CHANGE_LIVE_UNMODELLED] if in_scope(ch)]
+                  + [dict(ch, status="SCHEDULED")
+                     for ch in classified[FEES.CHANGE_UPCOMING_UNMODELLED] if in_scope(ch)]
+                  + [dict(ch, status="UNDATED") for ch in classified[FEES.CHANGE_UNDATED] if in_scope(ch)])
     snapshot["unmodelled_changes"] = unmodelled
+    snapshot["out_of_registry_unmodelled_changes"] = [
+        ch for kind in (FEES.CHANGE_LIVE_UNMODELLED, FEES.CHANGE_UPCOMING_UNMODELLED, FEES.CHANGE_UNDATED)
+        for ch in classified[kind] if not in_scope(ch)]
 
     snapshot["differences"] = diffs
     snapshot["client_stats"] = client.stats.to_dict()
@@ -227,12 +249,24 @@ def main():
               "record a real recommendation against a fee regime we know we are no longer modelling.",
               file=sys.stderr)
         return 1
+    window = schedule.window_for(at) or {}
+    print(f"\nannounced fee changes against window {window.get('window_id')} "
+          f"(effective_from {window.get('effective_from')}), classified at {at.isoformat()}:")
+    for kind in (FEES.CHANGE_COVERED, FEES.CHANGE_SUPERSEDED, FEES.CHANGE_LIVE_UNMODELLED,
+                 FEES.CHANGE_UPCOMING_UNMODELLED, FEES.CHANGE_UNDATED):
+        n = len(classified[kind])
+        mine = len([ch for ch in classified[kind] if in_scope(ch)])
+        print(f"  {n:4d}  {kind}  ({mine} on series this repository prices)")
+    print(f"  {len(snapshot['out_of_registry_unmodelled_changes']):4d}  actionable but OUT OF REGISTRY "
+          "(recorded, not failed on)")
     if unmodelled:
-        print(f"\n{len(unmodelled)} announced fee change(s) are NOT covered by any window in "
-              "config/kalshi_fee_schedule.json:")
+        print(f"\n{len(unmodelled)} announced fee change(s) are ACTIONABLE -- in force or upcoming under "
+              "the applicable window, and not covered by any window in config/kalshi_fee_schedule.json:")
         for ch in unmodelled[:20]:
             print(f"  [{ch.get('status')}] {ch.get('series_ticker')} effective "
                   f"{FEES._change_effective(ch) or '<undated>'}")
+        if len(unmodelled) > 20:
+            print(f"  ... and {len(unmodelled) - 20} more")
     fc = snapshot["fee_changes"]
     print(f"fee_changes: {len(fc['changes'])} change(s) via {fc.get('shape')} "
           f"(show_historical={fc.get('show_historical')}, parsed={fc.get('parsed')})"
@@ -248,15 +282,27 @@ def main():
               "read it does not refresh the schedule's verification and must not pass.", file=sys.stderr)
         return 1
     if a.check and unmodelled:
-        print("\nKALSHI HAS ANNOUNCED A FEE CHANGE THIS REPOSITORY DOES NOT MODEL. Add a reviewed window "
-              "to config/kalshi_fee_schedule.json with the announced effective_from, and close the current "
-              "window's effective_to at the same instant. Do NOT edit the existing window in place: every "
-              "past decision must keep being priced with the schedule that was in force when it was made.",
-              file=sys.stderr)
+        live = len(classified[FEES.CHANGE_LIVE_UNMODELLED])
+        soon = len(classified[FEES.CHANGE_UPCOMING_UNMODELLED])
+        undated = len(classified[FEES.CHANGE_UNDATED])
+        print(f"\nKALSHI HAS ANNOUNCED A FEE CHANGE THIS REPOSITORY DOES NOT MODEL: {live} already in "
+              f"force under the applicable window, {soon} upcoming, {undated} undated. Add a reviewed "
+              "window to config/kalshi_fee_schedule.json with the announced effective_from, and close the "
+              "current window's effective_to at the same instant. Do NOT edit the existing window in "
+              "place: every past decision must keep being priced with the schedule that was in force when "
+              "it was made.\n"
+              "A change that predates the applicable window is NOT listed here: a later reviewed window "
+              "supersedes it. It stays in the observation as evidence.", file=sys.stderr)
         return 1
-    if a.check and snapshot["schedule_verification"]["state"] != FEES.VERIFIED:
-        print(f"\nFEE SCHEDULE IS {snapshot['schedule_verification']['state']}: "
-              f"{snapshot['schedule_verification'].get('reason')}", file=sys.stderr)
+    # `schedule_verification` above is deliberately EXCHANGE-WIDE (series=None): it is the raw evidence,
+    # and it reads PENDING_CHANGE whenever any Kalshi series anywhere has an unreviewed live change. That
+    # question is answered, and scoped, by `unmodelled` above -- so here we fail only on the states that
+    # are about the committed schedule itself and cannot be scoped away: no applicable window, or one
+    # nobody has confirmed inside the policy window.
+    state = snapshot["schedule_verification"]["state"]
+    if a.check and state not in (FEES.VERIFIED, FEES.PENDING_CHANGE):
+        print(f"\nFEE SCHEDULE IS {state}: {snapshot['schedule_verification'].get('reason')}",
+              file=sys.stderr)
         return 1
     if a.check and snapshot["errors"]:
         print(f"\n{len(snapshot['errors'])} series could not be read; the check is inconclusive rather than "

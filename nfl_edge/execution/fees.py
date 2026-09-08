@@ -631,6 +631,58 @@ class FeeSchedule:
         state = state or g.get("default_state") or GRANULARITY_UNKNOWN
         return state if state in (GRANULARITY_FRACTIONAL, GRANULARITY_WHOLE) else GRANULARITY_UNKNOWN
 
+    # ---- announced changes, classified against the applicable window --------------------------------
+    def classify_changes(self, changes, as_of: datetime, *, series_ticker: str | None = None) -> dict:
+        """Sort announced fee changes into what they MEAN for a decision at `as_of`.
+
+        `show_historical=true` is deliberate: the feed carries every change Kalshi has ever announced, so
+        evidence is never lost. The mistake this method exists to prevent is treating that evidence as a
+        permanent accusation. A change from January cannot describe the regime a September decision is
+        priced under when a REVIEWED window took effect in July: the July window is the later, human-checked
+        statement of the same thing, and it supersedes the announcement it postdates.
+
+        Let W be the window in force at `as_of` and E a change's effective instant:
+
+            E is unknown            UNDATED             cannot be placed in time, so it is never used to
+                                                        clear a decision -- surfaced for review instead
+            a window begins at E    COVERED             a reviewed window already absorbs it
+            E <  W.effective_from   HISTORICAL_SUPERSEDED   W is the later reviewed word on the regime
+            W.effective_from <= E <= as_of  LIVE_UNMODELLED the venue changed the regime this decision is
+                                                            being priced under, and nobody reviewed it.
+                                                            THIS is the one that blocks.
+            E >  as_of              UPCOMING_UNMODELLED a deadline, not a defect in today's price. The
+                                                        health job must still shout about it in advance.
+
+        Everything is judged against `as_of`, never wall clock, so the classification of a historical
+        decision is the same today as it was then -- the same discipline the gates already follow.
+
+        A change with no window at `as_of` cannot be classified at all; callers handle NO_SCHEDULE first.
+        """
+        at = _iso(as_of)
+        if at is None:
+            raise FeeStateError("classifying announced fee changes requires the DECISION timestamp")
+        w = self.window_for(at)
+        w_start = _iso((w or {}).get("effective_from"))
+        starts = {_iso(x.get("effective_from")) for x in self.windows}
+
+        out = {CHANGE_COVERED: [], CHANGE_SUPERSEDED: [], CHANGE_LIVE_UNMODELLED: [],
+               CHANGE_UPCOMING_UNMODELLED: [], CHANGE_UNDATED: []}
+        for ch in changes or []:
+            if series_ticker and ch.get("series_ticker") not in (None, series_ticker):
+                continue
+            eff = _change_effective(ch)
+            if eff is None:
+                out[CHANGE_UNDATED].append(ch)
+            elif eff in starts:
+                out[CHANGE_COVERED].append(ch)
+            elif w_start is not None and eff < w_start:
+                out[CHANGE_SUPERSEDED].append(ch)
+            elif eff > at:
+                out[CHANGE_UPCOMING_UNMODELLED].append(ch)
+            else:
+                out[CHANGE_LIVE_UNMODELLED].append(ch)
+        return out
+
     # ---- freshness ---------------------------------------------------------------------------------
     def max_verification_age_days(self) -> float:
         return float((self.verification_policy or {}).get(
@@ -677,25 +729,21 @@ class FeeSchedule:
         if isinstance(fc, dict):
             fc_state = "PARSED" if fc.get("parsed") and not fc.get("error") else "INCONCLUSIVE"
 
-        # 1. An announced change the committed schedule has not absorbed.
-        pending = []
-        for ch in obs.announced_changes(at):
-            eff = _change_effective(ch)
-            if eff is None or eff > at:
-                continue                       # a future change is a future window, not this one's problem
-            if series_ticker and ch.get("series_ticker") not in (None, series_ticker):
-                continue
-            if any(_iso(x.get("effective_from")) == eff for x in self.windows):
-                continue                       # already written up as a reviewed window
-            pending.append(ch)
+        # 1. An announced change the committed schedule has not absorbed AND that is actually in force at
+        #    this decision. See `classify_changes`: a change that predates the applicable window was
+        #    superseded by a later REVIEWED statement of the regime and is evidence, not a blocker; a change
+        #    dated after this decision has not happened yet.
+        pending = self.classify_changes(obs.announced_changes(at), at,
+                                        series_ticker=series_ticker)[CHANGE_LIVE_UNMODELLED]
         if pending:
             return {
                 "state": PENDING_CHANGE, "as_of": at.isoformat(), "window_id": w.get("window_id"),
                 "pending_changes": pending,
-                "reason": (f"Kalshi announced {len(pending)} fee change(s) effective at or before "
-                           f"{at.isoformat()} that config/kalshi_fee_schedule.json does not carry a window "
-                           "for. The committed schedule is knowably behind the venue; a reviewed window "
-                           "update is required before a real recommendation is priced against it.")}
+                "reason": (f"Kalshi announced {len(pending)} fee change(s) effective after the applicable "
+                           f"window began ({w.get('window_id')}) and at or before {at.isoformat()} that "
+                           "config/kalshi_fee_schedule.json does not carry a window for. The committed "
+                           "schedule is knowably behind the venue; a reviewed window update is required "
+                           "before a real recommendation is priced against it.")}
 
         # 2. How recently was the schedule actually confirmed? The committed attestation counts, and so does
         #    any clean live capture at or before the decision -- whichever is later.
@@ -749,6 +797,14 @@ VERIFIED = "VERIFIED"                       # a schedule is in force and was che
 STALE_VERIFICATION = "STALE_VERIFICATION"   # in force, but nobody has confirmed it against Kalshi lately
 PENDING_CHANGE = "PENDING_CHANGE"           # Kalshi has announced a change the committed schedule lacks
 NO_SCHEDULE = "NO_SCHEDULE"                 # no window covers this timestamp at all
+
+# What an announced change MEANS for one decision. See FeeSchedule.classify_changes: only one of these
+# blocks a real recommendation, and telling them apart is the difference between a control and a nuisance.
+CHANGE_COVERED = "covered_changes"                        # a reviewed window begins exactly at it
+CHANGE_SUPERSEDED = "historical_superseded_changes"       # predates the applicable reviewed window
+CHANGE_LIVE_UNMODELLED = "live_unmodelled_changes"        # in force now, unreviewed -- THE blocker
+CHANGE_UPCOMING_UNMODELLED = "upcoming_unmodelled_changes"  # future, unreviewed -- a deadline
+CHANGE_UNDATED = "undated_changes"                        # no usable effective time; never clears anything
 
 DEFAULT_MAX_VERIFICATION_AGE_DAYS = 45.0
 

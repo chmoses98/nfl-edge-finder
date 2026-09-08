@@ -150,3 +150,13 @@
     row `READY_FOR_SYNC` and exits `2`; a failed scheduled run is visible in the Actions tab and nowhere
     else. Nothing pages anybody, so a missing secret could sit unnoticed for a cycle. The consequence is
     delay, never loss — the row imports unchanged once the secret is present — but the delay is real.
+37. **Fee-change supersession is a policy judgement, not a venue statement.** Kalshi's feed does not say
+    "this announcement is obsolete". The rule that a reviewed window supersedes every change effective
+    before it is ours, and it rests on the window having been checked by a human against the published fee
+    schedule. It is sound exactly as far as that review is: a window written carelessly would now silence
+    the announcements it postdates rather than colliding with them.
+38. **The health job's failure set is scoped to the committed registry.** Every announced change is
+    classified and recorded, but only those on series this repository prices (plus exchange-wide ones with
+    no series ticker) fail the run. A change on a series we later add to the registry only becomes
+    actionable once that addition is committed, so a series added between weekly runs carries one cycle of
+    unchecked announcements.

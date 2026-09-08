@@ -414,3 +414,24 @@ def test_the_two_workflows_still_gate_on_the_signing_key_differently():
         "the preflight worker must hard-fail without a signing key"
     assert run(check_step("sync-handicap-airtable.yml", A.SIGNING_KEY_ENV), "") == 0, \
         "the importer's precheck must only warn, or PASS rows can never be archived without a key"
+
+
+def test_a_historical_fee_change_does_not_permanently_block_a_later_decision():
+    """`show_historical=true` preserves evidence; it must not convict the present.
+
+    A change that predates the applicable REVIEWED window was superseded by it. One dated after that window
+    began, and at or before the decision, still blocks. Behaviour is pinned in
+    tests/test_fee_change_supersession.py; this is the tripwire over the rule itself.
+    """
+    from datetime import datetime as _dt, timezone as _tz                # noqa: PLC0415
+    windows = [{"window_id": "w", "effective_from": "2026-07-07T00:00:00+00:00", "effective_to": None,
+                "verified_at": "2026-09-07T00:00:00+00:00"}]
+    sched = F.FeeSchedule(windows=windows)
+    at = _dt(2026, 9, 8, tzinfo=_tz.utc)
+    old = {"series_ticker": "KXNFLGAME", "scheduled_ts": "2026-01-01T08:00:00Z"}
+    new = {"series_ticker": "KXNFLGAME", "scheduled_ts": "2026-08-15T00:00:00Z"}
+    c = sched.classify_changes([old, new], at)
+    assert c[F.CHANGE_SUPERSEDED] == [old]
+    assert c[F.CHANGE_LIVE_UNMODELLED] == [new]
+    assert "classify_changes" in inspect.getsource(F.FeeSchedule.verification), \
+        "the decision gate must read the same classification the health job does"

@@ -97,6 +97,13 @@ The **Kalshi Fee Health** workflow runs this weekly and Actions will fail loudly
 python3 scripts/kalshi/capture_fee_metadata.py --out /tmp/md --check
 ```
 
+A run fails when the live registry disagrees with the committed one, when the fee-change feed cannot be
+read, when a schedule window is missing or unverified past its policy age, or when an announced change **on
+a series this repository prices** is in force under the applicable window (or upcoming) with no reviewed
+window for it. It does **not** fail on a change that predates the applicable window: a later reviewed window
+supersedes it, and the change stays in the observation as evidence. See
+[`DECISION_STANDARD.md` §4](DECISION_STANDARD.md).
+
 It reads three things and writes one:
 
 * `GET /series/{ticker}` — the fee regime in force, diffed against the committed registry;
