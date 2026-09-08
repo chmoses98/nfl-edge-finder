@@ -44,9 +44,11 @@ def observations(tmp_path, *snapshots):
     return F.FeeObservations(str(root))
 
 
-def snapshot(retrieved, *, changes=(), differences=(), errors=None):
+def snapshot(retrieved, *, changes=(), differences=(), errors=None, parsed=True, fc_error=None):
     return {"retrieved_at": retrieved.isoformat(), "differences": list(differences),
-            "errors": errors or {}, "fee_changes": {"changes": list(changes)}}
+            "errors": errors or {},
+            "fee_changes": {"changes": list(changes), "parsed": parsed, "error": fc_error,
+                            "show_historical": True}}
 
 
 # ---- the verification state ---------------------------------------------------------------------------
@@ -171,33 +173,130 @@ def test_the_capture_script_reads_the_fee_changes_endpoint():
     assert "fee_changes" in src
 
 
-def test_fee_changes_are_parsed_from_every_response_shape():
+# The response shape the official documentation gives, verbatim.
+DOCUMENTED = {
+    "series_fee_change_arr": [
+        {"id": "sfc_0001", "series_ticker": SERIES, "fee_type": "quadratic_with_maker_fees",
+         "fee_multiplier": 2.0, "scheduled_ts": "2026-11-01T00:00:00Z"},
+    ]
+}
+
+
+class FakeChangesClient:
+    def __init__(self, body):
+        self.body, self.calls = body, []
+
+    def series_fee_changes(self, show_historical=True):
+        self.calls.append(show_historical)
+        return self.body
+
+
+def test_the_documented_response_shape_is_parsed():
+    """`series_fee_change_arr` was not in the key list, so the documented live response was discarded."""
     import scripts.kalshi.capture_fee_metadata as CAP        # noqa: PLC0415
+    got = CAP.fetch_fee_changes(FakeChangesClient(DOCUMENTED))
+    assert got["parsed"] is True and got["error"] is None
+    assert got["shape"] == "series_fee_change_arr"
+    assert len(got["changes"]) == 1
+    ch = got["changes"][0]
+    assert ch["id"] == "sfc_0001" and ch["fee_multiplier"] == 2.0, "every raw field is preserved"
 
-    class Client:
-        def __init__(self, body):
-            self.body = body
 
-        def series_fee_changes(self):
-            return self.body
+def test_scheduled_ts_is_the_effective_timestamp():
+    """`scheduled_ts` was not in the effective-time key list either, so a parsed change had no date."""
+    ch = DOCUMENTED["series_fee_change_arr"][0]
+    assert F._change_effective(ch) == datetime(2026, 11, 1, tzinfo=timezone.utc)
 
+
+def test_an_epoch_scheduled_ts_is_also_understood():
+    """Kalshi's `_ts` suffix is epoch seconds elsewhere in the API; both forms are accepted."""
+    epoch = int(datetime(2026, 11, 1, tzinfo=timezone.utc).timestamp())
+    assert F._change_effective({"scheduled_ts": epoch}) == datetime(2026, 11, 1, tzinfo=timezone.utc)
+    assert F._change_effective({"scheduled_ts": str(epoch)}) == datetime(2026, 11, 1, tzinfo=timezone.utc)
+
+
+def test_show_historical_is_requested():
+    """A weekly job can miss the week a change is announced in; upcoming-only would lose the evidence."""
+    import scripts.kalshi.capture_fee_metadata as CAP        # noqa: PLC0415
+    client = FakeChangesClient(DOCUMENTED)
+    got = CAP.fetch_fee_changes(client)
+    assert client.calls == [True]
+    assert got["show_historical"] is True
+
+
+def test_a_historical_change_is_parsed_the_same_way():
+    import scripts.kalshi.capture_fee_metadata as CAP        # noqa: PLC0415
+    past = {"series_fee_change_arr": [dict(DOCUMENTED["series_fee_change_arr"][0],
+                                           scheduled_ts="2026-08-01T00:00:00Z")]}
+    got = CAP.fetch_fee_changes(FakeChangesClient(past))
+    assert got["parsed"] and F._change_effective(got["changes"][0]) == \
+        datetime(2026, 8, 1, tzinfo=timezone.utc)
+
+
+def test_alternate_shapes_still_work_defensively():
+    import scripts.kalshi.capture_fee_metadata as CAP        # noqa: PLC0415
     payload = {"series_ticker": SERIES, "effective_at": "2026-11-01T00:00:00Z"}
     for body in ([payload], {"fee_changes": [payload]}, {"changes": [payload]},
                  {SERIES: {"effective_at": "2026-11-01T00:00:00Z"}}):
-        got = CAP.fetch_fee_changes(Client(body))
-        assert got["error"] is None
-        assert len(got["changes"]) == 1, body
+        got = CAP.fetch_fee_changes(FakeChangesClient(body))
+        assert got["parsed"] and len(got["changes"]) == 1, body
+
+
+def test_an_unrecognised_shape_is_inconclusive_never_no_changes():
+    import scripts.kalshi.capture_fee_metadata as CAP        # noqa: PLC0415
+    got = CAP.fetch_fee_changes(FakeChangesClient({"unexpected": "payload", "n": 3}))
+    assert got["parsed"] is False
+    assert got["changes"] == []
+    assert "INCONCLUSIVE" in got["error"]
 
 
 def test_a_failing_fee_changes_call_is_reported_not_fatal():
     import scripts.kalshi.capture_fee_metadata as CAP        # noqa: PLC0415
 
     class Boom:
-        def series_fee_changes(self):
+        def series_fee_changes(self, show_historical=True):
             raise RuntimeError("503")
 
     got = CAP.fetch_fee_changes(Boom())
-    assert got["changes"] == [] and "503" in got["error"]
+    assert got["changes"] == [] and "503" in got["error"] and got["parsed"] is False
+
+
+def test_an_unreadable_fee_change_feed_cannot_produce_verified(tmp_path, sched):
+    """The operational half: a run that could not read the third source does not confirm the schedule."""
+    late = AS_OF + timedelta(days=120)
+    good = observations(tmp_path / "ok", snapshot(late - timedelta(days=3)))
+    assert sched.verification(SERIES, late, good)["state"] == F.VERIFIED
+
+    blind = observations(tmp_path / "blind",
+                         snapshot(late - timedelta(days=3), parsed=False, fc_error="503"))
+    v = sched.verification(SERIES, late, blind)
+    assert v["state"] == F.STALE_VERIFICATION
+    assert v["fee_changes_state"] == "INCONCLUSIVE"
+
+
+def test_an_unmodelled_change_at_its_scheduled_ts_blocks(tmp_path, sched):
+    obs = observations(tmp_path, snapshot(
+        AS_OF - timedelta(hours=2),
+        changes=[dict(DOCUMENTED["series_fee_change_arr"][0],
+                      scheduled_ts=(AS_OF - timedelta(days=1)).isoformat())]))
+    v = sched.verification(SERIES, AS_OF, obs)
+    assert v["state"] == F.PENDING_CHANGE
+
+
+def test_a_committed_window_at_the_exact_scheduled_ts_covers_the_change(tmp_path, sched):
+    obs = observations(tmp_path, snapshot(
+        AS_OF - timedelta(hours=2),
+        changes=[dict(DOCUMENTED["series_fee_change_arr"][0],
+                      scheduled_ts=sched.windows[-1]["effective_from"])]))
+    assert sched.verification(SERIES, AS_OF, obs)["state"] == F.VERIFIED
+
+
+def test_the_check_fails_on_an_unreadable_fee_change_feed():
+    """`--check` must not exit 0 on 'we could not tell'."""
+    import scripts.kalshi.capture_fee_metadata as CAP        # noqa: PLC0415
+    src = open(CAP.__file__).read()
+    assert "COULD NOT BE READ" in src
+    assert 'not snapshot["fee_changes"].get("parsed")' in src
 
 
 def test_the_capture_script_never_writes_the_committed_config():
@@ -211,17 +310,65 @@ def test_the_capture_script_never_writes_the_committed_config():
 # ---- the rounding residual ------------------------------------------------------------------------------
 
 def test_the_bound_is_the_ceiling_term_plus_one_accumulator_residual():
+    """N is set by the venue's MINIMUM FILL, not by our order being a round number."""
     u = F.rounding_uncertainty(100, F.CENT)
-    assert u["max_fills"] == 100, "a Kalshi fill is at least one whole contract"
-    assert u["trade_fee_ceiling_bound"] == pytest.approx(100 * 0.0001)
+    assert u["contract_increment"] == pytest.approx(0.01)
+    assert u["max_fills"] == 10000, "100 contracts can arrive as 10000 fills of 0.01"
+    assert u["trade_fee_ceiling_bound"] == pytest.approx(10000 * 0.0001)
     assert u["accumulator_residual_bound"] == pytest.approx(0.01)
-    assert u["bound_dollars"] == pytest.approx(0.02)
+    assert u["bound_dollars"] == pytest.approx(1.01)
+
+
+def test_a_whole_contract_market_gets_the_much_smaller_bound():
+    """The lever that shrinks this is EVIDENCE, not preference."""
+    whole = F.rounding_uncertainty(100, F.CENT, granularity_state=F.GRANULARITY_WHOLE)
+    assert whole["max_fills"] == 100
+    assert whole["bound_dollars"] == pytest.approx(0.02)
+
+
+def test_unknown_granularity_is_priced_exactly_as_fractional():
+    """'We could not establish that fractional trading is off' may never shrink a cost bound."""
+    unknown = F.rounding_uncertainty(7.5, F.CENT, granularity_state=F.GRANULARITY_UNKNOWN)
+    fractional = F.rounding_uncertainty(7.5, F.CENT, granularity_state=F.GRANULARITY_FRACTIONAL)
+    assert unknown["bound_dollars"] == fractional["bound_dollars"]
+    assert unknown["max_fills"] == 750
+    assert F.contract_increment(F.GRANULARITY_UNKNOWN) == F.CONTRACT_INCREMENT_FRACTIONAL
+
+
+def test_a_fractional_order_is_not_limited_to_one_fill():
+    """The defect this replaces: 0.90 contracts was bounded at ONE fill, and it is ninety."""
+    u = F.rounding_uncertainty(0.90, F.CENT)
+    assert u["max_fills"] == 90
+    assert F.rounding_uncertainty(0.09, F.CENT)["max_fills"] == 9
+    assert F.rounding_uncertainty(0.01, F.CENT)["max_fills"] == 1
+
+
+def test_a_whole_dollar_stake_does_not_imply_a_whole_contract_quantity():
+    """$10 at 62c is 16.13 contracts. Nothing about our sizing makes the venue's fills integral."""
+    contracts = F.contracts_for_stake(10.0, 0.62)
+    assert contracts != pytest.approx(round(contracts))
+    assert F.rounding_uncertainty(contracts, F.CENT)["max_fills"] == 1613
+
+
+def test_the_bound_is_summed_per_price_level_and_never_double_charges_the_walk():
+    """A fill cannot span two levels, so the levels fragment independently.
+
+    The VWAP movement ACROSS levels is already priced exactly by the fee estimate, which is computed from
+    these same levels. This term bounds only the fragmentation WITHIN each level's known quantity.
+    """
+    levels = [(0.56, 1.0), (0.59, 2.5), (0.60, 0.30)]
+    per_level = F.rounding_uncertainty(3.8, F.CENT, levels=levels)
+    assert per_level["max_fills"] == 100 + 250 + 30
+    assert "3 observed price level(s)" in per_level["levels_basis"]
+    # Without the book the whole quantity is treated as one level: a WEAKER bound, never a smaller one.
+    blind = F.rounding_uncertainty(3.8, F.CENT)
+    assert blind["bound_dollars"] <= per_level["bound_dollars"] + 1e-9
 
 
 def test_the_bound_scales_with_size_not_with_price():
     small, large = F.rounding_uncertainty(10, F.CENT), F.rounding_uncertainty(1000, F.CENT)
     assert large["bound_dollars"] > small["bound_dollars"]
-    assert small["bound_dollars"] == pytest.approx(0.01 + 10 * 0.0001)
+    assert small["bound_dollars"] == pytest.approx(0.01 + 1000 * 0.0001)
 
 
 def test_no_fragmentation_can_exceed_the_bound():
@@ -239,6 +386,80 @@ def test_no_fragmentation_can_exceed_the_bound():
                     f"{pieces} fills at {price} cost {many} vs {one}; bound was {bound}"
 
 
+@pytest.mark.parametrize("contracts,pieces", [(0.90, 3), (0.09, 3), (0.30, 30), (0.03, 3), (2.5, 250)])
+def test_official_style_fractional_fill_shapes_stay_within_the_bound(contracts, pieces):
+    """0.90 split into three 0.30s, 0.09 into three 0.03s, and full 0.01-granularity shredding."""
+    for price in (0.05, 0.5, 0.62, 0.93):
+        one = F.fee_for_order([(price, contracts)], 0.07, 1.0)["net_fee"]
+        bound = F.rounding_uncertainty(contracts, F.CENT)["bound_dollars"]
+        many = F.fee_for_order([(price, contracts / pieces)] * pieces, 0.07, 1.0)["net_fee"]
+        assert many - one <= bound + 1e-9, \
+            f"{pieces} x {contracts / pieces} at {price}: {many} vs {one}, bound {bound}"
+
+
+def test_a_worst_case_penny_granularity_sweep_stays_within_the_bound():
+    """The adversarial case: every fill is the minimum the venue permits."""
+    for price in (0.05, 0.5, 0.93):
+        for contracts in (0.5, 2.0, 5.0):
+            n = int(round(contracts / 0.01))
+            one = F.fee_for_order([(price, contracts)], 0.07, 1.0)["net_fee"]
+            shredded = F.fee_for_order([(price, 0.01)] * n, 0.07, 1.0)["net_fee"]
+            bound = F.rounding_uncertainty(contracts, F.CENT)["bound_dollars"]
+            assert shredded - one <= bound + 1e-9, \
+                f"{n} penny fills at {price}: {shredded} vs {one}, bound {bound}"
+            assert shredded > one, "penny-granularity shredding really is more expensive"
+
+
+@pytest.mark.parametrize("contracts,price", [(5.0, 0.5), (5.0, 0.62), (10.0, 0.62)])
+def test_the_old_whole_contract_bound_is_actually_violated(contracts, price):
+    """Proof the previous derivation was UNSOUND, not merely loose.
+
+    Under the old `N <= ceil(contracts)` assumption a 5-contract order was bounded at 5 fills, so the claimed
+    worst case was `5 * $0.0001 + $0.01`. Shredded at the venue's real 0.01-contract minimum it arrives in
+    500 fills and the true excess is double that bound. A bound that the mechanism can exceed is not a bound,
+    and calling the number behind it "conservative" was wrong.
+    """
+    old_bound = contracts * 0.0001 + 0.01
+    n = int(round(contracts / 0.01))
+    one = F.fee_for_order([(price, contracts)], 0.07, 1.0)["net_fee"]
+    shredded = F.fee_for_order([(price, 0.01)] * n, 0.07, 1.0)["net_fee"]
+    assert shredded - one > old_bound, "the old bound was not conservative under fractional fills"
+    assert shredded - one <= F.rounding_uncertainty(contracts, F.CENT)["bound_dollars"] + 1e-9
+
+
+def test_a_rebate_bigger_than_its_own_fill_is_not_discarded():
+    """Found while re-deriving the bound: the per-fill `max(net, 0)` floor destroyed real rebates.
+
+    On a 0.01-contract fill the trade fee is a fraction of a cent, so a whole-cent rebate landing on it makes
+    that fill's net NEGATIVE. Flooring per fill threw the credit away and made 200 penny fills cost 13x the
+    equivalent single fill -- destroying the exact property the accumulator exists to provide. The exchange
+    never pays you to trade, so the floor belongs on the ORDER TOTAL, and that is where it now lives.
+    """
+    rebate_fill = F.fee_for_fill(0.5, 0.01, 0.07, 1.0, accumulator=0.0098)
+    assert rebate_fill.rebate == pytest.approx(0.01)
+    assert rebate_fill.net_fee < 0, "a per-fill net may be negative; the credit is real"
+
+    one = F.fee_for_order([(0.5, 2.0)], 0.07, 1.0)["net_fee"]
+    many = F.fee_for_order([(0.5, 0.01)] * 200, 0.07, 1.0)["net_fee"]
+    assert many == pytest.approx(0.05) and one == pytest.approx(0.04)
+    assert many - one <= 0.0101, "200 penny fills must land within a cent of the equivalent fill"
+
+    # The order total is still floored: the exchange does not pay you to trade.
+    assert F.fee_for_order([(0.5, 0.01)] * 3, 0.07, 1.0)["net_fee"] >= 0.0
+
+
+def test_a_multi_level_walk_stays_within_the_per_level_bound():
+    levels = [(0.56, 1.3), (0.59, 2.2), (0.61, 0.5)]
+    one = F.fee_for_order(levels, 0.07, 1.0)["net_fee"]
+    bound = F.rounding_uncertainty(4.0, F.CENT, levels=levels)["bound_dollars"]
+    shredded = []
+    for price, qty in levels:
+        n = int(round(qty / 0.01))
+        shredded.extend([(price, 0.01)] * n)
+    many = F.fee_for_order(shredded, 0.07, 1.0)["net_fee"]
+    assert many - one <= bound + 1e-9, f"{many} vs {one}, bound {bound}"
+
+
 def test_the_accumulator_residual_never_exceeds_one_cent():
     """The half of the derivation that makes the bound finite at all."""
     for n in (1, 2, 3, 7, 10, 50, 200):
@@ -249,16 +470,38 @@ def test_the_accumulator_residual_never_exceeds_one_cent():
 def test_conservative_net_ev_is_net_ev_less_the_bound(sched):
     nev = F.net_executable_ev(0.70, 0.62, 100, sched, series_ticker=SERIES, as_of=AS_OF)
     assert nev.is_known
-    expected = F.rounding_uncertainty(100, F.CENT)["bound_dollars"]
+    expected = F.rounding_uncertainty(100, F.CENT,
+                                      granularity_state=sched.granularity_state_for(SERIES))["bound_dollars"]
     assert nev.fee_uncertainty_dollars == pytest.approx(expected)
     assert nev.conservative_net_ev_dollars == pytest.approx(nev.net_ev_dollars - expected)
     assert nev.fee_uncertainty["derivation"]
+    assert nev.fee_uncertainty["granularity_state"] == F.GRANULARITY_UNKNOWN
+
+
+def test_net_ev_uses_the_observed_levels_so_the_walk_is_not_charged_twice(sched):
+    """The bound must cover fragmentation within the levels, not the VWAP movement across them."""
+    levels = [(0.60, 40.0), (0.62, 60.0)]
+    with_levels = F.net_executable_ev(0.70, 0.62, 100, sched, series_ticker=SERIES, as_of=AS_OF,
+                                      fills=levels)
+    assert with_levels.fee_uncertainty["levels_basis"].startswith("2 observed")
+    assert with_levels.fee_uncertainty["max_fills"] == 4000 + 6000
 
 
 def test_the_bound_is_a_cost_bound_and_not_an_edge_buffer(sched):
-    """Cents on a real position. A strategy buffer would scale with the edge; this scales with the FILLS."""
+    """A strategy buffer would scale with the EDGE. This scales only with the FILL COUNT."""
     nev = F.net_executable_ev(0.70, 0.62, 100, sched, series_ticker=SERIES, as_of=AS_OF)
-    assert nev.fee_uncertainty_dollars < 0.05
     fat = F.net_executable_ev(0.95, 0.62, 100, sched, series_ticker=SERIES, as_of=AS_OF)
     assert fat.fee_uncertainty_dollars == pytest.approx(nev.fee_uncertainty_dollars), \
         "the bound must not move when the edge does"
+    bigger = F.net_executable_ev(0.70, 0.62, 200, sched, series_ticker=SERIES, as_of=AS_OF)
+    assert bigger.fee_uncertainty_dollars > nev.fee_uncertainty_dollars, \
+        "it must move when the SIZE does"
+
+
+def test_the_schedule_defaults_to_unknown_granularity_and_says_why(sched):
+    assert sched.granularity_state_for(SERIES) == F.GRANULARITY_UNKNOWN
+    assert sched.granularity_state_for("KXANYTHING") == F.GRANULARITY_UNKNOWN
+    g = sched.granularity
+    assert g["fractional_increment"] == 0.01
+    assert "0.01-contract minimum" in g["why_unknown_is_the_default"]
+    assert "PROVES" in g["how_to_set_a_series_to_whole_contracts"]

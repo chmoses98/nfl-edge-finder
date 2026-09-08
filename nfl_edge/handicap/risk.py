@@ -45,9 +45,16 @@ So the caps bind against OUTSTANDING EXPOSURE PLUS THE CURRENT BATCH. Outstandin
 ledger as of the decision timestamp and is defined conservatively:
 
     reserved       max(approved recommended stake - executed stake, 0), held until kickoff or supersession
-    at risk        executed stake, held until the position settles
+    at risk        executed stake, held until the position settles AND THAT SETTLEMENT WAS AVAILABLE
 
     total per recommendation = reserved + at risk
+
+That last clause is not pedantry. A settlement is the one fact that can loosen a cap, and it arrives HOURS
+after the decisions it would loosen. Releasing on the mere existence of an Evaluation lets the twelve-hourly
+replay of a 15:00 decision use a 21:00 settlement and approve exposure that was over the limit when the call
+was actually made -- and the replay exists to REPRODUCE the pre-trade verdict, not to improve on it with
+hindsight. So a settlement releases exposure at time T only if the ledger can show the outcome was knowable
+at or before T, and a settlement with no usable availability timestamp releases nothing at all.
 
 Which is `max(approved, executed)` once a position is fully filled, so a recommendation and its own fills are
 never counted twice. A partial fill of $6 against an approved $10 holds $10: $6 at risk and $4 still
@@ -416,6 +423,25 @@ def _ts(value):
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
+# The order matters: an explicit observation of the outcome is stronger provenance than the moment somebody
+# ran the evaluator, and `evaluated_at` is the conservative fallback because it can only be LATER than the
+# outcome, never earlier -- so using it can retain exposure too long and can never release it too early.
+SETTLEMENT_AVAILABILITY_FIELDS = ("settlement_observed_at", "settlement_determined_at",
+                                  "outcome_observed_at", "evaluated_at")
+
+
+def _settlement_available_at(ev: dict):
+    """When a settlement became KNOWABLE, and from which field we learned it.
+
+    Never wall clock. A settlement with no usable timestamp returns `(None, ...)` and releases nothing.
+    """
+    for f in SETTLEMENT_AVAILABILITY_FIELDS:
+        t = _ts(ev.get(f))
+        if t is not None:
+            return t, f
+    return None, "none"
+
+
 def outstanding_exposure(recommendations: list, executions: list, evaluations: list, as_of,
                          *, release_as_of=None, exclude_ids=(),
                          decisions=("RECOMMENDED",)) -> OutstandingExposure:
@@ -497,8 +523,29 @@ def outstanding_exposure(recommendations: list, executions: list, evaluations: l
             stake = (float(price) * float(contracts)) if (price and contracts) else 0.0
         filled[rid] = filled.get(rid, 0.0) + float(stake)
 
-    settled = {ev.get("recommendation_id") for ev in evaluations or []
-               if ev.get("settlement") is not None}
+    # SETTLEMENT RELEASES EXPOSURE ONLY AS OF A MOMENT THE OUTCOME WAS AVAILABLE.
+    #
+    # This is the one place where a later fact could quietly loosen an earlier limit. A position filled at
+    # 13:00 settles at 20:00 and its Evaluation is written at 21:00; the twelve-hourly replay of the 15:00
+    # decision then runs at 01:00 with that Evaluation in the ledger. Releasing on its mere existence would
+    # let the replay approve exposure that was over the cap when the decision was actually made -- and the
+    # replay is supposed to REPRODUCE the pre-trade verdict, not improve on it with hindsight.
+    settled_at: dict = {}
+    for ev in evaluations or []:
+        if ev.get("settlement") is None or ev.get("test_only"):
+            continue
+        rid = ev.get("recommendation_id")
+        when, basis = _settlement_available_at(ev)
+        if when is None:
+            # No usable provenance: the settlement is real but we cannot say when it was knowable, so it
+            # releases nothing historically. Retaining exposure is the failure that costs opportunity; the
+            # other one costs money.
+            excluded.append((rid, "a settlement evaluation carries no usable availability timestamp "
+                                  "(neither settlement_observed_at nor a parseable evaluated_at), so it "
+                                  "cannot release exposure at any past decision"))
+            continue
+        if rid not in settled_at or when < settled_at[rid][0]:
+            settled_at[rid] = (when, basis)
 
     positions, by_game, by_group = [], {}, {}
     for r in current:
@@ -516,11 +563,18 @@ def outstanding_exposure(recommendations: list, executions: list, evaluations: l
             kicked_off = True
 
         reserved = 0.0 if kicked_off else max(approved - executed, 0.0)
-        at_risk = 0.0 if rid in settled else executed
+
+        released = settled_at.get(rid)
+        is_settled = released is not None and released[0] <= release_at
+        if released is not None and not is_settled:
+            excluded.append((rid, f"settled, but the outcome was not available until "
+                                  f"{released[0].isoformat()} ({released[1]}), after the decision being "
+                                  f"evaluated; the stake is still exposure at this point in time"))
+        at_risk = 0.0 if is_settled else executed
         exposure = reserved + at_risk
 
         if exposure <= 0:
-            excluded.append((rid, "settled and fully released" if rid in settled else
+            excluded.append((rid, "settled and fully released" if is_settled else
                              ("kicked off with nothing filled; the position can no longer be established"
                               if kicked_off else "no approved or executed stake")))
             continue
@@ -530,6 +584,8 @@ def outstanding_exposure(recommendations: list, executions: list, evaluations: l
             basis.append(f"${reserved:.2f} approved and not yet filled")
         if at_risk > 0:
             basis.append(f"${at_risk:.2f} filled and unsettled")
+            if released is not None:
+                basis.append(f"its settlement was not available until {released[0].isoformat()}")
         positions.append(OutstandingPosition(
             recommendation_id=rid, approved_stake=round(approved, 2), executed_stake=round(executed, 2),
             reserved_stake=round(reserved, 2), at_risk_stake=round(at_risk, 2),

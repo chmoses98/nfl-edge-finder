@@ -12,6 +12,7 @@
 | Kalshi NFL Historical Backfill | dispatch (self-chains) | historical tier market lists + candles + trades | `market-data` |
 | Tests | pull request + push to `main` + dispatch | full pytest suite, syntax check, workflow YAML and config JSON validation. Read-only: no network, no secrets, no branch writes | none |
 | Sync handicap runs from Airtable | 12-hourly cron `23 */12 * 9-12,1-2 *` + dispatch | ingests ChatGPT recommendation batches from the `Sports Betting Bridge` Airtable inbox into the immutable ledger, **replaying** the pre-trade gates | `handicap-data` |
+| Pre-trade preflight | `workflow_dispatch` / `repository_dispatch` (event-driven; no cron) | answers `PREFLIGHT_REQUESTED` Airtable rows with the same gates the ledger later replays; writes no branch | none (Airtable only) |
 | Kalshi Fee Health | weekly cron `41 8 * * 1` + dispatch | reconciles the committed fee schedule against live series metadata **and `GET /series/fee_changes`**; publishes a dated observation and fails loudly on any drift or unmodelled announced change | `market-data` |
 
 Manual dispatch from the GitHub UI or API (`POST /repos/chmoses98/nfl-edge-finder/actions/workflows/<file>/dispatches`).
@@ -120,20 +121,38 @@ The script **never edits the config.** Capture → surface → block → review,
 Never edit an existing window in place. Every past decision must keep being priced with the schedule that
 was actually in force when it was made, or the ledger's historical net-EV numbers silently change meaning.
 
-## Pre-trade preflight is an owner step, not a workflow
+## Pre-trade preflight
 
-Nothing in Actions can preflight a candidate, because a candidate does not exist until ChatGPT produces one
-and preflight must run *before* the owner acts on it. It is a command the owner runs:
+The operating path is **event-driven and reachable from Airtable**, because that is the only write surface
+ChatGPT has:
+
+```
+ChatGPT writes a PREFLIGHT_REQUESTED row
+  -> Airtable Automation calls workflow_dispatch on Pre-trade preflight
+  -> the workflow runs scripts/handicap/preflight_airtable.py against main + market-data + handicap-data
+  -> the row becomes PREFLIGHT_APPROVED or PREFLIGHT_BLOCKED, verdict in `Preflight Result`
+  -> ONLY APPROVED may be surfaced as a BET, at approved_stake
+```
+
+**A row that is not `PREFLIGHT_APPROVED` has not been approved.** Errored, timed out, never picked up — none
+of those is a bet. Silence is never yes.
+
+One-time owner setup (the Airtable field and statuses, the fine-grained GitHub token with `Actions: read and
+write`, and the Automation script) is in `docs/AIRTABLE_BRIDGE.md`, along with the TEST_ONLY E2E procedure.
+Until that E2E has passed once, this leg is designed and not proven live.
+
+**Debugging fallbacks, not the operating workflow.** Run the workflow by hand (`workflow_dispatch`, with
+`dry_run` to see verdicts without writing), or run the CLI locally:
 
 ```bash
 python3 scripts/handicap/preflight_candidate.py candidates.json \
     --market-data /home/user/_market_data_wt --handicap-root /home/user/_ledger_wt
 ```
 
-Exit 0: may be shown as a BET at the approved stake. Exit 5: **not a bet** — surface as CANDIDATE /
-WATCHLIST / PASS. Exit 2: misconfiguration on this machine (a missing checkout), which is not a verdict on
-the bet. It writes nothing and places nothing. See `docs/DECISION_STANDARD.md` §0.
+Exit 0: may be shown as a BET at the approved stake. Exit 5: **not a bet**. Exit 2: misconfiguration on this
+machine, which is not a verdict on the bet. Neither writes anything nor places anything. Requiring either
+for a routine bet is what the event-driven leg exists to remove.
 
 The twelve-hourly Airtable sync then replays the same gates and commits the evidence. If preflight was
-skipped, that replay is the first check — which is the failure mode the preflight step exists to remove, and
-it will simply fail the batch rather than silently accept it.
+skipped, that replay is the first check — the failure mode this leg exists to remove — and it will fail the
+batch rather than silently accept it.

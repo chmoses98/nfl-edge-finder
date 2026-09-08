@@ -315,6 +315,11 @@ class Evaluation:
     clv_executable: float | None = None
     settlement: float | None = None                 # 1.0 / 0.0 / None if unsettled
     outcome: str | None = None                      # WIN / LOSS / VOID / UNSETTLED
+    # WHEN the outcome became knowable, which is not when we got around to writing it down. A settlement
+    # releases portfolio exposure, and exposure may only be released as of a moment the outcome was actually
+    # available -- otherwise a decision made at 15:00 gets re-judged against a 21:00 settlement. Absent this
+    # field, `evaluated_at` is used as the conservative availability bound; see handicap/risk.py.
+    settlement_observed_at: str | None = None
     # P/L, aggregated over EVERY fill on the recommendation. Gross and net are separate fields because they
     # answer different questions: gross says whether the call was right, net says whether the bankroll grew.
     # `pnl` is retained as an alias of gross_pnl so older readers keep working; new code reads the explicit

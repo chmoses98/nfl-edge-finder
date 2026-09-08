@@ -52,9 +52,14 @@ def ex(rid, stake, *, when=None, eid=None, **kw):
                 actual_price=0.50, stake=stake, side="YES", **kw)
 
 
-def ev(rid, settlement=1.0):
-    return dict(evaluation_id=f"ev_{rid}", recommendation_id=rid, settlement=settlement,
-                evaluated_at=(KICKOFF + timedelta(hours=4)).isoformat())
+def ev(rid, settlement=1.0, *, evaluated=None, observed=None, **kw):
+    d = dict(evaluation_id=f"ev_{rid}", recommendation_id=rid, settlement=settlement,
+             evaluated_at=(evaluated or KICKOFF + timedelta(hours=4)).isoformat()
+             if evaluated is not False else None)
+    if observed is not None:
+        d["settlement_observed_at"] = observed.isoformat() if observed is not False else observed
+    d.update(kw)
+    return d
 
 
 def exposure(recs=(), exes=(), evals=(), as_of=LATER, **kw):
@@ -285,3 +290,114 @@ def write(ledger, kind, record):
     with open(path, "w") as f:
         json.dump(record, f)
     return path
+
+
+# ---- settlement may not release exposure retroactively -----------------------------------------------
+#
+# The one fact that can LOOSEN a cap arrives hours after the decisions it would loosen:
+#
+#   13:00  run A is filled and unsettled
+#   15:00  run B is evaluated and must see run A as outstanding
+#   20:00  the game settles
+#   21:00  the Evaluation is written
+#   01:00  the twelve-hourly replay re-evaluates the 15:00 decision -- with that Evaluation in the ledger
+#
+# Releasing on the mere existence of the Evaluation lets the replay approve exposure that was over the limit
+# when the call was actually made. The replay exists to REPRODUCE the pre-trade verdict, not to improve on
+# it with hindsight.
+
+FILLED_AT = T0 + timedelta(minutes=5)
+DECISION_B = T0 + timedelta(hours=2)          # 15:00
+GAME_SETTLES = T0 + timedelta(hours=7)        # 20:00
+EVALUATION_WRITTEN = T0 + timedelta(hours=8)  # 21:00
+REPLAY_RUNS = T0 + timedelta(hours=12)        # 01:00
+
+
+def _run_a():
+    return (rec("rec_a", 20, kickoff=T0 + timedelta(hours=4)), ex("rec_a", 20, when=FILLED_AT))
+
+
+def test_A_a_settlement_written_after_the_decision_does_not_release_at_the_decision():
+    a, fill = _run_a()
+    out = exposure([a], [fill], [ev("rec_a", evaluated=EVALUATION_WRITTEN)], as_of=DECISION_B)
+    assert out.total == 20.0, "at 15:00 the outcome was not knowable; the stake is still exposure"
+    assert any("not available until" in why for _rid, why in out.excluded)
+
+
+def test_B_the_same_position_is_released_once_the_settlement_was_available():
+    a, fill = _run_a()
+    later = exposure([a], [fill], [ev("rec_a", evaluated=EVALUATION_WRITTEN)],
+                     as_of=EVALUATION_WRITTEN + timedelta(minutes=1))
+    assert later.total == 0.0
+    assert any("settled and fully released" in why for _rid, why in later.excluded)
+
+
+def test_C_the_delayed_replay_reaches_the_verdict_preflight_reached():
+    """The property that makes the twelve-hourly import an audit rather than a second opinion."""
+    a, fill = _run_a()
+    b = rec("rec_b", 20)
+    evaluations = [ev("rec_a", evaluated=EVALUATION_WRITTEN)]
+
+    # 15:00, pre-trade: run A is outstanding, so B is capped by the 3u group limit.
+    at_decision = exposure([a], [fill], [], as_of=DECISION_B, exclude_ids={"rec_b"})
+    _r1, pre = verdict([b], at_decision)
+
+    # 01:00, replay of the SAME 15:00 decision -- now with the 21:00 settlement in the ledger.
+    at_replay = exposure([a], [fill], evaluations, as_of=DECISION_B, exclude_ids={"rec_b"})
+    _r2, post = verdict([b], at_replay)
+
+    assert pre.approved_stake == 10.0 and pre.status == R.CAPPED
+    assert post.approved_stake == pre.approved_stake, \
+        "the replay used a settlement that did not exist at the decision and loosened the cap"
+    assert post.status == pre.status
+    assert REPLAY_RUNS > EVALUATION_WRITTEN > GAME_SETTLES > DECISION_B
+
+
+def test_D_a_settlement_with_no_usable_timestamp_retains_the_exposure():
+    a, fill = _run_a()
+    for broken in (ev("rec_a", evaluated=False), ev("rec_a", evaluated=False, settlement_observed_at="soon")):
+        out = exposure([a], [fill], [broken], as_of=REPLAY_RUNS)
+        assert out.total == 20.0, f"{broken} released exposure without provenance"
+        assert any("no usable availability timestamp" in why for _rid, why in out.excluded)
+
+
+def test_an_explicit_observation_timestamp_is_preferred_over_the_write_time():
+    """`evaluated_at` is the conservative FALLBACK. A real observation is stronger provenance."""
+    a, fill = _run_a()
+    e = ev("rec_a", evaluated=EVALUATION_WRITTEN, observed=GAME_SETTLES)
+    between = GAME_SETTLES + timedelta(minutes=30)      # after settlement, before the evaluation was written
+    assert exposure([a], [fill], [e], as_of=between).total == 0.0
+    assert exposure([a], [fill], [ev("rec_a", evaluated=EVALUATION_WRITTEN)],
+                    as_of=between).total == 20.0, "without the observation, the write time governs"
+
+
+def test_E_no_post_decision_fact_of_any_kind_can_loosen_a_cap():
+    """The invariant the four cases above are instances of.
+
+    Sweep every lever that could release exposure -- a later recommendation, a later fill, a later
+    settlement -- and assert the exposure measured at T never falls below the exposure measured with only
+    the facts that existed at T.
+    """
+    a, fill = _run_a()
+    truth_at_t = exposure([a], [fill], [], as_of=DECISION_B).total
+    for extra_evals in ([], [ev("rec_a", evaluated=EVALUATION_WRITTEN)],
+                        [ev("rec_a", evaluated=REPLAY_RUNS, observed=GAME_SETTLES)],
+                        [ev("rec_a", evaluated=EVALUATION_WRITTEN, observed=EVALUATION_WRITTEN)]):
+        got = exposure([a, rec("rec_late", 20, created=REPLAY_RUNS)],
+                       [fill, ex("rec_a", 5, when=REPLAY_RUNS, eid="exe_late")],
+                       extra_evals, as_of=DECISION_B)
+        assert got.total >= truth_at_t, f"{extra_evals} loosened the measurement at {DECISION_B}"
+
+
+def test_settlement_release_is_judged_at_the_batch_release_bound():
+    """Release uses the batch's EARLIEST decision, so a long batch never releases early."""
+    a, fill = _run_a()
+    e = ev("rec_a", evaluated=GAME_SETTLES + timedelta(minutes=30))
+    out = R.outstanding_exposure([a], [fill], [e], REPLAY_RUNS, release_as_of=DECISION_B)
+    assert out.total == 20.0, "inclusion looked at 01:00; release must still look at 15:00"
+
+
+def test_a_test_only_evaluation_never_releases_real_exposure():
+    a, fill = _run_a()
+    out = exposure([a], [fill], [ev("rec_a", evaluated=T0, test_only=True)], as_of=REPLAY_RUNS)
+    assert out.total == 20.0

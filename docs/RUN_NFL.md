@@ -40,7 +40,8 @@ MASSIVE NFL DATA COLLECTION        collectors -> market-data branch (continuous)
   -> STRUCTURED HANDICAP PACKET    scripts/handicap/run_nfl.py
   -> CHATGPT INDEPENDENT HANDICAP  <- you are the decision layer here
   -> KALSHI MARKET SELECTION       best-expression comparison, correlation groups
-  -> PRE-TRADE PREFLIGHT           scripts/handicap/preflight_candidate.py  <- BEFORE anything is a BET
+  -> PRE-TRADE PREFLIGHT           Airtable PREFLIGHT_REQUESTED -> preflight workflow -> APPROVED/BLOCKED
+                                   (event-driven; BEFORE anything is shown as a BET)
   -> AIRTABLE RECOMMENDATION RUN   ChatGPT writes one row -- the only write ChatGPT can make
   -> AIRTABLE -> GITHUB SYNC       sync-handicap-airtable workflow, REPLAYS the same gates and materialises
   -> IMMUTABLE RECOMMENDATION      handicap-data branch, one file per record
@@ -100,14 +101,31 @@ For each contract seriously considered, emit a record. Until it has passed prefl
 and a candidate may be shown as `CANDIDATE`, `WATCHLIST` or `PASS` — never as a BET or a final
 `RECOMMENDED` instruction.
 
+**How ChatGPT actually invokes it.** Write ONE Airtable row:
+
+| field | value |
+|---|---|
+| `Sport` | `NFL` |
+| `Status` | `PREFLIGHT_REQUESTED` |
+| `Run ID` | the `handicap_run_id` |
+| `Payload` | the candidate array |
+
+An Airtable Automation fires the `Pre-trade preflight` workflow, which runs the gates and writes the verdict
+back within about a minute. Read the row: `PREFLIGHT_APPROVED` means every candidate may be surfaced as a
+BET, **at the `approved_stake` in `Preflight Result`**. `PREFLIGHT_BLOCKED` means at least one may not —
+`Preflight Result` names which and why; surface those as CANDIDATE / WATCHLIST / PASS.
+
+**A row that is not `PREFLIGHT_APPROVED` has not been approved.** Errored, timed out, still
+`PREFLIGHT_REQUESTED` — none of those is a bet. Silence is never yes.
+
+Debugging fallback only, when the Automation is down:
+
 ```
 python3 scripts/handicap/preflight_candidate.py candidates.json \
     --market-data /home/user/_market_data_wt --handicap-root /home/user/_ledger_wt
 ```
 
-Exit `0` means every candidate may be surfaced as a bet, **at the stake preflight approved**. Exit `5` means
-at least one is blocked; surface those as CANDIDATE / WATCHLIST / PASS with the reasons it printed. The
-script places nothing and writes nothing.
+Exit `0` means approved, exit `5` blocked. Neither path places anything or writes any record.
 
 Preflight runs the same gates the ledger will later replay — decision-time price freshness, the ceiling,
 full-position depth, the fee schedule, net EV, identity, availability, and the **cumulative** portfolio caps
@@ -171,9 +189,9 @@ fine":
 | player identity | the Kalshi → GSIS mapping is unresolved |
 | player availability | availability is missing, UNKNOWN, blocking, stale, or read after the decision |
 | full-position executability | the approved stake cannot be filled from observed depth, or the fill walks above the ceiling |
-| fee schedule established | no committed window covers the decision, an announced Kalshi fee change is unmodelled, or the schedule has gone unverified past 45 days |
+| fee schedule established | no committed window covers the decision, an announced Kalshi fee change is unmodelled, the fee-change feed could not be read, or the schedule has gone unverified past 45 days |
 | transaction costs | costs are not `KNOWN`, or net executable EV — or **conservative** net EV, after the derived fee-rounding residual — is **≤ $0** at the full-position VWAP |
-| portfolio risk | a per-position, grade, game, correlation-group or slate limit binds **cumulatively**, counting exposure already outstanding from earlier runs; or the committed ledger could not be read |
+| portfolio risk | a per-position, grade, game, correlation-group or slate limit binds **cumulatively**, counting exposure already outstanding from earlier runs (a settlement releases exposure only as of a moment the outcome was available); or the committed ledger could not be read |
 
 **Everything above is evaluated as of the recommendation's own `created_at`, not as of the import.** The
 sync runs every twelve hours and archives decisions made hours earlier; judging them against the market at

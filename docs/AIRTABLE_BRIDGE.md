@@ -379,3 +379,126 @@ payload carrying `evaluation_id`, `execution_id` or `postmortem_id` is refused w
 **Extension point** (deliberately not built): supporting execution payloads would mean adding a kind
 discriminator to the batch check in `airtable_bridge.check_batch` and a second entry in the write path in
 `plan_run`. That is a small change and should stay small — this is a transport, not a workflow engine.
+
+
+---
+
+## The PRE-TRADE leg (event-driven) — separate from everything above
+
+Everything above this line is the **recommendation** transport: twelve-hourly archival movement of a
+decision that has already been made and already been approved. It is not changing.
+
+This section is a **different leg with a different job and a different cadence**. It answers the question
+"may this candidate be shown to the owner as a BET?" — before the owner acts, not twelve hours afterwards.
+
+```
+ChatGPT
+  → writes a PREFLIGHT_REQUESTED row (candidates in Payload)
+  → an Airtable Automation calls the preflight workflow                     ← one-time owner setup
+  → the workflow checks out main + market-data + handicap-data
+  → scripts/handicap/preflight_airtable.py runs the SAME gates the ledger later replays
+  → the row becomes PREFLIGHT_APPROVED or PREFLIGHT_BLOCKED, verdict in `Preflight Result`
+  → ChatGPT reads the row
+  → ONLY an APPROVED candidate may be surfaced as a BET, and only at `approved_stake`
+  → the final recommendation is then submitted READY_FOR_SYNC for normal archival transport
+```
+
+### Why event-driven, and why the archival leg stays twelve-hourly
+
+A confirmed executable quote is fresh for **fifteen minutes** and the owner needs the answer inside that
+window. Polling for it would also spend the Airtable free-tier allowance the archival importer depends on,
+to buy latency on a leg that has no use for it. So: preflight is invoked by an event, the importer is a
+schedule, and neither is a workaround for the other.
+
+### Statuses and fields
+
+| status | meaning |
+|---|---|
+| `PREFLIGHT_REQUESTED` | ChatGPT wants a pre-trade verdict on the candidates in `Payload` |
+| `PREFLIGHT_APPROVED` | **every** candidate on the row may be surfaced as a BET, at its approved stake |
+| `PREFLIGHT_BLOCKED` | at least one may not. Per-candidate verdicts are in `Preflight Result`. |
+| `PREFLIGHT_ERROR` | the request itself was unusable |
+
+**A row that is not `PREFLIGHT_APPROVED` has not been approved.** There is no third state and no default: a
+request that errored, timed out, or was never picked up is not a bet. Silence is never yes.
+
+`Preflight Result` is a long-text field carrying `preflight-result/1` JSON: per candidate the verdict,
+`approved_stake`, `blocking_reasons`, the executable price, the full-position VWAP and worst fill, net EV
+and conservative net EV, and each gate's status — plus the outstanding portfolio exposure the caps were
+measured against.
+
+The worker writes **only** `Status` and `Preflight Result`. `Run ID`, `Sport` and `Payload` are source data;
+`AirtableClient.write_fields` enforces the whitelist, so neither leg can rewrite the provenance the import
+receipt exists to prove.
+
+### One-time owner setup
+
+Two things cannot be provisioned from a code change and are the owner's to do once. **Until both exist and a
+live end-to-end run has succeeded, this leg is not operational** — the repository side is complete and
+tested, and that is a different claim.
+
+**1. Add the fields and statuses in Airtable.**
+Add `Preflight Result` as a **Long text** field to the `Recommendation Runs` table, and add
+`PREFLIGHT_REQUESTED`, `PREFLIGHT_APPROVED`, `PREFLIGHT_BLOCKED`, `PREFLIGHT_ERROR` as options on the
+existing `Status` single-select.
+
+**2. Create a GitHub token and an Airtable Automation.**
+
+Create a **fine-grained personal access token** scoped to `chmoses98/nfl-edge-finder` only, with a single
+permission:
+
+| permission | level | why |
+|---|---|---|
+| **Actions** | Read and write | the minimum that can call `workflow_dispatch`. Nothing else is needed. |
+
+Do **not** grant `Contents: write`. It would also work — via `repository_dispatch` — but it is a strictly
+larger blast radius: a leaked `contents: write` token can push to any branch, including the ledger. An
+`actions: write` token can only start workflows that already exist in the repository. The workflow accepts
+`repository_dispatch` as well, for an Automation that prefers it; the narrower grant is the documented
+default.
+
+Then in Airtable: **Automations → Create → Trigger: When record matches conditions** (Table
+`Recommendation Runs`, condition `Status is PREFLIGHT_REQUESTED`) → **Action: Run script**:
+
+```js
+// Airtable Automation script. The token lives in the Automation's secret input, never in this repository.
+const GITHUB_PAT = input.config().githubPat;   // Automations → this script → Input variables
+const res = await fetch(
+  "https://api.github.com/repos/chmoses98/nfl-edge-finder/actions/workflows/preflight.yml/dispatches",
+  { method: "POST",
+    headers: { "Authorization": `Bearer ${GITHUB_PAT}`,
+               "Accept": "application/vnd.github+json",
+               "X-GitHub-Api-Version": "2022-11-28" },
+    body: JSON.stringify({ ref: "main" }) });
+if (res.status !== 204) throw new Error(`workflow_dispatch failed: ${res.status} ${await res.text()}`);
+```
+
+The workflow answers **every** pending `PREFLIGHT_REQUESTED` row, so the dispatch carries no payload and two
+requests arriving together cost one run.
+
+`AIRTABLE_TOKEN` is already configured as a repository secret for the importer; the preflight workflow uses
+the same one. No credential is ever committed.
+
+### TEST_ONLY end-to-end
+
+Same discipline as the importer's E2E, and the same reason it is safe: a `TEST_ONLY` candidate risks no
+capital, is excluded from every report, and the situational gates do not apply to it — so it can name a
+ticker that does not exist.
+
+1. Write one row: `Sport = NFL`, `Status = PREFLIGHT_REQUESTED`, `Run ID = E2E-PREFLIGHT`, `Payload` = a
+   one-element array containing a complete candidate with `"test_only": true` and a fake ticker.
+2. The Automation fires; the workflow runs.
+3. The row should land on **`PREFLIGHT_BLOCKED`** with a `Preflight Result` whose single candidate has
+   `may_be_shown_as_a_bet: false`. That is the correct answer, and a `TEST_ONLY` probe coming back approved
+   would itself be the bug.
+4. Nothing is written to any ledger branch. Preflight files no records.
+
+`tests/test_preflight_transport.py` runs this whole leg against a fake Airtable, including the TEST_ONLY
+probe, so the repository side is proven before the Automation exists. What the live run proves is the two
+things tests cannot: that the Automation fires and that the token works.
+
+### Debugging fallbacks — not the operating workflow
+
+If the Automation is down, the owner can run the workflow by hand (`workflow_dispatch`, with `dry_run` to
+see verdicts without writing), or run `scripts/handicap/preflight_candidate.py` locally against a candidate
+file. Both are for debugging. Requiring either for a routine bet is what this leg exists to remove.

@@ -80,3 +80,31 @@
     fill. Until the owner reports fees per fill, evaluations will carry `gross_pnl` and `estimated_net_pnl`
     with `net_pnl: null`, and the scorecard's desk-level net will be null alongside a
     `fee_reconciliation` block. That is the intended behaviour and not a defect to route around.
+25. **The pre-trade transport is complete in this repository and not yet operational end to end.** The
+    workflow, the worker, the statuses and the write-back field all exist and are tested against a fake
+    Airtable, including the TEST_ONLY probe. Two things cannot be provisioned from a code change and are the
+    owner's: the `Preflight Result` field plus the four `PREFLIGHT_*` status options in Airtable, and an
+    Airtable Automation holding a fine-grained GitHub token (`Actions: read and write` on this repository
+    only) that calls `workflow_dispatch`. Until a live run has succeeded, the leg is designed and untested
+    against the real Automation. `docs/AIRTABLE_BRIDGE.md` carries the exact setup and the E2E procedure.
+    What keeps this safe while it is missing is that a row that is not `PREFLIGHT_APPROVED` has not been
+    approved: an unanswered request is not a bet.
+26. **The fee-rounding bound is materially larger than a whole-contract model implied, and correctly so.**
+    Kalshi order sizes are fixed-point with a 0.01-contract minimum, so a 16-contract position carries a
+    worst-case fragmentation bound of about $0.17 and a 100-contract position about $1.01. On a small pilot
+    stake that is a real hurdle — roughly 1.7% of a $10 position. It is not a strategy buffer and cannot be
+    tuned; the only levers are evidence (establishing `WHOLE_CONTRACTS_ONLY` for a series from venue
+    metadata, which drops the 100-contract bound to $0.02) and observation (a realised fee is not an
+    estimate and carries no uncertainty term at all). Until one of those lands, thin edges on small stakes
+    will be blocked by transaction-cost uncertainty rather than by the edge itself, and the ledger will
+    record that as the reason.
+27. **Contract granularity is asserted from documentation, not from captured venue metadata.** No field in
+    the current per-series registry establishes whether fractional trading is enabled, so every series sits
+    at `UNKNOWN` and is priced as fractional. Wiring a captured metadata field into
+    `config/kalshi_fee_schedule.json` — under the same capture/surface/review discipline the fee multipliers
+    get — is the work that would let a series legitimately move to `WHOLE_CONTRACTS_ONLY`.
+28. **Settlement availability rests on `evaluated_at` for every record written so far.** No evaluation in
+    the ledger carries `settlement_observed_at`, because the field is new. `evaluated_at` is the conservative
+    fallback — it can only be later than the outcome, never earlier — so exposure is released later than it
+    strictly must be, never earlier. Populating the stronger field when the settlement is actually observed
+    is a small improvement to exposure accuracy and changes nothing about safety.

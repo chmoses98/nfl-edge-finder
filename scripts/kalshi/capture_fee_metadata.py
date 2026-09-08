@@ -60,36 +60,59 @@ def _iso(t):
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def fetch_fee_changes(client) -> dict:
-    """`GET /series/fee_changes`, preserved with its scheduled effective timestamps.
+# The DOCUMENTED response shape, first. The array key and the timestamp key are both specific and neither
+# was being read before -- so the endpoint was called and its answer discarded, which is worse than not
+# calling it, because the registry then looks checked.
+#
+#   { "series_fee_change_arr": [
+#       {"id": "...", "series_ticker": "...", "fee_type": "...",
+#        "fee_multiplier": ..., "scheduled_ts": "..."} ] }
+FEE_CHANGE_ARRAY_KEYS = ("series_fee_change_arr",          # documented
+                         "fee_changes", "series_fee_changes", "changes")   # defensive
+
+
+def fetch_fee_changes(client, show_historical: bool = True) -> dict:
+    """`GET /series/fee_changes?show_historical=true`, preserved with its scheduled effective timestamps.
 
     Every field the endpoint returns is kept, not just the ones we know how to read today: the reason this
     source exists is to tell us about a change we have not thought of, and filtering it through today's
     understanding is how such a change gets missed.
+
+    `parsed` is the field that matters operationally. A response we could not read is NOT "no changes" --
+    it is "we do not know", and `FeeSchedule.verification` refuses to report VERIFIED on that basis.
     """
-    out = {"source": "GET /series/fee_changes", "retrieved_at": datetime.now(timezone.utc).isoformat(),
-           "changes": [], "error": None}
+    out = {"source": "GET /series/fee_changes", "show_historical": bool(show_historical),
+           "retrieved_at": datetime.now(timezone.utc).isoformat(),
+           "changes": [], "error": None, "parsed": False, "shape": None}
     try:
-        body = client.series_fee_changes()
+        body = client.series_fee_changes(show_historical=show_historical)
     except Exception as e:                              # noqa: BLE001 -- reported, never fatal
         out["error"] = f"{type(e).__name__}: {str(e)[:300]}"
         return out
+
+    raw = None
     if isinstance(body, list):
-        raw = body
+        raw, out["shape"] = body, "bare array"
     elif isinstance(body, dict):
-        raw = next((body[k] for k in ("fee_changes", "series_fee_changes", "changes") if body.get(k)), None)
+        for key in FEE_CHANGE_ARRAY_KEYS:
+            if key in body and isinstance(body[key], list):
+                raw, out["shape"] = body[key], key
+                break
         if raw is None and body and all(isinstance(v, dict) for v in body.values()):
-            # A bare object keyed by series ticker. Accepted because the shape of this endpoint is the one
-            # thing here we have not been able to confirm against the live API, and refusing an unexpected
-            # but unambiguous shape would silently un-ingest the source this exists to ingest.
+            # A bare object keyed by series ticker. Kept as a defensive shape only.
             raw = [dict(v, series_ticker=k) for k, v in body.items()]
-    else:
-        raw = None
-    if isinstance(raw, dict):
-        raw = [dict(v, series_ticker=k) if isinstance(v, dict) else v for k, v in raw.items()]
-    for ch in raw or []:
+            out["shape"] = "series-keyed object"
+
+    if raw is None:
+        out["error"] = (f"unrecognised /series/fee_changes response shape; top-level keys "
+                        f"{sorted(body)[:12] if isinstance(body, dict) else type(body).__name__}. "
+                        "Treated as INCONCLUSIVE, never as 'no changes'.")
+        return out
+
+    for ch in raw:
         if isinstance(ch, dict):
             out["changes"].append(ch)
+    out["parsed"] = True
     return out
 
 REG_PATH = os.path.join(ROOT, "config", "kalshi_nfl_series.json")
@@ -210,9 +233,20 @@ def main():
         for ch in unmodelled[:20]:
             print(f"  [{ch.get('status')}] {ch.get('series_ticker')} effective "
                   f"{FEES._change_effective(ch) or '<undated>'}")
+    fc = snapshot["fee_changes"]
+    print(f"fee_changes: {len(fc['changes'])} change(s) via {fc.get('shape')} "
+          f"(show_historical={fc.get('show_historical')}, parsed={fc.get('parsed')})"
+          + (f" ERROR: {fc['error']}" if fc.get("error") else ""))
     print(f"schedule verification: {snapshot['schedule_verification']['state']} -- "
           f"{snapshot['schedule_verification'].get('reason')}")
 
+    if a.check and not snapshot["fee_changes"].get("parsed"):
+        print("\nTHE /series/fee_changes RESPONSE COULD NOT BE READ: "
+              f"{snapshot['fee_changes'].get('error')}\n"
+              "This is INCONCLUSIVE, not 'no changes announced'. The third source in the fee hierarchy is "
+              "the only one that can warn us before a schedule stops being right, so a run that could not "
+              "read it does not refresh the schedule's verification and must not pass.", file=sys.stderr)
+        return 1
     if a.check and unmodelled:
         print("\nKALSHI HAS ANNOUNCED A FEE CHANGE THIS REPOSITORY DOES NOT MODEL. Add a reviewed window "
               "to config/kalshi_fee_schedule.json with the announced effective_from, and close the current "

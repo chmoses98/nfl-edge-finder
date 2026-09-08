@@ -76,7 +76,7 @@ import math
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 
 # ---- fee state -------------------------------------------------------------------------------------
 KNOWN = "KNOWN"
@@ -187,9 +187,12 @@ def fee_for_fill(price, contracts, coefficient, multiplier, *, accumulator=0.0,
         rebate = CENT
         acc -= CENT
 
+    # SIGNED, and not floored at zero here. A rebate is a credit against the ORDER, and on a small fill it
+    # legitimately exceeds that fill's own fee -- flooring per fill would silently discard the credit and
+    # destroy the one property the accumulator exists to provide, that many small fills converge on the cost
+    # of one equivalent fill. The exchange never pays you to trade, so the floor belongs on the ORDER TOTAL;
+    # `fee_for_order` applies it there.
     net = trade_fee + rounding_fee - rebate
-    if net < 0:
-        net = Decimal("0")
 
     return FeeComponents(
         raw_quadratic=float(raw), trade_fee=float(trade_fee), rounding_fee=float(rounding_fee),
@@ -219,59 +222,128 @@ def fee_for_order(fills, coefficient, multiplier, *, balance_precision=CENT) -> 
             totals[k] += _d(v)
         totals["contracts"] += _d(contracts)
         totals["cost"] += _d(contracts) * _d(price)
+    # The floor lives here, on the whole order: the exchange never pays you to trade, but a single fill's
+    # net CAN be negative when a whole-cent rebate lands on a fill whose own fee is a fraction of a cent.
+    net_total = totals["net_fee"]
+    if net_total < 0:
+        net_total = Decimal("0")
+    totals["net_fee"] = net_total
     return {"fills": out, "accumulator_final": float(acc),
             **{k: float(v) for k, v in totals.items()}}
 
 
 # ---- pre-trade rounding uncertainty ----------------------------------------------------------------
 
-def rounding_uncertainty(contracts, balance_precision=CENT, trade_fee_increment=CENTICENT) -> dict:
-    """A WORST-CASE bound on how much more a fragmented order can cost than the equivalent single fill.
+# Kalshi's order sizes are FIXED-POINT, not integral. The documented minimum increment is 0.01 contract,
+# and fills of 0.30 or 0.03 contracts are ordinary. The earlier bound here assumed a fill was at least one
+# whole contract, which made `N <= ceil(contracts)` and was simply false: a 0.90-contract order can arrive
+# as ninety separate fills, not one.
+CONTRACT_INCREMENT_FRACTIONAL = Decimal("0.01")     # the documented fixed-point minimum
+CONTRACT_INCREMENT_WHOLE = Decimal("1")             # only when metadata PROVES fractional trading is off
 
-    Before the trade we know the price and the size; we do not know how many pieces the venue will fill it
-    in. The accumulator makes fragmentation CONVERGE on the equivalent order -- that is its purpose -- but
-    it does not make it identical, and a pre-trade net EV computed from a single-fill estimate is therefore
-    slightly optimistic. This function says by exactly how much, from the mechanism rather than from taste.
+GRANULARITY_FRACTIONAL = "FRACTIONAL_ENABLED"
+GRANULARITY_WHOLE = "WHOLE_CONTRACTS_ONLY"
+GRANULARITY_UNKNOWN = "UNKNOWN"                     # treated exactly as FRACTIONAL_ENABLED
+
+
+def contract_increment(state: str) -> Decimal:
+    """The smallest quantity that can fill, from the granularity state.
+
+    UNKNOWN resolves to the FRACTIONAL increment, not the whole-contract one. "We could not establish that
+    fractional trading is disabled" and "fractional trading is disabled" are the two cases this distinction
+    exists to keep apart, and only one of them may shrink a cost bound.
+    """
+    return CONTRACT_INCREMENT_WHOLE if state == GRANULARITY_WHOLE else CONTRACT_INCREMENT_FRACTIONAL
+
+
+def rounding_uncertainty(contracts, balance_precision=CENT, trade_fee_increment=CENTICENT, *,
+                         granularity_state: str = GRANULARITY_UNKNOWN,
+                         contract_increment_override=None, levels=None) -> dict:
+    """A WORST-CASE bound on how much more a FRAGMENTED order can cost than the same order in one fill.
+
+    Before the trade we know the price levels and the quantity at each; we do not know how many pieces the
+    venue will fill each level in. The accumulator makes fragmentation CONVERGE on the equivalent order --
+    that is its purpose -- but it does not make it identical, and a pre-trade estimate priced as one fill per
+    level is therefore slightly optimistic. This says by exactly how much, from the mechanism.
 
     Two sources, and there are only two:
 
-      CEILING.  `net_fee = SUM(trade_fee_i) + accumulator_final` (the rounding fees minus the rebates ARE the
-                accumulator, since it starts at zero). Within one price level the raw quadratic is linear in
-                contracts, so `SUM(raw_i) == raw_total`, and each fill's ceiling to a centicent adds at most
-                one centicent. With N fills the excess over `ceil(raw_total)` is therefore < N centicents.
+      CEILING.  `net_fee = SUM(trade_fee_i) + accumulator_final` (the rounding fees minus the rebates ARE
+                the accumulator, since it starts at zero). WITHIN ONE PRICE LEVEL the raw quadratic is
+                linear in contracts, so `SUM(raw_i) == raw_level`, and each fill's ceiling to a centicent
+                adds strictly less than one centicent. With N fills the excess is therefore < N centicents.
 
       RESIDUAL. The accumulator is bounded by one balance precision: it starts at 0, each fill adds a
                 rounding fee strictly below one precision unit, and any value above one precision unit
                 immediately rebates one. So the final residual is at most one precision unit, and the
                 single-fill estimate carries a residual of its own that is at least zero -- the DIFFERENCE
-                is bounded by one precision unit.
+                is bounded by one precision unit. Once per ORDER, not once per level.
 
       bound = N * trade_fee_increment  +  balance_precision
 
-    N is bounded because a Kalshi fill is at least one whole contract: `N <= ceil(contracts)`.
+    WHAT N ACTUALLY IS
+    ------------------
+    N is the largest number of fills the order can arrive in, which is set by the venue's minimum fill
+    quantity -- NOT by our stake being a whole number of dollars. Approved stakes are whole DOLLARS; the
+    contract quantities they buy are routinely fractional (`$10 / 0.62 = 16.13 contracts`), order-book
+    quantities are fixed-point, and Kalshi fills can be fractional down to 0.01 contract. So:
 
-    This is a TRANSACTION-COST bound, not a strategy buffer. It exists because a cost is uncertain, it is
-    derived from the venue's published rounding mechanism, and it shrinks to nothing as the mechanism is
-    observed. Nothing here may be tuned to make trades harder or easier to find.
+        N = SUM over price levels of ceil(contracts_at_level / contract_increment)
+
+    Summing per level rather than over the total is what keeps this an upper bound on the real thing: a fill
+    cannot span two price levels, so the levels fragment independently.
+
+    NO DOUBLE-CHARGING
+    ------------------
+    `levels` is the observed depth walk (`DepthResult.levels_consumed`). The fee ESTIMATE already prices
+    that decomposition exactly -- the VWAP movement across levels is known and paid for there. This function
+    bounds only the fragmentation WITHIN each level's known quantity, which is the part nobody can see before
+    the order is worked. Passing no `levels` falls back to treating the whole quantity as one level, which is
+    a weaker (larger) bound, never a smaller one.
+
+    This is a TRANSACTION-COST bound, not a strategy buffer. It is derived from the venue's published
+    rounding and fixed-point rules, and nothing in it may be tuned to make trades easier or harder to find.
     """
-    try:
-        c = float(contracts)
-    except (TypeError, ValueError):
-        return {"bound_dollars": None, "reason": f"contracts {contracts!r} is not numeric"}
-    if c <= 0:
-        return {"bound_dollars": None, "reason": f"contracts {c} is not positive"}
-    max_fills = int(math.ceil(c - 1e-9))
-    inc, prec = _d(trade_fee_increment), _d(balance_precision)
+    inc = _d(trade_fee_increment)
+    prec = _d(balance_precision)
+    step = (_d(contract_increment_override) if contract_increment_override is not None
+            else contract_increment(granularity_state))
+    if step <= 0:
+        return {"bound_dollars": None, "reason": f"contract increment {step} is not positive"}
+
+    if levels:
+        try:
+            quantities = [_d(c) for _p, c in levels]
+        except (TypeError, ValueError):
+            return {"bound_dollars": None, "reason": f"levels {levels!r} are not (price, contracts) pairs"}
+        basis = f"{len(quantities)} observed price level(s)"
+    else:
+        try:
+            quantities = [_d(contracts)]
+        except (TypeError, ValueError, InvalidOperation):
+            return {"bound_dollars": None, "reason": f"contracts {contracts!r} is not numeric"}
+        basis = "the whole quantity as a single price level (no observed book)"
+
+    quantities = [q for q in quantities if q > 0]
+    if not quantities:
+        return {"bound_dollars": None, "reason": "no positive quantity to bound"}
+
+    # ceil(q / step) per level, in Decimal so 0.29999999 never becomes an extra fill.
+    max_fills = sum(int((q / step).to_integral_value(rounding=ROUND_CEILING)) for q in quantities)
     ceiling_bound = _d(max_fills) * inc
     bound = ceiling_bound + prec
     return {
         "max_fills": max_fills,
+        "contract_increment": float(step),
+        "granularity_state": granularity_state,
+        "levels_basis": basis,
         "trade_fee_ceiling_bound": float(ceiling_bound),
         "accumulator_residual_bound": float(prec),
         "bound_dollars": float(bound),
-        "derivation": (f"at most {max_fills} fill(s) of >=1 contract, each ceiling at most "
-                       f"{float(inc)} above the linear quadratic, plus at most {float(prec)} of "
-                       "un-rebated accumulator residual"),
+        "derivation": (f"across {basis}, at most {max_fills} fill(s) of >= {float(step)} contract "
+                       f"({granularity_state}), each ceiling strictly under {float(inc)} above the "
+                       f"within-level linear quadratic, plus at most {float(prec)} of un-rebated "
+                       "accumulator residual across the order"),
     }
 
 
@@ -338,6 +410,7 @@ class FeeSchedule:
     rounding: dict = field(default_factory=dict)
     conflict_policy: str = ""
     verification_policy: dict = field(default_factory=dict)
+    granularity: dict = field(default_factory=dict)
 
     # ---- regime ------------------------------------------------------------------------------------
     def fee_type(self, series_ticker: str) -> str | None:
@@ -498,6 +571,24 @@ class FeeSchedule:
         return self.entry_fee(price, contracts, series_ticker, MAKER, as_of=as_of,
                               maker_multiplier=maker_multiplier, **kw)
 
+    # ---- order granularity -------------------------------------------------------------------------
+    def granularity_state_for(self, series_ticker: str | None) -> str:
+        """Whether this series is known to trade in whole contracts only.
+
+        Defaults to UNKNOWN, which is priced exactly as FRACTIONAL_ENABLED. A series is only moved to
+        WHOLE_CONTRACTS_ONLY by a reviewed edit to config/kalshi_fee_schedule.json citing venue metadata --
+        the same capture/surface/review discipline the fee multipliers get, and for the same reason: this
+        value shrinks a cost bound, so it may never be inferred from silence.
+        """
+        g = self.granularity or {}
+        per_series = (g.get("series") or {}).get(series_ticker) if series_ticker else None
+        if isinstance(per_series, dict):
+            state = per_series.get("state")
+        else:
+            state = per_series
+        state = state or g.get("default_state") or GRANULARITY_UNKNOWN
+        return state if state in (GRANULARITY_FRACTIONAL, GRANULARITY_WHOLE) else GRANULARITY_UNKNOWN
+
     # ---- freshness ---------------------------------------------------------------------------------
     def max_verification_age_days(self) -> float:
         return float((self.verification_policy or {}).get(
@@ -535,6 +626,14 @@ class FeeSchedule:
                               "schedule cannot be established and no fee may be quoted against it"}
 
         obs = observations or FeeObservations(None)
+        latest_snapshot = obs.latest(at)
+        # A fee-change feed we could not read is NOT "no changes announced". It is "we do not know whether a
+        # change was announced", and the whole point of ingesting the third source is that this distinction
+        # is the one it exists to make.
+        fc = (latest_snapshot or {}).get("fee_changes")
+        fc_state = "NOT_CAPTURED"
+        if isinstance(fc, dict):
+            fc_state = "PARSED" if fc.get("parsed") and not fc.get("error") else "INCONCLUSIVE"
 
         # 1. An announced change the committed schedule has not absorbed.
         pending = []
@@ -560,8 +659,12 @@ class FeeSchedule:
         #    any clean live capture at or before the decision -- whichever is later.
         verified_at = _iso(w.get("verified_at"))
         basis = f"schedule window {w.get('window_id')} attested {w.get('verified_at')}"
-        latest = obs.latest(at)
-        if latest is not None and not latest.get("differences") and not latest.get("errors"):
+        latest = latest_snapshot
+        # A capture only REFRESHES verification if all three of its sources came back clean. An
+        # INCONCLUSIVE fee-change feed means the capture did not establish that no change was announced,
+        # so it cannot stand in for a confirmation of the schedule.
+        if (latest is not None and not latest.get("differences") and not latest.get("errors")
+                and fc_state == "PARSED"):
             t = _iso(latest.get("retrieved_at"))
             if t is not None and (verified_at is None or t > verified_at):
                 verified_at, basis = t, f"clean live capture at {latest.get('retrieved_at')}"
@@ -570,14 +673,15 @@ class FeeSchedule:
         if verified_at is None:
             return {"state": STALE_VERIFICATION, "as_of": at.isoformat(),
                     "window_id": w.get("window_id"), "verified_at": None, "age_days": None,
-                    "max_age_days": limit,
+                    "max_age_days": limit, "fee_changes_state": fc_state,
                     "reason": f"schedule window {w.get('window_id')} carries no verification timestamp, so "
                               "there is no evidence it still matches the venue"}
 
         age_days = (at - verified_at).total_seconds() / 86400.0
         common = {"as_of": at.isoformat(), "window_id": w.get("window_id"),
                   "verified_at": verified_at.isoformat(), "age_days": round(age_days, 2),
-                  "max_age_days": limit, "basis": basis, "source": w.get("source")}
+                  "max_age_days": limit, "basis": basis, "source": w.get("source"),
+                  "fee_changes_state": fc_state}
         if age_days > limit:
             return dict(common, state=STALE_VERIFICATION,
                         reason=(f"the applicable fee schedule was last verified {age_days:.1f} days before "
@@ -667,11 +771,32 @@ class FeeObservations:
         return [seen[k] for k in sorted(seen, key=lambda k: (str(k[0]), str(k[1])))]
 
 
+# `scheduled_ts` is what the documented response actually carries. The other names are defensive.
+CHANGE_EFFECTIVE_KEYS = ("scheduled_ts",                                        # documented
+                         "effective_at", "effective_time", "effective_from", "effective_date")
+
+
 def _change_effective(ch) -> datetime | None:
-    for key in ("effective_at", "effective_time", "effective_from", "effective_date"):
-        t = _iso(ch.get(key))
+    """The moment an announced change takes effect, from whichever key carries it.
+
+    Kalshi's `_ts` suffix is epoch seconds elsewhere in the API and the documented example shows a string, so
+    both are accepted rather than betting on one and silently dropping the change if we bet wrong.
+    """
+    for key in CHANGE_EFFECTIVE_KEYS:
+        v = ch.get(key)
+        t = _iso(v)
         if t is not None:
             return t
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            try:
+                return datetime.fromtimestamp(float(v), tz=timezone.utc)
+            except (ValueError, OSError, OverflowError):
+                continue
+        if isinstance(v, str) and v.strip().isdigit():
+            try:
+                return datetime.fromtimestamp(float(v.strip()), tz=timezone.utc)
+            except (ValueError, OSError, OverflowError):
+                continue
     return None
 
 
@@ -721,6 +846,7 @@ def load_fee_schedule(root: str) -> FeeSchedule:
         fs.rounding = sched.get("rounding") or {}
         fs.conflict_policy = sched.get("conflict_policy", "")
         fs.verification_policy = sched.get("verification_policy") or {}
+        fs.granularity = sched.get("contract_granularity") or {}
         fs.windows = sorted(sched.get("schedules") or [],
                             key=lambda w: str(w.get("effective_from") or ""))
     return fs
@@ -804,7 +930,11 @@ def net_executable_ev(fair_probability, executable_price, contracts, schedule: F
             reason=fee.reason or "gross EV is undefined without a fair probability and an executable price")
 
     net = round(gross_ev - fee.amount - float(slippage_dollars), 6)
-    unc = rounding_uncertainty(contracts, schedule.balance_precision(direct_member))
+    # The bound covers fragmentation WITHIN the observed price levels. The movement ACROSS levels is already
+    # priced exactly by `fee.amount` above, which was computed from these same `fills`.
+    unc = rounding_uncertainty(contracts, schedule.balance_precision(direct_member),
+                               granularity_state=schedule.granularity_state_for(series_ticker),
+                               levels=fills)
     bound = unc.get("bound_dollars")
     return NetEV(
         fair_probability=fair_probability, executable_price=executable_price, contracts=contracts,

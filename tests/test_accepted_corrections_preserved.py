@@ -190,3 +190,47 @@ def test_the_h019_governance_correction_is_intact():
     roadmap = open(os.path.join(ROOT, "docs", "ROADMAP.md")).read()
     assert "REJECTED on game markets" in roadmap, "Milestone K owns the passive-execution result"
     assert "H-023" in roadmap and "prop book" in roadmap
+
+
+# ---- 22-25. the closure round ------------------------------------------------------------------------
+
+def test_settlement_still_cannot_release_exposure_retroactively():
+    src = inspect.getsource(R)
+    assert "SETTLEMENT RELEASES EXPOSURE ONLY AS OF A MOMENT THE OUTCOME WAS AVAILABLE" in src
+    assert "settlement_observed_at" in R.SETTLEMENT_AVAILABILITY_FIELDS
+    assert R.SETTLEMENT_AVAILABILITY_FIELDS[-1] == "evaluated_at", "the fallback must stay the LAST resort"
+    assert R._settlement_available_at({}) == (None, "none")
+
+
+def test_the_rounding_bound_still_assumes_fractional_fills_by_default():
+    assert F.contract_increment(F.GRANULARITY_UNKNOWN) == F.CONTRACT_INCREMENT_FRACTIONAL
+    assert F.CONTRACT_INCREMENT_FRACTIONAL == __import__("decimal").Decimal("0.01")
+    assert F.rounding_uncertainty(0.9, F.CENT)["max_fills"] == 90, \
+        "a fractional order is not limited to one fill"
+    assert F.load_fee_schedule(ROOT).granularity_state_for("KXNFLGAME") == F.GRANULARITY_UNKNOWN
+
+
+def test_a_per_fill_rebate_is_still_never_discarded():
+    assert F.fee_for_fill(0.5, 0.01, 0.07, 1.0, accumulator=0.0098).net_fee < 0
+    assert F.fee_for_order([(0.5, 0.01)] * 3, 0.07, 1.0)["net_fee"] >= 0.0
+
+
+def test_the_documented_fee_change_keys_are_still_first():
+    import scripts.kalshi.capture_fee_metadata as CAP        # noqa: PLC0415
+    assert CAP.FEE_CHANGE_ARRAY_KEYS[0] == "series_fee_change_arr"
+    assert F.CHANGE_EFFECTIVE_KEYS[0] == "scheduled_ts"
+
+
+def test_the_pre_trade_leg_is_still_reachable_from_airtable():
+    from nfl_edge.handicap import airtable_bridge as AB      # noqa: PLC0415
+    for st in ("PREFLIGHT_REQUESTED", "PREFLIGHT_APPROVED", "PREFLIGHT_BLOCKED", "PREFLIGHT_ERROR"):
+        assert getattr(AB, f"STATUS_{st}") == st
+    assert os.path.exists(os.path.join(ROOT, ".github", "workflows", "preflight.yml"))
+    assert os.path.exists(os.path.join(ROOT, "scripts", "handicap", "preflight_airtable.py"))
+
+
+def test_the_airtable_payload_is_still_never_rewritten():
+    from nfl_edge.handicap import airtable_bridge as AB      # noqa: PLC0415
+    client = AB.AirtableClient("tok", "b", "t", opener=lambda *a, **k: None)
+    with pytest.raises(AB.BridgeError):
+        client.write_fields({"rec1": {AB.F_PAYLOAD: "rewritten"}})

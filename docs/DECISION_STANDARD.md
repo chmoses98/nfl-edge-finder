@@ -71,6 +71,35 @@ position that would actually be worked. An oversized proposal is therefore an *a
 Preflight places nothing, orders nothing, and writes nothing to the ledger. A PASS is permission for a human
 to act.
 
+### The control has to be reachable from the thing that recommends
+
+A CLI is the right check behind the wrong door. ChatGPT is what produces a candidate, and in its runtime it
+can write Airtable and read GitHub — it cannot run a script, clone a branch, or dispatch a workflow. So
+"ChatGPT runs `preflight_candidate.py`" was a documented intention, not a mechanism, and a control the
+recommending interface cannot reach protects nothing.
+
+The pre-trade leg is therefore its own **event-driven** transport, on the same Airtable base as the archival
+one and with none of its cadence:
+
+```
+ChatGPT → PREFLIGHT_REQUESTED row → [Airtable Automation] → workflow_dispatch
+        → preflight_airtable.py (main + market-data + handicap-data)
+        → PREFLIGHT_APPROVED / PREFLIGHT_BLOCKED + `Preflight Result` → ChatGPT reads it
+```
+
+| leg | cadence | why |
+|---|---|---|
+| **pre-trade** | event-driven | a confirmed quote is fresh for 15 minutes and the owner needs the answer now |
+| **recommendation** | twelve-hourly | archival transport for a decision already made and already approved |
+
+Polling for preflight would spend the Airtable free-tier allowance the archival leg depends on, to buy
+latency on a leg that has no use for it. The twelve-hour cadence is not a problem to be fixed; it was only
+ever a problem when it was also the first safety check.
+
+**A row that is not `PREFLIGHT_APPROVED` has not been approved.** Errored, timed out, never picked up —
+none of those is a bet. Silence is never yes. Full contract, statuses, and the one-time owner setup:
+[`AIRTABLE_BRIDGE.md`](AIRTABLE_BRIDGE.md).
+
 ---
 
 ## 1. Vocabulary
@@ -372,7 +401,7 @@ timestamp** — a capture taken after a decision is not evidence about it, exact
 
 | state | meaning | gate |
 |---|---|---|
-| `VERIFIED` | a window is in force and was confirmed within the policy age | pass |
+| `VERIFIED` | a window is in force and was confirmed within the policy age **by a capture whose fee-change feed parsed** | pass |
 | `PENDING_CHANGE` | Kalshi announced a change effective at or before this decision and no committed window covers it | **FAIL** |
 | `STALE_VERIFICATION` | in force, but the last confirmation is older than `max_verification_age_days` (45) | **FAIL** |
 | `NO_SCHEDULE` | no committed window covers this timestamp at all | **UNAVAILABLE** (blocks) |
@@ -380,6 +409,22 @@ timestamp** — a capture taken after a decision is not evidence about it, exact
 Weekly against a 45-day tolerance absorbs three consecutive missed runs and does not absorb a months-old
 unchecked registry. Fee schedules change on the order of once or twice a year and are announced in advance,
 so a higher cadence would buy nothing.
+
+**The documented response shape is what is parsed.** `GET /series/fee_changes` returns
+`{"series_fee_change_arr": [{"id", "series_ticker", "fee_type", "fee_multiplier", "scheduled_ts"}]}`.
+Neither `series_fee_change_arr` nor `scheduled_ts` was in the key lists an earlier version searched, so the
+endpoint was called and its answer silently discarded — which is worse than not calling it, because the
+registry then *looks* checked. Both are now explicit, alternate shapes are kept defensively, every raw field
+is preserved, and `scheduled_ts` is accepted as ISO or as epoch seconds (Kalshi's `_ts` convention
+elsewhere).
+
+The feed is requested with **`show_historical=true`**. A weekly job can easily miss the week a change is
+announced in; with upcoming-only semantics that change would drop out of the feed once effective and the
+evidence it ever existed would be gone. Historical + upcoming means a missed week loses nothing.
+
+**A response we could not read is `INCONCLUSIVE`, never "no changes announced."** An unparsed feed does not
+refresh the schedule's verification, and the fee-health job exits non-zero on it. That distinction is the
+whole reason to ingest the third source.
 
 **A change is never applied automatically.** Capture → surface → block → review. An API response must not
 silently rewrite the schedule that every historical net-EV number in the ledger was computed against, so the
@@ -419,31 +464,70 @@ contract is how a losing position looks profitable.
 
 ### The fee-rounding residual, and why it is not a buffer
 
-The pre-trade estimate prices the order as **one fill**. The venue may fragment it, and the accumulator makes
-fragmentation *converge* on the equivalent order without *equalling* it — so a single-fill estimate is
-slightly optimistic by an amount nobody can know before the order is worked. That amount has a derivable
-worst case, from the mechanism rather than from taste:
+The pre-trade estimate prices the order as **one fill per observed price level**. The venue may fragment it
+further, and the accumulator makes fragmentation *converge* on the equivalent order without *equalling* it —
+so the estimate is optimistic by an amount nobody can know before the order is worked. That amount has a
+derivable worst case, from the mechanism rather than from taste:
 
 ```
-net_fee_order  =  SUM(trade_fee_i)  +  accumulator_final        (rounding fees minus rebates ARE the accumulator)
+net_fee_order  =  SUM(trade_fee_i) + accumulator_final   (rounding fees minus rebates ARE the accumulator)
 
-CEILING term   within a price level the raw quadratic is linear in contracts, so SUM(raw_i) == raw_total,
-               and each fill's centicent ceiling adds at most $0.0001. With N fills: < N × $0.0001.
+CEILING term   WITHIN one price level the raw quadratic is linear in contracts, so SUM(raw_i) == raw_level,
+               and each fill's centicent ceiling adds strictly less than $0.0001. With N fills: < N x $0.0001.
 RESIDUAL term  the accumulator starts at 0, each fill adds < one balance precision, and anything above one
-               precision unit immediately rebates one — so the final residual is at most $0.01, and the
-               DIFFERENCE from the single-fill estimate's own residual is bounded by the same $0.01.
-N              a Kalshi fill is at least one whole contract, so N <= ceil(contracts).
+               precision unit immediately rebates one -- so the final residual is at most $0.01, and the
+               DIFFERENCE from the single-fill estimate's own residual is bounded by the same $0.01. Once
+               per ORDER, not once per level.
 
-bound = ceil(contracts) × $0.0001  +  $0.01
+N              = SUM over price levels of ceil(contracts_at_level / contract_increment)
+
+bound = N x $0.0001 + $0.01
 ```
 
-`conservative_net_ev_dollars = net_ev_dollars − bound`, and the gate requires it to be **above zero**.
+**What `N` actually is.** It is set by the venue's minimum fill quantity, **not** by our order being a round
+number. Kalshi order sizes are fixed-point with a documented **0.01-contract** minimum increment, and fills
+of 0.30 or 0.03 contracts are ordinary. Approved stakes are whole **dollars**; the contract quantities they
+buy are routinely fractional (`$10 / 0.62 = 16.13`). An earlier version of this bound assumed a fill was at
+least one whole contract — that was simply false, and `tests/test_fee_freshness.py` now demonstrates a
+5-contract order whose real fragmented cost is **double** what that assumption allowed. A bound the
+mechanism can exceed is not a bound.
 
-This is protection against a **known transaction-cost uncertainty**, not a strategy edge buffer. It is
-computed, never configured — `tests/test_gates_and_risk.py` reproduces it independently and asserts the gate
-demands nothing more, and `tests/test_fee_freshness.py` checks empirically that no fragmentation of a real
-order ever exceeds it. It does not move when the edge moves, only when the size does. For a 100-contract
-position it is two cents.
+| granularity state | increment | when |
+|---|---|---|
+| `WHOLE_CONTRACTS_ONLY` | 1 | only when venue metadata **proves** fractional trading is disabled, recorded per series in `config/kalshi_fee_schedule.json` with evidence, in a reviewed commit |
+| `FRACTIONAL_ENABLED` | 0.01 | fractional trading is known to be on |
+| `UNKNOWN` | 0.01 | **the default.** Priced identically to `FRACTIONAL_ENABLED`: "we could not establish that fractional trading is off" may never shrink a cost bound. |
+
+**No double-charging.** The bound is summed **per price level** from the observed depth walk
+(`DepthResult.levels_consumed`), because a fill cannot span two levels. The VWAP movement *across* levels is
+already priced exactly by the fee estimate, which is computed from those same levels; this term bounds only
+the fragmentation *within* each level's known quantity, which is the part nobody can see before the order is
+worked. With no observed book the whole quantity is treated as one level — a weaker bound, never a smaller
+one.
+
+`conservative_net_ev_dollars = net_ev_dollars − bound`, and the gate requires it **above zero**.
+
+This is protection against a **known transaction-cost uncertainty**, not a strategy edge buffer: it is
+computed and never configured, it does not move when the edge moves (only when the size does), and
+`tests/test_gates_and_risk.py` reproduces it independently to assert the gate demands nothing more.
+`tests/test_fee_freshness.py` checks empirically — including full 0.01-granularity shredding across multiple
+price levels — that no fragmentation ever exceeds it.
+
+**It is not small, and that is the honest number.** Under `UNKNOWN` granularity a 16-contract position
+carries a bound of about **$0.17**; a 100-contract position about **$1.01**. The lever that shrinks it is
+*evidence* — establishing whole-contract granularity for a series drops that 100-contract bound to $0.02 —
+not preference. See [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md).
+
+### A rebate is never discarded
+
+Re-deriving the bound surfaced a defect in the fee engine itself. `fee_for_fill` floored each fill's net fee
+at zero. On a 0.01-contract fill the trade fee is a fraction of a cent, so a whole-cent rebate landing on it
+makes that fill's net **negative** — and the floor silently threw the credit away, making 200 penny fills
+cost thirteen times the equivalent single fill and destroying the exact property the accumulator exists to
+provide.
+
+The exchange never pays you to trade, so the floor belongs on the **order total**, and that is where it now
+lives. Kalshi's documented worked example reproduces unchanged, fill by fill.
 
 ---
 
@@ -600,7 +684,7 @@ correlated markets in one game.
 | component | what it is | released when |
 |---|---|---|
 | **reserved** | `max(approved stake − executed stake, 0)` — an approval the owner has not yet filled is still a commitment to fill it | **kickoff**, after which the pregame position can no longer be established; or supersession by an amendment |
-| **at risk** | executed stake — the money is gone until the contract resolves | **settlement**, established from an `Evaluation` carrying a `settlement` |
+| **at risk** | executed stake — the money is gone until the contract resolves | **settlement**, *and only as of a moment the outcome was available* |
 
 Their sum is `max(approved, executed)` for a fully-filled position, so a recommendation and its own fills
 never double count, and a partial fill neither forgets the filled half nor releases the unfilled one. A $6
@@ -618,6 +702,35 @@ early. Both round against the batch.
 An **unreadable ledger is not an empty one.** If outstanding exposure cannot be read, the risk gate returns
 `UNAVAILABLE` and blocks. Treating "I could not see the book" as "the book is flat" is exactly how two 2u
 positions in one group both clear a 3u cap.
+
+### Settlement may not release exposure retroactively
+
+Settlement is the one fact that can *loosen* a cap, and it arrives hours after the decisions it would loosen:
+
+```
+13:00  run A is filled and unsettled
+15:00  run B is evaluated and must see run A as outstanding
+20:00  the game settles
+21:00  the Evaluation is written
+01:00  the twelve-hourly replay re-evaluates the 15:00 decision — with that Evaluation now in the ledger
+```
+
+Releasing on the mere *existence* of an Evaluation lets the replay approve exposure that was over the limit
+when the call was actually made. The replay exists to **reproduce** the pre-trade verdict, not to improve on
+it with hindsight.
+
+So a settlement releases exposure at time `T` only if the ledger can show the outcome was knowable at or
+before `T`. Availability is read from the strongest provenance the record carries:
+
+| field | why |
+|---|---|
+| `settlement_observed_at` | an explicit observation of the outcome. Strongest. |
+| `settlement_determined_at` / `outcome_observed_at` | accepted equivalents |
+| `evaluated_at` | the conservative **fallback** — it can only be *later* than the outcome, never earlier, so using it can retain exposure too long and can never release it too early |
+
+An Evaluation with **no usable availability timestamp releases nothing**, at any past decision. Never wall
+clock. Release is judged at the batch's *earliest* decision, the same conservative bound the rest of §7
+uses.
 
 ---
 
@@ -746,7 +859,8 @@ properly gated write.
 
 | | path | gates |
 |---|---|---|
-| pre-trade | `scripts/handicap/preflight_candidate.py` | required; exit 5 means **not a bet**. Writes nothing. |
+| pre-trade (operating) | Airtable `PREFLIGHT_REQUESTED` → `preflight.yml` → `scripts/handicap/preflight_airtable.py` | required; the row becomes `PREFLIGHT_APPROVED` or `PREFLIGHT_BLOCKED`. Writes no ledger record. |
+| pre-trade (debugging) | `scripts/handicap/preflight_candidate.py` | same gates, run by hand; exit 5 means **not a bet** |
 | unattended | `scripts/handicap/sync_airtable.py` | required; a failure fails the batch |
 | manual | `scripts/handicap/validate_recommendations.py --write` | required; `--market-data` is mandatory for a real `RECOMMENDED` record |
 

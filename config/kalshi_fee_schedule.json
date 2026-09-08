@@ -30,6 +30,15 @@
     "historical_windows": "Existing windows are never modified or removed. A change adds a window with its own effective_from and closes the previous window's effective_to, so a past decision keeps being priced with the schedule that was actually in force when it was made.",
     "observations_path": "market-data: data/kalshi/fees/<YYYY-MM-DD>.json"
   },
+  "contract_granularity": {
+    "default_state": "UNKNOWN",
+    "fractional_increment": 0.01,
+    "whole_increment": 1,
+    "what_this_controls": "The worst-case fill count in nfl_edge/execution/fees.rounding_uncertainty, which bounds how much more a fragmented order can cost than the same order in one fill per price level.",
+    "why_unknown_is_the_default": "Kalshi order sizes are fixed-point with a documented 0.01-contract minimum increment, and fills of 0.30 or 0.03 contracts are ordinary. A whole-dollar approved stake buys a FRACTIONAL number of contracts ($10 at 0.62 is 16.13), so nothing about our own sizing implies whole-contract fills. UNKNOWN is priced identically to FRACTIONAL_ENABLED: 'we could not establish that fractional trading is disabled' may never shrink a cost bound.",
+    "how_to_set_a_series_to_whole_contracts": "Only with venue metadata that PROVES fractional trading is disabled for that series. Add it under `series` as {\"KXWHATEVER\": {\"state\": \"WHOLE_CONTRACTS_ONLY\", \"evidence\": \"...\", \"verified_at\": \"YYYY-MM-DD\"}} in a reviewed commit, exactly as a fee multiplier is recorded. Never infer it from a silent API object.",
+    "series": {}
+  },
   "rounding": {
     "trade_fee_increment": 0.0001,
     "trade_fee_mode": "ceil",

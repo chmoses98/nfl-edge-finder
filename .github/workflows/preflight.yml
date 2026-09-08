@@ -1,0 +1,106 @@
+name: Pre-trade preflight
+
+# THE PRE-TRADE LEG. Event-driven, and deliberately not on a schedule.
+#
+# ChatGPT produces the candidate and can write Airtable; it cannot run a script, clone a branch, or dispatch
+# a workflow. So the control it must pass has to be reachable from Airtable:
+#
+#   ChatGPT writes a PREFLIGHT_REQUESTED row
+#     -> an Airtable Automation calls this workflow's workflow_dispatch          (one-time owner setup)
+#     -> this job checks out main + market-data + handicap-data
+#     -> scripts/handicap/preflight_airtable.py runs the SAME gates the ledger will later replay
+#     -> the row becomes PREFLIGHT_APPROVED or PREFLIGHT_BLOCKED, verdict in `Preflight Result`
+#     -> ChatGPT reads it; ONLY APPROVED may be surfaced as a BET
+#
+# WHY EVENT-DRIVEN AND NOT A CRON. A confirmed executable quote is fresh for fifteen minutes and the owner
+# needs the answer before it goes stale. Polling for that would also spend the Airtable free-tier allowance
+# the twelve-hourly archival importer depends on. The two legs have different jobs and different cadences:
+# this one is immediate safety, `sync-handicap-airtable` is archival transport and stays twelve-hourly.
+#
+# NOTHING HERE WRITES A LEDGER BRANCH. It reads market-data and handicap-data and writes one Airtable field
+# plus a status. A preflight verdict is not a record; the record is filed later, through the normal bridge.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'compute verdicts and print them; change no Airtable row'
+        type: boolean
+        required: false
+        default: false
+  # Alternative trigger for an Automation that would rather POST /dispatches than
+  # /actions/workflows/preflight.yml/dispatches. workflow_dispatch needs only `Actions: read and write`,
+  # which is the narrower grant, so it is the documented default -- see docs/AIRTABLE_BRIDGE.md.
+  repository_dispatch:
+    types: [preflight]
+
+# Read-only on this repository's contents. This job never pushes.
+permissions:
+  contents: read
+
+# Serialise: two runs answering the same row would each compute a verdict and the later write would win.
+# Do NOT cancel in progress -- a cancelled run leaves the row PREFLIGHT_REQUESTED, which is correctly "not
+# approved", but wastes the fifteen minutes of quote freshness the owner is waiting on.
+concurrency:
+  group: nfl-preflight
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout preflight code (main)
+        uses: actions/checkout@v4
+        with:
+          path: code
+
+      # READ-ONLY. The decision-time quote gate and the full-position depth walk both read the capture
+      # stream. Without it every candidate is blocked for a reason that is really a misconfiguration here.
+      - name: Checkout market data (market-data)
+        uses: actions/checkout@v4
+        with:
+          ref: market-data
+          path: market-data
+          fetch-depth: 1
+
+      # READ-ONLY. Outstanding portfolio exposure is read from the committed ledger, so the caps bind
+      # cumulatively rather than resetting for every candidate batch. An unreadable ledger blocks.
+      - name: Checkout ledger (handicap-data)
+        uses: actions/checkout@v4
+        with:
+          ref: handicap-data
+          path: ledger
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # No install step: the pre-trade path is stdlib-only on purpose, so this workflow cannot fail on a
+      # package resolution before it ever reaches a gate.
+
+      - name: Check the Airtable secret is configured
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+        run: |
+          if [ -z "${AIRTABLE_TOKEN}" ]; then
+            echo "::error::AIRTABLE_TOKEN is not configured for this repository."
+            echo "See docs/AIRTABLE_BRIDGE.md. Never paste the token into an issue, a log or a PR."
+            exit 1
+          fi
+          echo "AIRTABLE_TOKEN is present (value never printed)."
+
+      - name: Answer pending preflight requests
+        working-directory: code
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+        run: |
+          python3 scripts/handicap/preflight_airtable.py \
+            --market-data ../market-data \
+            --handicap-root ../ledger \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--no-write' || '' }}

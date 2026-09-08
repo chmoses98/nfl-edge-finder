@@ -334,14 +334,23 @@ def test_the_only_thing_above_zero_is_the_derived_fee_rounding_bound():
         "the first record above the derived bound must pass; anything else is a hidden minimum"
 
     nev = passed.net_ev
-    expected = F.rounding_uncertainty(nev["contracts"], F.CENT)["bound_dollars"]
+    sched = F.load_fee_schedule(ROOT)
+    expected = F.rounding_uncertainty(
+        nev["contracts"], F.CENT,
+        granularity_state=sched.granularity_state_for("KXNFLGAME"))["bound_dollars"]
     assert nev["fee_uncertainty_dollars"] == pytest.approx(expected), \
         "the gate must use the derived bound, not a configured one"
     assert nev["conservative_net_ev_dollars"] == pytest.approx(
         nev["net_ev_dollars"] - expected, abs=1e-6)
-    # Thin, and only just over the line: the bound is cents, not a strategy threshold.
-    assert 0 < nev["conservative_net_ev_dollars"] < 1.0
-    assert expected < 0.10, "a transaction-cost bound of more than a dime is not a rounding residual"
+    assert 0 < nev["conservative_net_ev_dollars"] < 1.0, "the boundary case should be a thin one"
+
+    # The bound is exactly the worst-case fill count times a centicent, plus one accumulator residual --
+    # every term traceable to the venue's rules. It is NOT a round number somebody liked, and under the
+    # venue's 0.01-contract minimum it is materially bigger than a whole-contract model implied.
+    unc = nev["fee_uncertainty"]
+    assert unc["contract_increment"] == pytest.approx(0.01)
+    assert expected == pytest.approx(unc["max_fills"] * 0.0001 + 0.01)
+    assert unc["max_fills"] == pytest.approx(round(nev["contracts"] / 0.01), abs=1)
 
 
 def test_no_configurable_edge_buffer_exists_anywhere():

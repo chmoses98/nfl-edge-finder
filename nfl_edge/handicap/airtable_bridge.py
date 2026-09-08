@@ -52,11 +52,30 @@ BASE_ID = "appYrRmZ1Ax9sFByP"          # Sports Betting Bridge
 TABLE_ID = "tbl6kIANJRv6u8gEp"         # Recommendation Runs
 
 F_RUN_ID, F_SPORT, F_STATUS, F_PAYLOAD, F_NOTES = "Run ID", "Sport", "Status", "Payload", "Notes"
+# The pre-trade leg's answer, written back onto the requesting row. A separate field from `Payload` so the
+# request and the verdict can never be confused for one another, and so the importer's rule -- it writes
+# Status and nothing else -- survives untouched.
+F_PREFLIGHT_RESULT = "Preflight Result"
 
 STATUS_TEST_ONLY = "TEST_ONLY"          # connectivity scratch; scheduled polling ignores it entirely
 STATUS_READY = "READY_FOR_SYNC"         # ChatGPT is done writing; GitHub may ingest
 STATUS_SYNCED = "SYNCED"                # every record durably present on handicap-data AND pushed
 STATUS_ERROR = "ERROR"                  # permanent data problem; needs a corrected new row
+
+# ---- the pre-trade leg ----------------------------------------------------------------------------
+# A SEPARATE transport with a separate cadence, on the same table. The recommendation leg is twelve-hourly
+# archival transport and stays exactly that. This leg is event-driven because a quote is fresh for fifteen
+# minutes and the owner needs the answer now -- and because polling for it would burn the Airtable free-tier
+# allowance the archival leg depends on.
+STATUS_PREFLIGHT_REQUESTED = "PREFLIGHT_REQUESTED"   # ChatGPT wants a pre-trade verdict on these candidates
+STATUS_PREFLIGHT_APPROVED = "PREFLIGHT_APPROVED"     # every candidate may be surfaced as a BET
+STATUS_PREFLIGHT_BLOCKED = "PREFLIGHT_BLOCKED"       # at least one may NOT be surfaced as a BET
+STATUS_PREFLIGHT_ERROR = "PREFLIGHT_ERROR"           # the request itself was unusable
+
+# A row that is not PREFLIGHT_APPROVED has not been approved. There is no third state and no default:
+# a request that errored, timed out, or was never picked up is not a bet.
+PREFLIGHT_STATUSES = (STATUS_PREFLIGHT_REQUESTED, STATUS_PREFLIGHT_APPROVED,
+                      STATUS_PREFLIGHT_BLOCKED, STATUS_PREFLIGHT_ERROR)
 
 SPORT_NFL = "NFL"
 
@@ -173,7 +192,11 @@ class AirtableClient:
         The filter runs server-side so an idle poll transfers no payloads at all, and TEST_ONLY connectivity
         rows are excluded by the Status term rather than by anything we have to remember to do later.
         """
-        formula = f"AND({{{F_SPORT}}}='{_esc(sport)}',{{{F_STATUS}}}='{_esc(STATUS_READY)}')"
+        return self.list_by_status(STATUS_READY, sport)
+
+    def list_by_status(self, status: str, sport: str = SPORT_NFL) -> list[dict]:
+        """Rows for one sport in one status, server-side filtered."""
+        formula = f"AND({{{F_SPORT}}}='{_esc(sport)}',{{{F_STATUS}}}='{_esc(status)}')"
         params = {"filterByFormula": formula, "pageSize": "100"}
         out, offset = [], None
         while True:
@@ -195,7 +218,24 @@ class AirtableClient:
         Status is the ONLY field the importer ever writes. Run ID, Sport and Payload are source data once the
         row says READY_FOR_SYNC; rewriting them would destroy the provenance the receipt is meant to prove.
         """
-        items = [{"id": rid, "fields": {F_STATUS: st}} for rid, st in updates.items()]
+        self.write_fields({rid: {F_STATUS: st} for rid, st in updates.items()},
+                          allowed={F_STATUS})
+
+    def write_fields(self, updates: dict, *, allowed=frozenset({F_STATUS, F_PREFLIGHT_RESULT})) -> None:
+        """Batch field writes, 10 records per request -- Airtable's documented maximum.
+
+        `allowed` is a whitelist, not documentation. `Run ID`, `Sport` and `Payload` are SOURCE DATA once a
+        row has been submitted; rewriting any of them would destroy the provenance the import receipt exists
+        to prove. The importer passes `{Status}` and so can only ever write a status; the pre-trade leg
+        additionally writes its own verdict field, and neither can reach the payload.
+        """
+        for fields in updates.values():
+            bad = set(fields) - set(allowed)
+            if bad:
+                raise BridgeError(
+                    f"refusing to write {sorted(bad)} to an Airtable row: only {sorted(allowed)} may be "
+                    "written back. The submitted payload is provenance and is never rewritten.")
+        items = [{"id": rid, "fields": fields} for rid, fields in updates.items()]
         for i in range(0, len(items), 10):
             self._request("PATCH", self.url, {"records": items[i:i + 10]})
 
