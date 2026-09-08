@@ -17,7 +17,12 @@ would let a failed push turn into permanent data loss, because the next poll wou
 after means the worst case is a row that is re-imported, which the idempotency check absorbs silently.
 
 Exit codes: 0 nothing to do or everything imported, 1 at least one row failed permanently (ERROR),
-2 configuration problem, 3 a transient failure left work pending (rows stay READY_FOR_SYNC for the next run).
+2 a configuration problem on THIS RUNNER (including rows deferred because the approval signing key was
+absent -- those rows stay READY_FOR_SYNC and import unchanged once it is wired), 3 a transient failure left
+work pending (rows stay READY_FOR_SYNC for the next run).
+
+A row is only ever marked ERROR for something wrong with the ROW. A missing secret, an unreachable Airtable
+and a failed push are all problems with the machine or the wire, and none of them may condemn good data.
 """
 from __future__ import annotations
 
@@ -187,7 +192,10 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
 
     # Plan every row before writing any of them, and keep the rows independent: one corrupt batch must not
     # stop the others in the same cycle from landing.
-    plans, errors = [], {}
+    # `deferred` is the third disposition: rows this runner could not JUDGE, as opposed to rows it judged
+    # bad. They are left exactly as they are -- READY_FOR_SYNC, never ERROR, nothing written -- so the same
+    # row imports on the next run once the configuration is corrected.
+    plans, errors, deferred = [], {}, {}
     for row in rows:
         rid = (row.get("id") or "").strip()
         if not rid:
@@ -200,6 +208,15 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
                                base_id=client.base_id, table_id=client.table_id,
                                gate_context=_context_for(gate_context, records),
                                signing_key=signing_key)
+        except AB.ConfigurationError as e:
+            # Listed BEFORE BridgeError deliberately: this is the one failure raised while inspecting a row
+            # that is not about the row. Leaving it in the ERROR bucket is how a misconfigured runner
+            # permanently destroys a valid, signed, gate-passing recommendation.
+            log(f"CONFIG {rid}: {e}")
+            log(f"       left {AB.STATUS_READY}; nothing written, nothing marked {AB.STATUS_ERROR}. Fix the "
+                "configuration and re-run: this same row imports unchanged.")
+            deferred[rid] = str(e)
+            continue
         except AB.BridgeError as e:
             log(f"ERROR  {rid}: {e}")
             errors[rid] = str(e)
@@ -214,6 +231,8 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
 
     if dry_run:
         log("\n(dry run -- nothing written, nothing committed, no Airtable status changed)")
+        if deferred:
+            return 2
         return 1 if errors else 0
 
     # Write. A row that fails here is a permanent problem with that row only; its files are rolled back.
@@ -269,9 +288,19 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
             log("the next run will recognise these records as already imported and set the status then")
             return 3
 
+    if deferred:
+        log(f"{len(deferred)} row(s) deferred on configuration, still {AB.STATUS_READY}: "
+            + ", ".join(sorted(deferred)))
+
     log(f"total Airtable requests this run: {client.request_count}")
+    # Precedence. A failed push comes first: the ledger is not durable and the next run must re-import
+    # regardless. Then configuration, which is the most actionable thing an operator can be told and is the
+    # only code that says "good rows are waiting on you". Row-level ERROR is last because those rows are
+    # already recorded as ERROR in Airtable and no exit code will change them.
     if not pushed:
         return 3
+    if deferred:
+        return 2
     return 1 if errors else 0
 
 
@@ -331,15 +360,22 @@ def main(argv=None) -> int:
             "against a live executable price.")
         return 2
 
-    # The approval-verification key. Absent, a batch containing a real RECOMMENDED fails closed at the
-    # binding check; a PASS-only batch still imports, which is why this is a warning here and a refusal
-    # there rather than a hard exit that would also stop passes being recorded.
+    # The approval-verification key. Absent, a batch containing a real RECOMMENDED is DEFERRED at the
+    # binding check -- left READY_FOR_SYNC, never ERROR -- while a PASS-only batch still imports. That is
+    # why this is a warning here rather than a hard exit: exiting now would also stop passes being recorded,
+    # and passes are scientifically valuable and risk nothing.
+    #
+    # The workflow checks this secret in an earlier step, but a step's env does not reach this process, so
+    # the check up there is not evidence down here. This is the only place that finding out actually
+    # matters, and tests/test_workflow_secret_wiring.py is what stops the wiring regressing again.
     signing_key = None
     try:
         signing_key = APPROVAL.signing_key()
     except APPROVAL.ApprovalError as e:
         log(f"WARNING: {e}")
-        log("real RECOMMENDED records will be refused this run; PASS/WATCHLIST batches are unaffected")
+        log("rows carrying a real RECOMMENDED record will be DEFERRED this run: left READY_FOR_SYNC, never "
+            "ERROR, nothing written. Wire the secret and re-run and the same rows import unchanged.")
+        log("PASS/WATCHLIST batches are unaffected.")
 
     client = AB.AirtableClient(token, a.base_id, a.table_id)
     # --no-push must also withhold the status update: SYNCED asserts durability on the remote, and a local
@@ -353,6 +389,11 @@ def main(argv=None) -> int:
         return sync(client, os.path.abspath(a.handicap_root), dry_run=a.dry_run, pusher=pusher,
                     sport=a.sport, update_status=not a.no_push, gate_context=ctx,
                     signing_key=signing_key)
+    except AB.ConfigurationError as e:
+        # Belt and braces: `sync` handles these per row, so reaching here means one escaped a path that does
+        # not yet defer. Exit 2, never 1: nothing about it says a row is bad.
+        log(f"CONFIGURATION: {AB.scrub(e, token)}")
+        return 2
     except AB.BridgeError as e:
         # Configuration-shaped BridgeErrors (an empty token) reach here; row-shaped ones never do.
         log(f"FATAL: {AB.scrub(e, token)}")

@@ -127,9 +127,17 @@ each day something is actually waiting. That leaves the large majority of the fr
 Airtable writes, status updates, retries, live E2E testing and any future sport's bridge.
 
 Polling faster would buy latency this system has no use for. The bridge **archives** decisions that have
-already been made: the prospective timestamp is the **Airtable `createdTime`**, stamped server-side when
-ChatGPT writes the batch, so the scientific record is equally prospective whether GitHub ingests it in one
-minute or twelve hours. Retrospective CLV, calibration, ROI and process analysis all read the ledger long
+already been made and already approved, and neither clock that makes them prospective is read from the
+import run:
+
+* **request provenance** — the **Airtable `createdTime`**, stamped server-side when ChatGPT writes the row.
+  It proves the candidate request existed by then, and preflight expiry is measured from it.
+* **decision provenance** — the signed **`approval_as_of`**, which is also the `created_at` on every record
+  in `Approved Payload`. It proves when the bet was approved, at prices confirmed then.
+
+A row's `createdTime` is **not** the timestamp of the recommendation it carries; that is the signed approval
+instant, minutes later. Either way the scientific record is equally prospective whether GitHub ingests it in
+one minute or twelve hours. Retrospective CLV, calibration, ROI and process analysis all read the ledger long
 after the fact.
 
 When you do want it now — a live E2E, or a batch you want on `handicap-data` immediately — use
@@ -228,8 +236,13 @@ Three properties of how that is wired into this transport:
 capital, and gating them would make the E2E depend on the live state of a market their fake ticker does not
 have.
 
-Exit codes: `0` nothing to do or all imported · `1` at least one row failed permanently · `2` configuration
-problem · `3` transient failure, work still pending.
+Exit codes: `0` nothing to do or all imported · `1` at least one row failed permanently (`ERROR`) · `2` a
+configuration problem on the runner, **including rows deferred because the approval signing key was absent**
+· `3` transient failure, work still pending.
+
+**A row is only ever marked `ERROR` for something wrong with the ROW.** A missing secret, an unreachable
+Airtable and a failed push are problems with the machine or the wire, and none of them may condemn good data
+— see [Configuration failures are retryable](#configuration-failures-are-retryable).
 
 ---
 
@@ -238,6 +251,9 @@ problem · `3` transient failure, work still pending.
 Airtable stamps `createdTime` server-side — it is the one timestamp ChatGPT cannot forge — so every payload
 timestamp is judged against it. **There is no backfill and never will be.**
 
+Two clocks, never interchangeable. `createdTime` is **request** provenance; the signed `approval_as_of` is
+**decision** provenance. The rules below govern the **candidate request** in `Payload`:
+
 * `created_at` must be ISO-8601 **with an explicit timezone**.
 * `created_at` may be at most **5 minutes after** `createdTime` (clock skew between two machines).
 * `created_at` may be at most **24 hours before** `createdTime`. Handicapping then submitting takes hours,
@@ -245,6 +261,12 @@ timestamp is judged against it. **There is no backfill and never will be.**
 * `createdTime` may not be in the future.
 * If `kickoff_utc` is present, **both** `created_at` and `createdTime` must precede kickoff. A post-kickoff
   recommendation is not a prediction.
+
+The **machine-approved** records in `Approved Payload` are judged by the approval clock instead, and never by
+the rule above: each is dated **exactly** at the signed `approval_as_of`, which must be at or after
+`createdTime` (bar skew), no later than `createdTime + 30 min + skew`, and before kickoff. Applying the
+candidate rule to an approved record would reject the architecture working correctly — a 13:00 request
+approved at 13:18 is exactly what preflight is supposed to produce.
 
 Every import also writes a small receipt:
 
@@ -478,6 +500,30 @@ past a check); a row-id, Run-ID, candidate-hash, approved-hash or timestamp mism
 path and is unaffected by a missing key: a pass costs nothing, is scientifically valuable, and requiring an
 authenticated approval for it would only discourage recording passes.
 
+#### Configuration failures are retryable
+
+A missing signing key is **not** in that list of data failures, even though it appears in the same code path.
+It is a property of the runner, not of the row: the row may carry a perfectly valid, correctly signed
+approval that this process simply cannot check. The importer therefore raises `ConfigurationError` — a class
+of its own, deliberately not a `BridgeError` — and the sync **defers** the row:
+
+| | row status | ledger | exit |
+|---|---|---|---|
+| bad data (forged signature, edited payload, conflict) | `ERROR` — needs a corrected **new** row | untouched | `1` |
+| **no signing key on this runner** | **stays `READY_FOR_SYNC`** | untouched | `2` |
+| Airtable unreachable, push rejected | stays `READY_FOR_SYNC` | rolled back | `3` |
+
+Correct the configuration, re-run, and the **same row** imports unchanged. Nothing is rewritten and no new
+recommendation is required. This is the same philosophy the bridge already applied to a rejected
+`AIRTABLE_TOKEN`, extended to the second secret: infrastructure failure must never permanently condemn good
+data. `PASS`/`WATCHLIST` rows in the same run are unaffected and still land.
+
+**Both secrets must be declared on the step that runs the importer.** A GitHub Actions step's `env:` is
+scoped to that step, so the earlier "is the secret configured?" check proves only that the secret *exists* —
+it does not put it into the importer's process. `tests/test_workflow_secret_wiring.py` reads the actual YAML
+and fails if either script's step stops receiving what the script reads, and asserts that neither secret is
+ever placed on a command line (argv is world-readable on the runner).
+
 ### Two provenance clocks
 
 A candidate drafted at 13:00 and preflighted at 13:18 is a **13:18** decision. The worker re-prices the
@@ -542,9 +588,13 @@ First, generate the approval signing key **once** and store it as a repository A
 openssl rand -hex 32          # Settings -> Secrets and variables -> Actions -> New repository secret
 ```
 
-Both the preflight workflow and the archival importer read it from Actions. It must never be pasted into
-Airtable, the Automation script, ChatGPT, an issue, a log or this repository. Rotating it invalidates
-approvals that have not yet been archived, which is the correct behaviour: re-request them.
+Both the preflight workflow and the archival importer read it from Actions — the worker signs with it, the
+importer verifies with it — and both pass it to their script through `env:`, never on a command line. It must
+never be pasted into Airtable, the Automation script, ChatGPT, an issue, a log or this repository. Rotating
+it invalidates approvals that have not yet been archived, which is the correct behaviour: re-request them.
+
+Until the secret exists, a real recommendation is **deferred, not lost**: the row stays `READY_FOR_SYNC` and
+imports unchanged on the first run after the secret is added.
 
 Then create a **fine-grained personal access token** scoped to `chmoses98/nfl-edge-finder` only, with a
 single permission:

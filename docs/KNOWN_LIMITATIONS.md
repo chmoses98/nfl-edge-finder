@@ -139,3 +139,14 @@
 34. **A rejected approval leaves the Airtable row in a state a human must resolve.** The importer marks the
     row ERROR and says why; nothing automatically re-requests preflight, because a bet that failed its
     binding should be looked at rather than retried.
+35. **The workflow wiring is proved structurally, not by a live run.** `tests/test_workflow_secret_wiring.py`
+    reads the actual YAML and asserts that the step running each script declares every secret that script
+    reads from its environment, and that no secret is ever placed on a command line. That is what caught the
+    reviewed defect — the importer step passed `AIRTABLE_TOKEN` and not `PREFLIGHT_SIGNING_KEY`, so a
+    correctly signed recommendation would have been refused because the runner was wired wrong. What the
+    test cannot prove is that the secrets are *configured in the repository*: only a live run can, and that
+    is part of the post-merge E2E. Until then a real recommendation is deferred rather than lost.
+36. **A deferred row is invisible unless somebody reads the exit code.** A configuration failure leaves the
+    row `READY_FOR_SYNC` and exits `2`; a failed scheduled run is visible in the Actions tab and nowhere
+    else. Nothing pages anybody, so a missing secret could sit unnoticed for a cycle. The consequence is
+    delay, never loss — the row imports unchanged once the secret is present — but the delay is real.

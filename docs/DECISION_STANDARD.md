@@ -937,8 +937,10 @@ Full detail in [`AIRTABLE_BRIDGE.md`](AIRTABLE_BRIDGE.md). The properties this s
 * The **entire batch** validates — schema *and* gates — before a single byte is written.
 * One bad RECOMMENDED record fails all of them. A half-imported handicap run cannot be scored, and the
   missing half looks like decisions that were never made.
-* Airtable's server-side `createdTime` is the prospective decision timestamp. `created_at` may not postdate
-  it, may not predate it by more than 24 hours, and may not be at or after kickoff.
+* Airtable's server-side `createdTime` is **request** provenance and governs the candidate `Payload`: its
+  `created_at` may not postdate `createdTime`, may not predate it by more than 24 hours, and may not be at
+  or after kickoff. The **decision** timestamp of a machine-approved record is the signed `approval_as_of`,
+  minutes later, and the candidate rule is never applied to it (§0).
 * Deduplication is idempotent; identical replay is harmless and writes nothing.
 * A differing payload under an existing `recommendation_id` is a **hard conflict**, never an overwrite.
 * Nothing is marked `SYNCED` until the GitHub push succeeds.

@@ -1158,10 +1158,17 @@ def test_H_a_changed_candidate_payload_is_rejected(ledger):
 
 
 def test_I_a_missing_signing_key_fails_a_real_recommendation_closed(ledger):
+    """Fails closed -- and RETRYABLE. A missing key is a runner problem, so the row is not condemned.
+
+    The row may carry a perfectly valid signed approval; what is missing is the means to check it. Marking
+    it ERROR would require a whole new recommendation to recover from a mistake in a YAML file.
+    """
     fake = FakeAirtable([{"records": [approved_row([_real(rec)])]}])
     code, _calls, _c = run_sync(fake, ledger, gate_context=gate_ctx(), signing_key=None)
-    assert code == 1
-    assert store.read_kind(ledger, "recommendations") == []
+    assert code == 2, "a missing signing key is a configuration exit, not a row failure"
+    assert store.read_kind(ledger, "recommendations") == [], "nothing may be written"
+    assert AB.STATUS_ERROR not in fake.status_updates.values(), "the row must not be condemned"
+    assert fake.status_updates == {}, "the row stays READY_FOR_SYNC untouched"
 
 
 def test_a_missing_signing_key_does_not_stop_a_pass_being_recorded(ledger):

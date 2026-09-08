@@ -13,17 +13,23 @@ manual `scripts/handicap/validate_recommendations.py` path does. The rules that 
 only exist because a batch arrived over a wire: is the batch internally coherent, did it already arrive, and
 did it arrive when it claims to have been written.
 
-Three failure classes, kept strictly apart, because conflating them is how a transport loses data:
+Four failure classes, kept strictly apart, because conflating them is how a transport loses data:
 
-  BridgeError      permanent, in the data. Invalid JSON, a schema-invalid record, a run id that disagrees
-                   with its row, a recommendation id already present with different content. The row goes
-                   ERROR and a corrected NEW row is the fix. Retrying cannot help.
-  TransientError   the wire. 429, 5xx, timeout, unparseable response, a failed push. The row STAYS
-                   READY_FOR_SYNC and the next scheduled run retries. Turning one of these into ERROR would
-                   discard a real recommendation because a socket closed.
-  (neither)        the batch is already durably present and identical. Not an error at all -- this is the
-                   heal path for "push succeeded, status update failed", which is a state the system will
-                   reach eventually and must survive without human help.
+  BridgeError        permanent, in the data. Invalid JSON, a schema-invalid record, a run id that disagrees
+                     with its row, a recommendation id already present with different content. The row goes
+                     ERROR and a corrected NEW row is the fix. Retrying cannot help.
+  TransientError     the wire. 429, 5xx, timeout, unparseable response, a failed push. The row STAYS
+                     READY_FOR_SYNC and the next scheduled run retries. Turning one of these into ERROR
+                     would discard a real recommendation because a socket closed.
+  ConfigurationError the RUNNER, not the row. No signing key, so an approval cannot be authenticated. The
+                     row is perfectly good and unchanged; what is broken is the machine reading it. Same
+                     disposition as the wire: stays READY_FOR_SYNC, retries unchanged once the secret is
+                     fixed. This is a separate class precisely because it is raised while inspecting a row
+                     and would otherwise look exactly like bad data -- which would condemn a real, signed,
+                     gate-passing recommendation for a mistake in a YAML file.
+  (neither)          the batch is already durably present and identical. Not an error at all -- this is
+                     the heal path for "push succeeded, status update failed", which is a state the system
+                     will reach eventually and must survive without human help.
 
 The unit is ONE ROW = ONE HANDICAP RUN = ONE ATOMIC BATCH. If decision #7 of 8 is invalid, none of the 8 are
 written. A batch that is partly in the ledger is a batch nobody can score.
@@ -106,6 +112,20 @@ class BridgeError(Exception):
 
 class TransientError(Exception):
     """Infrastructure problem. The Airtable row stays READY_FOR_SYNC so the next run retries."""
+
+
+class ConfigurationError(Exception):
+    """This runner is misconfigured. The row is fine; it stays READY_FOR_SYNC and retries unchanged.
+
+    Deliberately NOT a subclass of BridgeError. `sync` catches BridgeError per row and marks that row ERROR,
+    which is a terminal state a human has to unpick with a brand new row -- the correct answer to bad data
+    and completely the wrong answer to a missing environment variable. The reviewed failure mode was exactly
+    this: the workflow proved PREFLIGHT_SIGNING_KEY existed in one step and then ran the importer in another
+    without it, so a valid authenticated approval would have been condemned as unverifiable data.
+
+    Also not a subclass of TransientError, so the wire's retry/backoff paths cannot swallow it: a missing
+    secret is not going to fix itself on the next poll, and the run says so with a distinct exit code.
+    """
 
 
 # ---- token hygiene ---------------------------------------------------------------------------------
@@ -594,10 +614,15 @@ def _canonical_records(fields: dict, candidate_records: list, airtable_id: str, 
             "expired or errored request can never become a canonical recommendation.")
 
     if signing_key is None:
-        raise BridgeError(
+        # FAIL CLOSED, BUT RETRYABLE. Nothing is wrong with this row: it may carry a perfectly valid signed
+        # approval. What is missing is the key to check it with, which is a property of this process, so the
+        # row keeps its READY_FOR_SYNC status and imports unchanged once the secret is wired. Marking it
+        # ERROR would destroy a real recommendation to punish a misconfigured runner.
+        raise ConfigurationError(
             f"no {APPROVAL.SIGNING_KEY_ENV} available, so this approval cannot be authenticated. A real "
             "recommendation is not archived on an approval we cannot verify; fail closed rather than trust "
-            "a self-consistent one.")
+            "a self-consistent one. This is a RUNNER problem, not a row problem: the row stays "
+            f"{STATUS_READY} and imports unchanged once the secret is present.")
     try:
         verified = APPROVAL.verify(
             result, key=signing_key, airtable_record_id=airtable_id, run_id=run_id,

@@ -8,7 +8,8 @@ name: Sync handicap runs from Airtable
 #
 # Nothing here WRITES to `main`'s data, `market-data`, the collectors, or any model. It moves already-made
 # decisions from an inbox into the ledger, and refuses anything it cannot prove is a valid, new, prospective
-# recommendation batch.
+# recommendation batch -- for a real bet, that proof is an authenticated pre-trade approval, which is why
+# this job needs the signing key and not only the Airtable token.
 #
 # It does READ `market-data`, and must: a real recommendation is checked against the freshest CONFIRMED
 # executable quote before it becomes canonical, and that quote lives in the capture stream. Without the
@@ -17,9 +18,19 @@ name: Sync handicap runs from Airtable
 
 on:
   # Twice a day, September through February -- the NFL season plus the playoffs. The bridge ARCHIVES
-  # already-made decisions; the prospective timestamp is Airtable's server-side createdTime, stamped when
-  # ChatGPT writes the batch. GitHub ingesting it hours later costs the audit trail nothing, so polling
-  # cadence buys latency we have no use for and spends Airtable free-tier quota we do.
+  # decisions that were already made and already approved, so ingestion latency costs the audit trail
+  # nothing: neither clock it relies on is read from this run.
+  #
+  #   REQUEST provenance  = Airtable's server-side createdTime, stamped when ChatGPT writes the row. It
+  #                         proves the candidate request existed by then, and it is what preflight expiry
+  #                         is measured from.
+  #   DECISION provenance = the signed `approval_as_of` in `Preflight Result`, which is also the
+  #                         `created_at` on every record in `Approved Payload`. It proves WHEN the bet was
+  #                         approved, at prices confirmed then.
+  #
+  # A row's createdTime is NOT the prospective timestamp of the recommendation it carries; that is the
+  # signed approval instant, minutes later. Polling faster would buy latency we have no use for and spend
+  # Airtable free-tier quota we do.
   #
   # An idle poll costs exactly one request, so this is ~60 requests/month in season and none out of it,
   # leaving the bulk of the allowance for ChatGPT's own writes, status updates, retries and E2E testing.
@@ -122,9 +133,17 @@ jobs:
       - name: Sync pending handicap runs
         working-directory: code
         env:
-          # The only place the token is referenced. It is passed through the environment, never on a command
-          # line (argv is world-readable on the runner) and never echoed.
+          # BOTH secrets have to be declared HERE. A step's `env:` is scoped to that step and nothing else,
+          # so the two checks above prove only that the secrets EXIST -- they do not put either into this
+          # process. The importer read AIRTABLE_TOKEN and PREFLIGHT_SIGNING_KEY from its own environment,
+          # and with the signing key missing it could not authenticate an approval it had just been handed:
+          # a correctly signed, gate-passing recommendation would be refused because the RUNNER was wired
+          # wrong. Proving a secret exists is not the same as passing it.
+          #
+          # Both are passed through the environment, never on a command line (argv is world-readable on the
+          # runner), never echoed, and never written to disk.
           AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
         run: |
           python3 scripts/handicap/sync_airtable.py \
             --handicap-root ../ledger \

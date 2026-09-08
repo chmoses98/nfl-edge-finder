@@ -351,3 +351,37 @@ def test_the_two_provenance_clocks_are_still_separate():
     assert "predates the Airtable request" in inspect.getsource(A.check_approval_window)
     assert A.MAX_REQUEST_AGE.total_seconds() / 60 == P.MAX_REQUEST_AGE_MIN, \
         "the worker's expiry and the importer's window must be one number"
+
+
+def test_the_secrets_still_reach_the_processes_that_read_them():
+    """The signing key existing in the repository is not the same as it reaching the importer.
+
+    A step's `env:` is scoped to that step, so the workflow could prove the secret existed and then run the
+    importer without it -- refusing a correctly signed, gate-passing recommendation because the RUNNER was
+    misconfigured. Full coverage lives in tests/test_workflow_secret_wiring.py; this is the tripwire.
+    """
+    import yaml                                                          # noqa: PLC0415
+    from nfl_edge.handicap import approval as A                          # noqa: PLC0415
+
+    wanted = {"AIRTABLE_TOKEN", A.SIGNING_KEY_ENV}
+    for workflow, script in (("sync-handicap-airtable.yml", "sync_airtable.py"),
+                             ("preflight.yml", "preflight_airtable.py")):
+        with open(os.path.join(ROOT, ".github", "workflows", workflow)) as f:
+            doc = yaml.safe_load(f)
+        steps = [s for job in doc["jobs"].values() for s in job["steps"]
+                 if script in (s.get("run") or "")]
+        assert len(steps) == 1, f"{workflow}: expected one step running {script}"
+        env = set((steps[0].get("env") or {}))
+        assert wanted <= env, f"{workflow}: the step running {script} is missing {sorted(wanted - env)}"
+
+
+def test_a_misconfigured_runner_still_cannot_condemn_a_good_row():
+    """Fail closed, but retryably. A missing secret is not a permanent data failure."""
+    from nfl_edge.handicap import airtable_bridge as AB                  # noqa: PLC0415
+    assert issubclass(AB.ConfigurationError, Exception)
+    assert not issubclass(AB.ConfigurationError, AB.BridgeError), \
+        "a ConfigurationError caught as a BridgeError would mark a valid signed row ERROR"
+    assert "ConfigurationError" in inspect.getsource(AB._canonical_records), \
+        "the missing-key refusal must be raised as a configuration failure, not a data failure"
+    sync = open(os.path.join(ROOT, "scripts", "handicap", "sync_airtable.py")).read()
+    assert sync.index("except AB.ConfigurationError") < sync.index("except AB.BridgeError")
