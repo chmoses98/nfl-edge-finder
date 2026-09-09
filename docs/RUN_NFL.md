@@ -101,6 +101,22 @@ shadow-pricing vintage and age · Kalshi capture vintage and age · context vint
 `market-data` SHA · workflow run id and URL · games / markets listed / model-supported · blocking
 data-health issues · minutes to each kickoff · the horizons this run captured.
 
+### Why the report branch is one commit
+
+`latest/packet.json` is ~25MB. Committing a replacement on top of the previous one every two hours would add
+~300MB of branch history a day and roughly 2GB an NFL week. So every publish rewrites `handicap-reports` as
+a fresh **root commit**, carrying `history/index.jsonl` and `state/horizons.json` forward; the branch stays
+one snapshot in size forever.
+
+That force-push is safe here for a reason that does not generalise: this branch is a replaced *surface*, not
+a ledger. `market-data` and `handicap-data` are append-only and are never rewritten. The immutable history
+of reports is the per-run Actions artifact, and `history/index.jsonl` is the index that traces one back to
+its workflow run, source SHAs, model version and packet SHA.
+
+---
+
+## Fail closed
+
 **Fail closed.** No ledger, a ledger past `--max-ledger-age-min`, no valid active week, no rows for the
 week, a nonzero packet build, a missing or truncated game file — any of these exits nonzero, publishes
 nothing, and leaves the previous `latest/` in place **with its own `built_at`**. An old report is allowed to
