@@ -72,3 +72,73 @@ jobs:
       - name: Publish ledger
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/ledger --message "shadow ledger $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+      # ---- handicap report -------------------------------------------------------------------------
+      # This job has already paid for everything a report needs: the nflverse bronze inputs, the silver
+      # tables, the identity crosswalk, the newest capture and -- as of the step above -- the newest priced
+      # ledger. Building the packet here costs seconds; a separate 2-hourly workflow would repeat a
+      # 20-minute download to reach the same state. So during the season the handicap report simply
+      # refreshes with every pricing cycle.
+      #
+      # Nothing below can fail the pricing job: the ledger is the product here, and it is already
+      # published. A report failure is reported and the previous good `latest/` stays up with its own
+      # timestamp.
+      - name: Make the ledger just written visible to the packet builder
+        id: freshledger
+        continue-on-error: true
+        run: |
+          for d in data/shadow/ledger/*/; do
+            [ -d "$d" ] || continue
+            mkdir -p "/tmp/md/data/shadow/ledger/$(basename "$d")"
+            cp "$d"* "/tmp/md/data/shadow/ledger/$(basename "$d")/"
+          done
+          ls -1 /tmp/md/data/shadow/ledger/*/*.ledger_manifest.json | tail -2
+
+      - name: Resolve the active season/week
+        id: week
+        continue-on-error: true
+        run: |
+          python3 scripts/handicap/resolve_active_week.py --market-data /tmp/md \
+            --allow-no-slate --github-output "$GITHUB_OUTPUT"
+
+      - name: Prove the report path cannot reach Airtable
+        if: steps.week.outputs.status == 'OK'
+        continue-on-error: true
+        run: python3 scripts/ci/assert_no_airtable.py
+
+      - name: Build the handicap packet from this cycle's ledger
+        id: report
+        if: steps.week.outputs.status == 'OK'
+        continue-on-error: true
+        run: |
+          python3 scripts/handicap/build_report.py --market-data /tmp/md \
+            --out data/handicap_report \
+            --season ${{ steps.week.outputs.season }} --week ${{ steps.week.outputs.week }} \
+            --trigger shadow-cycle --max-ledger-age-min 45 \
+            --artifact-name 'run-nfl-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}'
+
+      - name: Upload the report artifact
+        if: steps.report.outputs.report_status == 'SUCCESS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-nfl-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}
+          path: data/handicap_report
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Publish the browsable latest report
+        if: steps.report.outputs.report_status == 'SUCCESS'
+        continue-on-error: true
+        run: |
+          python3 scripts/ci/publish_handicap_report.py --src data/handicap_report \
+            --message "run nfl ${{ steps.week.outputs.season }} week ${{ steps.week.outputs.week }} — packet ${{ steps.report.outputs.packet_sha }} (shadow cycle $(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+
+      - name: Report outcome
+        if: always()
+        run: |
+          echo "handicap report: ${{ steps.report.outputs.report_status || 'SKIPPED' }} (${{ steps.week.outputs.status || 'no week' }})"
+          if [ "${{ steps.week.outputs.status }}" != "OK" ]; then
+            echo "::notice::no active NFL slate: ${{ steps.week.outputs.reason }}"
+          elif [ "${{ steps.report.outputs.report_status }}" != "SUCCESS" ]; then
+            echo "::warning::handicap report did not build this cycle; the previous latest/ report stands with its own timestamp"
+          fi

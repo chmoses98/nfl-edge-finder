@@ -1,0 +1,221 @@
+name: RUN NFL
+
+# Builds the canonical handicap packet -- slate.md, packet.json, games/<game_id>.md -- for the active NFL
+# slate, uploads it as an artifact and replaces the browsable report at `handicap-reports/latest/`.
+#
+# RESEARCH ONLY. This workflow creates no bets, no recommendations and no preflight requests, needs no
+# secrets at all, and never contacts Airtable -- a static audit of the whole import graph runs as its first
+# step and fails the run before anything is built if that ever stops being true. Real money begins later, in
+# `preflight.yml`, and only when a candidate is deliberately promoted.
+#
+# Actions -> RUN NFL -> Run workflow, with every input blank, is the intended experience: the season and
+# week come from the schedule, not from whoever remembers what week it is.
+
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: 'season (blank = resolve from the schedule)'
+        required: false
+        type: string
+        default: ''
+      week:
+        description: 'week (blank = resolve from the schedule)'
+        required: false
+        type: string
+        default: ''
+      game_id:
+        description: 'a game to surface in the summary, e.g. 2026_01_NE_SEA (the full slate is built either way)'
+        required: false
+        type: string
+        default: ''
+      force_fresh:
+        description: 'capture fresh context and price a fresh LOCAL shadow snapshot before building'
+        required: false
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      season:
+        required: false
+        type: string
+        default: ''
+      week:
+        required: false
+        type: string
+        default: ''
+      game_id:
+        required: false
+        type: string
+        default: ''
+      force_fresh:
+        required: false
+        type: boolean
+        default: true
+      trigger:
+        description: 'what caused this run (manual / horizon / shadow-cycle)'
+        required: false
+        type: string
+        default: 'manual'
+      horizon_ids:
+        description: 'comma-separated decision horizons this run satisfies, marked captured on success'
+        required: false
+        type: string
+        default: ''
+      max_ledger_age_min:
+        description: 'refuse to build from a ledger older than this (blank = no limit)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+# Every step pipes python into `tail` for readable logs. Without pipefail bash reports tail's status, which
+# always succeeds -- shadow-price.yml run 37 went green having priced nothing that way.
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: run-nfl
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Runs before anything is downloaded or built: if the report path can reach Airtable, preflight or
+      # the recommendation writer, the run stops here rather than proving it afterwards.
+      - name: Prove the report path cannot reach Airtable
+        run: python3 scripts/ci/assert_no_airtable.py
+
+      - name: Install
+        run: pip install -q numpy pandas polars scipy pyarrow
+
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Same inputs the 2-hourly shadow-pricing job builds, because the packet's team and quarterback
+      # profiles read the same silver tables and play-by-play.
+      - name: Fetch bronze inputs (nflverse) and market-data
+        run: |
+          python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,ff_playerids --seasons 2013-2026 2>&1 | tail -3
+          python3 nfl_edge/data/silver.py 2016 2025 2>&1 | tail -2
+          python3 nfl_edge/data/ids.py 2>&1 | tail -3
+          git fetch --depth=1 origin market-data
+          rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+
+      - name: Resolve the active season/week
+        id: week
+        run: |
+          python3 scripts/handicap/resolve_active_week.py \
+            --market-data /tmp/md \
+            --pin-season '${{ inputs.season }}' --pin-week '${{ inputs.week }}' \
+            --allow-no-slate --github-output "$GITHUB_OUTPUT"
+
+      - name: No active slate — stop without publishing
+        if: steps.week.outputs.status != 'OK'
+        run: |
+          echo "## RUN NFL — SKIPPED" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.week.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Nothing was published. Any existing \`handicap-reports/latest/\` keeps its own timestamp." >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::no active slate: ${{ steps.week.outputs.reason }}"
+
+      # ---- fresh path ---------------------------------------------------------------------------
+      # A manual research report must not package a two-hour-old ledger and call it current. These three
+      # steps rebuild the state the packet is made of, LOCALLY: the canonical shadow ledger on market-data
+      # is written by the scheduled pricing job and is not duplicated merely because somebody asked a
+      # question.
+      - name: Rebuild Kalshi player map from the latest discovery
+        if: steps.week.outputs.status == 'OK' && inputs.force_fresh
+        run: |
+          D=$(ls -d /tmp/md/data/kalshi/discovery/*/ | tail -1)
+          python3 scripts/shadow/rebuild_opportunity.py 2>&1 | tail -2
+          python3 scripts/kalshi/build_player_map.py --discovery-dir "$D" --season ${{ steps.week.outputs.season }} 2>&1 | tail -6
+
+      - name: Capture fresh weather / injuries / availability
+        if: steps.week.outputs.status == 'OK' && inputs.force_fresh
+        continue-on-error: true
+        id: context
+        run: |
+          mkdir -p data/context
+          cp /tmp/md/data/context/state.json data/context/state.json 2>/dev/null || echo '{}' > data/context/state.json
+          python3 scripts/data/context_capture.py 2>&1 | tail -5
+          # The fresh capture is used locally by this report. It is not published: a research question
+          # should not add rows to the canonical context stream, and the packet still diffs against the
+          # newest PUBLISHED capture, which is already in /tmp/md.
+          for d in data/context/*/; do
+            [ -d "$d" ] || continue
+            mkdir -p "/tmp/md/data/context/$(basename "$d")"
+            cp -n "$d"* "/tmp/md/data/context/$(basename "$d")/" || true
+          done
+
+      - name: Fresh LOCAL shadow-pricing snapshot
+        if: steps.week.outputs.status == 'OK' && inputs.force_fresh
+        run: |
+          python3 scripts/shadow/price_slate.py --market-data /tmp/md \
+            --target-season ${{ steps.week.outputs.season }} \
+            --out data/shadow/ledger 2>&1 | tail -25
+          # Make the snapshot we just priced the one the packet builder sees, without publishing it to the
+          # canonical ledger. Local-only freshness, canonical history untouched.
+          for d in data/shadow/ledger/*/; do
+            [ -d "$d" ] || continue
+            mkdir -p "/tmp/md/data/shadow/ledger/$(basename "$d")"
+            cp "$d"* "/tmp/md/data/shadow/ledger/$(basename "$d")/"
+          done
+
+      # ---- build ---------------------------------------------------------------------------------
+      - name: Build the handicap packet
+        id: build
+        if: steps.week.outputs.status == 'OK'
+        run: |
+          python3 scripts/handicap/build_report.py \
+            --market-data /tmp/md \
+            --out data/handicap_report \
+            --season ${{ steps.week.outputs.season }} --week ${{ steps.week.outputs.week }} \
+            --trigger '${{ inputs.trigger || 'manual' }}' \
+            --horizon-ids '${{ inputs.horizon_ids }}' \
+            --focus-game-id '${{ inputs.game_id }}' \
+            --artifact-name 'run-nfl-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}' \
+            ${{ inputs.max_ledger_age_min && format('--max-ledger-age-min {0}', inputs.max_ledger_age_min) || '' }}
+
+      # Immutable history lives here, not on the report branch: one artifact per run, traceable through its
+      # manifest to the workflow run, both source SHAs, the model version and the packet SHA.
+      - name: Upload the report artifact
+        if: steps.build.outputs.report_status == 'SUCCESS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-nfl-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}
+          path: data/handicap_report
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Mark the decision horizons captured
+        if: steps.build.outputs.report_status == 'SUCCESS' && inputs.horizon_ids != ''
+        run: |
+          mkdir -p /tmp/hz
+          git fetch --depth=1 origin handicap-reports || true
+          git show origin/handicap-reports:state/horizons.json > /tmp/hz/in.json 2>/dev/null || echo '{}' > /tmp/hz/in.json
+          python3 scripts/handicap/mark_horizons.py --state /tmp/hz/in.json --out /tmp/hz/horizons.json \
+            --horizon-ids '${{ inputs.horizon_ids }}' --run-id '${{ github.run_id }}'
+
+      - name: Publish the browsable latest report
+        if: steps.build.outputs.report_status == 'SUCCESS'
+        run: |
+          # `set -e` is on: a bare `[ -f x ] && Y` that finds no file exits the step, so the test has to
+          # be a real if.
+          EXTRA=""
+          if [ -f /tmp/hz/horizons.json ]; then EXTRA="--horizon-state /tmp/hz/horizons.json"; fi
+          python3 scripts/ci/publish_handicap_report.py --src data/handicap_report $EXTRA \
+            --message "run nfl ${{ steps.week.outputs.season }} week ${{ steps.week.outputs.week }} — packet ${{ steps.build.outputs.packet_sha }} ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"

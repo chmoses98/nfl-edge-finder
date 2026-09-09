@@ -11,6 +11,120 @@ measurable record.
 
 ---
 
+## Getting the report — the short version
+
+**Manual.** GitHub → **Actions** → **RUN NFL** → **Run workflow** → leave every field blank → **Run**.
+
+You do not need to know the current NFL week. The workflow resolves it from the schedule.
+
+When it finishes, the report is in two places:
+
+| where | what |
+|---|---|
+| **[`handicap-reports/latest/`](../../tree/handicap-reports/latest)** | the newest good report, always at the same URL — `slate.md`, `packet.json`, `games/<game_id>.md`, `manifest.json` |
+| the run's **artifact**, `run-nfl-<season>-w<week>-<run_id>` | the same tree, immutable, kept 90 days — this is the history |
+
+So tonight's opener is at `handicap-reports/latest/games/2026_01_NE_SEA.md`, and the run summary links
+straight to it.
+
+**Automatic.** Nothing needs to be triggered by hand:
+
+* **every ~2 hours** — the `Shadow Pricing (full universe)` cycle builds a fresh report from the ledger it
+  just wrote, in the same run. It already downloaded the nflverse inputs and priced the slate, so the report
+  costs it seconds rather than a second twenty-minute job.
+* **T−24h, T−6h, T−90m, T−30m before every kickoff cluster** — `RUN NFL decision horizons` wakes every 15
+  minutes, spends a few seconds deciding whether a horizon is owed, and only then runs the full fresh path.
+
+**ChatGPT.** When the user says *RUN NFL — Pats Seahawks*, read the newest generated report:
+`handicap-reports/latest/slate.md` first, then `handicap-reports/latest/games/2026_01_NE_SEA.md`. Check
+`latest/manifest.json` for how old it is. **No Airtable is involved.** Airtable begins only later, and only
+if a serious wager candidate is deliberately promoted to **PREFLIGHT NFL** (step 4 below).
+
+---
+
+## The workflows
+
+### `RUN NFL` (`.github/workflows/run-nfl.yml`)
+
+`workflow_dispatch` and `workflow_call`. Every input optional:
+
+| input | blank means |
+|---|---|
+| `season` | resolve from the schedule |
+| `week` | resolve from the schedule |
+| `game_id` | no focus game; supplying one still builds the **whole canonical packet** and simply surfaces that game in the run summary |
+| `force_fresh` | **true** — capture fresh context and price a fresh LOCAL snapshot before building |
+
+`force_fresh=true` rebuilds the state the packet is made of, reusing the shadow-pricing setup: nflverse
+bronze → silver → identity crosswalk, the latest `market-data`, a rebuilt Kalshi player map, a fresh
+weather/injury/availability capture, the latest Kalshi captures, and a **local** shadow-pricing snapshot
+copied under the `--market-data` tree so the packet reads it.
+
+That local snapshot is **not published**. A research question does not append to the canonical immutable
+shadow ledger; that stream belongs to the scheduled pricing job.
+
+### `RUN NFL decision horizons` (`.github/workflows/run-nfl-horizons.yml`)
+
+A cheap gate on a `*/15` cron. It resolves the week, clusters the slate's kickoffs, and asks whether any of
+T−24h / T−6h / T−90m / T−30m is due and uncaptured. Almost every wake answers no in a few seconds, with no
+dependency install — `nfl_edge/data/nfl_calendar.py` and `nfl_edge/handicap/horizons.py` are stdlib-only for
+exactly that reason.
+
+* **Clustered, not per game.** Nine games kicking off at 17:00Z are one decision moment. A T−90m horizon
+  fires **one** full-slate build, not nine identical ones.
+* **Late is captured, not lost.** GitHub cron fires late routinely. Any horizon whose trigger has passed and
+  whose kickoff has not is due, and one build satisfies all of a cluster's due horizons at once — a T−30m
+  packet is strictly fresher than the T−90m packet it stands in for.
+* **Idempotent.** The identity is `<slate_id>|<cluster kickoff>|T-<n>m`, derived from the schedule and
+  recorded in `handicap-reports:state/horizons.json` **only after a build succeeded**. A failed build leaves
+  the horizon due for the next wake.
+
+### Which week is it? (`nfl_edge/data/nfl_calendar.py`)
+
+```bash
+python3 scripts/handicap/resolve_active_week.py --market-data /path/to/market-data-worktree
+```
+
+Before a week's first kickoff → that week. While its games are still being played → that week. Once it is
+complete (last kickoff + 4h) → the next week with published kickoff times. Postseason comes back as
+`season_type: POST` with its round named, never as regular-season week 19. Nothing upcoming, or kickoff
+times not published → `status: NO_SLATE` with a reason. **There is no guessed week.**
+
+---
+
+## Freshness, and how the report proves it
+
+`latest/manifest.json` (and the run summary) carry:
+
+`built_at` · `trigger` · season/week/`season_type` · `packet_sha` · `handicap_run_id` · `model_version` ·
+shadow-pricing vintage and age · Kalshi capture vintage and age · context vintage and age · `main` SHA ·
+`market-data` SHA · workflow run id and URL · games / markets listed / model-supported · blocking
+data-health issues · minutes to each kickoff · the horizons this run captured.
+
+**Fail closed.** No ledger, a ledger past `--max-ledger-age-min`, no valid active week, no rows for the
+week, a nonzero packet build, a missing or truncated game file — any of these exits nonzero, publishes
+nothing, and leaves the previous `latest/` in place **with its own `built_at`**. An old report is allowed to
+be old. It is never allowed to look new.
+
+---
+
+## What this path never touches
+
+`scripts/ci/assert_no_airtable.py` runs as the **first** step of RUN NFL, before anything is downloaded, and
+again inside the shadow-pricing cycle before the report is built. It walks the import graph from every entry
+point of the report path and fails the run if anything reachable can name Airtable, the preflight handshake
+or the recommendation writers. `tests/test_run_nfl_isolation.py` asserts the same thing in CI, including a
+negative control that the audit can actually fail.
+
+The report workflows request **no secrets at all**.
+
+```
+RUN NFL         unlimited, read-only research and handicap packet generation.  No Airtable. No bets.
+PREFLIGHT NFL   explicit real-money candidate validation.  Airtable begins here and nowhere earlier.
+```
+
+---
+
 ## Why the workflow is shaped this way
 
 Sessions 1–4 established, and did not enjoy establishing, that:
@@ -54,29 +168,43 @@ MASSIVE NFL DATA COLLECTION        collectors -> market-data branch (continuous)
 
 ## Step by step
 
-### 1. Collectors update
+### 1. Collectors update — and the report builds itself
 
-The `shadow-price` workflow runs every two hours and publishes a ledger snapshot to `market-data`. The
-capture conductor writes quotes roughly every ten minutes. Nothing needs to be triggered by hand.
+The `shadow-price` workflow runs every two hours, publishes a ledger snapshot to `market-data`, and then
+builds the handicap packet from that snapshot in the same run. The capture conductor writes quotes roughly
+every ten minutes. The horizon conductor guarantees a fresh packet at T−24h, T−6h, T−90m and T−30m. Nothing
+needs to be triggered by hand.
 
 Check health: `python3 scripts/shadow/system_health.py --md /home/user/_market_data_wt`
 
-### 2. Build the packet
+### 2. Read the packet
+
+Open [`handicap-reports/latest/`](../../tree/handicap-reports/latest), or download the run's artifact.
+`latest/manifest.json` says how old it is; if it is older than you want, dispatch **RUN NFL** and wait a few
+minutes.
+
+To build one by hand — for engineering work, or against a worktree you control:
 
 ```bash
+# resolve the week, build, verify and write manifest.json in one step
+python3 scripts/handicap/build_report.py --market-data /home/user/_market_data_wt \
+    --out data/handicap_report --max-ledger-age-min 240
+
+# or drive the canonical builder directly
 python3 scripts/handicap/run_nfl.py --season 2026 --week 1
 ```
 
-Runtime ~8s for a 16-game slate. Outputs to `data/handicap/<run_id>/`:
+Runtime ~8s for a 16-game slate. Outputs:
 
 | file | what it is |
 |---|---|
 | `packet.json` | complete machine record — every market, every ladder, every flag (~12MB) |
 | `slate.md` | **read this first** — summary, priority ranking, one compact block per game (~21k tokens) |
 | `games/<game_id>.md` | one full document per game, ~30KB each |
+| `manifest.json` | vintages, SHAs, counts — written by `build_report.py`, not by `run_nfl.py` |
 
-Add `--max-ledger-age-min 240` to refuse to build from a stale snapshot rather than emit a confidently
-stale packet.
+`--max-ledger-age-min 240` refuses to build from a stale snapshot rather than emitting a confidently stale
+packet.
 
 ### 3. ChatGPT handicaps
 

@@ -1,0 +1,87 @@
+name: RUN NFL decision horizons
+
+# A cheap gate that wakes every 15 minutes and almost always does nothing.
+#
+# The 2-hourly shadow-pricing cycle already refreshes the handicap report, which is the right cadence for a
+# Tuesday and the wrong one an hour before kickoff: a packet built 119 minutes before a game is not a T-30m
+# packet. So this conductor guarantees a FRESH snapshot at T-24h, T-6h, T-90m and T-30m for every kickoff
+# cluster on the active slate -- and only then pays for the expensive full build.
+#
+# Why a gate instead of a schedule: running the full path every 30 minutes all season would cost the same
+# whether or not a game was near, and tell us nothing new for most of it. The gate resolves the week,
+# clusters the kickoffs and compares against what has already been captured, in seconds, with no
+# dependencies to install.
+#
+# Idempotency is by horizon id (`<slate_id>|<cluster kickoff>|T-<n>m`), recorded on `handicap-reports` only
+# AFTER a build succeeded. A cron that fires late still captures the horizon; a build that fails leaves it
+# due for the next wake.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'evaluate the horizons and report, but do not build'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: run-nfl-horizons
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      should_run: ${{ steps.gate.outputs.should_run }}
+      season: ${{ steps.gate.outputs.season }}
+      week: ${{ steps.gate.outputs.week }}
+      horizon_ids: ${{ steps.gate.outputs.horizon_ids }}
+      reason: ${{ steps.gate.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # No pip install: the calendar and horizon modules are stdlib-only precisely so a wake with nothing
+      # to do costs seconds rather than a dependency resolution.
+      - name: Fetch the horizon state
+        run: |
+          mkdir -p /tmp/hz
+          git fetch --depth=1 origin handicap-reports || true
+          git show origin/handicap-reports:state/horizons.json > /tmp/hz/state.json 2>/dev/null || echo '{}' > /tmp/hz/state.json
+      - name: Which horizons are due?
+        id: gate
+        run: |
+          python3 scripts/handicap/horizon_gate.py \
+            --state /tmp/hz/state.json --allow-download \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Summary
+        run: |
+          echo "## RUN NFL horizons" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "* build required: **${{ steps.gate.outputs.should_run }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "* ${{ steps.gate.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+
+  report:
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true' && !inputs.dry_run
+    uses: ./.github/workflows/run-nfl.yml
+    permissions:
+      contents: write
+    with:
+      season: ${{ needs.gate.outputs.season }}
+      week: ${{ needs.gate.outputs.week }}
+      force_fresh: true
+      trigger: horizon
+      horizon_ids: ${{ needs.gate.outputs.horizon_ids }}
