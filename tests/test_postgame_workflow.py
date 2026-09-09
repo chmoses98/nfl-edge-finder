@@ -129,3 +129,36 @@ def test_the_run_reports_what_it_did_even_when_it_did_nothing():
     for token in ("gate work=", "settle status=", "written=", "deferred="):
         assert token in outcome, token
     assert "::notice::" in outcome, "a no-work run should say so rather than looking like a failure"
+
+
+def test_dispatch_inputs_never_reach_the_shell_as_interpolated_text():
+    """A `${{ github.event.inputs.x }}` inside a run block is executed as shell text by whoever dispatches it."""
+    for s in steps():
+        run = s.get("run") or ""
+        assert "github.event.inputs" not in run, (
+            f"step {s.get('name')!r} interpolates a dispatch input into its script; pass it through `env:` and "
+            "quote the variable instead")
+    settle = steps()[step_index("settle_games.py")]
+    assert set(settle.get("env") or {}) >= {"INPUT_GAMES", "INPUT_LOOKBACK", "INPUT_DRY_RUN"}
+
+
+def test_the_argument_building_fragment_survives_set_e_with_no_inputs():
+    """`[ x = y ] && arr+=(...)` returns 1 when the test fails, and `set -e` would kill the step for the
+    ordinary case of an unset dry_run."""
+    import subprocess
+    run = steps()[step_index("settle_games.py")]["run"]
+    fragment = run.split("python3")[0] + 'echo "ARGS=${ARGS[*]}"'
+    for env in ({}, {"INPUT_GAMES": "2026_01_NE_SEA", "INPUT_DRY_RUN": "true"}):
+        r = subprocess.run(["bash", "-eo", "pipefail", "-c", fragment], capture_output=True, text=True,
+                           env={**env, "PATH": "/usr/bin:/bin"})
+        assert r.returncode == 0, f"the fragment failed under set -e with env={env}: {r.stderr[:200]}"
+    r = subprocess.run(["bash", "-eo", "pipefail", "-c", fragment], capture_output=True, text=True,
+                       env={"INPUT_GAMES": "2026_01_NE_SEA 2026_01_SF_LA", "PATH": "/usr/bin:/bin"})
+    assert "--game 2026_01_NE_SEA --game 2026_01_SF_LA" in r.stdout
+
+
+def test_the_settle_step_documents_its_network_reads():
+    """Two read-only network reads live in this step; a reader must not have to discover that from a traceback."""
+    src = open(PATH).read()
+    assert "ESPN" in src and "exact scalar payout" in src
+

@@ -17,6 +17,15 @@ refusal is written into the immutable evaluation record exactly like a settlemen
 prove this" is the finding that tells us where the corpus has holes. What must never happen is a guessed 0 or
 1: a fabricated settlement contaminates every calibration number computed from the corpus afterwards.
 
+THE SCALAR BRANCH
+-----------------
+A player who is active but never takes a snap settles at a value the EXCHANGE computes. `semantics.py` uses a
+contemporaneous midpoint as a pricing-time PROXY for that branch, which is the right thing to do when pricing;
+recording that proxy as the payout would be inventing a settlement. So this module accepts only the exchange's
+own published `settlement_value_dollars` (see `kalshi_settlement.py`) and refuses with
+`REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE` when it is absent -- while still recording that the participation
+branch itself was proven.
+
 The families settled here are the families the pricer actually prices. Coverage is deliberately NOT widened
 beyond that: a family with no model probability has nothing to evaluate, and a family whose settlement rule
 is not pinned down from free evidence (period markets' quarter-by-quarter scores, total touchdowns, first-TD
@@ -39,7 +48,7 @@ REFUSED_PLAYER_IDENTITY = "REFUSED_PLAYER_IDENTITY"
 REFUSED_AMBIGUOUS_SEMANTICS = "REFUSED_AMBIGUOUS_SEMANTICS"
 REFUSED_PARTICIPATION_UNPROVEN = "REFUSED_PARTICIPATION_UNPROVEN"
 REFUSED_STAT_UNAVAILABLE = "REFUSED_STAT_UNAVAILABLE"
-REFUSED_NO_FAIR_PRICE = "REFUSED_NO_FAIR_PRICE"
+REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE = "REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE"
 REFUSED_DIRECTION = "REFUSED_DIRECTION"
 REFUSED_RESULT_INCONSISTENT = "REFUSED_RESULT_INCONSISTENT"
 
@@ -47,7 +56,7 @@ REFUSED_RESULT_INCONSISTENT = "REFUSED_RESULT_INCONSISTENT"
 # they may enter a Brier score or a calibration curve.
 KIND_BINARY = "binary"
 KIND_TIE_SPLIT = "tie_split"                 # game winner, tied game: both sides pay $0.50
-KIND_SCALAR_FAIR_PRICE = "scalar_fair_price"  # active player, never took a snap: pays the pregame fair price
+KIND_SCALAR_EXACT = "scalar_exact"           # active player, never took a snap: pays the exchange's own scalar
 
 # Families this engine can prove from final results. Same set the pricer prices, minus the two it writes as
 # UNSUPPORTED_MODEL (WIN_MARGIN_BUCKET, TOTAL_TD), which therefore carry no probability to evaluate.
@@ -126,9 +135,16 @@ def _threshold_met(value: float, threshold: float | None, operator: str | None,
     return None, {}, f"comparison operator {operator!r} is not an established settlement rule"
 
 
-def settle_observation(obs: dict, book: ResultBook, *, fair_price: float | None = None) -> Settlement:
-    """Settle one immutable shadow observation. `fair_price` is the proven pregame close mid, used ONLY for
-    the active-but-never-played branch of a player prop, which Kalshi settles at the pregame fair price."""
+def settle_observation(obs: dict, book: ResultBook, *, exact_scalar_payout: float | None = None,
+                       exact_scalar_source: str | None = None,
+                       exact_scalar_unavailable_reason: str | None = None) -> Settlement:
+    """Settle one immutable shadow observation.
+
+    `exact_scalar_payout` is the EXCHANGE'S OWN published `settlement_value_dollars` for this ticker, and is the
+    only value this function will ever record for the active-but-never-played branch. There is deliberately no
+    parameter for a price: a midpoint, bid, ask or last trade cannot be passed in, so the pricing-time fair-price
+    proxy cannot become settlement truth by accident. Without the exact value the branch is refused.
+    """
     family = obs.get("family")
     period = obs.get("period")
     game_id = obs.get("game_id")
@@ -152,10 +168,22 @@ def settle_observation(obs: dict, book: ResultBook, *, fair_price: float | None 
     if g.inconsistency:
         return _refuse(REFUSED_RESULT_INCONSISTENT, g.inconsistency, g.evidence())
     if g.status != FINAL:
-        return _refuse(REFUSED_GAME_NOT_FINAL, f"{game_id} has no final score", g.evidence())
+        return _refuse(REFUSED_GAME_NOT_FINAL,
+                       g.provisional_reason or f"{game_id} has no final score", g.evidence())
+    # The readiness gate already refuses a game that is not independently proven complete. This is the same
+    # check inside the engine, so a caller that settles without gating cannot bypass it: a populated score is
+    # not a final status, and this is the last place to say so.
+    verdict = book.final_verdict(game_id) if hasattr(book, "final_verdict") else None
+    if verdict is not None and verdict.contradictions:
+        return _refuse(REFUSED_RESULT_INCONSISTENT, "; ".join(verdict.contradictions), g.evidence())
+    if verdict is not None and not verdict.proven:
+        return _refuse(REFUSED_GAME_NOT_FINAL,
+                       f"{game_id} looks final but nothing independent attests that it is complete",
+                       g.evidence())
 
     if family == "PLAYER_STAT":
-        return _settle_player_stat(obs, book, g, fair_price)
+        return _settle_player_stat(obs, book, g, exact_scalar_payout, exact_scalar_source,
+                                   exact_scalar_unavailable_reason)
     return _settle_game_family(obs, g)
 
 
@@ -224,7 +252,9 @@ def _settle_game_family(obs: dict, g) -> Settlement:
     return _refuse(REFUSED_UNSUPPORTED_FAMILY, f"no settlement branch for family {family!r}", ev)
 
 
-def _settle_player_stat(obs: dict, book: ResultBook, g, fair_price: float | None) -> Settlement:
+def _settle_player_stat(obs: dict, book: ResultBook, g, exact_scalar_payout: float | None = None,
+                        exact_scalar_source: str | None = None,
+                        exact_scalar_unavailable_reason: str | None = None) -> Settlement:
     stat = obs.get("stat")
     player_id = obs.get("player_id")
     threshold, operator, floor = obs.get("threshold"), obs.get("operator"), obs.get("floor_strike")
@@ -262,15 +292,26 @@ def _settle_player_stat(obs: dict, book: ResultBook, g, fair_price: float | None
                        "participation is unproven: no snap count and no recorded statistic for this player-game",
                        ev)
     if played is False:
-        # Kalshi: active but never takes a snap -> settles at the last fair market price before game start.
-        # We only know that price if a legitimate pregame close exists; without it there is no payout to record.
-        if fair_price is None:
-            return _refuse(REFUSED_NO_FAIR_PRICE,
-                           "player was active but never took a snap, which settles at the pregame fair price; "
-                           "no valid pregame close exists to serve as that price", ev)
-        return Settlement(SETTLED, float(fair_price), KIND_SCALAR_FAIR_PRICE,
-                          "active, never took a snap: settles at the pregame fair market price",
-                          {**ev, "fair_price": float(fair_price)})
+        # PROVEN: active (the snap table lists him) and never on the field. The football fact is settled.
+        # NOT PROVEN by that alone: the payout, which is the exchange's own scalar settlement value.
+        branch = {**ev, "participation_branch": "active_no_snap_proven"}
+        if exact_scalar_payout is None:
+            return _refuse(REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE,
+                           "active-but-never-played is PROVEN, and this branch settles at the exchange's own "
+                           "scalar value, which is not available: " +
+                           (exact_scalar_unavailable_reason or "no exchange settlement evidence for this ticker") +
+                           ". A pregame midpoint is a pricing-time proxy for this branch, not the payout, so no "
+                           "number is recorded",
+                           branch, exact_scalar_payout_available=False)
+        v = float(exact_scalar_payout)
+        if not (0.0 <= v <= 1.0):
+            return _refuse(REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE,
+                           f"the exchange scalar value {v} is outside [0, 1] and cannot be a contract payout",
+                           branch, exact_scalar_payout=v)
+        return Settlement(SETTLED, v, KIND_SCALAR_EXACT,
+                          "active, never took a snap: settles at the exchange's published scalar value",
+                          {**branch, "exact_scalar_payout": v,
+                           "exact_scalar_source": exact_scalar_source or "unspecified"})
 
     value = pr.stat_value(stat)
     if value is None and pr.has_snap_row and not pr.has_stats_row and g.game_id in book.games_with_player_stats:

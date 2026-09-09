@@ -12,6 +12,9 @@ checks here are the last place a defect is cheap. Every one of them has a failur
   settled rows carry a payout       "SETTLED" with settled_yes = None is not a settlement
   refused rows carry NO payout      a refusal with a number in it is a guess wearing a refusal's label
   binary payouts are 0 or 1         a "binary" settlement of 0.37 means the kind field is lying
+  scalar payouts name their source  a scalar settlement with no exchange source is an invented number
+  event and payout stay distinct    an event probability recorded as a contract value hides a discount
+  final status was proven           a settled row whose evidence carries no final proof was not gated
   no post-kickoff close             the one silent corruption that would flatter every CLV number
   original ledger untouched         the ledger files must be byte-identical to what is published
 
@@ -33,7 +36,10 @@ sys.path.insert(0, ROOT)
 
 from nfl_edge.shadow import evaluation_store as ST                                  # noqa: E402
 from nfl_edge.shadow.evaluation import CLOSE_OK, CLOSE_OK_STALE                     # noqa: E402
-from nfl_edge.settlement.settle import KIND_BINARY, SETTLED                         # noqa: E402
+from nfl_edge.settlement.settle import (                                            # noqa: E402
+    KIND_BINARY, KIND_SCALAR_EXACT, KIND_TIE_SPLIT, REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE, SETTLED,
+)
+from nfl_edge.settlement.kalshi_settlement import SOURCE_ARCHIVE, SOURCE_SNAPSHOT                    # noqa: E402
 
 REQUIRED_FIELDS = ("prediction_id", "evaluation_version", "schema_version", "ticker", "model_version",
                    "settlement_status", "close_status", "content_hash", "evaluation_id")
@@ -56,12 +62,37 @@ def check_rows(rows, path, problems):
                 problems.append(f"{path}: {pid} is a binary settlement paying {payout}")
             elif payout is not None and not (0.0 <= float(payout) <= 1.0):
                 problems.append(f"{path}: {pid} pays {payout}, outside [0, 1]")
+            if kind == KIND_SCALAR_EXACT:
+                # the one branch whose payout cannot be derived from football: it must name where it came from
+                if not r.get("exact_payout_source"):
+                    problems.append(f"{path}: {pid} is a scalar settlement with no exchange source recorded; "
+                                    "a scalar payout with no provenance is an invented number")
+                elif r["exact_payout_source"] not in (SOURCE_SNAPSHOT, SOURCE_ARCHIVE):
+                    problems.append(f"{path}: {pid} scalar payout source {r['exact_payout_source']!r} is not an "
+                                    "exchange settlement source")
+                if r.get("exact_payout_known") is not True:
+                    problems.append(f"{path}: {pid} is a scalar settlement not marked as an exact payout")
+            if kind in (KIND_BINARY, KIND_TIE_SPLIT, KIND_SCALAR_EXACT) and not (
+                    r.get("settlement_evidence") or {}).get("final_proofs"):
+                problems.append(f"{path}: {pid} was settled with no final-status proof in its evidence; the "
+                                "readiness gate cannot have run")
         else:
             if payout is not None:
                 problems.append(f"{path}: {pid} is {status} yet carries settled_yes={payout}; "
                                 "a refusal must never carry a payout")
             if not r.get("settlement_reason"):
                 problems.append(f"{path}: {pid} is {status} with no reason recorded")
+            if r.get("exact_payout_known"):
+                problems.append(f"{path}: {pid} is {status} yet claims an exact payout is known")
+            if status == REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE:
+                # the refusal must still carry what WAS proven, or the finding is lost
+                if (r.get("settlement_evidence") or {}).get("participation_branch") != "active_no_snap_proven":
+                    problems.append(f"{path}: {pid} refuses the scalar payout without recording that the "
+                                    "participation branch was proven")
+        # the two model quantities must both be present on a row that has either, so neither can silently stand
+        # in for the other downstream
+        if r.get("model_contract_value") is not None and r.get("model_event_probability") is None:
+            problems.append(f"{path}: {pid} carries a contract value with no event probability beside it")
         if r.get("close_status") in (CLOSE_OK, CLOSE_OK_STALE):
             if r.get("close_mid") is None:
                 problems.append(f"{path}: {pid} close_status={r['close_status']} with no close_mid")

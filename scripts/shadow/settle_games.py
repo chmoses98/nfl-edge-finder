@@ -41,15 +41,15 @@ from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
+from nfl_edge.settlement import kalshi_settlement as KS                            # noqa: E402
 from nfl_edge.settlement import settle as S                                        # noqa: E402
+from nfl_edge.settlement.final_status import fetch_espn_scoreboard                  # noqa: E402
 from nfl_edge.settlement.nflverse_results import build_result_book                 # noqa: E402
 from nfl_edge.settlement.results import READY                                      # noqa: E402
 from nfl_edge.shadow import evaluation as E                                        # noqa: E402
 from nfl_edge.shadow import evaluation_store as ST                                 # noqa: E402
 from nfl_edge.shadow.eval_scorecard import build_scorecard, render_report          # noqa: E402
-from nfl_edge.shadow.quote_history import (                                         # noqa: E402
-    kalshi_yes_payout, load_game_quotes, load_kalshi_settlements,
-)
+from nfl_edge.shadow.quote_history import load_game_quotes                          # noqa: E402
 
 # Only a SUPPORTED row carries a model probability; everything else records why the pricer refused.
 EVALUABLE_SUPPORT_STATES = ("SUPPORTED",)
@@ -169,7 +169,11 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="plan and report, write nothing")
     ap.add_argument("--no-scorecard", action="store_true")
     ap.add_argument("--no-kalshi-crosscheck", action="store_true",
-                    help="skip comparing our proven settlement with Kalshi's own recorded result")
+                    help="skip comparing our proven settlement with the exchange's own recorded result")
+    ap.add_argument("--no-exchange-fetch", action="store_true",
+                    help="never contact the exchange; use only settlement evidence already on disk")
+    ap.add_argument("--no-espn-final", action="store_true",
+                    help="skip the ESPN completion attestation (the postgame tables still have to attest)")
     ap.add_argument("--github-output", default="")
     a = ap.parse_args()
     t0 = datetime.now(timezone.utc)
@@ -202,6 +206,16 @@ def main():
         print("no supported pregame observations found for the candidate games; nothing to settle")
         _emit(a.github_output, {"games_ready": 0, "games_deferred": 0, "written": 0, "status": "NOTHING_TO_DO"})
         return 0
+
+    # ESPN completion attestations for the candidate games' dates. Best effort by design: they can add a proof
+    # or expose a contradiction, and their absence never blocks a game the postgame tables already attest.
+    if not a.no_espn_final:
+        dates = sorted({book.games[g].kickoff_utc[:10].replace("-", "") for g in candidates
+                        if g in book.games and book.games[g].kickoff_utc})
+        atts, espn_meta = fetch_espn_scoreboard(dates, verbose=lambda m: print(m, flush=True))
+        book.add_final_attestations(atts)
+        book.sources["espn_final_status"] = espn_meta
+        print(f"espn completion attestations: {len(atts)} event(s) over {len(dates)} date(s)", flush=True)
 
     corpus = ST.EvaluationCorpus(a.out, read_roots=[os.path.join(a.market_data, "data", "shadow", "evaluations")])
     batch = ST.batch_id(now)
@@ -253,7 +267,9 @@ def main():
             with open(os.path.join(d, "REPORT.md"), "w") as f:
                 f.write(render_report(sc, title=f"Shadow evaluation scorecard ({batch})") + "\n")
             scorecard_path = d
-            print(f"scorecard: {sc['n_evaluations']} evaluations over {sc['n_games']} games -> {d}", flush=True)
+            raw, con = sc["sample_units"]["raw"], sc["sample_units"]["latest_pregame"]
+            print(f"scorecard: {raw['n_observations']} observations of {con['n_unique_contracts']} "
+                  f"contracts over {raw['n_games']} game(s) -> {d}", flush=True)
 
     summary = {"batch_id": batch, "evaluation_version": a.eval_version,
                "games_ready": len(ready), "games_deferred": len(deferred),
@@ -275,6 +291,46 @@ def main():
     return 0
 
 
+def exchange_settlements(gid, obs, corpus, a, batch, now):
+    """The exchange's own settlement for this game's tickers: PINNED once, then never re-read from the network.
+
+    Priority: a snapshot a previous run already pinned; else a fresh capture from the public read-only client;
+    else the historical archive on market-data. Whatever the outcome, a snapshot is written -- an empty one
+    records that no settlement could be read -- so the evidence behind an immutable row cannot change between
+    runs and a rerun cannot contradict itself.
+    """
+    tickers = sorted({o["ticker"] for o in obs})
+    events = sorted({o.get("event_ticker") for o in obs if o.get("event_ticker")})
+    book = KS.ExactSettlementBook()
+    pinned = KS.find_snapshot([a.out, os.path.join(a.market_data, "data", "shadow", "evaluations")], gid)
+    if pinned:
+        n = book.load_snapshot(pinned)
+        print(f"  exchange settlements: {n} pinned record(s) from {os.path.basename(pinned)} (not re-fetched)",
+              flush=True)
+        return book, None
+    markets, meta = [], []
+    if not a.no_exchange_fetch:
+        try:
+            from nfl_edge.kalshi.client import KalshiClient
+            markets, meta = KS.fetch_game_settlements(KalshiClient(rps=4.0), events, tickers,
+                                                      verbose=lambda m: print(m, flush=True))
+        except Exception as e:                                  # noqa: BLE001 - never fail the settle run on this
+            meta = [{"error": f"{type(e).__name__}: {str(e)[:200]}"}]
+            print(f"::warning::{gid}: could not read exchange settlements ({meta[0]['error']})", flush=True)
+    else:
+        meta = [{"skipped": "--no-exchange-fetch"}]
+    snapshot = KS.build_snapshot(gid, markets, fetch_meta=meta, captured_at=(now or datetime.now(timezone.utc)).isoformat())
+    book.load_snapshot(snapshot)
+    archive = os.path.join(a.market_data, "data", "kalshi", "backfill", "markets")
+    if os.path.isdir(archive):
+        n = book.load_archive(archive, tickers)
+        if n:
+            print(f"  exchange settlements: +{n} record(s) from the historical archive", flush=True)
+    print(f"  exchange settlements: {len(snapshot['markets'])} captured, {len(book.by_ticker)} total for "
+          f"{len(tickers)} ticker(s)", flush=True)
+    return book, snapshot
+
+
 def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
     game = book.games.get(gid)
     ko, ko_source, ko_problem = kickoff_ts_of(game, obs)
@@ -293,13 +349,17 @@ def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
                    and q["observed_ts"] < kickoff_ts]
         closes[t] = (E.pick_close(qs, kickoff_ts), len(pregame))
 
+    exchange, snapshot = exchange_settlements(gid, obs, corpus, a, batch, now)
     rows, scount, ccount = [], Counter(), Counter()
     for o in obs:
         close, seen = closes.get(o["ticker"], (None, 0))
-        # The no-snap branch settles at "the last fair market price before game start", which is exactly the
-        # close midpoint -- so a settlement that needs a fair price is only possible where a close exists.
-        fair = close.get("mid") if close else None
-        st = S.settle_observation(o, book, fair_price=fair)
+        # The active-but-never-played branch settles at the EXCHANGE'S OWN scalar value. The close midpoint is a
+        # pricing-time proxy for that branch and is deliberately not passed in: it stays in the close fields as
+        # research evidence and can never become a settlement.
+        exact, why = exchange.scalar_payout(o["ticker"])
+        st = S.settle_observation(o, book, exact_scalar_payout=exact,
+                                  exact_scalar_source=(exchange.get(o["ticker"]) or {}).get("source"),
+                                  exact_scalar_unavailable_reason=why)
         ev = E.evaluate(o, close, settlement=st, kickoff_ts=kickoff_ts,
                         evaluation_version=a.eval_version, close_candidates_seen=seen,
                         settlement_source=SETTLEMENT_SOURCE,
@@ -310,9 +370,7 @@ def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
         scount[st.status] += 1
         ccount[ev.close_status] += 1
 
-    cross = ({} if a.no_kalshi_crosscheck else
-             crosscheck(rows, load_kalshi_settlements(capture_root, gid, tickers,
-                                                     kickoff_utc=game.kickoff_utc if game else None)))
+    cross = {} if a.no_kalshi_crosscheck else crosscheck(rows, exchange)
     if cross.get("disagreements"):
         print(f"::warning::{gid}: {len(cross['disagreements'])} settlement(s) disagree with Kalshi's own "
               f"recorded result (ours is written; the disagreement is recorded for review): "
@@ -336,6 +394,13 @@ def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
         rep["written"] = 0
         rep["would_write"] = len(plan["new"])
         return rep
+    if snapshot is not None:
+        # Written before the batch and inside the same game directory, so one publish carries the evidence and
+        # the rows it justifies. A later run finds this file and never re-reads the exchange.
+        os.makedirs(ST.game_dir(a.out, gid), exist_ok=True)
+        with open(os.path.join(ST.game_dir(a.out, gid),
+                              f"{a.eval_version}.{batch}.{KS.SNAPSHOT_SUFFIX}"), "w") as f:
+            json.dump(snapshot, f, indent=1, default=str)
     man = corpus.write_batch(gid, rows, evaluation_version=a.eval_version, batch=batch, plan=plan,
                              manifest_extra={
                                  "kickoff_utc": game.kickoff_utc if game else None,
@@ -360,14 +425,14 @@ def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
     return rep
 
 
-def crosscheck(rows, kalshi: dict) -> dict:
-    """Compare our proven settlements against Kalshi's own recorded results, per ticker.
+def crosscheck(rows, exchange) -> dict:
+    """Compare our proven settlements against the exchange's own recorded result, per ticker.
 
     Reported, never substituted. Agreement is the normal case and is worth counting; a disagreement is either a
-    bug in our reading or a Kalshi settlement that contradicts the game (both happened in 2025), and either way
-    a human should see it.
+    bug in our reading or an exchange settlement that contradicts the game (both happened in 2025), and either
+    way a human should see it.
     """
-    if not kalshi:
+    if not exchange or not exchange.by_ticker:
         return {}
     seen, agree, disagree, unknown, missing = set(), 0, 0, 0, 0
     details = []
@@ -376,31 +441,31 @@ def crosscheck(rows, kalshi: dict) -> dict:
         if t in seen:
             continue                      # one comparison per ticker, not per snapshot
         seen.add(t)
-        k = kalshi.get(t)
-        if k is None:
+        rec = exchange.get(t)
+        if rec is None:
             missing += 1
             continue
-        payout, kind = kalshi_yes_payout(k)
+        payout, kind = KS.exact_yes_payout(rec)
         if r.get("settlement_status") != "SETTLED":
             unknown += 1
             continue
         if payout is None:
-            if kind == "scalar" and r.get("settlement_kind") in ("scalar_fair_price", "tie_split"):
-                agree += 1
-            else:
-                unknown += 1
+            unknown += 1
             continue
         if r.get("settled_yes") is not None and abs(float(r["settled_yes"]) - payout) < 1e-9:
             agree += 1
         else:
             disagree += 1
             details.append({"ticker": t, "ours": r.get("settled_yes"), "our_kind": r.get("settlement_kind"),
-                            "kalshi_result": k.get("result"), "kalshi_observed_at": k.get("observed_at"),
+                            "exchange_result": rec.get("result"),
+                            "exchange_payout": payout,
+                            "exchange_settled_at": rec.get("settlement_ts"),
+                            "exchange_source": rec.get("source"),
                             "our_reason": r.get("settlement_reason"),
                             "evidence": r.get("settlement_evidence")})
-    return {"tickers_compared": len(seen), "kalshi_results_available": len(kalshi), "agree": agree,
-            "disagree": disagree, "not_comparable": unknown, "no_kalshi_result": missing,
-            "disagreements": details[:50]}
+    return {"tickers_compared": len(seen), "exchange_results_available": len(exchange.by_ticker),
+            "agree": agree, "disagree": disagree, "not_comparable": unknown, "no_exchange_result": missing,
+            "sources": exchange.sources, "disagreements": details[:50]}
 
 
 def _top_reasons(rows, limit=12):

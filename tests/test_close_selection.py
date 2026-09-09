@@ -8,9 +8,7 @@ import json
 import os
 
 from nfl_edge.shadow import evaluation as E
-from nfl_edge.shadow.quote_history import (
-    capture_days, kalshi_yes_payout, load_game_quotes, load_kalshi_settlements, normalise_quote,
-)
+from nfl_edge.shadow.quote_history import capture_days, load_game_quotes, normalise_quote
 
 GAME = "2026_01_NE_SEA"
 KICKOFF = "2026-09-10T00:20:00+00:00"
@@ -136,15 +134,17 @@ def test_quotes_are_filtered_by_the_captures_own_game_id(tmp_path):
     assert list(by_ticker) == [TICKER]
 
 
-def test_kalshis_own_settlement_is_read_from_post_game_captures_only(tmp_path):
+def test_the_capture_is_never_read_for_settlements(tmp_path):
+    """The capture fetches status=open only, so a settled market has already left the set it looks at.
+
+    Across 1,211,807 real captured NFL quote rows, every one carries status="active" and none carries a
+    settlement result. This module therefore exposes no settlement reader at all: the exchange's settlements come
+    from nfl_edge/settlement/kalshi_settlement.py, which reads surfaces that actually carry them.
+    """
+    import nfl_edge.shadow.quote_history as qh
+    assert not [n for n in dir(qh) if "settle" in n.lower()], (
+        "a settlement reader over capture rows can only ever return nothing; it must not exist here")
     root = str(tmp_path / "capture")
-    write_capture(root, {
-        "2026-09-09": [quote_row("2026-09-09", "23:50")],
-        "2026-09-10": [quote_row("2026-09-10", "05:00", status="finalized", result="yes")],
-    })
-    got = load_kalshi_settlements(root, GAME, [TICKER], kickoff_utc=KICKOFF)
-    assert got[TICKER]["result"] == "yes" and got[TICKER]["status"] == "finalized"
-    assert kalshi_yes_payout(got[TICKER]) == (1.0, "binary")
-    assert kalshi_yes_payout({"result": "scalar"}) == (None, "scalar"), (
-        "the capture schema carries no scalar value, so none is invented")
-    assert load_kalshi_settlements(root, GAME, [TICKER], kickoff_utc=None) == {}
+    write_capture(root, {"2026-09-09": [quote_row("2026-09-09", "23:50")]})
+    by_ticker, _ = load_game_quotes(root, GAME, [TICKER], kickoff_utc=KICKOFF)
+    assert by_ticker[TICKER][0]["status"] == "active"

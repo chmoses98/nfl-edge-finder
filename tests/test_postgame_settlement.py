@@ -14,9 +14,10 @@ import os
 import pytest
 
 from nfl_edge.settlement import settle as S
+from nfl_edge.settlement.final_status import ESPN_SCOREBOARD, FinalAttestation, POSTGAME_TABLES
 from nfl_edge.settlement.results import (
-    DEFER_NOT_FINAL, DEFER_SNAPS_PENDING, DEFER_STATS_PENDING, DEGRADED_INCONSISTENT, FINAL, READY,
-    PlayerGameResult, games_from_schedule_text, result_book_from_records,
+    DEFER_FINAL_UNPROVEN, DEFER_NOT_FINAL, DEFER_SNAPS_PENDING, DEFER_STATS_PENDING, DEGRADED_INCONSISTENT,
+    FINAL, READY, PlayerGameResult, games_from_schedule_text, result_book_from_records,
 )
 
 GAME = "2025_01_DAL_PHI"
@@ -68,8 +69,9 @@ def test_readiness_defers_when_player_tables_are_not_published_yet(records):
     assert result_book_from_records(no_stats).readiness(GAME, needs_player_stats=True)[0] == DEFER_STATS_PENDING
     no_snaps = dict(records, games_with_snaps=[])
     assert result_book_from_records(no_snaps).readiness(GAME, needs_player_stats=True)[0] == DEFER_SNAPS_PENDING
-    # a game whose predictions are all team markets does not wait for player statistics
-    assert result_book_from_records(no_stats).readiness(GAME, needs_player_stats=False)[0] == READY
+    # A game whose predictions are all team markets does not wait for player STATISTICS -- but it still needs
+    # something independent to attest that the game is complete, and the postgame tables are that attestation.
+    assert result_book_from_records(no_stats).readiness(GAME, needs_player_stats=False)[0] == DEFER_FINAL_UNPROVEN
 
 
 def test_a_game_is_not_ready_until_it_has_plausibly_finished(records):
@@ -204,18 +206,46 @@ def test_a_player_absent_from_a_complete_snap_table_is_refused_not_settled_no(bo
     assert "INACTIVE" in st.reason and "fair price" in st.reason
 
 
-def test_an_active_player_who_never_took_a_snap_settles_at_the_pregame_fair_price(book):
+def _dressed(book):
     book.add_player(PlayerGameResult(player_id="00-0009999", game_id=GAME, team="PHI", has_snap_row=True,
                                     offense_snaps=0.0, defense_snaps=0.0, st_snaps=0.0, player_name="Dressed"))
-    st = S.settle_observation(obs(stat="receptions", threshold=1, player_id="00-0009999"), book, fair_price=0.12)
-    assert (st.status, st.settled_yes, st.kind) == (S.SETTLED, 0.12, S.KIND_SCALAR_FAIR_PRICE)
+    return obs(stat="receptions", threshold=1, player_id="00-0009999")
 
 
-def test_the_no_snap_branch_is_refused_when_there_is_no_proven_fair_price(book):
-    book.add_player(PlayerGameResult(player_id="00-0009999", game_id=GAME, team="PHI", has_snap_row=True,
-                                    offense_snaps=0.0, defense_snaps=0.0, st_snaps=0.0))
-    st = S.settle_observation(obs(stat="receptions", threshold=1, player_id="00-0009999"), book, fair_price=None)
-    assert st.status == S.REFUSED_NO_FAIR_PRICE and st.settled_yes is None
+def test_an_active_player_who_never_took_a_snap_settles_at_the_exchanges_exact_value(book):
+    o = _dressed(book)
+    st = S.settle_observation(o, book, exact_scalar_payout=0.12,
+                             exact_scalar_source="kalshi_settlement_snapshot")
+    assert (st.status, st.settled_yes, st.kind) == (S.SETTLED, 0.12, S.KIND_SCALAR_EXACT)
+    assert st.evidence["participation_branch"] == "active_no_snap_proven"
+    assert st.evidence["exact_scalar_source"] == "kalshi_settlement_snapshot"
+
+
+def test_the_no_snap_branch_is_refused_when_the_exchange_value_is_unavailable(book):
+    """The hard rule: participation proven, payout not. No price of any kind may stand in for the payout."""
+    o = _dressed(book)
+    st = S.settle_observation(o, book)
+    assert st.status == S.REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE and st.settled_yes is None
+    assert st.evidence["participation_branch"] == "active_no_snap_proven"
+    assert st.evidence["exact_scalar_payout_available"] is False
+    assert "midpoint" in st.reason and "not the payout" in st.reason
+
+
+def test_there_is_no_way_to_pass_a_price_into_settlement(book):
+    """A midpoint cannot become a settlement by accident, because no parameter accepts one."""
+    import inspect
+    params = set(inspect.signature(S.settle_observation).parameters)
+    for forbidden in ("fair_price", "mid", "midpoint", "close_mid", "price", "last_price"):
+        assert forbidden not in params, f"settle_observation must not accept {forbidden}"
+    o = _dressed(book)
+    with pytest.raises(TypeError):
+        S.settle_observation(o, book, fair_price=0.12)
+
+
+def test_an_out_of_range_exchange_value_is_refused(book):
+    o = _dressed(book)
+    st = S.settle_observation(o, book, exact_scalar_payout=1.7)
+    assert st.status == S.REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE and st.settled_yes is None
 
 
 def test_an_unresolved_player_identity_is_refused(book):
@@ -288,7 +318,8 @@ def test_no_refusal_anywhere_carries_a_payout(book):
              obs(stat="sacks", threshold=1, player_id=HURTS), obs(stat="receptions", threshold=1, player_id=None),
              obs(stat="receptions", threshold=1, player_id=NOT_IN_GAME),
              obs(family="TOTAL", threshold=None), obs(family="GAME_WINNER", operator="event", team=None),
-             obs(family="SPREAD", operator="event", team="PHI"), obs(direction="NO", family="TOTAL", threshold=40)]
+             obs(family="SPREAD", operator="event", team="PHI"), obs(direction="NO", family="TOTAL", threshold=40),
+             _dressed(book)]
     for c in cases:
         st = S.settle_observation(c, book)
         assert not st.is_settled and st.settled_yes is None, c
@@ -297,7 +328,7 @@ def test_no_refusal_anywhere_carries_a_payout(book):
 def test_the_original_observation_is_never_mutated(book):
     o = obs(stat="passing_yards", threshold=150, player_id=HURTS)
     before = copy.deepcopy(o)
-    S.settle_observation(o, book, fair_price=0.3)
+    S.settle_observation(o, book, exact_scalar_payout=0.3)
     assert o == before
 
 

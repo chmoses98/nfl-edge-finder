@@ -66,10 +66,12 @@ jobs:
       # behind this step's output.
       - name: Fetch the schedule and decide whether there is anything to settle
         id: gate
+        env:
+          INPUT_LOOKBACK: ${{ github.event.inputs.lookback_days }}
         run: |
           python3 scripts/data/nflverse_download.py --only schedules --seasons 2026-2026 2>&1 | tail -2
           python3 scripts/shadow/settle_gate.py --market-data /tmp/md \
-            --lookback-days ${{ github.event.inputs.lookback_days || '10' }} \
+            --lookback-days "${INPUT_LOOKBACK:-10}" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Fetch final results (player statistics, snap counts, identities)
@@ -78,19 +80,29 @@ jobs:
           python3 scripts/data/nflverse_download.py --only stats_player,snap_counts,players \
             --seasons 2026-2026 2>&1 | tail -4
 
+      # Two read-only network reads happen inside this step, both fail-soft: ESPN's scoreboard for an
+      # independent "the game is complete" attestation, and the exchange's public /markets surface for its own
+      # settlement (the only source of an exact scalar payout). Neither can invent a settlement, and a failure
+      # of either defers or refuses rather than guessing.
       - name: Settle every ready game and build evaluations
         id: settle
         if: steps.gate.outputs.work == 'true' || github.event.inputs.games != ''
+        env:
+          # Dispatch inputs reach the shell as environment variables, never as `${{ }}` interpolated into the
+          # script: an interpolated input is executed as shell text by whoever can dispatch the workflow.
+          INPUT_GAMES: ${{ github.event.inputs.games }}
+          INPUT_LOOKBACK: ${{ github.event.inputs.lookback_days }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          GAMES=""
-          if [ -n "${{ github.event.inputs.games }}" ]; then
-            for g in ${{ github.event.inputs.games }}; do GAMES="$GAMES --game $g"; done
-          fi
+          ARGS=()
+          for g in $INPUT_GAMES; do ARGS+=(--game "$g"); done
+          # An `[ ... ] && ...` one-liner returns 1 when the test is false, and `set -e` would fail the step for
+          # the ordinary case of dry_run being unset. An if-block cannot do that.
+          if [ "$INPUT_DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
           python3 scripts/shadow/settle_games.py --market-data /tmp/md \
             --out data/shadow/evaluations --scorecard-out data/shadow/scorecards \
-            --lookback-days ${{ github.event.inputs.lookback_days || '10' }} \
-            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }} \
-            $GAMES --github-output "$GITHUB_OUTPUT"
+            --lookback-days "${INPUT_LOOKBACK:-10}" \
+            "${ARGS[@]}" --github-output "$GITHUB_OUTPUT"
 
       # Publishing is append-only and irreversible in practice, so every batch is verified against its own
       # manifest first -- and the ledger worktree is checked for modifications, because "we only read it" is a
@@ -139,10 +151,12 @@ jobs:
 
       - name: Report outcome
         if: always()
+        env:
+          INPUT_GAMES: ${{ github.event.inputs.games }}
         run: |
           echo "gate work=${{ steps.gate.outputs.work }} games=${{ steps.gate.outputs.n_games }}"
           echo "settle status=${{ steps.settle.outputs.status || 'SKIPPED' }} written=${{ steps.settle.outputs.written || 0 }} unchanged=${{ steps.settle.outputs.unchanged || 0 }} deferred=${{ steps.settle.outputs.games_deferred || 0 }}"
-          if [ "${{ steps.gate.outputs.work }}" != "true" ] && [ -z "${{ github.event.inputs.games }}" ]; then
+          if [ "${{ steps.gate.outputs.work }}" != "true" ] && [ -z "$INPUT_GAMES" ]; then
             echo "::notice::no final game is missing an evaluation batch; nothing was settled"
           elif [ "${{ steps.settle.outputs.status }}" = "CONFLICT" ]; then
             echo "::error::a rerun contradicted an already-published evaluation; nothing was written"

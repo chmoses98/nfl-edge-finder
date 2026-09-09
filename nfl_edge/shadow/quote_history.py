@@ -15,6 +15,15 @@ Two properties of the capture the reader must respect:
 
 `observed_ts` is the epoch second of `observed_at`, added here so the close selector can compare against
 kickoff without re-parsing timestamps for every candidate.
+
+WHAT THE CAPTURE CANNOT TELL YOU: SETTLEMENTS
+---------------------------------------------
+This module reads quotes and nothing else, because the capture holds nothing else. `scripts/kalshi/capture.py`
+fetches `GET /markets?status=open`, so a market that has settled has already left the set it looks at: across
+1,211,807 captured NFL quote rows every single one carries `status="active"` and not one carries a settlement
+result. An earlier version of this module tried to read Kalshi's own settlement from post-game capture rows; it
+could never have returned anything. The exchange's settlements come from `nfl_edge/settlement/kalshi_settlement.py`
+instead, which reads the surfaces that actually carry them.
 """
 from __future__ import annotations
 
@@ -117,67 +126,3 @@ def load_game_quotes(capture_root: str, game_id: str, tickers=None, *, kickoff_u
     for t in by_ticker:
         by_ticker[t].sort(key=lambda q: (q["observed_ts"] is None, q["observed_ts"]))
     return by_ticker, stats
-
-
-def load_kalshi_settlements(capture_root: str, game_id: str, tickers=None, *, kickoff_utc: str | None = None,
-                            days_forward: int = 4) -> dict:
-    """Kalshi's OWN recorded settlement per ticker, from post-game capture rows.
-
-    The capture writes each market's `status` and `result` on every pass, so once Kalshi settles a market the
-    next capture preserves it. That makes the exchange's actual payout available for free -- and it is worth
-    having, because it is the only independent check on our reading of the rules.
-
-    It is NEVER the settlement this project records. Two reasons, both observed in the 2025 archive: Kalshi
-    settled four markets in a December sweep in ways that contradict the games' own final scores, and on
-    2025-09-07 it paid the no-snap fair price to twelve players who had taken offensive snaps. A corpus that
-    took Kalshi's word would have inherited those. So this is written to a separate cross-check artifact and
-    disagreements are surfaced for a human.
-    """
-    want = set(tickers) if tickers else None
-    needle = game_id                 # see load_game_quotes on why this is not a JSON fragment
-    out: dict[str, dict] = {}
-    if not kickoff_utc:
-        return out
-    try:
-        ko = datetime.fromisoformat(kickoff_utc)
-    except ValueError:
-        return out
-    lo, hi = ko.date().isoformat(), (ko + timedelta(days=days_forward)).date().isoformat()
-    for day in sorted(glob.glob(os.path.join(capture_root, "*"))):
-        if not (lo <= os.path.basename(day) <= hi):
-            continue
-        for path in sorted(glob.glob(os.path.join(day, "*.quotes.jsonl"))):
-            with open(path) as fh:
-                for line in fh:
-                    if needle not in line:
-                        continue
-                    row = json.loads(line)
-                    t = row.get("ticker")
-                    if row.get("game_id") != game_id or (want is not None and t not in want):
-                        continue
-                    res = (row.get("result") or "").strip().lower()
-                    if not res:
-                        continue
-                    ts = _ts(row.get("observed_at"))
-                    prev = out.get(t)
-                    if prev is None or (ts or 0) > (prev.get("observed_ts") or 0):
-                        out[t] = {"ticker": t, "result": res, "status": row.get("status"),
-                                  "observed_at": row.get("observed_at"), "observed_ts": ts,
-                                  "last_price": _f(row.get("last_price_dollars"))}
-    return out
-
-
-def kalshi_yes_payout(row: dict):
-    """Kalshi's recorded result as a YES payout, or None when it is not a payout we can read.
-
-    `scalar` carries no value in the capture schema (only `result`), so it is reported as a scalar branch
-    without a number rather than being invented.
-    """
-    res = (row or {}).get("result")
-    if res == "yes":
-        return 1.0, "binary"
-    if res == "no":
-        return 0.0, "binary"
-    if res == "scalar":
-        return None, "scalar"
-    return None, res or "unknown"

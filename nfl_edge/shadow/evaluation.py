@@ -17,14 +17,23 @@ contradiction detectable at all.
 The segmentation bands (`disagreement_band`, `horizon_band`, `probability_band`) are computed once, here, so
 every report slices the same way. A band computed per report is a band that quietly changes between reports.
 
-THREE THINGS THAT ARE DELIBERATELY NOT THE SAME FIELD
------------------------------------------------------
-`settled_yes`        what one YES contract paid, in dollars. 0.5 for a tied game winner; the pregame fair
-                     price for a player who was active but never took a snap.
-`settlement_kind`    how that payout arose. ONLY `binary` is a 0/1 realisation of the football event, so only
-                     `binary` rows may enter a Brier score or a calibration bucket.
-`settlement_status`  SETTLED, or the REFUSED_* reason the payout could not be proven. A refusal is recorded,
-                     never a guessed 0.
+FIVE THINGS THAT ARE DELIBERATELY NOT THE SAME FIELD
+----------------------------------------------------
+`model_event_probability`  P(the football event happens | the player is on the field). A probability, scored
+                           with Brier and log loss against a 0/1 realisation.
+`model_contract_value`     E[payout of one YES contract], which folds in participation branches and special
+                           settlement rules. NOT a probability: for a player prop it is strictly below the
+                           event probability whenever the player might not play. Scored with a payout error,
+                           never with log loss.
+`settled_yes`              what one YES contract actually paid, in dollars. 0.5 for a tied game winner; the
+                           exchange's own scalar for a player who was active but never took a snap.
+`settlement_kind`          how that payout arose. ONLY `binary` is a 0/1 realisation of the football event, so
+                           only `binary` rows may enter a Brier score or a calibration bucket.
+`settlement_status`        SETTLED, or the REFUSED_* reason the payout could not be proven. A refusal is
+                           recorded, never a guessed 0.
+
+For an ordinary game contract the first two coincide, and the corpus still stores them separately: a field that
+is equal today for one family is not the same quantity.
 """
 from __future__ import annotations
 
@@ -87,9 +96,13 @@ class Evaluation:
     # state at prediction time, copied for self-containment
     observed_at: str | None = None
     minutes_to_kickoff: float | None = None
-    model_p: float | None = None
-    model_event_probability: float | None = None
+    # THE TWO QUANTITIES, never conflated. See the module docstring.
+    model_event_probability: float | None = None      # P(football event | on the field)
+    model_contract_value: float | None = None         # E[payout of one YES contract]
     calibrated_probability: float | None = None
+    # is the football event a valid 0/1 realisation for this row? True only when the payout is binary, which is
+    # exactly when participation semantics let the event be observed. Calibration reads this, not the payout.
+    event_binary_valid: bool | None = None
     yes_bid_t: float | None = None
     yes_ask_t: float | None = None
     no_bid_t: float | None = None
@@ -125,9 +138,10 @@ class Evaluation:
     width_close: float | None = None
     width_change: float | None = None
     liquidity_change: float | None = None
-    model_market_disagreement: float | None = None
+    model_market_disagreement: float | None = None     # contract value - market mid (both contract-space)
     disagreement_band: str | None = None
-    probability_band: str | None = None
+    contract_value_band: str | None = None
+    event_probability_band: str | None = None
     horizon_band: str | None = None
     # settlement
     settled_yes: float | None = None
@@ -136,6 +150,9 @@ class Evaluation:
     settlement_reason: str | None = None
     settlement_evidence: dict = field(default_factory=dict)
     settlement_source: str | None = None
+    # exact-payout provenance: whether the payout recorded here is the exchange's own published value
+    exact_payout_known: bool | None = None
+    exact_payout_source: str | None = None
     notes: str = ""
 
     def to_dict(self):
@@ -207,6 +224,9 @@ def evaluate(pred: dict, close: dict | None, settled_yes: float | None = None, *
     """
     yb, ya = pred.get("yes_bid"), pred.get("yes_ask")
     mid = (yb + ya) / 2.0 if yb is not None and ya is not None else None
+    # `p` is the CONTRACT VALUE throughout: it is what the market mid is comparable to, so it is what movement,
+    # CLV and disagreement are measured against. The event probability is carried alongside and scored
+    # separately -- never against a price.
     p = pred.get("model_contract_value", pred.get("model_event_probability"))
     if settlement is not None:
         settled_yes = settlement.settled_yes
@@ -222,7 +242,7 @@ def evaluate(pred: dict, close: dict | None, settled_yes: float | None = None, *
         kickoff_utc=pred.get("kickoff_utc"), support_state=pred.get("support_state"),
         calibration_version=pred.get("calibration_version"), model_artifact_sha=pred.get("model_artifact_sha"),
         observed_at=pred.get("observed_at"), minutes_to_kickoff=pred.get("minutes_to_kickoff"),
-        model_p=p, model_event_probability=pred.get("model_event_probability"),
+        model_contract_value=p, model_event_probability=pred.get("model_event_probability"),
         calibrated_probability=pred.get("calibrated_probability"),
         yes_bid_t=yb, yes_ask_t=ya, no_bid_t=pred.get("no_bid"), no_ask_t=pred.get("no_ask"),
         mid_t=mid, model_direction=model_direction(p, mid),
@@ -236,13 +256,18 @@ def evaluate(pred: dict, close: dict | None, settled_yes: float | None = None, *
     if p is not None and mid is not None:
         ev.model_market_disagreement = p - mid
         ev.disagreement_band = disagreement_band(ev.model_market_disagreement)
-    ev.probability_band = probability_band(p)
+    ev.contract_value_band = probability_band(p)
+    ev.event_probability_band = probability_band(ev.model_event_probability)
     ev.horizon_band = horizon_band(ev.minutes_to_kickoff)
     if settlement is not None:
         ev.settlement_status = settlement.status
         ev.settlement_kind = settlement.kind
         ev.settlement_reason = settlement.reason
         ev.settlement_evidence = settlement.evidence
+        ev.event_binary_valid = settlement.kind == "binary"
+        ev.exact_payout_source = settlement.evidence.get("exact_scalar_source")
+        # a binary or tie payout is exact by the rules; a scalar one is exact only when the exchange published it
+        ev.exact_payout_known = settlement.kind in ("binary", "tie_split", "scalar_exact")
     if not close:
         ev.notes = "no valid pregame close available"
         return ev

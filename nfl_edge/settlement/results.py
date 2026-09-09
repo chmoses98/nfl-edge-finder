@@ -14,13 +14,30 @@ replace with settlements -- exactly the contradiction the corpus forbids.
 
 So readiness is a per-game gate, evaluated BEFORE anything is written:
 
-    READY                 final, and every table this game's predictions need is populated
-    DEFER_NOT_FINAL       no final score yet (or the game has not plausibly finished)
+    READY                 final is PROVEN, and every table this game's predictions need is populated
+    DEFER_NOT_FINAL       the score fields are absent, incomplete, or look provisional
+    DEFER_FINAL_UNPROVEN  the score fields look final but nothing independent attests the game is complete
     DEFER_STATS_PENDING   final, but the player-stats release does not contain this game yet
     DEFER_SNAPS_PENDING   final, stats present, but snap counts (participation proof) are not
-    DEGRADED_INCONSISTENT the schedule row contradicts itself (result != home - away)
+    DEGRADED_INCONSISTENT the evidence contradicts itself (result != home - away, or a source disagrees)
 
 A deferred game writes NOTHING and is reported. The next run writes the whole truth at once.
+
+WHAT COUNTS AS FINAL
+--------------------
+A populated score is NOT a final status, and elapsed time is not evidence. nflverse rebuilds `games.csv` on a
+schedule, so a row can carry a score while the game is still being played. FINAL therefore requires ALL of:
+
+  * `home_score` and `away_score` present;
+  * the POSTGAME-ONLY fields present and agreeing with them: `result == home - away`, `total == home + away`,
+    and an `overtime` flag. nflverse computes these when it processes a finished game, so their absence beside
+    a populated score is the signature of a provisional row -- that case is `DEFER_NOT_FINAL`, whatever the
+    clock says;
+  * at least this long past kickoff (necessary, never sufficient);
+  * an INDEPENDENT attestation that the game is complete -- see `final_status.py`: presence in the
+    postgame-only nflverse releases, or ESPN's explicit `status.type.completed`.
+
+Any contradiction between sources fails closed.
 
 PARTICIPATION
 -------------
@@ -49,6 +66,7 @@ NOT_FINAL = "NOT_FINAL"
 
 READY = "READY"
 DEFER_NOT_FINAL = "DEFER_NOT_FINAL"
+DEFER_FINAL_UNPROVEN = "DEFER_FINAL_UNPROVEN"
 DEFER_STATS_PENDING = "DEFER_STATS_PENDING"
 DEFER_SNAPS_PENDING = "DEFER_SNAPS_PENDING"
 DEGRADED_INCONSISTENT = "DEGRADED_INCONSISTENT"
@@ -131,6 +149,13 @@ class GameResult:
     status: str = NOT_FINAL
     source: str | None = None
     inconsistency: str | None = None
+    # the postgame-only schedule fields, kept as read so a provisional row can be told from a finished one
+    result_field: float | None = None
+    total_field: float | None = None
+    espn_game_id: str | None = None
+    provisional_reason: str | None = None
+    final_proofs: list = field(default_factory=list)
+    final_contradictions: list = field(default_factory=list)
 
     @property
     def total_points(self):
@@ -164,10 +189,16 @@ class GameResult:
         return None
 
     def evidence(self) -> dict:
-        return {"game_id": self.game_id, "game_status": self.status, "home_team": self.home_team,
-                "away_team": self.away_team, "home_score": self.home_score, "away_score": self.away_score,
-                "total_points": self.total_points, "margin_home": self.margin_home,
-                "overtime": self.overtime, "kickoff_utc": self.kickoff_utc, "source": self.source}
+        ev = {"game_id": self.game_id, "game_status": self.status, "home_team": self.home_team,
+              "away_team": self.away_team, "home_score": self.home_score, "away_score": self.away_score,
+              "total_points": self.total_points, "margin_home": self.margin_home,
+              "overtime": self.overtime, "kickoff_utc": self.kickoff_utc, "source": self.source,
+              "final_proofs": list(self.final_proofs)}
+        if self.final_contradictions:
+            ev["final_contradictions"] = list(self.final_contradictions)
+        if self.provisional_reason:
+            ev["provisional_reason"] = self.provisional_reason
+        return ev
 
 
 @dataclass
@@ -245,6 +276,9 @@ class ResultBook:
         self.games_with_snaps: set = set()
         self.sources: dict = {}
         self.min_hours_after_kickoff = min_hours_after_kickoff
+        # espn event id -> FinalAttestation. Optional corroboration: it can add a proof or expose a
+        # contradiction, and its absence never blocks a game the postgame tables already attest.
+        self.final_attestations: dict = {}
 
     # ---------------------------------------------------------------- loading
     def add_game(self, g: GameResult):
@@ -260,16 +294,35 @@ class ResultBook:
     def player(self, game_id: str, player_id: str):
         return self.players.get((game_id, player_id))
 
+    def add_final_attestations(self, attestations: dict):
+        self.final_attestations.update(attestations or {})
+
+    def final_verdict(self, game_id: str):
+        """Is this game independently proven complete? Recomputed from the evidence, never cached as truth."""
+        from nfl_edge.settlement.final_status import verify_final
+        g = self.games.get(game_id)
+        if g is None:
+            return None
+        in_tables = game_id in self.games_with_player_stats and game_id in self.games_with_snaps
+        att = self.final_attestations.get(g.espn_game_id) if g.espn_game_id else None
+        v = verify_final(g, in_postgame_tables=in_tables, attestation=att)
+        g.final_proofs = list(v.proofs)
+        g.final_contradictions = list(v.contradictions)
+        return v
+
     # ---------------------------------------------------------------- readiness
     def readiness(self, game_id: str, *, needs_player_stats: bool, now=None) -> tuple[str, str]:
-        """Is this game safe to write immutable evaluations for? Returns (state, human reason)."""
+        """Is this game safe to write immutable evaluations for? Returns (state, human reason).
+
+        Order matters: the cheapest and most damning checks first, so the reported reason is the real one.
+        """
         g = self.games.get(game_id)
         if g is None:
             return DEFER_NOT_FINAL, f"{game_id} is not in the schedule"
         if g.inconsistency:
             return DEGRADED_INCONSISTENT, g.inconsistency
         if g.status != FINAL:
-            return DEFER_NOT_FINAL, f"{game_id} has no final score published"
+            return DEFER_NOT_FINAL, g.provisional_reason or f"{game_id} has no final score published"
         if now is not None and g.kickoff_utc:
             from datetime import datetime, timedelta
             try:
@@ -284,7 +337,16 @@ class ResultBook:
                 return DEFER_STATS_PENDING, f"player statistics for {game_id} have not been published yet"
             if game_id not in self.games_with_snaps:
                 return DEFER_SNAPS_PENDING, f"snap counts for {game_id} have not been published yet"
-        return READY, "final, with every table this game's predictions need"
+        # Independent proof that the game is COMPLETE, not merely that a score exists. Last because it is the
+        # check most likely to be satisfied by evidence the steps above already required.
+        v = self.final_verdict(game_id)
+        if v is not None and v.contradictions:
+            return DEGRADED_INCONSISTENT, "; ".join(v.contradictions)
+        if v is None or not v.proven:
+            return (DEFER_FINAL_UNPROVEN,
+                    f"{game_id} looks final but nothing independent attests that it is complete "
+                    "(no postgame-only nflverse tables for it, and no ESPN completion)")
+        return READY, f"final proven by {'+'.join(g.final_proofs)}, with every table this game's predictions need"
 
 
 def _merge_player(a: PlayerGameResult, b: PlayerGameResult) -> PlayerGameResult:
@@ -304,13 +366,18 @@ def _merge_player(a: PlayerGameResult, b: PlayerGameResult) -> PlayerGameResult:
 # ======================================================================================================
 
 def game_from_schedule_row(row: dict, source: str = "nflverse/schedules/games.csv") -> GameResult:
-    """One games.csv row -> GameResult, with an internal-consistency check on `result` and `total`.
+    """One games.csv row -> GameResult, distinguishing a FINISHED game from a row that merely has a score.
 
-    nflverse publishes `result` (home - away) and `total` alongside the scores. When they disagree with the
-    scores, something upstream is wrong and the game is marked DEGRADED_INCONSISTENT rather than settled: a
-    contradiction in the source is exactly the case where guessing is worst.
+    nflverse publishes `result` (home - away), `total` and `overtime` when it processes a COMPLETED game. A row
+    with scores but without them is provisional as far as this code is concerned, and is reported that way
+    rather than settled: `status` stays NOT_FINAL with a `provisional_reason`.
+
+    When those fields ARE present they are cross-checked against the scores. A contradiction in the source is
+    exactly the case where guessing is worst, so it becomes `inconsistency` and blocks settlement.
     """
     hs, aws = _num(row.get("home_score")), _num(row.get("away_score"))
+    res, tot = _num(row.get("result")), _num(row.get("total"))
+    ot = _num(row.get("overtime"))
     ko = kickoff_utc((row.get("gameday") or "").strip(), (row.get("gametime") or "").strip())
     g = GameResult(
         game_id=(row.get("game_id") or "").strip(),
@@ -320,17 +387,28 @@ def game_from_schedule_row(row: dict, source: str = "nflverse/schedules/games.cs
         home_team=(row.get("home_team") or "").strip() or None,
         away_team=(row.get("away_team") or "").strip() or None,
         home_score=hs, away_score=aws,
-        overtime=int(_num(row.get("overtime"))) if _num(row.get("overtime")) is not None else None,
+        overtime=int(ot) if ot is not None else None,
         kickoff_utc=ko.isoformat() if ko else None,
-        status=FINAL if (hs is not None and aws is not None) else NOT_FINAL,
-        source=source)
+        source=source, result_field=res, total_field=tot,
+        espn_game_id=(str(row.get("espn")).strip() or None) if row.get("espn") not in (None, "") else None)
     g.season_type = season_type_of(g.game_type)
-    if g.status == FINAL:
-        res, tot = _num(row.get("result")), _num(row.get("total"))
-        if res is not None and abs(res - (hs - aws)) > 1e-9:
-            g.inconsistency = f"schedule result {res} != home {hs} - away {aws}"
-        elif tot is not None and abs(tot - (hs + aws)) > 1e-9:
-            g.inconsistency = f"schedule total {tot} != home {hs} + away {aws}"
+    if hs is None or aws is None:
+        g.status = NOT_FINAL
+        return g
+    missing = [name for name, v in (("result", res), ("total", tot), ("overtime", ot)) if v is None]
+    if missing:
+        # A score with no postgame-only fields beside it is what a live or provisional row looks like. Elapsed
+        # time cannot rescue it: settling from this row is exactly the failure this branch exists to prevent.
+        g.status = NOT_FINAL
+        g.provisional_reason = (
+            f"scores are populated but the postgame-only field(s) {missing} are not, so this row is not proven "
+            "to describe a completed game")
+        return g
+    if abs(res - (hs - aws)) > 1e-9:
+        g.inconsistency = f"schedule result {res} != home {hs} - away {aws}"
+    elif abs(tot - (hs + aws)) > 1e-9:
+        g.inconsistency = f"schedule total {tot} != home {hs} + away {aws}"
+    g.status = FINAL
     return g
 
 

@@ -32,6 +32,7 @@ KICKOFF = "2025-09-05T00:20:00+00:00"          # 20:20 US-Eastern on 2025-09-04
 KICKOFF_TS = 1757031600.0
 HURTS, LAMB, BARKLEY = "00-0036389", "00-0036358", "00-0034844"
 NOBODY = "00-0000001"
+DRESSED = "00-0009999"          # listed in the snap table with zero snaps on every unit: the scalar branch
 
 
 def load_script(name):
@@ -99,6 +100,9 @@ MARKETS = [
     dict(ticker="KXNFLRECYDS-25SEP04DALPHI-PHIGHOST99-30", family="PLAYER_STAT", stat="receiving_yards",
          threshold=30, player_id=NOBODY, player_name="Never Played", model_p=0.30, yes_bid=0.10,
          yes_ask=0.14),
+    # active, never took a snap: settles at the exchange's own scalar value and at nothing else
+    dict(ticker="KXNFLREC-25SEP04DALPHI-PHIDRESSED88-2", family="PLAYER_STAT", stat="receptions", threshold=2,
+         player_id=DRESSED, player_name="Dressed Never Played", model_p=0.22, yes_bid=0.18, yes_ask=0.21),
     # a family the pricer prices but settlement cannot prove
     dict(ticker="KXNFLWINMARGIN-25SEP04DALPHI-PHI1", family="WIN_MARGIN_BUCKET", operator="range",
          team="PHI", model_p=0.20, yes_bid=0.18, yes_ask=0.22),
@@ -118,8 +122,34 @@ KALSHI_RESULT = {
     "KXNFLREC-25SEP04DALPHI-DALCLAMB88-8": "no",
     "KXNFLRSHYDS-25SEP04DALPHI-PHISBARKLEY26-60": "yes",
     "KXNFLRECYDS-25SEP04DALPHI-PHIGHOST99-30": "no",
+    "KXNFLREC-25SEP04DALPHI-PHIDRESSED88-2": "scalar",
     "KXNFLWINMARGIN-25SEP04DALPHI-PHI1": "no",
 }
+# the exchange's published scalar value for the no-snap market. Deliberately nowhere near the pregame midpoint
+# (0.195), so a test that passes cannot be passing because the two happen to agree.
+SCALAR_VALUE = "0.0400"
+
+
+def pin_snapshot(md, *, kalshi_result=None, scalar_value=SCALAR_VALUE, markets=None):
+    """Write a settlement snapshot as a previous run would have pinned it, into the published corpus."""
+    kalshi_result = KALSHI_RESULT if kalshi_result is None else kalshi_result
+    recs = {}
+    for t in (markets if markets is not None else list(kalshi_result)):
+        res = kalshi_result.get(t)
+        if not res:
+            continue
+        rec = {"ticker": t, "result": res, "status": "finalized", "source": "kalshi_settlement_snapshot",
+               "settlement_ts": "2025-09-05T04:30:00Z"}
+        if res == "scalar" and scalar_value is not None:
+            rec["settlement_value_dollars"] = scalar_value
+        recs[t] = rec
+    d = os.path.join(md, "data", "shadow", "evaluations", GAME)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "eval-1.0.0.PINNED.kalshi_settlement_snapshot.json")
+    with open(path, "w") as f:
+        json.dump({"game_id": GAME, "captured_at": "2025-09-05T05:00:00+00:00", "markets": recs,
+                   "n_markets": len(recs), "fetch_meta": [{"note": "fixture"}]}, f)
+    return path
 
 
 def build_market_data(tmp_path, *, kalshi_result=None):
@@ -212,13 +242,19 @@ def result_book(*, score_override=None, complete=True):
         rec["schedule_csv"] = "\n".join([lines[0]] + out)
     if not complete:
         rec["games_with_player_stats"] = []
+    rec.setdefault("snaps", []).append(
+        {"player_id": DRESSED, "game_id": GAME, "player_name": "Dressed Never Played", "team": "PHI",
+         "offense_snaps": 0.0, "defense_snaps": 0.0, "st_snaps": 0.0})
     return result_book_from_records(rec, min_hours_after_kickoff=4.0)
 
 
 def run_settle(monkeypatch, md, out, *extra, book=None):
+    """Run the real main(). Both network readers are switched OFF: a test must never depend on the exchange or
+    on ESPN being reachable, and the evidence they would supply is injected as fixtures instead."""
     monkeypatch.setattr(settle_games, "build_result_book", lambda *a, **k: book or result_book())
     argv = ["settle_games.py", "--market-data", md, "--out", str(out),
-            "--scorecard-out", str(out) + "-scorecards", "--game", GAME, "--game", PENDING_GAME, *extra]
+            "--scorecard-out", str(out) + "-scorecards", "--game", GAME, "--game", PENDING_GAME,
+            "--no-espn-final", "--no-exchange-fetch", *extra]
     monkeypatch.setattr(sys, "argv", argv)
     return settle_games.main()
 
@@ -237,6 +273,7 @@ def corpus_rows(out):
 @pytest.fixture
 def built(tmp_path, monkeypatch):
     md, preds = build_market_data(tmp_path)
+    pin_snapshot(md)
     out = tmp_path / "evaluations"
     before = tree_digest(md)
     rc = run_settle(monkeypatch, md, out)
@@ -340,47 +377,133 @@ def test_the_manifest_records_provenance_and_checksums(built):
     assert man["kickoff_utc"] == KICKOFF and man["kickoff_source"] == "schedule"
     assert man["game_evidence"]["home_score"] == 24.0
     assert sorted(man["ledger_snapshots"]) == [s[0] for s in SNAPSHOTS]
-    assert man["by_settlement_status"]["SETTLED"] == 9 * len(SNAPSHOTS)
+    # nine binary settlements plus the exchange-scalar one; the two refusals are counted under their own status
+    assert man["by_settlement_status"]["SETTLED"] == 10 * len(SNAPSHOTS)
     assert man["result_sources"] and man["by_settlement_reason"]
 
 
-def test_kalshis_own_settlements_are_cross_checked_but_never_substituted(built):
+def test_the_exchanges_own_settlements_are_cross_checked_but_never_substituted(built):
     path = glob.glob(os.path.join(str(built["out"]), GAME, "*.kalshi_crosscheck.json"))
     assert path, "the cross-check artifact is written next to the batch"
     cross = json.load(open(path[0]))
     assert cross["tickers_compared"] == len(MARKETS)
-    assert cross["agree"] == 9 and cross["disagree"] == 0
+    assert cross["agree"] == 10 and cross["disagree"] == 0
     assert cross["not_comparable"] == 2, "the two refusals cannot be compared to a payout"
     rows = corpus_rows(built["out"])
-    assert all("kalshi" not in (r.get("settlement_source") or "").lower() for r in rows), (
-        "the settlement provenance is nflverse; Kalshi's own result is never a source of truth here")
+    assert all((r.get("settlement_source") or "").startswith("nflverse") for r in rows
+               if r["settlement_status"] == "SETTLED" and r["settlement_kind"] == "binary"), (
+        "a binary settlement is proven from nflverse; the exchange is never its source of truth")
 
 
-def test_a_kalshi_settlement_that_contradicts_the_result_is_surfaced_not_adopted(tmp_path, monkeypatch):
-    """Kalshi settled four 2025 markets against their games' own final scores. Ours must stand, visibly."""
+def test_an_exchange_settlement_that_contradicts_the_result_is_surfaced_not_adopted(tmp_path, monkeypatch):
+    """The exchange settled four 2025 markets against their games' own final scores. Ours must stand, visibly."""
     wrong = dict(KALSHI_RESULT, **{"KXNFLTOTAL-25SEP04DALPHI-45": "yes"})   # 44 points is not 45+
-    md, _ = build_market_data(tmp_path, kalshi_result=wrong)
+    md, _ = build_market_data(tmp_path)
+    pin_snapshot(md, kalshi_result=wrong)
     out = tmp_path / "evaluations"
     assert run_settle(monkeypatch, md, out) == 0
     cross = json.load(open(glob.glob(os.path.join(str(out), GAME, "*.kalshi_crosscheck.json"))[0]))
     assert cross["disagree"] == 1
     assert cross["disagreements"][0]["ticker"] == "KXNFLTOTAL-25SEP04DALPHI-45"
-    assert cross["disagreements"][0]["ours"] == 0.0 and cross["disagreements"][0]["kalshi_result"] == "yes"
+    assert cross["disagreements"][0]["ours"] == 0.0 and cross["disagreements"][0]["exchange_result"] == "yes"
     rows = [r for r in corpus_rows(out) if r["ticker"] == "KXNFLTOTAL-25SEP04DALPHI-45"]
     assert {r["settled_yes"] for r in rows} == {0.0}, "the proven settlement is what gets written"
 
 
-def test_the_scorecard_is_built_from_the_corpus(built, tmp_path):
+# ---------------------------------------------------------------------------- the scalar branch
+SCALAR_TICKER = "KXNFLREC-25SEP04DALPHI-PHIDRESSED88-2"
+
+
+def test_the_no_snap_branch_settles_at_the_exchanges_exact_value_not_a_midpoint(built):
+    rows = [r for r in corpus_rows(built["out"]) if r["ticker"] == SCALAR_TICKER]
+    assert rows
+    for r in rows:
+        assert r["settlement_status"] == "SETTLED" and r["settlement_kind"] == "scalar_exact"
+        assert r["settled_yes"] == 0.04, "the exchange's published settlement_value_dollars, and nothing else"
+        assert r["settlement_evidence"]["participation_branch"] == "active_no_snap_proven"
+        assert r["exact_payout_known"] is True
+        assert r["exact_payout_source"] == "kalshi_settlement_snapshot"
+        # the midpoint is 0.195 and is still recorded -- as a quote, never as the payout
+        assert r["mid_t"] == pytest.approx(0.195)
+        assert abs(r["settled_yes"] - r["mid_t"]) > 0.15, (
+            "the exact payout is nowhere near the midpoint, so this test cannot pass by coincidence")
+        assert r["close_mid"] is not None, "the pregame close stays in the close fields as research evidence"
+
+
+def test_without_an_exchange_value_the_no_snap_branch_is_refused_and_no_number_is_invented(tmp_path, monkeypatch):
+    """Item 1's whole point: proven participation, unproven payout, nothing written in settled_yes."""
+    md, _ = build_market_data(tmp_path)                     # no pinned snapshot, and fetching is disabled
+    out = tmp_path / "evaluations"
+    assert run_settle(monkeypatch, md, out) == 0
+    rows = [r for r in corpus_rows(out) if r["ticker"] == SCALAR_TICKER]
+    assert rows
+    for r in rows:
+        assert r["settlement_status"] == "REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE"
+        assert r["settled_yes"] is None
+        assert r["settlement_evidence"]["participation_branch"] == "active_no_snap_proven", (
+            "the participation branch is still recorded as proven")
+        assert "midpoint" in r["settlement_reason"] and "not the payout" in r["settlement_reason"]
+        assert r["close_mid"] is not None and r["mid_t"] is not None, (
+            "the quotes are untouched research evidence; only the settlement refuses")
+
+
+def test_a_scalar_result_with_no_published_value_is_still_refused(tmp_path, monkeypatch):
+    """`result=scalar` with no `settlement_value_dollars` proves the branch and not the number."""
+    md, _ = build_market_data(tmp_path)
+    pin_snapshot(md, scalar_value=None)
+    out = tmp_path / "evaluations"
+    assert run_settle(monkeypatch, md, out) == 0
+    rows = [r for r in corpus_rows(out) if r["ticker"] == SCALAR_TICKER]
+    assert rows and all(r["settlement_status"] == "REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE" for r in rows)
+    assert all(r["settled_yes"] is None for r in rows)
+
+
+def test_a_run_with_no_pinned_snapshot_pins_an_empty_one_so_a_rerun_cannot_contradict_it(tmp_path, monkeypatch):
+    md, _ = build_market_data(tmp_path)
+    out = tmp_path / "evaluations"
+    assert run_settle(monkeypatch, md, out) == 0
+    snaps = glob.glob(os.path.join(str(out), GAME, "*.kalshi_settlement_snapshot.json"))
+    assert snaps, "the absence of exchange evidence is itself pinned"
+    snap = json.load(open(snaps[0]))
+    assert snap["markets"] == {} and snap["game_id"] == GAME
+    assert snap["fetch_meta"], "why nothing was captured is recorded"
+
+
+def test_the_pinned_snapshot_is_not_refetched_on_a_later_run(built, monkeypatch):
+    """Pinned evidence is read, never re-read from the network: that is what makes a refusal reproducible."""
+    calls = []
+
+    def _boom(*a, **k):
+        calls.append(1)
+        return [], []
+    monkeypatch.setattr(settle_games.KS, "fetch_game_settlements", _boom)
+    before = tree_digest(str(built["out"]))
+    assert run_settle(monkeypatch, built["md"], built["out"]) == 0
+    assert calls == [], "a pinned snapshot must not trigger another exchange read"
+    assert tree_digest(str(built["out"])) == before
+
+
+def test_the_scorecard_reports_sample_units_and_scores_both_spaces(built):
     d = glob.glob(os.path.join(str(built["out"]) + "-scorecards", "*"))
     assert d, "a scorecard directory is written"
     sc = json.load(open(os.path.join(d[0], "scorecard.json")))
-    assert sc["n_evaluations"] == len(MARKETS) * len(SNAPSHOTS) and sc["n_games"] == 1
-    assert sc["model_vs_market"]["model"]["n"] == 9 * len(SNAPSHOTS)
-    assert sc["model_vs_market"]["market_at_snapshot"]["n"] == sc["model_vs_market"]["model"]["n"]
-    assert sc["model_vs_market"]["on_rows_with_a_usable_close"]["market_at_close"]["n"] > 0
-    assert "family" in sc["segments"] and "time to kickoff" in sc["segments"]
+    raw, con = sc["sample_units"]["raw"], sc["sample_units"]["latest_pregame"]
+    assert raw["n_observations"] == len(MARKETS) * len(SNAPSHOTS)
+    assert raw["n_unique_contracts"] == len(MARKETS) and raw["n_games"] == 1
+    assert con["n_observations"] == len(MARKETS), "one row per contract in the primary view"
+    assert sc["primary_sample_unit"] == "latest_pregame"
+    view = sc["views"]["latest_pregame"]
+    assert view["event_calibration"]["model_event_probability"]["n"] > 0
+    assert "brier" in view["event_calibration"]["model_event_probability"]
+    payout = view["contract_payout_quality"]
+    assert payout["model_contract_value"]["n"] > 0
+    assert "mean_squared_payout_error" in payout["model_contract_value"]
+    assert "log_loss" not in payout["model_contract_value"], "a payout error is not a log loss"
+    assert payout["market_at_snapshot"]["n"] == payout["model_contract_value"]["n"]
+    assert set(sc["horizons"]) >= {"T-24h", "T-6h", "T-90m", "T-30m", "latest pregame"}
     report = open(os.path.join(d[0], "REPORT.md")).read()
-    assert "Calibration" in report and "Closing-line value" in report
+    assert "Event-probability calibration" in report and "Contract-payout quality" in report
+    assert "Canonical horizons" in report and "No effective N is computed" in report
 
 
 def test_the_validator_passes_on_what_the_run_produced(built, monkeypatch):
@@ -407,6 +530,57 @@ def test_the_validator_rejects_a_refusal_that_carries_a_payout(built, monkeypatc
     json.dump(man, open(man_path, "w"))
     monkeypatch.setattr(sys, "argv", ["validate_evaluations.py", "--root", str(built["out"])])
     assert validate_evaluations.main() == 2
+
+
+def _tamper(built, mutate):
+    """Rewrite the published batch through a mutation, keeping hashes and the manifest self-consistent, so the
+    validator is tested on its invariants rather than on a checksum mismatch."""
+    from nfl_edge.shadow import evaluation_store as ST
+    path = glob.glob(os.path.join(str(built["out"]), GAME, "*.evaluations.jsonl.gz"))[0]
+    rows = ST.read_rows(path)
+    for r in rows:
+        mutate(r)
+        r["content_hash"] = ST.content_hash(r)
+    with gzip.open(path, "wt") as f:
+        for r in rows:
+            f.write(json.dumps(r, sort_keys=True) + "\n")
+    man_path = path.replace(".evaluations.jsonl.gz", ".evaluation_manifest.json")
+    man = json.load(open(man_path))
+    man["evaluations_sha256"] = ST.sha256_file(path)
+    json.dump(man, open(man_path, "w"))
+
+
+def _drop_scalar_source(r):
+    if r.get("settlement_kind") == "scalar_exact":
+        r["exact_payout_source"] = None
+
+
+def _drop_final_proofs(r):
+    ev = r.get("settlement_evidence") or {}
+    if ev.get("final_proofs"):
+        ev["final_proofs"] = []
+
+
+def _claim_exact_on_a_refusal(r):
+    if r.get("settlement_status") != "SETTLED":
+        r["exact_payout_known"] = True
+
+
+def _erase_the_event_probability(r):
+    r["model_event_probability"] = None
+
+
+@pytest.mark.parametrize("mutate,expected", [
+    (_drop_scalar_source, "no exchange source"),
+    (_drop_final_proofs, "no final-status proof"),
+    (_claim_exact_on_a_refusal, "claims an exact payout"),
+    (_erase_the_event_probability, "no event probability"),
+], ids=["scalar payout with no provenance", "settled with no final proof",
+        "refusal claiming an exact payout", "contract value with no event probability"])
+def test_the_validator_rejects_each_way_a_row_could_lie(built, monkeypatch, mutate, expected):
+    _tamper(built, mutate)
+    monkeypatch.setattr(sys, "argv", ["validate_evaluations.py", "--root", str(built["out"])])
+    assert validate_evaluations.main() == 2, f"the validator accepted a row it should reject ({expected})"
 
 
 def test_a_rerun_with_identical_evidence_writes_nothing(built, monkeypatch):

@@ -29,7 +29,10 @@ Consequence for pricing (`player_prop_contract_value`):
 contract_value = P(plays) · P(stat ≥ K | plays) + P(active, no snap) · fair_price + P(inactive) · 0
 ```
 
-with `fair_price` proxied by the contemporaneous market mid. At an event probability of 0.45 a healthy player's
+with `fair_price` proxied by the contemporaneous market mid. **That proxy is for PRICING only.** Postgame
+settlement never records it as a payout: the scalar branch settles at the exchange's own published
+`settlement_value_dollars` or is refused with `REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE`
+(see `docs/POSTGAME_SETTLEMENT.md`). At an event probability of 0.45 a healthy player's
 YES contract is worth $0.445 but a Questionable player's is worth $0.331 — a 26% haircut that has nothing to do
 with football. **Model event probability and expected contract payoff are stored as separate fields everywhere.**
 
