@@ -416,14 +416,40 @@ This section is a **different leg with a different job and a different cadence**
 ```
 ChatGPT
   → writes a PREFLIGHT_REQUESTED row (candidates in Payload)
-  → an Airtable Automation calls the preflight workflow                     ← one-time owner setup
+  → opens a `[PREFLIGHT NFL]` issue in this repository                      ← the trigger signal, free
+  → the `issues: opened` event starts preflight.yml                          (owner-authored issues only)
   → the workflow checks out main + market-data + handicap-data
   → scripts/handicap/preflight_airtable.py runs the SAME gates the ledger later replays
   → the row becomes PREFLIGHT_APPROVED or PREFLIGHT_BLOCKED, verdict in `Preflight Result`
   → ChatGPT reads the row
   → ONLY an APPROVED candidate may be surfaced as a BET, and only at `approved_stake`
+  → the trigger issue closes automatically; the Airtable row is the verdict
   → the final recommendation is then submitted READY_FOR_SYNC for normal archival transport
 ```
+
+### The trigger is an issue, and it carries nothing
+
+Airtable's free tier has **no "Run script" Automation action**, so the paid path that used to call
+`workflow_dispatch` is not available. ChatGPT's GitHub integration can open an issue but cannot dispatch a
+workflow. So an issue is the trigger — and *only* the trigger.
+
+* **No Airtable paid Automation is required.** Nothing in this leg depends on a paid Airtable feature.
+* **No separate GitHub PAT is required.** The issue is created through ChatGPT's own GitHub connection;
+  the workflow authenticates the *author*, not a token it was handed.
+* **The issue carries no betting data.** No candidate, no ticker, no thesis, no probability, no price, no
+  stake, no Airtable record contents, no secrets. Title prefix plus generic body, nothing else. Airtable
+  remains the candidate transport and the only place a verdict lives.
+* **Only repository-owner issues are honoured.** This repository is public; the job-level guard is what
+  stops a stranger from starting the real worker. See below.
+* **`workflow_dispatch` remains the debugging fallback**, unchanged, `dry_run` included.
+
+The issue is never read as input — not the body, not the labels, not the title beyond the prefix — so a
+trigger can influence *that* the worker runs, never *what it decides*. No `Run ID` is parsed out of it: the
+worker answers **every** pending `PREFLIGHT_REQUESTED` row, exactly as before, so batching survives and two
+triggers arriving together cost one run under `concurrency: nfl-preflight`.
+
+**A closed issue is not an approval.** The cleanup comment names the Actions run and nothing else. If the
+worker failed, the issue still closes — and the Airtable row still says what it says. Silence is never yes.
 
 ### Why event-driven, and why the archival leg stays twelve-hourly
 
@@ -489,7 +515,7 @@ reconstructs a *different* message and fails, with no separate rule needed for e
 checks anyway, first, because "signature mismatch" is a useless thing to read at 01:00 when what actually
 happened is that somebody edited a payload.
 
-**`PREFLIGHT_SIGNING_KEY` exists only in GitHub Actions.** Never in Airtable, never in the Automation, never
+**`PREFLIGHT_SIGNING_KEY` exists only in GitHub Actions.** Never in Airtable, never in a trigger issue, never
 in ChatGPT, never in this repository. It is deliberately *not* `AIRTABLE_TOKEN`: a credential should have one
 purpose, and rotating Airtable access must not invalidate approval authentication.
 
@@ -586,7 +612,7 @@ Add `Preflight Result` and `Approved Payload` as **Long text** fields on the `Re
 and add `PREFLIGHT_REQUESTED`, `PREFLIGHT_APPROVED`, `PREFLIGHT_BLOCKED`, `PREFLIGHT_ERROR` as options on
 the existing `Status` single-select.
 
-**2. Create a GitHub token and an Airtable Automation.**
+**2. Generate the signing key. No GitHub token and no Airtable Automation are needed.**
 
 First, generate the approval signing key **once** and store it as a repository Actions secret named
 `PREFLIGHT_SIGNING_KEY`:
@@ -597,42 +623,46 @@ openssl rand -hex 32          # Settings -> Secrets and variables -> Actions -> 
 
 Both the preflight workflow and the archival importer read it from Actions — the worker signs with it, the
 importer verifies with it — and both pass it to their script through `env:`, never on a command line. It must
-never be pasted into Airtable, the Automation script, ChatGPT, an issue, a log or this repository. Rotating
+never be pasted into Airtable, ChatGPT, a GitHub issue, a log or this repository. Rotating
 it invalidates approvals that have not yet been archived, which is the correct behaviour: re-request them.
 
 Until the secret exists, a real recommendation is **deferred, not lost**: the row stays `READY_FOR_SYNC` and
 imports unchanged on the first run after the secret is added.
 
-Then create a **fine-grained personal access token** scoped to `chmoses98/nfl-edge-finder` only, with a
-single permission:
+**That is the whole setup.** There is no personal access token to create and no Airtable Automation to
+configure — the paid `Run script` action this used to need does not exist on the free tier.
 
-| permission | level | why |
-|---|---|---|
-| **Actions** | Read and write | the minimum that can call `workflow_dispatch`. Nothing else is needed. |
+**How ChatGPT triggers a run.** After writing the `PREFLIGHT_REQUESTED` row, open one issue in
+`chmoses98/nfl-edge-finder`:
 
-Do **not** grant `Contents: write`. It would also work — via `repository_dispatch` — but it is a strictly
-larger blast radius: a leaked `contents: write` token can push to any branch, including the ledger. An
-`actions: write` token can only start workflows that already exist in the repository. The workflow accepts
-`repository_dispatch` as well, for an Automation that prefers it; the narrower grant is the documented
-default.
+| field | value |
+|---|---|
+| title | `[PREFLIGHT NFL] <anything>` — the prefix must be at the **start** |
+| body | generic text only, e.g. *"Trigger preflight for pending Airtable NFL requests. No candidate data is stored in this issue."* |
 
-Then in Airtable: **Automations → Create → Trigger: When record matches conditions** (Table
-`Recommendation Runs`, condition `Status is PREFLIGHT_REQUESTED`) → **Action: Run script**:
+Never put a candidate, a ticker, a thesis, a probability, a price, a stake, an Airtable record or a secret
+in the issue. It is a public repository, and the issue is a doorbell.
 
-```js
-// Airtable Automation script. The token lives in the Automation's secret input, never in this repository.
-const GITHUB_PAT = input.config().githubPat;   // Automations → this script → Input variables
-const res = await fetch(
-  "https://api.github.com/repos/chmoses98/nfl-edge-finder/actions/workflows/preflight.yml/dispatches",
-  { method: "POST",
-    headers: { "Authorization": `Bearer ${GITHUB_PAT}`,
-               "Accept": "application/vnd.github+json",
-               "X-GitHub-Api-Version": "2022-11-28" },
-    body: JSON.stringify({ ref: "main" }) });
-if (res.status !== 204) throw new Error(`workflow_dispatch failed: ${res.status} ${await res.text()}`);
+**Why only the owner.** Anyone can open an issue here, so the job refuses to start unless both hold:
+
+```yaml
+github.event.issue.user.login == github.repository_owner
+startsWith(github.event.issue.title, '[PREFLIGHT NFL]')
 ```
 
-The workflow answers **every** pending `PREFLIGHT_REQUESTED` row, so the dispatch carries no payload and two
+A skipped job never starts, so an outsider's issue spends no Actions minutes, touches no secret, is never
+commented on and is never closed — it is simply ignored. `tests/test_preflight_issue_trigger.py` evaluates
+that expression directly against synthetic events, so an owner-lookalike (`chmoses`, `notchmoses98`,
+`github-actions[bot]`) is proven refused rather than assumed to be.
+
+GitHub's `startsWith` is case-insensitive, so `[preflight nfl]` from the owner also triggers. That is
+recorded rather than fought: the title is routing, the author check is the security control.
+
+**Permissions.** `contents: read` is unchanged — this job has never pushed and still cannot. `issues: write`
+is the single addition, for closing the trigger issue. It cannot push, cannot start workflows and cannot
+touch a pull request. `GITHUB_TOKEN` does the closing; no PAT is involved.
+
+The workflow answers **every** pending `PREFLIGHT_REQUESTED` row, so the trigger carries no payload and two
 requests arriving together cost one run.
 
 `AIRTABLE_TOKEN` is already configured as a repository secret for the importer; the preflight workflow uses
@@ -646,18 +676,21 @@ ticker that does not exist.
 
 1. Write one row: `Sport = NFL`, `Status = PREFLIGHT_REQUESTED`, `Run ID = E2E-PREFLIGHT`, `Payload` = a
    one-element array containing a complete candidate with `"test_only": true` and a fake ticker.
-2. The Automation fires; the workflow runs.
+2. Open a `[PREFLIGHT NFL] TEST_ONLY E2E` issue; the workflow runs and the issue closes.
 3. The row should land on **`PREFLIGHT_BLOCKED`** with a `Preflight Result` whose single candidate has
    `may_be_shown_as_a_bet: false`. That is the correct answer, and a `TEST_ONLY` probe coming back approved
    would itself be the bug.
 4. Nothing is written to any ledger branch. Preflight files no records.
 
 `tests/test_preflight_transport.py` runs this whole leg against a fake Airtable, including the TEST_ONLY
-probe, so the repository side is proven before the Automation exists. What the live run proves is the two
-things tests cannot: that the Automation fires and that the token works.
+probe, and `tests/test_preflight_issue_trigger.py` proves the trigger guard, so the repository side is
+proven before any issue is opened. What the live run proves is the one thing tests cannot: that ChatGPT's
+issue actually starts the workflow.
 
 ### Debugging fallbacks — not the operating workflow
 
-If the Automation is down, the owner can run the workflow by hand (`workflow_dispatch`, with `dry_run` to
-see verdicts without writing), or run `scripts/handicap/preflight_candidate.py` locally against a candidate
-file. Both are for debugging. Requiring either for a routine bet is what this leg exists to remove.
+If the issue trigger does not fire, the owner can run the workflow by hand (`workflow_dispatch`, with
+`dry_run` to see verdicts without writing), or run `scripts/handicap/preflight_candidate.py` locally against
+a candidate file. `repository_dispatch: [preflight]` also still works for anything that would rather POST
+`/dispatches`. All three are for debugging. Requiring any of them for a routine bet is what this leg exists
+to remove.
