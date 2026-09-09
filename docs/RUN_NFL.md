@@ -117,10 +117,52 @@ its workflow run, source SHAs, model version and packet SHA.
 
 ## Fail closed
 
-**Fail closed.** No ledger, a ledger past `--max-ledger-age-min`, no valid active week, no rows for the
+**Fail closed.** No ledger, a ledger past `--max-ledger-age-min`, a Kalshi capture past
+`--max-capture-age-min`, a failed or unproven fresh context capture, no valid active week, no rows for the
 week, a nonzero packet build, a missing or truncated game file — any of these exits nonzero, publishes
 nothing, and leaves the previous `latest/` in place **with its own `built_at`**. An old report is allowed to
 be old. It is never allowed to look new.
+
+### The three freshness gates
+
+| gate | flag | fresh / horizon | shadow cycle |
+|---|---|---|---|
+| shadow ledger age | `--max-ledger-age-min` | 45m | 45m |
+| **Kalshi capture the ledger was priced from** | `--max-capture-age-min` | **30m** | 45m |
+| **this run's own context capture** | `--require-context-run-id` | required | n/a |
+
+* **A fresh ledger is not a fresh market.** `price_slate.py` prices the newest capture it can find, so a
+  ledger written a minute ago can quote a Kalshi poll from an hour ago. The gate reads the ledger's
+  `snapshot_run_id` — the capture manifest's `finished_at`, i.e. **when Kalshi was last successfully
+  queried**. Deliberately *not* `minutes_since_price_change`, which is the time since a price last moved
+  and is a microstructure signal, not staleness. The manifest reports both the priced-from vintage and the
+  newest capture in the tree.
+* **A `force_fresh` context capture that fails, fails the run.** The step is not `continue-on-error`, and
+  `context_capture.py` exits 2 when any source failed closed. The build then proves this run's capture
+  exists, failed closed on nothing, and is one the packet actually read. No report, no `latest/`, no
+  horizon marked captured.
+* The capture is **change-suppressed** — the manifest is always written, the ESPN/Sleeper blobs only when
+  their content hash changed — so the proof hangs off the manifest, and unchanged content is carried
+  forward with both its written-at and confirmed-at vintages recorded. No timestamp is ever invented.
+* The shadow cycle uses 45m rather than 30m because it publishes shocks, runs system health and pushes the
+  ledger between pricing and reporting; 30m there would chronically skip the 2-hourly refresh for reasons
+  that say nothing about the data. It matches `price_slate.py`'s own `--max-quote-age-min`.
+
+### `latest/` never moves backward
+
+The shadow cycle and the horizon conductor are in different concurrency groups and can overlap. A cycle
+that *started* before a T−30m horizon run but *finished* after it would otherwise roll `latest/` back to
+the older market, at the worst possible moment — `--force-with-lease` protects the other job's commit, not
+the freshness of our content. So a publish whose ledger snapshot is strictly older than the published one
+leaves `latest/` alone, while still recording its manifest line in `history/index.jsonl` and carrying the
+horizon capture state forward (the horizon *was* satisfied — by a fresher report).
+
+### RUN NFL builds from `main`
+
+The workflow checks out `ref: main` explicitly. The contract is *current production main + current
+market-data*; a plain checkout would let a dispatch from an experimental branch produce a report
+indistinguishable from a canonical one — same artifact name, same `latest/`, same manifest. Code under
+development is still exercised normally by `tests.yml`, which checks out the PR head.
 
 ---
 

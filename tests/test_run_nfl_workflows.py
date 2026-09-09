@@ -220,3 +220,61 @@ def test_the_report_workflows_can_write_the_report_branch(name):
 
 def test_run_nfl_serialises_with_itself():
     assert (wf("run-nfl.yml").get("concurrency") or {}).get("cancel-in-progress") is False
+
+
+# ------------------------------------------------------------------ 5. freshness hardening
+
+def test_run_nfl_builds_from_canonical_main():
+    """RUN NFL's contract is "current production main + current market-data". A plain checkout builds
+    whatever ref the dispatch was launched from, so a report from an experimental branch would be
+    indistinguishable from a canonical one: same artifact name, same latest/, same manifest."""
+    checkout = next(s for s in steps(wf("run-nfl.yml"))
+                    if str(s.get("uses", "")).startswith("actions/checkout"))
+    assert (checkout.get("with") or {}).get("ref") == "main", (
+        "run-nfl.yml checkout is not pinned to main")
+
+
+def test_the_test_workflow_still_builds_the_branch_under_review():
+    """Pinning production to main must not stop CI from testing the code being changed."""
+    checkout = next(s for s in steps(wf("tests.yml"))
+                    if str(s.get("uses", "")).startswith("actions/checkout"))
+    assert "ref" not in (checkout.get("with") or {}), (
+        "tests.yml pins a ref, so a PR would be tested against main rather than against itself")
+
+
+def test_the_fresh_context_capture_can_fail_the_run():
+    """continue-on-error here meant a force_fresh run could lose its context capture, fall back to older
+    published weather/injuries, build, replace latest/ and mark a decision horizon captured."""
+    ctx = next(s for s in steps(wf("run-nfl.yml")) if "context_capture.py" in (s.get("run") or ""))
+    assert ctx.get("continue-on-error") is not True, (
+        "the fresh context capture is continue-on-error, so a failed capture still produces a 'fresh' report")
+
+
+def test_the_fresh_context_run_id_is_proved_to_have_reached_the_packet():
+    ctx = next(s for s in steps(wf("run-nfl.yml")) if "context_capture.py" in (s.get("run") or ""))
+    assert "context_run_id=" in ctx["run"], "the capture does not export the run id it produced"
+    build = next(s for s in steps(wf("run-nfl.yml")) if "build_report.py" in (s.get("run") or ""))
+    assert "--require-context-run-id" in build["run"]
+    assert "steps.context.outputs.context_run_id" in build["run"]
+
+
+def test_fresh_and_horizon_builds_gate_the_kalshi_capture_age():
+    """A fresh LEDGER is not a fresh MARKET: price_slate prices the newest capture it can find, so a
+    ledger written a minute ago can quote a Kalshi poll from an hour ago."""
+    build = next(s for s in steps(wf("run-nfl.yml")) if "build_report.py" in (s.get("run") or ""))
+    assert "--max-capture-age-min 30" in build["run"]
+    assert "force_fresh" in build["run"], "the capture gate is not tied to the fresh path"
+
+
+def test_the_shadow_cycle_gates_capture_age_without_failing_the_pricing_job():
+    d = wf("shadow-price.yml")
+    build = next(s for s in steps(d) if "build_report.py" in (s.get("run") or ""))
+    assert "--max-capture-age-min" in build["run"]
+    assert build.get("continue-on-error") is True, (
+        "a stale report capture must not fail the canonical pricing job; the ledger is its product")
+
+
+def test_the_horizon_path_inherits_the_fresh_gates():
+    """The conductor calls run-nfl.yml with force_fresh, so it gets the same capture and context gates."""
+    report = wf("run-nfl-horizons.yml")["jobs"]["report"]
+    assert report["with"]["force_fresh"] is True

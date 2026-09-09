@@ -91,22 +91,47 @@ def load_latest_ledger(md_root: str):
 
 
 def load_context(md_root: str, n_recent: int = 2):
-    """The two most recent context captures, so 'new since the previous run' is a real diff."""
+    """The two most recent context captures, so 'new since the previous run' is a real diff.
+
+    The capture is CHANGE-SUPPRESSED: `<run_id>.espn_injuries.json` and `<run_id>.sleeper.json` are written
+    only when the content hash differs from the previous run. The manifest is always written. So a run whose
+    ESPN blob was byte-identical to the last one has a manifest and no injuries file -- and reading only that
+    run's own files yields NO injuries at all, for every game, reported as `available: true` with an empty
+    list. Two captures in this project's own history are shaped exactly that way; a packet built at either
+    moment would have said "no injuries" about a slate that had fifteen.
+
+    Suppression means "the same content, re-confirmed now", so the blob is carried forward from the most
+    recent run that actually wrote one, and both vintages are recorded: `*_vintage` is when the content was
+    last written, `run_id` is when it was last confirmed. Nothing is invented and no timestamp is faked.
+    """
     days = sorted(glob.glob(os.path.join(md_root, "data", "context", "*")))
     runs = []
     for d in days:
         for m in sorted(glob.glob(os.path.join(d, "*.manifest.json"))):
             runs.append(m[: -len(".manifest.json")])
+
+    def _read(path):
+        try:
+            return json.load(open(path))
+        except (OSError, json.JSONDecodeError):
+            return None
+
     out = []
-    for stem in runs[-n_recent:]:
+    for i in range(max(0, len(runs) - n_recent), len(runs)):
+        stem = runs[i]
         rec = {"run_id": os.path.basename(stem), "espn": None, "sleeper": None, "weather": []}
         for key, suffix in (("espn", ".espn_injuries.json"), ("sleeper", ".sleeper.json")):
-            p = stem + suffix
-            if os.path.exists(p):
-                try:
-                    rec[key] = json.load(open(p))
-                except json.JSONDecodeError:
-                    rec[key] = None
+            for j in range(i, -1, -1):
+                p = runs[j] + suffix
+                if os.path.exists(p):
+                    rec[key] = _read(p)
+                    rec[key + "_vintage"] = os.path.basename(runs[j])
+                    rec[key + "_carried_forward"] = j != i
+                    break
+            else:
+                rec[key + "_vintage"] = None
+                rec[key + "_carried_forward"] = False
+        rec["manifest"] = _read(stem + ".manifest.json") or {}
         wp = stem + ".weather.jsonl"
         if os.path.exists(wp):
             for line in open(wp):
@@ -510,6 +535,18 @@ def injury_state(context_runs: list, teams: set) -> dict:
         "previous_capture_run_id": prev["run_id"] if prev else None,
         "diff_basis": ("compared against the previous capture" if prev else
                        "NO PREVIOUS CAPTURE -- nothing can be marked new"),
+        # Confirmed-at vs written-at. The capture is change-suppressed, so a run that re-confirms identical
+        # content writes no file; carrying it forward is what suppression MEANS, and both timestamps are
+        # reported so "re-confirmed 5 minutes ago" is never mistaken for "re-fetched and rewritten".
+        "sources": {
+            "espn": {"content_vintage": cur.get("espn_vintage"),
+                     "carried_forward_unchanged": bool(cur.get("espn_carried_forward")),
+                     "present": cur.get("espn") is not None},
+            "sleeper": {"content_vintage": cur.get("sleeper_vintage"),
+                        "carried_forward_unchanged": bool(cur.get("sleeper_carried_forward")),
+                        "present": cur.get("sleeper") is not None},
+            "capture_failed_closed": (cur.get("manifest") or {}).get("failed_closed") or [],
+        },
         "by_team": dict(by_team),
     }
 

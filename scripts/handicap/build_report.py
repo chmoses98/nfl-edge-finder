@@ -31,6 +31,8 @@ Exit codes
   6 FAILED        no active slate and skipping not allowed
   7 FAILED        no schedule readable
   8 FAILED        outputs missing or inconsistent after the build
+  9 FAILED        the Kalshi capture the ledger was priced from is older than --max-capture-age-min
+ 10 FAILED        --require-context-run-id names a capture that failed, is absent, or the packet never read
 """
 from __future__ import annotations
 
@@ -48,6 +50,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 from nfl_edge.data.nfl_calendar import load_schedule, resolve_active_week  # noqa: E402
+from nfl_edge.handicap.report_freshness import (  # noqa: E402
+    DEFAULT_MAX_CAPTURE_AGE_MIN, capture_vintage, check_capture_age, check_context_reached_packet,
+    check_fresh_context, find_context_run,
+)
 from nfl_edge.handicap.report_outputs import report_paths, verify_report_outputs  # noqa: E402
 
 RUN_NFL = os.path.join(ROOT, "scripts", "handicap", "run_nfl.py")
@@ -127,6 +133,15 @@ def main():
     ap.add_argument("--schedule", default=None)
     ap.add_argument("--allow-download", action="store_true")
     ap.add_argument("--max-ledger-age-min", type=float, default=None)
+    ap.add_argument("--max-capture-age-min", type=float, default=None,
+                    help=("refuse if the Kalshi capture the ledger was PRICED FROM is older than this. A "
+                          f"fresh ledger is not a fresh market (default policy {DEFAULT_MAX_CAPTURE_AGE_MIN:.0f}m "
+                          "for fresh/horizon builds)"))
+    ap.add_argument("--require-context-run-id", default=None,
+                    help=("the context capture this run produced. It must exist, must not have failed "
+                          "closed, and must be one the packet actually read"))
+    ap.add_argument("--max-context-age-min", type=float, default=None,
+                    help="refuse if --require-context-run-id is older than this")
     ap.add_argument("--movement-files", type=int, default=None)
     ap.add_argument("--skip-if-no-slate", action="store_true",
                     help="exit 5 (SKIPPED) rather than 6 (FAILED) when there is no active slate")
@@ -176,7 +191,31 @@ def main():
     print(f"slate: season {season} week {week} "
           f"({(week_res or {}).get('label') or 'pinned by the caller'})")
 
-    # ---- 2. build the packet through the canonical builder -------------------------------------
+    # ---- 2. freshness gates, before anything expensive ----------------------------------------
+    # These run BEFORE the build so a stale-market or failed-context run costs seconds, and -- more to the
+    # point -- so it can never reach the manifest, `latest/`, or a horizon being marked captured.
+    ledger_path, ledger_man = newest_ledger(a.market_data)
+    cap_vintage = capture_vintage(ledger_man or {}, now)
+    if ledger_path is None and a.max_capture_age_min is not None:
+        return _fail(a, 2, "FAILED", "no shadow ledger available under the market-data tree", now,
+                     week=week_res)
+    problem = check_capture_age(cap_vintage, a.max_capture_age_min)
+    if problem:
+        return _fail(a, 9, "FAILED", problem, now, week=week_res)
+    if a.max_capture_age_min is not None:
+        print(f"kalshi capture: {cap_vintage['snapshot_run_id']} queried {cap_vintage['queried_at']} "
+              f"({cap_vintage['age_min']}m old, limit {a.max_capture_age_min:.0f}m)")
+
+    ctx_required = None
+    if a.require_context_run_id:
+        problem = check_fresh_context(a.market_data, a.require_context_run_id, now=now,
+                                      max_age_min=a.max_context_age_min)
+        if problem:
+            return _fail(a, 10, "FAILED", problem, now, week=week_res)
+        ctx_required = find_context_run(a.market_data, a.require_context_run_id)
+        print(f"fresh context: {a.require_context_run_id} present, nothing failed closed")
+
+    # ---- 3. build the packet through the canonical builder -------------------------------------
     out = os.path.abspath(a.out)
     if os.path.exists(out):
         shutil.rmtree(out)
@@ -196,7 +235,7 @@ def main():
                       rc, f"run_nfl.py exited {rc}")
         return _fail(a, rc if rc in (2, 3, 4) else 8, "FAILED", reason, now, week=week_res)
 
-    # ---- 3. verify the outputs before anything is published ------------------------------------
+    # ---- 4. verify the outputs before anything is published ------------------------------------
     packet_path = os.path.join(out, "packet.json")
     if not os.path.exists(packet_path):
         return _fail(a, 8, "FAILED", "packet build produced no packet.json", now, week=week_res)
@@ -207,8 +246,14 @@ def main():
         return _fail(a, 8, "FAILED", "incomplete report: " + "; ".join(problems), now, week=week_res)
     game_ids = [g["game_id"] for g in packet["games"]]
 
-    # ---- 4. manifest: what this report is made of, and how old each ingredient was -------------
-    ledger_path, ledger_man = newest_ledger(a.market_data)
+    # The build reads the tree itself, so this is where "did the packet actually use this run's fresh
+    # capture?" can be answered -- and it is answered before manifest.json exists, so a failure here
+    # publishes nothing and marks no horizon.
+    problem = check_context_reached_packet(a.require_context_run_id, packet.get("sources"))
+    if problem:
+        return _fail(a, 10, "FAILED", problem, now, week=week_res)
+
+    # ---- 5. manifest: what this report is made of, and how old each ingredient was -------------
     s = packet["slate_summary"]
     focus = a.focus_game_id if a.focus_game_id in game_ids else None
     manifest = {
@@ -235,9 +280,13 @@ def main():
                 "observations": ((ledger_man or {}).get("counts") or {}).get("written"),
                 "snapshot_run_id": (ledger_man or {}).get("snapshot_run_id"),
             },
-            "kalshi_capture": newest_capture(a.market_data, now),
+            # The gated one is `priced_from`: the capture the LEDGER was built on. `newest_in_tree` can be
+            # newer and is informational -- pricing did not see it.
+            "kalshi_capture": dict(cap_vintage, newest_in_tree=newest_capture(a.market_data, now)),
             "context": dict(newest_context(a.market_data, now),
-                            captures_used=packet["sources"].get("context_captures")),
+                            captures_used=packet["sources"].get("context_captures"),
+                            fresh_capture_this_run=a.require_context_run_id,
+                            fresh_capture_sources=(ctx_required or {}).get("sources")),
             "team_profile_basis": packet["sources"].get("team_profile_basis"),
             "qb_profile_basis": packet["sources"].get("qb_profile_basis"),
         },
@@ -256,6 +305,14 @@ def main():
             "blocking_data_issues": len(s["blocking_data_issues"]),
             "new_or_changed_injuries": len(s["new_or_changed_injuries"]),
             "weather_concerns": len(s["weather_concerns"]),
+        },
+        "freshness_policy": {
+            "max_ledger_age_min": a.max_ledger_age_min,
+            "max_capture_age_min": a.max_capture_age_min,
+            "max_context_age_min": a.max_context_age_min,
+            "required_context_run_id": a.require_context_run_id,
+            "note": ("Enforced before publication. A gate that could not reach its evidence refuses; it "
+                     "never resolves to 'probably fine'."),
         },
         "blocking_data_issues": s["blocking_data_issues"],
         "kickoffs": [{"game_id": g["game_id"], "kickoff_utc": g["kickoff_utc"],
@@ -326,6 +383,10 @@ def _fail(a, code, status, reason, now, week=None):
     return code
 
 
+def _lim(x):
+    return "none" if x is None else f"{float(x):.0f}m"
+
+
 def _report(a, m, out, now):
     v = m["vintages"]
     label = m["slate_label"] or f"season {m['season']} week {m['week']}"
@@ -335,9 +396,9 @@ def _report(a, m, out, now):
     print(f"  games {m['counts']['games']}  markets {m['counts']['markets_listed']}  "
           f"model-supported {m['counts']['markets_supported']}  "
           f"blocking issues {m['counts']['blocking_data_issues']}")
-    print(f"  ledger {v['shadow_pricing']['ledger_run_id']} age "
-          f"{v['shadow_pricing']['age_min']}m  |  kalshi capture age {v['kalshi_capture']['age_min']}m  |  "
-          f"context age {v['context']['age_min']}m")
+    print(f"  ledger {v['shadow_pricing']['ledger_run_id']} age {v['shadow_pricing']['age_min']}m"
+          f"  |  kalshi capture priced from {v['kalshi_capture']['age_min']}m"
+          f"  |  context age {v['context']['age_min']}m")
     print(f"  written to {out}")
 
     if a.github_output:
@@ -371,8 +432,12 @@ def _report(a, m, out, now):
             f"| market-data sha | `{(m['sources']['market_data_sha'] or '')[:12]}` |",
             f"| model version | `{m['model_version']}` |",
             f"| shadow-pricing vintage | {sp['written_at']} ({sp['age_min']}m old) |",
-            f"| Kalshi capture vintage | {kc['captured_at']} ({kc['age_min']}m old) |",
+            f"| Kalshi capture priced from | {kc['queried_at']} "
+            f"(**{kc['age_min']}m** old, limit {_lim(m['freshness_policy']['max_capture_age_min'])}) |",
+            f"| newest Kalshi capture in tree | {(kc.get('newest_in_tree') or {}).get('captured_at')} "
+            f"({(kc.get('newest_in_tree') or {}).get('age_min')}m old) |",
             f"| context vintage | {ctx['captured_at']} ({ctx['age_min']}m old) |",
+            f"| fresh context this run | {ctx.get('fresh_capture_this_run') or 'not required'} |",
             f"| minutes to first kickoff | {m['minutes_to_first_kickoff']} |",
             f"| games | {m['counts']['games']} |",
             f"| markets listed | {m['counts']['markets_listed']} |",

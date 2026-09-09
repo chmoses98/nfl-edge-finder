@@ -86,7 +86,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
+      # RUN NFL's contract is "current production main + current market-data". A plain checkout builds
+      # whatever ref the dispatch was launched from, so a report from an experimental branch would be
+      # indistinguishable from a canonical one -- same artifact name, same latest/, same manifest. The ref
+      # is pinned, and the resolved sha is recorded in the manifest as `sources.main_sha`. Code under
+      # development is still exercised normally by `tests.yml`, which checks out the PR head.
       - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Confirm this is canonical main
+        run: |
+          echo "building RUN NFL from main @ $(git rev-parse HEAD)"
+          git rev-parse --abbrev-ref HEAD
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -144,9 +155,12 @@ jobs:
           python3 scripts/shadow/rebuild_opportunity.py 2>&1 | tail -2
           python3 scripts/kalshi/build_player_map.py --discovery-dir "$D" --season ${{ steps.week.outputs.season }} 2>&1 | tail -6
 
+      # NOT continue-on-error. A force_fresh run whose context capture dies must not fall back to older
+      # published weather/injuries, build happily, replace latest/ and mark a decision horizon captured. At
+      # T-30m that is the difference between having the inactive release and silently predating it.
+      # context_capture.py exits 2 when any source failed closed, so a partial capture fails the step.
       - name: Capture fresh weather / injuries / availability
         if: steps.week.outputs.status == 'OK' && inputs.force_fresh
-        continue-on-error: true
         id: context
         run: |
           mkdir -p data/context
@@ -160,6 +174,13 @@ jobs:
             mkdir -p "/tmp/md/data/context/$(basename "$d")"
             cp -n "$d"* "/tmp/md/data/context/$(basename "$d")/" || true
           done
+          # The run id this capture produced. The build proves the packet actually read it; the capture is
+          # change-suppressed, so the manifest -- which is always written -- is the honest marker, never a
+          # timestamp stamped onto somebody else's file.
+          RID=$(ls -1 data/context/*/*.manifest.json | tail -1 | xargs -n1 basename | cut -d. -f1)
+          if [ -z "$RID" ]; then echo "::error::context capture wrote no manifest"; exit 1; fi
+          echo "context_run_id=$RID" >> "$GITHUB_OUTPUT"
+          echo "fresh context capture: $RID"
 
       - name: Fresh LOCAL shadow-pricing snapshot
         if: steps.week.outputs.status == 'OK' && inputs.force_fresh
@@ -188,6 +209,14 @@ jobs:
           if [ -z "$AGE" ] && [ '${{ inputs.force_fresh }}' = 'true' ]; then AGE=45; fi
           LIMIT=""
           if [ -n "$AGE" ]; then LIMIT="--max-ledger-age-min $AGE"; fi
+          # A fresh ledger is not a fresh market: price_slate prices the newest capture it can find, so a
+          # ledger written a minute ago can quote a Kalshi poll from an hour ago. Gate the capture the
+          # ledger was actually PRICED FROM, and require this run's own context capture to be the one the
+          # packet read.
+          if [ '${{ inputs.force_fresh }}' = 'true' ]; then
+            LIMIT="$LIMIT --max-capture-age-min 30"
+            LIMIT="$LIMIT --require-context-run-id ${{ steps.context.outputs.context_run_id }}"
+          fi
           python3 scripts/handicap/build_report.py \
             --market-data /tmp/md \
             --out data/handicap_report \

@@ -49,6 +49,7 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime
 
 BRANCH = "handicap-reports"
 README = """# handicap-reports
@@ -67,6 +68,51 @@ Generated RUN NFL handicap packets. **Never merge into `main`.**
 Evidence only. Nothing on this branch is a bet, a recommendation, or a real-money authority, and no part of
 producing it touches Airtable. See `docs/RUN_NFL.md` on `main`.
 """
+
+
+def _ts(x):
+    try:
+        return datetime.fromisoformat(str(x).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+
+
+def source_freshness(manifest: dict):
+    """When the data this report is made of was produced -- NOT when the report was rendered.
+
+    The shadow ledger's `written_at` is the right key: every price, model view and disagreement in the
+    packet comes from that snapshot, and both the 2-hourly cycle and a horizon run stamp it at the moment
+    they priced. `built_at` is the fallback for a manifest that predates the field.
+    """
+    v = (manifest or {}).get("vintages") or {}
+    return _ts((v.get("shadow_pricing") or {}).get("written_at")) or _ts((manifest or {}).get("built_at"))
+
+
+def published_manifest(wt: str) -> dict:
+    p = os.path.join(wt, "latest", "manifest.json")
+    if not os.path.exists(p):
+        return {}
+    try:
+        return json.load(open(p))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def would_regress(incoming: dict, published: dict):
+    """Reason `latest/` must not be replaced, or None.
+
+    The shadow-pricing cycle and the horizon conductor run in different concurrency groups and can overlap.
+    `--force-with-lease` protects the other job's COMMIT from being lost; it says nothing about whether our
+    CONTENT is older. Without this, a shadow cycle that started before a T-30m horizon run but finished
+    after it would quietly roll `latest/` back to the older market -- at the worst possible moment.
+    """
+    new, old = source_freshness(incoming), source_freshness(published)
+    if old is None or new is None:
+        return None                      # nothing to compare against; the newer publish stands
+    if new < old:
+        return (f"this report is built from a {new.isoformat()} ledger snapshot and the published one is "
+                f"from {old.isoformat()}; latest/ does not move backward in source freshness")
+    return None
 
 
 def sh(cmd, cwd=None, check=True, capture=False):
@@ -107,12 +153,18 @@ def prepare_worktree(repo, wt, branch):
     return exists
 
 
-def stage(wt, src, manifest, horizon_state):
-    """Write latest/, append the history line and refresh the state file. Returns paths touched."""
-    latest = os.path.join(wt, "latest")
-    if os.path.exists(latest):
-        shutil.rmtree(latest)
-    shutil.copytree(src, latest)
+def stage(wt, src, manifest, horizon_state, replace_latest: bool = True):
+    """Write latest/, append the history line and refresh the state file.
+
+    `replace_latest=False` records the run without touching `latest/`: the run happened, its manifest
+    belongs in the index and any horizon it satisfied is genuinely captured, but a fresher report is
+    already published and must stay.
+    """
+    if replace_latest:
+        latest = os.path.join(wt, "latest")
+        if os.path.exists(latest):
+            shutil.rmtree(latest)
+        shutil.copytree(src, latest)
     readme = os.path.join(wt, "README.md")
     if not os.path.exists(readme):
         with open(readme, "w") as f:
@@ -172,9 +224,13 @@ def main():
     wt = os.path.join(os.path.dirname(repo), "_handicap_reports_wt")
     exists = prepare_worktree(repo, wt, a.branch)
 
+    regressed = None
     for attempt in range(1, a.attempts + 1):
         expected = remote_sha(repo, a.branch) if exists else None
-        stage(wt, src, manifest, horizon_state)
+        regressed = would_regress(manifest, published_manifest(wt))
+        if regressed:
+            print(f"::notice::latest/ not replaced: {regressed}")
+        stage(wt, src, manifest, horizon_state, replace_latest=not regressed)
         # One root commit per publish: the tree is the whole state, so nothing is lost by dropping the
         # parent, and the branch does not accumulate a 25MB packet every two hours.
         sh(["git", "checkout", "-q", "--orphan", "_publish"], cwd=wt)
@@ -188,7 +244,8 @@ def main():
             push.insert(2, f"--force-with-lease=refs/heads/{a.branch}:{expected}")
         r = subprocess.run(push, cwd=wt, text=True, capture_output=True)
         if r.returncode == 0:
-            print("published", a.branch)
+            print("published" if not regressed else "recorded (latest/ left at the fresher report)",
+                  a.branch)
             break
         print("push failed:", r.stderr[-500:])
         if not exists:
@@ -204,6 +261,21 @@ def main():
     else:
         print("FAILED to publish after retries", file=sys.stderr)
         return 3
+
+    if regressed:
+        # Not a failure: a fresher report is already up, which is the outcome the guard exists to produce.
+        # The manifest line and any horizon capture were still recorded above.
+        print("latest/ unchanged; this run is in history/index.jsonl")
+        if os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+                f.write(f"\n### latest/ not replaced\n\n{regressed}\n\n")
+        if a.github_output:
+            with open(a.github_output, "a") as f:
+                f.write("latest_replaced=false\n")
+        return 0
+    if a.github_output:
+        with open(a.github_output, "a") as f:
+            f.write("latest_replaced=true\n")
 
     url = None
     if os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_REPOSITORY"):

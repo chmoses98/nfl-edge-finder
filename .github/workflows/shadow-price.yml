@@ -106,6 +106,12 @@ jobs:
         continue-on-error: true
         run: python3 scripts/ci/assert_no_airtable.py
 
+      # 45m, not the 30m the manual/horizon paths use. Those price a capture and build seconds later; this
+      # job publishes shocks, runs system health and pushes the ledger to market-data (with backoff
+      # retries) between pricing and reporting, so a 30m limit would chronically skip the 2-hourly refresh
+      # for reasons that say nothing about the data. 45m matches price_slate's own --max-quote-age-min.
+      # Stale here means no new report and the previous latest/ stands with its own timestamp -- it never
+      # fails the pricing job, whose product is the ledger and is already published.
       - name: Build the handicap packet from this cycle's ledger
         id: report
         if: steps.week.outputs.status == 'OK'
@@ -114,7 +120,7 @@ jobs:
           python3 scripts/handicap/build_report.py --market-data /tmp/md \
             --out data/handicap_report \
             --season ${{ steps.week.outputs.season }} --week ${{ steps.week.outputs.week }} \
-            --trigger shadow-cycle --max-ledger-age-min 45 \
+            --trigger shadow-cycle --max-ledger-age-min 45 --max-capture-age-min 45 \
             --artifact-name 'run-nfl-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}'
 
       - name: Upload the report artifact

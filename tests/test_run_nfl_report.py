@@ -309,3 +309,163 @@ def test_the_horizon_state_survives_a_publish_that_does_not_supply_one(tmp_path)
     carried = json.loads(_git(repo, "show", "origin/handicap-reports:state/horizons.json"))
     assert "2026-REG-01|20260913T1700Z|T-90m" in carried["captured"], (
         "a shadow-cycle publish erased the horizon capture record, so every horizon would fire again")
+
+
+# ------------------------------------------------------------------- freshness gates, end to end
+
+def _md_with_capture(tmp_path, *, snapshot=None, written=None, rows=None, context_run=None,
+                     context_failed=()):
+    """A market-data tree whose ledger names the Kalshi capture it was priced from."""
+    md = tmp_path / "md"
+    day = md / "data" / "shadow" / "ledger" / "2026-09-09"
+    day.mkdir(parents=True)
+    stem = day / "20260909T000000Z.shadow-0.4.0"
+    with gzip.open(str(stem) + ".observations.jsonl.gz", "wt") as f:
+        for r in (rows if rows is not None else [{"season": 2026, "week": 1, "game_id": "2026_01_NE_SEA",
+                                                  "ticker": "T"}]):
+            f.write(json.dumps(r) + "\n")
+    now = datetime.now(timezone.utc)
+    man = {"run_id": "20260909T000000Z", "model_version": "shadow-0.4.0",
+           "written_at": (written or now).isoformat()}
+    if snapshot is not None:
+        man["snapshot_run_id"] = snapshot.strftime("%Y%m%dT%H%M%SZ")
+    json.dump(man, open(str(stem) + ".ledger_manifest.json", "w"))
+    if context_run:
+        cd = md / "data" / "context" / "2026-09-09"
+        cd.mkdir(parents=True)
+        json.dump({"run_id": context_run, "sources": {}, "failed_closed": list(context_failed)},
+                  open(cd / f"{context_run}.manifest.json", "w"))
+    return str(md)
+
+
+def test_a_fresh_ledger_priced_from_a_stale_kalshi_capture_is_refused(tmp_path):
+    """The gate the ledger-age check could not see: written_at is seconds old, the market is 90m old."""
+    now = datetime.now(timezone.utc)
+    md = _md_with_capture(tmp_path, snapshot=now - timedelta(minutes=90), written=now)
+    r = _build(md, tmp_path, ["--max-ledger-age-min", "45", "--max-capture-age-min", "30"])
+    assert r.returncode == 9, r.stderr
+    assert "the ledger is fresh but the market it quotes is not" in r.stderr
+    assert not (tmp_path / "out" / "manifest.json").exists()
+
+
+def test_the_same_tree_with_a_fresh_capture_gets_past_the_gate(tmp_path):
+    """So the refusal above is about the capture, not about plumbing."""
+    now = datetime.now(timezone.utc)
+    md = _md_with_capture(tmp_path, snapshot=now - timedelta(minutes=5), written=now, rows=[])
+    r = _build(md, tmp_path, ["--max-ledger-age-min", "45", "--max-capture-age-min", "30"])
+    assert r.returncode == 4, r.stderr        # no rows for the week: a LATER gate, not the capture one
+
+
+def test_a_ledger_that_does_not_name_its_capture_is_refused(tmp_path):
+    """'I could not check' must never resolve to 'it is fine'."""
+    md = _md_with_capture(tmp_path, snapshot=None, written=datetime.now(timezone.utc))
+    r = _build(md, tmp_path, ["--max-capture-age-min", "30"])
+    assert r.returncode == 9
+    assert "cannot be established" in r.stderr
+
+
+def test_a_force_fresh_run_fails_when_its_context_capture_produced_nothing(tmp_path):
+    """A dead capture must not fall back to older published context and still be called fresh."""
+    now = datetime.now(timezone.utc)
+    md = _md_with_capture(tmp_path, snapshot=now, written=now)
+    r = _build(md, tmp_path, ["--require-context-run-id", "20260909T115900Z"])
+    assert r.returncode == 10, r.stderr
+    assert "wrote no manifest" in r.stderr
+    assert not (tmp_path / "out" / "manifest.json").exists()
+
+
+def test_a_force_fresh_run_fails_when_its_context_capture_failed_closed(tmp_path):
+    now = datetime.now(timezone.utc)
+    md = _md_with_capture(tmp_path, snapshot=now, written=now, context_run="20260909T115900Z",
+                          context_failed=["espn injuries unavailable"])
+    r = _build(md, tmp_path, ["--require-context-run-id", "20260909T115900Z"])
+    assert r.returncode == 10, r.stderr
+    assert "failed closed" in r.stderr
+    assert not (tmp_path / "out" / "manifest.json").exists()
+
+
+def test_a_refused_run_cannot_publish_or_mark_a_horizon(tmp_path):
+    """Both downstream effects hang off manifest.json, which a refusal never writes."""
+    now = datetime.now(timezone.utc)
+    md = _md_with_capture(tmp_path, snapshot=now - timedelta(minutes=90), written=now)
+    _build(md, tmp_path, ["--max-capture-age-min", "30"])
+    assert _publish(str(tmp_path / "out")).returncode == 2
+
+
+# ------------------------------------------------------------------- latest/ never moves backward
+
+def _report_with_ledger(d, written, **kw):
+    write_report(d, **kw)
+    man = json.load(open(os.path.join(d, "manifest.json")))
+    man["built_at"] = written
+    man["vintages"] = {"shadow_pricing": {"written_at": written}, "kalshi_capture": {}, "context": {}}
+    json.dump(man, open(os.path.join(d, "manifest.json"), "w"))
+    return d
+
+
+def test_latest_never_regresses_to_an_older_ledger_snapshot(tmp_path):
+    """The shadow cycle and the horizon conductor are in different concurrency groups and can overlap.
+    A cycle that started before a T-30m horizon run but finished after it must not roll latest/ back to
+    the older market -- at the worst possible moment. --force-with-lease protects the other job's COMMIT;
+    it says nothing about whether our CONTENT is older."""
+    repo = _repo_with_remote(tmp_path)
+    newer = _report_with_ledger(str(tmp_path / "new"), "2026-09-13T15:35:00+00:00")
+    older = _report_with_ledger(str(tmp_path / "old"), "2026-09-13T14:37:00+00:00")
+    assert subprocess.run([sys.executable, PUBLISH, "--src", newer, "--repo", str(repo),
+                           "--message", "horizon T-30m"], capture_output=True).returncode == 0
+    r = subprocess.run([sys.executable, PUBLISH, "--src", older, "--repo", str(repo),
+                        "--message", "shadow cycle, finished later"], text=True, capture_output=True)
+    assert r.returncode == 0, r.stderr
+    assert "does not move backward" in r.stdout
+
+    _git(repo, "fetch", "-q", "origin", "handicap-reports")
+    published = json.loads(_git(repo, "show", "origin/handicap-reports:latest/manifest.json"))
+    assert published["vintages"]["shadow_pricing"]["written_at"] == "2026-09-13T15:35:00+00:00"
+
+
+def test_the_late_older_run_is_still_recorded_in_history(tmp_path):
+    """It ran, and any horizon it satisfied is genuinely satisfied -- by a fresher report. Dropping the
+    record would make the horizon fire again on the next wake for no benefit."""
+    repo = _repo_with_remote(tmp_path)
+    newer = _report_with_ledger(str(tmp_path / "new"), "2026-09-13T15:35:00+00:00")
+    older = _report_with_ledger(str(tmp_path / "old"), "2026-09-13T14:37:00+00:00")
+    state = tmp_path / "hz.json"
+    state.write_text(json.dumps({"captured": {"2026-REG-01|20260913T1700Z|T-90m": {"status": "CAPTURED"}}}))
+    subprocess.run([sys.executable, PUBLISH, "--src", newer, "--repo", str(repo), "--message", "new"],
+                   capture_output=True, check=True)
+    subprocess.run([sys.executable, PUBLISH, "--src", older, "--repo", str(repo), "--message", "old",
+                    "--horizon-state", str(state)], capture_output=True, check=True)
+    _git(repo, "fetch", "-q", "origin", "handicap-reports")
+    index = _git(repo, "show", "origin/handicap-reports:history/index.jsonl").strip().split("\n")
+    assert len(index) == 2, "the superseded run vanished from the history index"
+    carried = json.loads(_git(repo, "show", "origin/handicap-reports:state/horizons.json"))
+    assert "2026-REG-01|20260913T1700Z|T-90m" in carried["captured"]
+
+
+def test_a_newer_report_replaces_latest_normally(tmp_path):
+    """The guard must not become a ratchet that blocks ordinary refreshes."""
+    repo = _repo_with_remote(tmp_path)
+    older = _report_with_ledger(str(tmp_path / "old"), "2026-09-13T14:37:00+00:00")
+    newer = _report_with_ledger(str(tmp_path / "new"), "2026-09-13T16:37:00+00:00")
+    subprocess.run([sys.executable, PUBLISH, "--src", older, "--repo", str(repo), "--message", "a"],
+                   capture_output=True, check=True)
+    subprocess.run([sys.executable, PUBLISH, "--src", newer, "--repo", str(repo), "--message", "b"],
+                   capture_output=True, check=True)
+    _git(repo, "fetch", "-q", "origin", "handicap-reports")
+    published = json.loads(_git(repo, "show", "origin/handicap-reports:latest/manifest.json"))
+    assert published["vintages"]["shadow_pricing"]["written_at"] == "2026-09-13T16:37:00+00:00"
+
+
+def test_an_equally_fresh_report_still_publishes(tmp_path):
+    """Two runs off the same ledger snapshot: the later one wins, as before. Only strictly older is
+    refused, so a re-render of the same snapshot is not blocked."""
+    repo = _repo_with_remote(tmp_path)
+    a = _report_with_ledger(str(tmp_path / "a"), "2026-09-13T14:37:00+00:00")
+    b = _report_with_ledger(str(tmp_path / "b"), "2026-09-13T14:37:00+00:00",
+                            games=("2026_01_NE_SEA", "2026_01_SF_LA"))
+    subprocess.run([sys.executable, PUBLISH, "--src", a, "--repo", str(repo), "--message", "a"],
+                   capture_output=True, check=True)
+    r = subprocess.run([sys.executable, PUBLISH, "--src", b, "--repo", str(repo), "--message", "b"],
+                       text=True, capture_output=True)
+    assert r.returncode == 0
+    assert "does not move backward" not in r.stdout
