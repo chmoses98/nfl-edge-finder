@@ -27,8 +27,18 @@ reader never sees this run's `slate.md` beside last run's `games/`. Nothing here
 build already verified its own outputs, so a failed run leaves the previous report in place wearing its own
 `built_at` -- an old report is allowed to be old; it is never allowed to look new.
 
-History lives in GitHub Actions artifacts. This branch keeps only the manifest line per run, which is enough
-to trace an artifact back to its workflow run, source SHAs, model version and packet SHA.
+**The branch carries exactly one commit.** `latest/packet.json` is ~25MB. Committing a replacement on top
+of the previous one every two hours would add ~300MB of history per day and roughly 2GB per NFL week --
+which is the "hundreds of duplicate large packet snapshots" this design exists to avoid, merely arrived at
+by replacement rather than by accumulation. So every publish rewrites the branch as a fresh root commit
+carrying `history/index.jsonl` and `state/horizons.json` forward. The branch stays one snapshot in size
+forever.
+
+That is a force-push, and it is safe here for a reason that does not generalise: this branch is a *replaced
+surface*, not a ledger. `market-data` and `handicap-data` are append-only and are never rewritten. The
+immutable history of reports is the GitHub Actions artifact, one per run, retained 90 days; this branch
+keeps only the manifest line per run, which is enough to trace an artifact back to its workflow run, source
+SHAs, model version and packet SHA.
 """
 from __future__ import annotations
 
@@ -67,6 +77,13 @@ def sh(cmd, cwd=None, check=True, capture=False):
             print(r.stdout, r.stderr)
         raise SystemExit(f"command failed ({r.returncode}): {' '.join(cmd)}")
     return r
+
+
+def remote_sha(repo, branch):
+    r = subprocess.run(["git", "ls-remote", "--heads", "origin", branch], cwd=repo, text=True,
+                       capture_output=True)
+    line = (r.stdout or "").strip().split("\n")[0]
+    return line.split()[0] if line and r.returncode == 0 else None
 
 
 def prepare_worktree(repo, wt, branch):
@@ -156,25 +173,32 @@ def main():
     exists = prepare_worktree(repo, wt, a.branch)
 
     for attempt in range(1, a.attempts + 1):
+        expected = remote_sha(repo, a.branch) if exists else None
         stage(wt, src, manifest, horizon_state)
+        # One root commit per publish: the tree is the whole state, so nothing is lost by dropping the
+        # parent, and the branch does not accumulate a 25MB packet every two hours.
+        sh(["git", "checkout", "-q", "--orphan", "_publish"], cwd=wt)
         sh(["git", "add", "-A"], cwd=wt)
-        if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=wt).returncode == 0:
-            print("no changes to publish")
-            break
         sh(["git", "commit", "-q", "-m", a.message], cwd=wt)
-        r = subprocess.run(["git", "push", "-u", "origin", a.branch], cwd=wt, text=True,
-                           capture_output=True)
+        sh(["git", "branch", "-q", "-M", a.branch], cwd=wt)
+        push = ["git", "push", "-u", "origin", a.branch]
+        if expected:
+            # Not a bare --force: a concurrent publisher's commit must make this fail so we re-read their
+            # history/index.jsonl and re-stage on top, rather than deleting their line.
+            push.insert(2, f"--force-with-lease=refs/heads/{a.branch}:{expected}")
+        r = subprocess.run(push, cwd=wt, text=True, capture_output=True)
         if r.returncode == 0:
             print("published", a.branch)
             break
         print("push failed:", r.stderr[-500:])
         if not exists:
             time.sleep(3 * attempt)
+            exists = remote_sha(repo, a.branch) is not None
             continue
-        # `latest/` is a replace-target, so a concurrent publish is resolved by taking THEIR tip and
-        # re-staging ours on top: last successful run wins, and the tree stays internally consistent.
-        # history/index.jsonl is append-only and would conflict on rebase, so reset instead of rebasing.
+        # `latest/` is a replace-target: a concurrent publish is resolved by taking THEIR tip and
+        # re-staging ours on it, so the last successful run wins and their manifest line survives.
         sh(["git", "fetch", "origin", a.branch], cwd=wt)
+        sh(["git", "checkout", "-q", "-B", a.branch, f"origin/{a.branch}"], cwd=wt)
         sh(["git", "reset", "-q", "--hard", f"origin/{a.branch}"], cwd=wt)
         time.sleep(2 * attempt)
     else:

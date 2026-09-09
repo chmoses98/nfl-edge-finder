@@ -223,3 +223,89 @@ def test_an_unreadable_schedule_is_a_refusal_not_a_guessed_week(tmp_path):
          "--schedule", str(tmp_path / "does-not-exist.csv")], cwd=ROOT, text=True, capture_output=True)
     assert r.returncode == 7
     assert "schedule" in r.stderr.lower()
+
+
+# ------------------------------------------------------------------- the report branch does not bloat
+
+def _git(cwd, *args):
+    return subprocess.run(["git", *args], cwd=cwd, text=True, capture_output=True, check=True).stdout
+
+
+def _repo_with_remote(tmp_path):
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "t")
+    (repo / "README.md").write_text("code")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    _git(repo, "remote", "add", "origin", str(remote))
+    _git(repo, "push", "-q", "-u", "origin", "main")
+    return repo
+
+
+def test_the_report_branch_stays_one_commit_however_often_it_publishes(tmp_path):
+    """`latest/packet.json` is ~25MB. Committing a replacement every two hours through an NFL season is
+    ~2GB of history per week -- the "hundreds of duplicate large packet snapshots" this design exists to
+    avoid, arrived at by replacement instead of accumulation. Each publish rewrites the branch as a fresh
+    root commit and carries the manifest index forward."""
+    repo = _repo_with_remote(tmp_path)
+    src = write_report(str(tmp_path / "src"))
+    for i in range(3):
+        man = json.load(open(os.path.join(src, "manifest.json")))
+        man["built_at"] = f"2026-09-09T0{i}:00:00+00:00"
+        json.dump(man, open(os.path.join(src, "manifest.json"), "w"))
+        r = subprocess.run([sys.executable, PUBLISH, "--src", src, "--repo", str(repo),
+                            "--message", f"publish {i}"], text=True, capture_output=True)
+        assert r.returncode == 0, r.stdout + r.stderr
+
+    _git(repo, "fetch", "-q", "origin", "handicap-reports")
+    commits = _git(repo, "rev-list", "--count", "origin/handicap-reports").strip()
+    assert commits == "1", f"the report branch accumulated {commits} commits of 25MB packets"
+
+    files = _git(repo, "ls-tree", "-r", "--name-only", "origin/handicap-reports").split()
+    assert "latest/slate.md" in files
+    assert "latest/games/2026_01_NE_SEA.md" in files
+    assert "history/index.jsonl" in files
+
+    index = _git(repo, "show", "origin/handicap-reports:history/index.jsonl").strip().split("\n")
+    assert len(index) == 3, "the manifest index did not survive the branch rewrite"
+    assert [json.loads(x)["built_at"] for x in index] == [
+        "2026-09-09T00:00:00+00:00", "2026-09-09T01:00:00+00:00", "2026-09-09T02:00:00+00:00"]
+
+
+def test_a_game_that_leaves_the_slate_leaves_the_published_report(tmp_path):
+    """Two runs must never be mixed: last run's game file has to be gone, not merely superseded."""
+    repo = _repo_with_remote(tmp_path)
+    first = write_report(str(tmp_path / "a"), games=("2026_01_NE_SEA", "2026_01_SF_LA"))
+    assert subprocess.run([sys.executable, PUBLISH, "--src", first, "--repo", str(repo),
+                           "--message", "first"], capture_output=True).returncode == 0
+    second = str(tmp_path / "b")
+    json.dump({**PACKET, "games": [{"game_id": "2026_01_NE_SEA"}]},
+              open(os.path.join(write_report(second, games=("2026_01_NE_SEA",)), "packet.json"), "w"))
+    assert subprocess.run([sys.executable, PUBLISH, "--src", second, "--repo", str(repo),
+                           "--message", "second"], capture_output=True).returncode == 0
+    _git(repo, "fetch", "-q", "origin", "handicap-reports")
+    files = _git(repo, "ls-tree", "-r", "--name-only", "origin/handicap-reports").split()
+    assert "latest/games/2026_01_NE_SEA.md" in files
+    assert "latest/games/2026_01_SF_LA.md" not in files
+
+
+def test_the_horizon_state_survives_a_publish_that_does_not_supply_one(tmp_path):
+    """The 2-hourly cycle publishes with no horizon state. It must not wipe the conductor's record."""
+    repo = _repo_with_remote(tmp_path)
+    src = write_report(str(tmp_path / "src"))
+    state = tmp_path / "hz.json"
+    state.write_text(json.dumps({"captured": {"2026-REG-01|20260913T1700Z|T-90m": {"status": "CAPTURED"}}}))
+    assert subprocess.run([sys.executable, PUBLISH, "--src", src, "--repo", str(repo),
+                           "--horizon-state", str(state), "--message", "horizon run"],
+                          capture_output=True).returncode == 0
+    assert subprocess.run([sys.executable, PUBLISH, "--src", src, "--repo", str(repo),
+                           "--message", "shadow cycle"], capture_output=True).returncode == 0
+    _git(repo, "fetch", "-q", "origin", "handicap-reports")
+    carried = json.loads(_git(repo, "show", "origin/handicap-reports:state/horizons.json"))
+    assert "2026-REG-01|20260913T1700Z|T-90m" in carried["captured"], (
+        "a shadow-cycle publish erased the horizon capture record, so every horizon would fire again")
