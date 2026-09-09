@@ -18,7 +18,7 @@ PRICER  P(YES) for every Kalshi market from the classifier's semantics (family, 
         ▼
 MARKET  executable bid/ask, book depth, trades, fees  → edge, uncertainty, correlation groups, best expression
         ▼
-LEDGER  immutable prospective predictions (never overwritten) → settlement (Kalshi `result` + nflverse box) → CLV / calibration / error analysis
+LEDGER  immutable prospective predictions (never overwritten) → EVALUATIONS (a second immutable corpus: settlement proven from nflverse, close chosen strictly pre-kickoff) → CLV / calibration / error analysis
 ```
 
 Hard boundaries: RESEARCH (this repo's `research/`, free to experiment) → SHADOW (prospective predictions written to the ledger with no authority) → PRODUCTION (only models that pass `docs/PROMOTION.md` gates; none exist yet). Automatic trade execution is not implemented and not authorized.
@@ -27,14 +27,20 @@ Hard boundaries: RESEARCH (this repo's `research/`, free to experiment) → SHAD
 * `nfl_edge/kalshi/` — read-only client, classifier (market semantics), registry helpers.
 * `nfl_edge/data/` — bronze→silver builders and entity resolution.
 * `nfl_edge/research/` — reusable research code (ratings, distributions).
+* `nfl_edge/settlement/` — contract semantics, proven final results, and the postgame settlement engine.
+* `nfl_edge/shadow/` — the prospective ledger, the derived evaluation corpus, and the evaluation scorecard.
 * `scripts/data|kalshi|research|ci` — runnable entry points; `.github/workflows` — discovery/capture/backfill.
 * `config/kalshi_nfl_series.json` — reviewed series registry with capture tiers.
 * `research/` — experiment outputs (results.json + RESULTS.md per study), `research/hypothesis_registry/`.
-* `docs/` — audit, taxonomy, API notes, capture, architecture, roadmap, limitations.
+* `docs/` — audit, taxonomy, API notes, capture, architecture, roadmap, limitations, postgame settlement.
 
 ## Data lineage rules
 1. Bronze files are never edited; each has url, retrieval time, sha256 and upstream Last-Modified in `_manifest.jsonl`.
 2. Silver tables are pure functions of bronze (rebuildable with `python nfl_edge/data/silver.py`).
 3. Gold/feature code takes an explicit `(season, week)` or timestamp and may only read rows strictly before it.
-4. Kalshi rows carry `observed_at`, `run_id`, `trigger_source`; settlement fields come from Kalshi's own `result` and are never inferred.
+4. Kalshi rows carry `observed_at`, `run_id`, `trigger_source`, and preserve Kalshi's own `result` verbatim — the capture never infers a settlement.
+   The EVALUATION corpus is the one place a settlement is derived, and it derives it from nflverse final results with the evidence attached, refusing
+   whatever it cannot prove (`docs/POSTGAME_SETTLEMENT.md`). Kalshi's `result` is recorded there as a cross-check and never as the truth: it reproduces
+   15,009 of 15,021 archived 2025 settlements, and the exceptions are Kalshi settlements that contradict their games' own final scores
+   (`research/settlement_validation/RESULTS.md`).
 5. Every prospective prediction row must carry model version, calibration version, feature cutoff and market price observed.
