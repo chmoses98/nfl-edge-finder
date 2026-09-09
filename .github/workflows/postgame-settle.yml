@@ -1,0 +1,170 @@
+name: Postgame Settlement & Evaluation
+
+# After an NFL game is FINAL, converts the pregame shadow observations for that game into a SEPARATE immutable
+# evaluation corpus on `market-data`: settlement proven from nflverse, the last complete quote strictly before
+# kickoff as the close, CLV, and the research scorecard. The shadow ledger is read and never written.
+#
+# Cadence: every three hours. A game ends and nflverse publishes its player statistics some hours later, so a
+# 3-hourly poll settles a Sunday slate the same evening or overnight without a queue of pending games. Almost
+# every run does nothing: a gate reads the schedule (one csv) plus a directory listing, and the heavy steps are
+# skipped unless a final game has no evaluation batch yet. That keeps a season of polling to seconds per run.
+
+on:
+  schedule:
+    - cron: '19 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      games:
+        description: 'space-separated game_ids to settle (blank = whatever the gate finds)'
+        required: false
+        default: ''
+      lookback_days:
+        description: 'how far back to look for final games with no evaluations'
+        required: false
+        default: '10'
+      dry_run:
+        description: 'plan and report, publish nothing (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+# Without pipefail a step that pipes a script into `tail` reports tail's status, so a script that died returns 0
+# and the step goes green having settled nothing. shadow-price.yml learned this the hard way (run 37).
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+# Two settle runs at once could both see the same game as unevaluated and both write a batch for it. The second
+# would be caught as a duplicate rather than corrupting anything, but it would waste a publish and a rebase.
+concurrency:
+  group: postgame-settle
+  cancel-in-progress: false
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch the published ledger, capture and evaluation corpus
+        run: |
+          git fetch --depth=1 origin market-data
+          rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+          ls -d /tmp/md/data/shadow/ledger/*/ | tail -2
+
+      # The schedule alone decides whether there is work: 2 MB, no parquet, no model. Everything expensive is
+      # behind this step's output.
+      - name: Fetch the schedule and decide whether there is anything to settle
+        id: gate
+        env:
+          INPUT_LOOKBACK: ${{ github.event.inputs.lookback_days }}
+        run: |
+          python3 scripts/data/nflverse_download.py --only schedules --seasons 2026-2026 2>&1 | tail -2
+          python3 scripts/shadow/settle_gate.py --market-data /tmp/md \
+            --lookback-days "${INPUT_LOOKBACK:-10}" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Fetch final results (player statistics, snap counts, identities)
+        if: steps.gate.outputs.work == 'true' || github.event.inputs.games != ''
+        run: |
+          python3 scripts/data/nflverse_download.py --only stats_player,snap_counts,players \
+            --seasons 2026-2026 2>&1 | tail -4
+
+      # Two read-only network reads happen inside this step, both fail-soft: ESPN's scoreboard for an
+      # independent "the game is complete" attestation, and the exchange's public /markets?status=settled surface
+      # for its own TERMINAL settlement (the only source of an exact scalar payout). Neither can invent a
+      # settlement. A failed or partial exchange read pins nothing and defers the affected game to the next poll,
+      # which is why this workflow being 3-hourly is part of the correctness argument and not just a cost choice:
+      # a game waiting on a market that has not finalised yet gets another attempt without anyone intervening.
+      - name: Settle every ready game and build evaluations
+        id: settle
+        if: steps.gate.outputs.work == 'true' || github.event.inputs.games != ''
+        env:
+          # Dispatch inputs reach the shell as environment variables, never as `${{ }}` interpolated into the
+          # script: an interpolated input is executed as shell text by whoever can dispatch the workflow.
+          INPUT_GAMES: ${{ github.event.inputs.games }}
+          INPUT_LOOKBACK: ${{ github.event.inputs.lookback_days }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          ARGS=()
+          for g in $INPUT_GAMES; do ARGS+=(--game "$g"); done
+          # An `[ ... ] && ...` one-liner returns 1 when the test is false, and `set -e` would fail the step for
+          # the ordinary case of dry_run being unset. An if-block cannot do that.
+          if [ "$INPUT_DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+          python3 scripts/shadow/settle_games.py --market-data /tmp/md \
+            --out data/shadow/evaluations --scorecard-out data/shadow/scorecards \
+            --lookback-days "${INPUT_LOOKBACK:-10}" \
+            "${ARGS[@]}" --github-output "$GITHUB_OUTPUT"
+
+      # Publishing is append-only and irreversible in practice, so every batch is verified against its own
+      # manifest first -- and the ledger worktree is checked for modifications, because "we only read it" is a
+      # claim that should be tested rather than trusted.
+      - name: Validate the new evaluation artifacts before anything is published
+        if: steps.settle.outputs.status == 'WROTE'
+        run: |
+          python3 scripts/shadow/validate_evaluations.py --root data/shadow/evaluations \
+            --market-data /tmp/md --require-rows
+
+      - name: Publish the immutable evaluation records
+        if: steps.settle.outputs.status == 'WROTE' && github.event.inputs.dry_run != 'true'
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/evaluations \
+            --message "shadow evaluations ${{ steps.settle.outputs.batch_id }} (${{ steps.settle.outputs.written }} records)"
+
+      # The scorecard is derived and can always be rebuilt from the corpus, so a failure here must not fail a
+      # run whose immutable product is already published.
+      - name: Rebuild the cumulative research report from the whole corpus
+        id: report
+        if: steps.settle.outputs.status == 'WROTE' && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        run: |
+          git fetch --depth=1 origin market-data
+          rm -rf /tmp/md2 && git worktree add -f /tmp/md2 origin/market-data
+          python3 scripts/shadow/eval_report.py --market-data /tmp/md2 \
+            --out data/shadow/scorecards/${{ steps.settle.outputs.batch_id }} 2>&1 | tail -20
+
+      - name: Publish the scorecards
+        if: steps.settle.outputs.status == 'WROTE' && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/scorecards \
+            --message "shadow evaluation scorecard ${{ steps.settle.outputs.batch_id }}"
+
+      - name: Upload the run's artifacts
+        if: steps.settle.outputs.status == 'WROTE'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-evaluations-${{ steps.settle.outputs.batch_id }}
+          path: |
+            data/shadow/evaluations
+            data/shadow/scorecards
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Report outcome
+        if: always()
+        env:
+          INPUT_GAMES: ${{ github.event.inputs.games }}
+        run: |
+          echo "gate work=${{ steps.gate.outputs.work }} games=${{ steps.gate.outputs.n_games }}"
+          echo "settle status=${{ steps.settle.outputs.status || 'SKIPPED' }} written=${{ steps.settle.outputs.written || 0 }} unchanged=${{ steps.settle.outputs.unchanged || 0 }} deferred=${{ steps.settle.outputs.games_deferred || 0 }}"
+          if [ "${{ steps.gate.outputs.work }}" != "true" ] && [ -z "$INPUT_GAMES" ]; then
+            echo "::notice::no final game is missing an evaluation batch; nothing was settled"
+          elif [ "${{ steps.settle.outputs.games_deferred || 0 }}" != "0" ] && [ "${{ steps.settle.outputs.written || 0 }}" = "0" ]; then
+            echo "::notice::every candidate game is deferred (pending statistics, snaps, or a terminal exchange settlement); the next poll retries"
+          elif [ "${{ steps.settle.outputs.status }}" = "CONFLICT" ]; then
+            echo "::error::a rerun contradicted an already-published evaluation; nothing was written"
+            exit 1
+          elif [ "${{ steps.settle.outputs.status }}" = "NO_OP" ]; then
+            echo "::notice::every candidate game was already evaluated or is still deferred; the corpus is unchanged"
+          fi
