@@ -91,22 +91,47 @@ def load_latest_ledger(md_root: str):
 
 
 def load_context(md_root: str, n_recent: int = 2):
-    """The two most recent context captures, so 'new since the previous run' is a real diff."""
+    """The two most recent context captures, so 'new since the previous run' is a real diff.
+
+    The capture is CHANGE-SUPPRESSED: `<run_id>.espn_injuries.json` and `<run_id>.sleeper.json` are written
+    only when the content hash differs from the previous run. The manifest is always written. So a run whose
+    ESPN blob was byte-identical to the last one has a manifest and no injuries file -- and reading only that
+    run's own files yields NO injuries at all, for every game, reported as `available: true` with an empty
+    list. Two captures in this project's own history are shaped exactly that way; a packet built at either
+    moment would have said "no injuries" about a slate that had fifteen.
+
+    Suppression means "the same content, re-confirmed now", so the blob is carried forward from the most
+    recent run that actually wrote one, and both vintages are recorded: `*_vintage` is when the content was
+    last written, `run_id` is when it was last confirmed. Nothing is invented and no timestamp is faked.
+    """
     days = sorted(glob.glob(os.path.join(md_root, "data", "context", "*")))
     runs = []
     for d in days:
         for m in sorted(glob.glob(os.path.join(d, "*.manifest.json"))):
             runs.append(m[: -len(".manifest.json")])
+
+    def _read(path):
+        try:
+            return json.load(open(path))
+        except (OSError, json.JSONDecodeError):
+            return None
+
     out = []
-    for stem in runs[-n_recent:]:
+    for i in range(max(0, len(runs) - n_recent), len(runs)):
+        stem = runs[i]
         rec = {"run_id": os.path.basename(stem), "espn": None, "sleeper": None, "weather": []}
         for key, suffix in (("espn", ".espn_injuries.json"), ("sleeper", ".sleeper.json")):
-            p = stem + suffix
-            if os.path.exists(p):
-                try:
-                    rec[key] = json.load(open(p))
-                except json.JSONDecodeError:
-                    rec[key] = None
+            for j in range(i, -1, -1):
+                p = runs[j] + suffix
+                if os.path.exists(p):
+                    rec[key] = _read(p)
+                    rec[key + "_vintage"] = os.path.basename(runs[j])
+                    rec[key + "_carried_forward"] = j != i
+                    break
+            else:
+                rec[key + "_vintage"] = None
+                rec[key + "_carried_forward"] = False
+        rec["manifest"] = _read(stem + ".manifest.json") or {}
         wp = stem + ".weather.jsonl"
         if os.path.exists(wp):
             for line in open(wp):
@@ -137,7 +162,13 @@ def load_movement(md_root: str, tickers: set, max_files: int | None = None):
             t = r.get("ticker")
             if t not in tickers:
                 continue
-            yb, ya = _f(r.get("yes_bid")), _f(r.get("yes_ask"))
+            # The capture writes dollar-denominated quote fields (`yes_bid_dollars`). Reading only
+            # `yes_bid` yielded None for every row, so every mid was None, every series was discarded by
+            # `movement_for`, and MOVEMENT reported "no captured quote history" for every ticker on every
+            # slate -- while `capture_files_scanned_for_movement` cheerfully reported 676 files read. A
+            # section that is silently always empty is worse than one that is absent.
+            yb = _f(r.get("yes_bid_dollars") if r.get("yes_bid_dollars") is not None else r.get("yes_bid"))
+            ya = _f(r.get("yes_ask_dollars") if r.get("yes_ask_dollars") is not None else r.get("yes_ask"))
             mid = (yb + ya) / 2.0 if (yb is not None and ya is not None) else None
             series[t].append((r.get("observed_at"), mid, yb, ya))
     for t in series:
@@ -215,13 +246,30 @@ def market_row(r: dict) -> dict:
 
 
 def movement_for(ticker: str, series: dict, kickoff, now) -> dict:
-    """Observed movement only. Distinguishes 'not captured' from 'not yet reached'."""
+    """Observed movement only. Distinguishes 'not captured' from 'not yet reached'.
+
+    An observation counts only where the book was a REAL market at that moment. Kalshi lists a contract
+    long before anyone quotes it: the book sits empty (0.00/0.00) and then at 0.00/0.99, whose "midpoint"
+    of 0.495 is a quoting convention, not an opinion about football. Measuring from one of those produces
+    a headline 0.77 "move" that is a listing artefact, and it would then drive the handicap priority
+    ranking -- the same failure the disagreement ranking already refuses (see MAX_DISAGREEMENT_WIDTH).
+    Excluded observations are counted, not hidden.
+    """
     pts = series.get(ticker) or []
-    parsed = [(_iso(ts), mid) for ts, mid, _, _ in pts if _iso(ts) and mid is not None]
-    parsed.sort()
-    out = {"n_observations": len(parsed), "horizons": {}}
+    usable, artefacts = [], 0
+    for ts, mid, yb, ya in pts:
+        t = _iso(ts)
+        if t is None or mid is None:
+            continue
+        if yb is None or ya is None or ya <= yb or (ya - yb) >= NO_REAL_MARKET_WIDTH:
+            artefacts += 1
+            continue
+        usable.append((t, mid))
+    parsed = sorted(usable)
+    out = {"n_observations": len(parsed), "n_excluded_no_real_market": artefacts, "horizons": {}}
     if not parsed:
-        out["note"] = "no captured quote history for this ticker"
+        out["note"] = ("no captured observation where this book was a real market"
+                       if artefacts else "no captured quote history for this ticker")
         return out
     first_ts, first_mid = parsed[0]
     out["first_observed"] = {"at": first_ts.isoformat(), "mid": first_mid,
@@ -487,6 +535,18 @@ def injury_state(context_runs: list, teams: set) -> dict:
         "previous_capture_run_id": prev["run_id"] if prev else None,
         "diff_basis": ("compared against the previous capture" if prev else
                        "NO PREVIOUS CAPTURE -- nothing can be marked new"),
+        # Confirmed-at vs written-at. The capture is change-suppressed, so a run that re-confirms identical
+        # content writes no file; carrying it forward is what suppression MEANS, and both timestamps are
+        # reported so "re-confirmed 5 minutes ago" is never mistaken for "re-fetched and rewritten".
+        "sources": {
+            "espn": {"content_vintage": cur.get("espn_vintage"),
+                     "carried_forward_unchanged": bool(cur.get("espn_carried_forward")),
+                     "present": cur.get("espn") is not None},
+            "sleeper": {"content_vintage": cur.get("sleeper_vintage"),
+                        "carried_forward_unchanged": bool(cur.get("sleeper_carried_forward")),
+                        "present": cur.get("sleeper") is not None},
+            "capture_failed_closed": (cur.get("manifest") or {}).get("failed_closed") or [],
+        },
         "by_team": dict(by_team),
     }
 
@@ -890,6 +950,10 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
     disagreements = sorted(rankable, key=lambda m: -abs(m["disagreement_vs_mid"]))
     moves = []
     for m in markets:
+        # Only markets that are tradable NOW can have moved in any sense a handicapper can act on, and the
+        # same filter keeps a newly-quoted placeholder out of the top of the ranking.
+        if not m.get("tradable_for_disagreement_ranking"):
+            continue
         mv = (m.get("movement") or {}).get("total_move_since_first_capture")
         if mv is not None and abs(mv) > 0:
             moves.append({"ticker": m["ticker"], "family": m["family"], "move": mv,

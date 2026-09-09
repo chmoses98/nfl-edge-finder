@@ -142,7 +142,10 @@ def render_markdown(packet: dict, max_players_per_game: int = 8,
 def render_game_markdown(g: dict, max_players: int = 14, max_markets: int = 60) -> str:
     """One game, in full. This is the document to hand over when handicapping that game."""
     head = [f"# {g['away_team']} @ {g['home_team']} — `{g['game_id']}`", "",
-            "_Full detail. Every model-vs-market number is a disagreement, not an edge._"]
+            "**DISAGREEMENT ONLY -- REQUIRES HANDICAP.** Every model-vs-market number in this document is a "
+            "disagreement between two estimates. It is not an edge, not a selection and not a "
+            "recommendation, and relabelling one as an edge is the single error this packet exists to "
+            "prevent.", ""]
     return "\n".join(head + _render_game(g, max_players, max_markets, compact=False)[3:])
 
 
@@ -408,6 +411,77 @@ def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = Fa
     a(f"_Disagreement ranking used {drb.get('ranked_markets')} markets; "
       f"{drb.get('excluded_untradable')} excluded as untradable (width > {drb.get('max_width_ranked')} or "
       f"an untraded book). {drb.get('note')}_")
+    a("")
+
+    # ranked disagreements -- the same numbers as the board, ordered, and labelled for what they are
+    dis = g.get("largest_disagreements") or []
+    a("### LARGEST MODEL/MARKET DISAGREEMENTS")
+    a("")
+    a("**DISAGREEMENT ONLY -- REQUIRES HANDICAP.** Ranked by size, not by attractiveness. A large "
+      "disagreement most often means the model is missing something the market knows.")
+    a("")
+    if dis:
+        a("| market | who | line | mkt mid | YES ask | NO ask | model | vs mid | vs YES ask | vs NO ask |")
+        a("|---|---|---|---|---|---|---|---|---|---|")
+        for x in dis[:20]:
+            a(f"| `{x['ticker']}` | {x.get('player_name') or x.get('family')} | "
+              f"{x.get('stat') or ''} {x.get('threshold') if x.get('threshold') is not None else ''} | "
+              f"{_num(x.get('mid'))} | {_num(x.get('yes_ask'))} | {_num(x.get('no_ask'))} | "
+              f"{_num(x.get('model_probability'))} | {_sign(x.get('disagreement_vs_mid'))} | "
+              f"{_sign(x.get('disagreement_yes_executable'))} | "
+              f"{_sign(x.get('disagreement_no_executable'))} |")
+    else:
+        a("_No tradable market in this game carries a model view; nothing can be ranked._")
+    a("")
+
+    # movement -- observed horizons only, never interpolated
+    a("### MOVEMENT")
+    a("")
+    moves = [m for m in g["markets"] if (m.get("movement") or {}).get("n_observations")]
+    moves.sort(key=lambda m: -abs((m["movement"].get("total_move_since_first_capture") or 0.0)))
+    if not moves:
+        a("_No captured quote history covers this game's tickers. Movement is reported only where an "
+          "observation exists; nothing here is interpolated._")
+    else:
+        a(f"_{len(moves)} of {len(g['markets'])} tickers have captured quote history. A horizon with no "
+          "capture is shown as unobserved rather than filled in, and 'not yet reached' is distinguished "
+          "from 'never captured'._")
+        a("")
+        hs = [h for h in ("T-24h", "T-6h", "T-3h", "T-90m", "T-1h", "T-30m")]
+        a("| ticker | family | first | now | total move | " + " | ".join(hs) + " |")
+        a("|---|---|---|---|---|" + "---|" * len(hs))
+        for m in moves[:20]:
+            mv = m["movement"]
+            cells = []
+            for h in hs:
+                rec = (mv.get("horizons") or {}).get(h) or {}
+                cells.append(_sign(rec.get("move_to_current")) if rec.get("observed") else "—")
+            a(f"| `{m['ticker']}` | {m['family']}{'/' + m['period'] if m.get('period') else ''} | "
+              f"{_num((mv.get('first_observed') or {}).get('mid'))} | "
+              f"{_num((mv.get('current') or {}).get('mid'))} | "
+              f"{_sign(mv.get('total_move_since_first_capture'))} | " + " | ".join(cells) + " |")
+    a("")
+
+    # unsupported markets -- shown, with the reason, never hidden
+    unsupported = [m for m in g["markets"] if m.get("support_state") != "SUPPORTED"]
+    a("### UNSUPPORTED MARKETS — WHY")
+    a("")
+    if not unsupported:
+        a("_Every listed market in this game carries a model view._")
+    else:
+        by_reason = {}
+        for m in unsupported:
+            key = (m.get("support_state"), m.get("support_reason") or "no reason recorded")
+            by_reason.setdefault(key, []).append(m)
+        a(f"_{len(unsupported)} of {len(g['markets'])} listed markets carry no model view. They are shown, "
+          "not hidden: a missing model is not a missing market, and these remain available to a "
+          "qualitative handicap._")
+        a("")
+        a("| state | reason | markets | examples |")
+        a("|---|---|---|---|")
+        for (state, reason), ms in sorted(by_reason.items(), key=lambda kv: -len(kv[1])):
+            ex = ", ".join(f"`{m['ticker']}`" for m in ms[:3])
+            a(f"| {state} | {reason} | {len(ms)} | {ex} |")
     a("")
 
     # best expressions
