@@ -9,7 +9,7 @@ market-data: data/shadow/ledger/<day>/<run>.<model>.observations.jsonl.gz    the
 market-data: data/kalshi/capture/<day>/<run>.quotes.jsonl                    the quote history (untouched)
 nflverse:    schedules/games.csv, stats_player_week_S, snap_counts_S         the result
 espn:        scoreboard?dates=YYYYMMDD                                       an independent "complete" flag
-kalshi:      GET /markets (public, read-only)                                the exchange's own settlement
+kalshi:      GET /markets?status=settled (public, read-only)                   the exchange's own TERMINAL settlement
       |
       v
 market-data: data/shadow/evaluations/<game_id>/<eval_version>.<batch>.evaluations.jsonl.gz
@@ -48,7 +48,7 @@ Settled (full game only), from nflverse final results:
 | `TEAM_TOTAL` | team points >= K | final score |
 | `BOTH_TEAMS_SCORE_N` | min(home, away) >= K | final score |
 | `PLAYER_STAT` | stat >= K, given a proven snap | `stats_player_week` + `snap_counts` |
-| `PLAYER_STAT`, active but never played | the exchange's own `settlement_value_dollars` | a pinned settlement snapshot |
+| `PLAYER_STAT`, active but never played | the exchange's own `settlement_value_dollars` | a pinned snapshot of a TERMINAL exchange record |
 
 Player statistics with an established settlement column: passing yards, attempts, completions, passing
 touchdowns, interceptions, rushing yards, carries, receiving yards, receptions, rushing/receiving touchdowns,
@@ -63,7 +63,7 @@ Refused, with the reason recorded in the row:
 | `REFUSED_UNSUPPORTED_PERIOD` | 1H / 2H / quarter markets: the free schedule feed has no period scores |
 | `REFUSED_UNSUPPORTED_STAT` | sacks, tackles, longest reception/rush, field goals, fantasy points, rush+rec yards |
 | `REFUSED_PARTICIPATION_UNPROVEN` | the player is absent from a complete snap table, so he took no snap — but INACTIVE settles $0.00 and ACTIVE-but-never-played settles at a scalar value, and free data cannot say which |
-| `REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE` | active-but-never-played is **proven**, and the exchange's scalar value is not available. See below |
+| `REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE` | active-but-never-played is **proven**, and the exchange TERMINALLY settled the market without publishing a usable value. A market that is merely not settled yet DEFERS instead — see below |
 | `REFUSED_PLAYER_IDENTITY` | the Kalshi player was never resolved to a GSIS id |
 | `REFUSED_AMBIGUOUS_SEMANTICS` | no threshold parsed (every `KXNFL2TD` ticker), or a touchdown COUNT that two columns might double-count |
 | `REFUSED_RESULT_INCONSISTENT` | the schedule row contradicts itself (`result != home - away`) |
@@ -75,7 +75,7 @@ Rows the pricer itself refused (`UNSUPPORTED_*`, `STALE_DATA`, `DEGRADED_INPUT`,
 model probability, so there is no prediction in them to evaluate. They are counted in the run summary and left
 where they are.
 
-## The scalar branch: an exact payout or nothing
+## The scalar branch: terminal exchange evidence, or wait
 
 A player who is **active but never takes a snap** settles at a value the EXCHANGE computes and publishes
 (`settlement_value_dollars`). Nothing in nflverse knows that number.
@@ -86,20 +86,68 @@ invented into an immutable corpus and then score the model against it. So:
 
 * `settle_observation` has **no parameter that accepts a price** — not a midpoint, bid, ask or last trade. The
   proxy cannot become a settlement by accident, and a test asserts the signature stays that way;
-* the exact value is read only from the exchange: a **settlement snapshot** captured at settle time from the
-  public `GET /markets` surface, or the historical archive on `market-data` for older seasons;
-* without it the row is `REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE` with `settled_yes = null`, while
-  `settlement_evidence.participation_branch = "active_no_snap_proven"` records that the football fact WAS
-  proven. The legitimate pregame close stays in the close fields as research evidence.
+* the exact value is read only from the exchange, and only from a **terminal** record (below);
+* the legitimate pregame close stays in the close fields as research evidence, whatever the settlement does.
 
-**The snapshot is pinned.** It is written once per game, into the game's evaluation directory, and every later run
-reads that file instead of re-reading the exchange. A run that could not reach the exchange still writes a
-snapshot — an empty one, recording the failure — so the absence of an exact payout is pinned too and a rerun
-reproduces the same refusal rather than contradicting it.
+### Terminality: a result is not a settlement
 
-The 10-minutely capture is not a source for this: it fetches `status=open`, so a settled market has already left
-the set it looks at. Across 1,211,807 captured NFL quote rows every one carries `status="active"` and none carries
-a settlement.
+A Kalshi market acquires a `result` before its settlement is final:
+
+```
+active -> closed -> determined -> settled / finalized
+```
+
+A **determined** market's result can still be disputed and amended. An immutable evaluation may therefore only be
+built from a market that has reached a terminal state, where positions have been paid and the number cannot
+change. `result` alone is never trusted.
+
+| requirement | why |
+|---|---|
+| `status` ∈ `TERMINAL_STATUSES` | the only statuses where the settlement can no longer change |
+| `result` present | `yes` / `no` / `scalar` |
+| for `scalar`: `settlement_value_dollars` present and in [0, 1] | the payout itself |
+| `settlement_ts` preserved when supplied | provenance |
+
+`TERMINAL_STATUSES` is `("finalized", "settled")` and is named in exactly one place, so tightening the rule is a
+one-line change. Two strings because two surfaces spell the same terminal state differently: the historical
+archive normalises to `finalized` — measured, all **48,845** archived NFL records carry exactly that, asserted by
+`tests/test_kalshi_settlement.py` — while Kalshi's live status enum reaches the same state as `settled`.
+`determined`, `disputed`, `amended`, `closed`, `active`, `open`, `unopened` are explicitly **not** terminal, and
+each record's own status is recorded so the first live run shows which spelling the live surface uses.
+
+The live read asks the exchange for the terminal set directly — `GET /markets?event_ticker=…&status=settled`, one
+request per event — with a per-ticker fallback that must still pass the same terminality check.
+
+### Retryable acquisition versus terminal deficiency
+
+These are different facts and the pipeline never conflates them:
+
+| situation | outcome |
+|---|---|
+| request failed, response partial, or market not yet terminal | **retryable**: `DEFER_EXCHANGE_SETTLEMENT_PENDING`, nothing written, nothing pinned, the schedule tries again |
+| market terminally settled and published no usable value | **terminal deficiency**: `REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE`, `settled_yes = null`, participation branch still recorded as proven |
+
+Only a game that actually needs an exact scalar waits. The dependency set is computed from football evidence
+alone (`settle.exact_scalar_dependencies`: player props whose player is proven active and never on the field), so
+a game with no such player settles in full while the exchange is unreachable — binary football truth is
+nflverse-derived and does not depend on Kalshi at all.
+
+### What may and may not be pinned
+
+A pinned snapshot means *"this is terminal exchange evidence we intentionally froze"*, never *"this is all we
+could fetch once"*. It is written only when it holds terminal records covering **every** scalar-dependent ticker,
+and it records `required_tickers`, `covers_required` and the non-terminal records it saw and refused to freeze —
+so a partial fetch cannot masquerade as complete. A failed read, a partial page, or a still-determined market
+pins nothing at all.
+
+Snapshots are write-once per batch and a game may accumulate more than one (a later run needing evidence no
+earlier snapshot covers pins an additional file). Earlier records always win, so nothing already relied upon can
+change. `validate_evaluations.py` fails the run if any `scalar_exact` row's ticker has no terminal record in a
+pinned snapshot in the published corpus.
+
+The 10-minutely capture is not a source for any of this: it fetches `status=open`, so a settled market has
+already left the set it looks at. Across 1,211,807 captured NFL quote rows every one carries `status="active"` and
+none carries a settlement.
 
 ## Readiness: why a game sometimes produces nothing
 
@@ -114,6 +162,8 @@ So readiness is decided per game, before anything is written:
 * `DEFER_NOT_FINAL` — no scores, or scores without the postgame-only fields (a provisional row);
 * `DEFER_FINAL_UNPROVEN` — the score fields look final but nothing independent attests the game is complete;
 * `DEFER_STATS_PENDING`, `DEFER_SNAPS_PENDING` — write nothing, report, try again next poll;
+* `DEFER_EXCHANGE_SETTLEMENT_PENDING` — a prediction needs the exchange's own scalar value and that market is not
+  terminally settled yet, or could not be read;
 * `DEGRADED_INCONSISTENT` — the evidence contradicts itself, or two sources disagree.
 
 A deferred game is deferred **whole**. The next run writes its entire truth at once.

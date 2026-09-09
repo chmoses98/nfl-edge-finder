@@ -19,6 +19,8 @@ So readiness is a per-game gate, evaluated BEFORE anything is written:
     DEFER_FINAL_UNPROVEN  the score fields look final but nothing independent attests the game is complete
     DEFER_STATS_PENDING   final, but the player-stats release does not contain this game yet
     DEFER_SNAPS_PENDING   final, stats present, but snap counts (participation proof) are not
+    DEFER_EXCHANGE_SETTLEMENT_PENDING  a prediction needs the exchange's own scalar value and that market has not
+                          terminally settled yet, or could not be read: retryable, so nothing is written
     DEGRADED_INCONSISTENT the evidence contradicts itself (result != home - away, or a source disagrees)
 
 A deferred game writes NOTHING and is reported. The next run writes the whole truth at once.
@@ -67,6 +69,9 @@ NOT_FINAL = "NOT_FINAL"
 READY = "READY"
 DEFER_NOT_FINAL = "DEFER_NOT_FINAL"
 DEFER_FINAL_UNPROVEN = "DEFER_FINAL_UNPROVEN"
+# A prediction needs the exchange's own scalar value and that market has not terminally settled (or could not be
+# read). Retryable: the schedule tries again rather than freezing "unavailable" into the corpus.
+DEFER_EXCHANGE_SETTLEMENT_PENDING = "DEFER_EXCHANGE_SETTLEMENT_PENDING"
 DEFER_STATS_PENDING = "DEFER_STATS_PENDING"
 DEFER_SNAPS_PENDING = "DEFER_SNAPS_PENDING"
 DEGRADED_INCONSISTENT = "DEGRADED_INCONSISTENT"

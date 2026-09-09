@@ -81,9 +81,11 @@ jobs:
             --seasons 2026-2026 2>&1 | tail -4
 
       # Two read-only network reads happen inside this step, both fail-soft: ESPN's scoreboard for an
-      # independent "the game is complete" attestation, and the exchange's public /markets surface for its own
-      # settlement (the only source of an exact scalar payout). Neither can invent a settlement, and a failure
-      # of either defers or refuses rather than guessing.
+      # independent "the game is complete" attestation, and the exchange's public /markets?status=settled surface
+      # for its own TERMINAL settlement (the only source of an exact scalar payout). Neither can invent a
+      # settlement. A failed or partial exchange read pins nothing and defers the affected game to the next poll,
+      # which is why this workflow being 3-hourly is part of the correctness argument and not just a cost choice:
+      # a game waiting on a market that has not finalised yet gets another attempt without anyone intervening.
       - name: Settle every ready game and build evaluations
         id: settle
         if: steps.gate.outputs.work == 'true' || github.event.inputs.games != ''
@@ -158,6 +160,8 @@ jobs:
           echo "settle status=${{ steps.settle.outputs.status || 'SKIPPED' }} written=${{ steps.settle.outputs.written || 0 }} unchanged=${{ steps.settle.outputs.unchanged || 0 }} deferred=${{ steps.settle.outputs.games_deferred || 0 }}"
           if [ "${{ steps.gate.outputs.work }}" != "true" ] && [ -z "$INPUT_GAMES" ]; then
             echo "::notice::no final game is missing an evaluation batch; nothing was settled"
+          elif [ "${{ steps.settle.outputs.games_deferred || 0 }}" != "0" ] && [ "${{ steps.settle.outputs.written || 0 }}" = "0" ]; then
+            echo "::notice::every candidate game is deferred (pending statistics, snaps, or a terminal exchange settlement); the next poll retries"
           elif [ "${{ steps.settle.outputs.status }}" = "CONFLICT" ]; then
             echo "::error::a rerun contradicted an already-published evaluation; nothing was written"
             exit 1

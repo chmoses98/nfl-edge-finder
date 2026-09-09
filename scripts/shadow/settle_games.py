@@ -45,7 +45,7 @@ from nfl_edge.settlement import kalshi_settlement as KS                         
 from nfl_edge.settlement import settle as S                                        # noqa: E402
 from nfl_edge.settlement.final_status import fetch_espn_scoreboard                  # noqa: E402
 from nfl_edge.settlement.nflverse_results import build_result_book                 # noqa: E402
-from nfl_edge.settlement.results import READY                                      # noqa: E402
+from nfl_edge.settlement.results import DEFER_EXCHANGE_SETTLEMENT_PENDING, READY               # noqa: E402
 from nfl_edge.shadow import evaluation as E                                        # noqa: E402
 from nfl_edge.shadow import evaluation_store as ST                                 # noqa: E402
 from nfl_edge.shadow.eval_scorecard import build_scorecard, render_report          # noqa: E402
@@ -171,7 +171,9 @@ def main():
     ap.add_argument("--no-kalshi-crosscheck", action="store_true",
                     help="skip comparing our proven settlement with the exchange's own recorded result")
     ap.add_argument("--no-exchange-fetch", action="store_true",
-                    help="never contact the exchange; use only settlement evidence already on disk")
+                    help="never contact the exchange; use only settlement evidence already pinned or archived. "
+                         "A game that needs an exact scalar payout and has none on disk then DEFERS rather than "
+                         "being written with a permanent refusal")
     ap.add_argument("--no-espn-final", action="store_true",
                     help="skip the ESPN completion attestation (the postgame tables still have to attest)")
     ap.add_argument("--github-output", default="")
@@ -236,9 +238,13 @@ def main():
             deferred.append({"game_id": gid, "state": "SKIPPED_MAX_GAMES", "reason": "--max-games reached",
                              "observations": len(obs)})
             continue
-        ready.append(gid)
         rep = settle_game(gid, obs, book, corpus, capture_root, a, batch, now)
         per_game_report.append(rep)
+        if rep.get("deferred"):
+            deferred.append({"game_id": gid, "state": rep.get("defer_state"), "reason": rep.get("defer_reason"),
+                             "observations": len(obs)})
+            continue
+        ready.append(gid)
         written_total += rep["written"]
         noop_total += rep["unchanged"]
         conflicts_total += rep["conflicts"]
@@ -291,44 +297,75 @@ def main():
     return 0
 
 
-def exchange_settlements(gid, obs, corpus, a, batch, now):
-    """The exchange's own settlement for this game's tickers: PINNED once, then never re-read from the network.
+def exchange_settlements(gid, obs, results, a, batch, now):
+    """Terminal exchange evidence for this game, and whether it is enough to settle.
 
-    Priority: a snapshot a previous run already pinned; else a fresh capture from the public read-only client;
-    else the historical archive on market-data. Whatever the outcome, a snapshot is written -- an empty one
-    records that no settlement could be read -- so the evidence behind an immutable row cannot change between
-    runs and a rerun cannot contradict itself.
+    Returns `(book, snapshot, pending)`.
+
+      book      every terminal record we hold, pinned first and freshly read second
+      snapshot  a NEW snapshot to persist, or None. Written only when it freezes terminal evidence that covers
+                every scalar-dependent ticker -- never to record a failure, a partial page, or a market that has
+                not settled yet
+      pending   a reason to DEFER the whole game, or None. A retryable acquisition state, not a truth
+
+    The dependency set is what makes this cheap and safe: it is computed from football evidence alone, so a game
+    with no active-but-never-played player needs nothing from the exchange and settles during an outage.
     """
     tickers = sorted({o["ticker"] for o in obs})
     events = sorted({o.get("event_ticker") for o in obs if o.get("event_ticker")})
+    required = S.exact_scalar_dependencies(obs, results)
     book = KS.ExactSettlementBook()
-    pinned = KS.find_snapshot([a.out, os.path.join(a.market_data, "data", "shadow", "evaluations")], gid)
+
+    pinned = KS.find_snapshots([a.out, os.path.join(a.market_data, "data", "shadow", "evaluations")], gid)
+    for path in pinned:
+        book.load_snapshot(path)
     if pinned:
-        n = book.load_snapshot(pinned)
-        print(f"  exchange settlements: {n} pinned record(s) from {os.path.basename(pinned)} (not re-fetched)",
-              flush=True)
-        return book, None
-    markets, meta = [], []
-    if not a.no_exchange_fetch:
-        try:
-            from nfl_edge.kalshi.client import KalshiClient
-            markets, meta = KS.fetch_game_settlements(KalshiClient(rps=4.0), events, tickers,
-                                                      verbose=lambda m: print(m, flush=True))
-        except Exception as e:                                  # noqa: BLE001 - never fail the settle run on this
-            meta = [{"error": f"{type(e).__name__}: {str(e)[:200]}"}]
-            print(f"::warning::{gid}: could not read exchange settlements ({meta[0]['error']})", flush=True)
-    else:
-        meta = [{"skipped": "--no-exchange-fetch"}]
-    snapshot = KS.build_snapshot(gid, markets, fetch_meta=meta, captured_at=(now or datetime.now(timezone.utc)).isoformat())
-    book.load_snapshot(snapshot)
+        print(f"  exchange settlements: {len(book.by_ticker)} pinned terminal record(s) from "
+              f"{len(pinned)} snapshot(s) (not re-fetched)", flush=True)
     archive = os.path.join(a.market_data, "data", "kalshi", "backfill", "markets")
-    if os.path.isdir(archive):
+    if os.path.isdir(archive) and (required - book.terminal_tickers()):
         n = book.load_archive(archive, tickers)
         if n:
             print(f"  exchange settlements: +{n} record(s) from the historical archive", flush=True)
-    print(f"  exchange settlements: {len(snapshot['markets'])} captured, {len(book.by_ticker)} total for "
-          f"{len(tickers)} ticker(s)", flush=True)
-    return book, snapshot
+
+    missing = sorted(t for t in required if book.scalar_payout(t).retryable)
+    if not required:
+        print("  exchange settlements: no prediction needs an exact scalar payout for this game", flush=True)
+    if not missing:
+        # Either nothing was needed, or everything needed is already terminal. Nothing new to freeze.
+        return book, None, None
+
+    if a.no_exchange_fetch:
+        return book, None, (f"{len(missing)} scalar-dependent market(s) have no terminal exchange settlement and "
+                            "fetching is disabled (--no-exchange-fetch)")
+    try:
+        from nfl_edge.kalshi.client import KalshiClient
+        outcome = KS.fetch_game_settlements(KalshiClient(rps=4.0), events, missing,
+                                           verbose=lambda m: print(m, flush=True))
+    except Exception as e:                                      # noqa: BLE001 - never fail the run on a read
+        print(f"::warning::{gid}: could not read exchange settlements ({type(e).__name__}: {str(e)[:160]})",
+              flush=True)
+        return book, None, f"the exchange could not be read: {type(e).__name__}"
+
+    snapshot = KS.build_snapshot(gid, outcome.markets, required_tickers=sorted(required),
+                                fetch_meta=outcome.to_dict()["meta"] + [{"read_complete": outcome.complete,
+                                                                         "errors": outcome.errors}],
+                                captured_at=(now or datetime.now(timezone.utc)).isoformat())
+    fresh = KS.ExactSettlementBook()
+    for path in pinned:
+        fresh.load_snapshot(path)
+    fresh.load_snapshot(snapshot)
+    still_missing = sorted(t for t in required if fresh.scalar_payout(t).retryable)
+    print(f"  exchange settlements: read {len(outcome.markets)} market(s) (complete={outcome.complete}), "
+          f"{snapshot['n_markets']} terminal, {snapshot['n_non_terminal_seen']} not terminal; "
+          f"{len(required)} required, {len(still_missing)} still pending", flush=True)
+    if still_missing or not outcome.complete:
+        # NOTHING is pinned here. A failed or partial read, or a market that has not settled, is a state to
+        # retry -- freezing it would turn "we could not read it once" into "there is no settlement".
+        why = (f"{len(still_missing)} scalar-dependent market(s) are not terminally settled yet"
+               if still_missing else "the exchange read was incomplete, so the evidence cannot be frozen")
+        return fresh, None, why
+    return fresh, snapshot, None
 
 
 def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
@@ -349,17 +386,24 @@ def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
                    and q["observed_ts"] < kickoff_ts]
         closes[t] = (E.pick_close(qs, kickoff_ts), len(pregame))
 
-    exchange, snapshot = exchange_settlements(gid, obs, corpus, a, batch, now)
+    exchange, snapshot, pending = exchange_settlements(gid, obs, book, a, batch, now)
+    if pending:
+        # Retryable, so the whole game waits: writing a permanent "unavailable" for a market that is about to
+        # settle is exactly the contradiction the corpus forbids, and the next scheduled run costs nothing.
+        print(f"  DEFER {gid}: {DEFER_EXCHANGE_SETTLEMENT_PENDING} -- {pending}", flush=True)
+        return {"game_id": gid, "evaluated": 0, "tickers": len(tickers), "written": 0, "unchanged": 0,
+                "conflicts": 0, "deferred": True, "defer_state": DEFER_EXCHANGE_SETTLEMENT_PENDING,
+                "defer_reason": pending, "settlement_counts": {}, "close_counts": {}}
     rows, scount, ccount = [], Counter(), Counter()
     for o in obs:
         close, seen = closes.get(o["ticker"], (None, 0))
         # The active-but-never-played branch settles at the EXCHANGE'S OWN scalar value. The close midpoint is a
         # pricing-time proxy for that branch and is deliberately not passed in: it stays in the close fields as
         # research evidence and can never become a settlement.
-        exact, why = exchange.scalar_payout(o["ticker"])
-        st = S.settle_observation(o, book, exact_scalar_payout=exact,
-                                  exact_scalar_source=(exchange.get(o["ticker"]) or {}).get("source"),
-                                  exact_scalar_unavailable_reason=why)
+        look = exchange.scalar_payout(o["ticker"])
+        st = S.settle_observation(o, book, exact_scalar_payout=look.payout,
+                                  exact_scalar_source=look.source,
+                                  exact_scalar_unavailable_reason=look.reason)
         ev = E.evaluate(o, close, settlement=st, kickoff_ts=kickoff_ts,
                         evaluation_version=a.eval_version, close_candidates_seen=seen,
                         settlement_source=SETTLEMENT_SOURCE,
@@ -391,12 +435,16 @@ def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
                   flush=True)
         return rep
     if a.dry_run:
+        # A dry run still performed the exchange read above, so it can report truthfully whether the game WOULD
+        # settle -- but it pins nothing and writes nothing, so the read is discarded rather than frozen.
         rep["written"] = 0
         rep["would_write"] = len(plan["new"])
         return rep
     if snapshot is not None:
         # Written before the batch and inside the same game directory, so one publish carries the evidence and
-        # the rows it justifies. A later run finds this file and never re-reads the exchange.
+        # the rows it justifies. A later run finds this file and never re-reads the exchange. Reached only when
+        # the snapshot holds TERMINAL evidence covering every scalar-dependent ticker -- a failed or partial read
+        # returned a pending state above and got here at all.
         os.makedirs(ST.game_dir(a.out, gid), exist_ok=True)
         with open(os.path.join(ST.game_dir(a.out, gid),
                               f"{a.eval_version}.{batch}.{KS.SNAPSHOT_SUFFIX}"), "w") as f:
@@ -413,7 +461,12 @@ def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
                                  "capture_days_scanned": qstats.get("days"),
                                  "by_settlement_reason": _top_reasons(rows),
                                  "kalshi_crosscheck": {k: v for k, v in cross.items()
-                                                       if k != "disagreements"}})
+                                                       if k != "disagreements"},
+                                 "exchange_evidence": {
+                                     "scalar_dependent_tickers": sorted(S.exact_scalar_dependencies(obs, book)),
+                                     "terminal_records_held": len(exchange.terminal_tickers()),
+                                     "snapshot_pinned_this_batch": snapshot is not None,
+                                     "sources": exchange.sources}})
     if cross:
         # written next to the batch, not inside it: Kalshi's result is evidence ABOUT our settlement, never the
         # settlement itself, and it can arrive after the corpus row it comments on.

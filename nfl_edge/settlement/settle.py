@@ -343,3 +343,27 @@ def _settle_player_stat(obs: dict, book: ResultBook, g, exact_scalar_payout: flo
 def needs_player_stats(observations) -> bool:
     """Does this game's prediction set include anything that can only be settled from player statistics?"""
     return any(o.get("family") == "PLAYER_STAT" for o in observations)
+
+
+def needs_exact_scalar(obs: dict, book: ResultBook) -> bool:
+    """Does settling THIS observation depend on the exchange's own scalar value?
+
+    True only for a player prop whose player is PROVEN to have been active and never on the field -- the one
+    branch football evidence cannot price. Decidable from the result book alone, before any exchange read, which
+    is what lets a game with no such dependency settle while the exchange is unreachable.
+    """
+    if obs.get("family") != "PLAYER_STAT" or (obs.get("period") not in (FULL_GAME, None)):
+        return False
+    gid, pid = obs.get("game_id"), obs.get("player_id")
+    if not gid or not pid:
+        return False
+    g = book.games.get(gid)
+    if g is None or g.status != FINAL:
+        return False
+    pr = book.player(gid, pid)
+    return pr is not None and pr.played is False
+
+
+def exact_scalar_dependencies(observations, book: ResultBook) -> set:
+    """The TICKERS whose immutable evaluation needs terminal exchange evidence. Usually empty."""
+    return {o["ticker"] for o in observations if o.get("ticker") and needs_exact_scalar(o, book)}

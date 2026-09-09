@@ -13,6 +13,8 @@ checks here are the last place a defect is cheap. Every one of them has a failur
   refused rows carry NO payout      a refusal with a number in it is a guess wearing a refusal's label
   binary payouts are 0 or 1         a "binary" settlement of 0.37 means the kind field is lying
   scalar payouts name their source  a scalar settlement with no exchange source is an invented number
+  scalar payouts are pinned         a scalar settlement whose ticker has no TERMINAL record in a pinned snapshot
+                                    beside it is a payout nobody can re-verify
   event and payout stay distinct    an event probability recorded as a contract value hides a discount
   final status was proven           a settled row whose evidence carries no final proof was not gated
   no post-kickoff close             the one silent corruption that would flatter every CLV number
@@ -34,6 +36,7 @@ from datetime import datetime
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
+from nfl_edge.settlement import kalshi_settlement as KS                              # noqa: E402
 from nfl_edge.shadow import evaluation_store as ST                                  # noqa: E402
 from nfl_edge.shadow.evaluation import CLOSE_OK, CLOSE_OK_STALE                     # noqa: E402
 from nfl_edge.settlement.settle import (                                            # noqa: E402
@@ -109,6 +112,38 @@ def check_rows(rows, path, problems):
                                 "(negative means after kickoff)")
 
 
+def pinned_scalar_evidence(roots, problems, published_root: str | None = None):
+    """Every `scalar_exact` row must have TERMINAL evidence for its ticker in a pinned snapshot.
+
+    This is the invariant that makes an exact scalar payout auditable a season later: the number in the row and
+    the exchange record it came from are both in the published corpus, and the record has to be terminal.
+
+    The snapshot may have been pinned by an EARLIER run, in which case it is already on `market-data` while this
+    batch is still staged locally -- so both roots are searched. That is not a loophole: the earlier snapshot is
+    published, write-once evidence.
+    """
+    search = [r for r in ([roots] if isinstance(roots, str) else list(roots)) + [published_root] if r]
+    for root in ([roots] if isinstance(roots, str) else roots):
+        for game_dir in sorted(glob.glob(os.path.join(root, "*"))):
+            if not os.path.isdir(game_dir):
+                continue
+            game = os.path.basename(game_dir)
+            scalar_tickers = set()
+            for path in sorted(glob.glob(os.path.join(game_dir, "*.evaluations.jsonl.gz"))):
+                for r in ST.read_rows(path):
+                    if r.get("settlement_kind") == KIND_SCALAR_EXACT and r.get("ticker"):
+                        scalar_tickers.add(r["ticker"])
+            if not scalar_tickers:
+                continue
+            book = KS.ExactSettlementBook()
+            for snap in KS.find_snapshots(search, game):
+                book.load_snapshot(snap)
+            terminal = book.terminal_tickers()
+            for t in sorted(scalar_tickers - terminal):
+                problems.append(f"{game}: {t} settled scalar_exact but no pinned snapshot holds a TERMINAL "
+                                "exchange record for it")
+
+
 def ledger_untouched(market_data: str) -> tuple[str, list]:
     """The published ledger must be byte-identical to its committed state. A settle run only reads it.
 
@@ -149,6 +184,9 @@ def main():
             rows = ST.read_rows(path)
             n_rows += len(rows)
             check_rows(rows, os.path.relpath(path, root), problems)
+    pinned_scalar_evidence(a.root, problems,
+                           published_root=(os.path.join(a.market_data, "data", "shadow", "evaluations")
+                                           if a.market_data else None))
     ledger_state, ledger_problems = ledger_untouched(a.market_data)
     problems.extend(ledger_problems)
 

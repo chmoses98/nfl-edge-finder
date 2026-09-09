@@ -46,6 +46,7 @@ def load_script(name):
 
 settle_games = load_script("settle_games")
 validate_evaluations = load_script("validate_evaluations")
+KS = settle_games.KS
 
 
 # ---------------------------------------------------------------------------- the market-data tree
@@ -130,7 +131,7 @@ KALSHI_RESULT = {
 SCALAR_VALUE = "0.0400"
 
 
-def pin_snapshot(md, *, kalshi_result=None, scalar_value=SCALAR_VALUE, markets=None):
+def pin_snapshot(md, *, kalshi_result=None, scalar_value=SCALAR_VALUE, markets=None, status="finalized"):
     """Write a settlement snapshot as a previous run would have pinned it, into the published corpus."""
     kalshi_result = KALSHI_RESULT if kalshi_result is None else kalshi_result
     recs = {}
@@ -138,7 +139,7 @@ def pin_snapshot(md, *, kalshi_result=None, scalar_value=SCALAR_VALUE, markets=N
         res = kalshi_result.get(t)
         if not res:
             continue
-        rec = {"ticker": t, "result": res, "status": "finalized", "source": "kalshi_settlement_snapshot",
+        rec = {"ticker": t, "result": res, "status": status, "source": "kalshi_settlement_snapshot",
                "settlement_ts": "2025-09-05T04:30:00Z"}
         if res == "scalar" and scalar_value is not None:
             rec["settlement_value_dollars"] = scalar_value
@@ -152,8 +153,9 @@ def pin_snapshot(md, *, kalshi_result=None, scalar_value=SCALAR_VALUE, markets=N
     return path
 
 
-def build_market_data(tmp_path, *, kalshi_result=None):
+def build_market_data(tmp_path, *, kalshi_result=None, markets=None):
     kalshi_result = KALSHI_RESULT if kalshi_result is None else kalshi_result
+    markets = MARKETS if markets is None else markets
     md = tmp_path / "md"
     ledger_root = md / "data" / "shadow" / "ledger"
     capture_root = md / "data" / "kalshi" / "capture"
@@ -162,7 +164,7 @@ def build_market_data(tmp_path, *, kalshi_result=None):
         day = observed_at[:10]
         os.makedirs(ledger_root / day, exist_ok=True)
         rows = []
-        for i, m in enumerate(MARKETS):
+        for i, m in enumerate(markets):
             pid = hashlib.sha1(f"{run_id}|{m['ticker']}".encode()).hexdigest()[:20]
             rows.append(observation(pid, run_id=run_id, observed_at=observed_at, minutes_to_kickoff=mtk,
                                     **{k: v for k, v in m.items() if k != "ticker"}, ticker=m["ticker"]))
@@ -198,7 +200,7 @@ def build_market_data(tmp_path, *, kalshi_result=None):
         return row
 
     files = {}
-    for m in MARKETS:
+    for m in markets:
         t = m["ticker"]
         yb, ya = m["yes_bid"], m["yes_ask"]
         files.setdefault("2025-09-03", []).append(quote(t, "2025-09-03", "20:05", yb - 0.03, ya - 0.03))
@@ -430,43 +432,128 @@ def test_the_no_snap_branch_settles_at_the_exchanges_exact_value_not_a_midpoint(
         assert r["close_mid"] is not None, "the pregame close stays in the close fields as research evidence"
 
 
-def test_without_an_exchange_value_the_no_snap_branch_is_refused_and_no_number_is_invented(tmp_path, monkeypatch):
-    """Item 1's whole point: proven participation, unproven payout, nothing written in settled_yes."""
+def test_a_scalar_dependent_game_defers_while_the_exchange_has_no_terminal_settlement(tmp_path, monkeypatch, capsys):
+    """The retryability rule. One player needs the exchange's scalar; nothing terminal is available; so the whole
+    game waits. Writing a permanent "unavailable" for a market that is about to settle would be a lie frozen in
+    an immutable corpus, and the next scheduled run costs nothing."""
     md, _ = build_market_data(tmp_path)                     # no pinned snapshot, and fetching is disabled
     out = tmp_path / "evaluations"
     assert run_settle(monkeypatch, md, out) == 0
+    assert not glob.glob(os.path.join(str(out), "*", "*.evaluations.jsonl.gz")), (
+        "no batch may be written for a game whose exchange evidence is still pending")
+    assert not glob.glob(os.path.join(str(out), "*", f"*.{KS.SNAPSHOT_SUFFIX}")), (
+        "and nothing may be pinned: a failed acquisition is not evidence")
+    printed = capsys.readouterr().out
+    assert "DEFER_EXCHANGE_SETTLEMENT_PENDING" in printed
+
+
+def test_a_game_with_no_scalar_dependency_evaluates_even_when_the_exchange_is_unreachable(tmp_path, monkeypatch):
+    """Binary football truth is nflverse-derived, so an exchange outage must not hold it hostage."""
+    without_scalar = [m for m in MARKETS if m["ticker"] != SCALAR_TICKER]
+    md, _ = build_market_data(tmp_path, markets=without_scalar)
+    out = tmp_path / "evaluations"
+
+    def unreachable(*a, **k):
+        raise OSError("no route to host")
+    monkeypatch.setattr(settle_games.KS, "fetch_game_settlements", unreachable)
+    argv = ["settle_games.py", "--market-data", md, "--out", str(out),
+            "--scorecard-out", str(out) + "-sc", "--game", GAME, "--game", PENDING_GAME, "--no-espn-final"]
+    monkeypatch.setattr(settle_games, "build_result_book", lambda *a, **k: result_book())
+    monkeypatch.setattr(sys, "argv", argv)
+    assert settle_games.main() == 0
+    rows = corpus_rows(out)
+    assert len(rows) == len(without_scalar) * len(SNAPSHOTS), "the game settles in full"
+    assert not glob.glob(os.path.join(str(out), "*", f"*.{KS.SNAPSHOT_SUFFIX}")), (
+        "an unreachable exchange pins nothing, and nothing needed it")
+    assert {r["settlement_status"] for r in rows} >= {"SETTLED"}
+
+
+def test_a_network_failure_never_pins_an_empty_snapshot(tmp_path, monkeypatch):
+    md, _ = build_market_data(tmp_path)
+    out = tmp_path / "evaluations"
+
+    def unreachable(*a, **k):
+        raise OSError("connection reset")
+    monkeypatch.setattr(settle_games.KS, "fetch_game_settlements", unreachable)
+    argv = ["settle_games.py", "--market-data", md, "--out", str(out),
+            "--scorecard-out", str(out) + "-sc", "--game", GAME, "--no-espn-final"]
+    monkeypatch.setattr(settle_games, "build_result_book", lambda *a, **k: result_book())
+    monkeypatch.setattr(sys, "argv", argv)
+    assert settle_games.main() == 0
+    assert not glob.glob(os.path.join(str(out), "*", "*")), (
+        "a transient failure must leave no artifact at all -- not a batch, and not an empty snapshot")
+
+
+def test_a_partial_exchange_read_is_not_frozen_as_complete(tmp_path, monkeypatch):
+    """Some markets coming back is not completeness. A partial page is a retryable state."""
+    md, _ = build_market_data(tmp_path)
+    out = tmp_path / "evaluations"
+
+    def partial(*a, **k):
+        # the scalar market is terminal and present, but the read itself did not complete
+        return KS.FetchOutcome(markets=[{"ticker": SCALAR_TICKER, "result": "scalar", "status": "finalized",
+                                        "settlement_value_dollars": "0.0400"}],
+                              meta=[{"event_ticker": "E", "complete": False}], complete=False, errors=0)
+    monkeypatch.setattr(settle_games.KS, "fetch_game_settlements", partial)
+    argv = ["settle_games.py", "--market-data", md, "--out", str(out),
+            "--scorecard-out", str(out) + "-sc", "--game", GAME, "--no-espn-final"]
+    monkeypatch.setattr(settle_games, "build_result_book", lambda *a, **k: result_book())
+    monkeypatch.setattr(sys, "argv", argv)
+    assert settle_games.main() == 0
+    assert not glob.glob(os.path.join(str(out), "*", "*")), "an incomplete read pins nothing and writes nothing"
+
+
+def test_a_determined_but_not_finalized_market_defers_rather_than_settling(tmp_path, monkeypatch, capsys):
+    """`result=scalar` on a DETERMINED market is not settlement evidence: it can still be amended."""
+    md, _ = build_market_data(tmp_path)
+    pin_snapshot(md, status="determined")
+    out = tmp_path / "evaluations"
+    assert run_settle(monkeypatch, md, out) == 0
+    assert not glob.glob(os.path.join(str(out), "*", "*.evaluations.jsonl.gz"))
+    assert "DEFER_EXCHANGE_SETTLEMENT_PENDING" in capsys.readouterr().out
+
+
+def test_the_next_run_settles_the_same_game_once_the_finalized_scalar_appears(tmp_path, monkeypatch):
+    """The point of deferring instead of refusing: the game is still evaluable later."""
+    md, _ = build_market_data(tmp_path)
+    out = tmp_path / "evaluations"
+    assert run_settle(monkeypatch, md, out) == 0
+    assert not glob.glob(os.path.join(str(out), "*", "*.evaluations.jsonl.gz")), "first run defers"
+
+    pin_snapshot(md)                                        # the exchange finalises; a later run finds it
+    assert run_settle(monkeypatch, md, out) == 0
+    rows = corpus_rows(out)
+    assert len(rows) == len(MARKETS) * len(SNAPSHOTS), "the second run writes the whole game"
+    scalar = [r for r in rows if r["ticker"] == SCALAR_TICKER]
+    assert {r["settled_yes"] for r in scalar} == {0.04}
+    assert {r["settlement_kind"] for r in scalar} == {"scalar_exact"}
+
+
+def test_a_terminally_finalized_scalar_with_no_published_value_is_refused_not_deferred(tmp_path, monkeypatch):
+    """A terminal evidence deficiency, not a transient one: the exchange finished and published no number."""
+    md, _ = build_market_data(tmp_path)
+    pin_snapshot(md, scalar_value=None)                     # finalized, result=scalar, no value
+    out = tmp_path / "evaluations"
+    assert run_settle(monkeypatch, md, out) == 0
     rows = [r for r in corpus_rows(out) if r["ticker"] == SCALAR_TICKER]
-    assert rows
+    assert rows, "the game is NOT deferred: nothing more will arrive"
     for r in rows:
         assert r["settlement_status"] == "REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE"
         assert r["settled_yes"] is None
-        assert r["settlement_evidence"]["participation_branch"] == "active_no_snap_proven", (
-            "the participation branch is still recorded as proven")
-        assert "midpoint" in r["settlement_reason"] and "not the payout" in r["settlement_reason"]
-        assert r["close_mid"] is not None and r["mid_t"] is not None, (
-            "the quotes are untouched research evidence; only the settlement refuses")
+        assert r["settlement_evidence"]["participation_branch"] == "active_no_snap_proven"
 
 
-def test_a_scalar_result_with_no_published_value_is_still_refused(tmp_path, monkeypatch):
-    """`result=scalar` with no `settlement_value_dollars` proves the branch and not the number."""
-    md, _ = build_market_data(tmp_path)
-    pin_snapshot(md, scalar_value=None)
-    out = tmp_path / "evaluations"
-    assert run_settle(monkeypatch, md, out) == 0
-    rows = [r for r in corpus_rows(out) if r["ticker"] == SCALAR_TICKER]
-    assert rows and all(r["settlement_status"] == "REFUSED_EXACT_SCALAR_PAYOUT_UNAVAILABLE" for r in rows)
-    assert all(r["settled_yes"] is None for r in rows)
-
-
-def test_a_run_with_no_pinned_snapshot_pins_an_empty_one_so_a_rerun_cannot_contradict_it(tmp_path, monkeypatch):
-    md, _ = build_market_data(tmp_path)
-    out = tmp_path / "evaluations"
-    assert run_settle(monkeypatch, md, out) == 0
-    snaps = glob.glob(os.path.join(str(out), GAME, "*.kalshi_settlement_snapshot.json"))
-    assert snaps, "the absence of exchange evidence is itself pinned"
-    snap = json.load(open(snaps[0]))
-    assert snap["markets"] == {} and snap["game_id"] == GAME
-    assert snap["fetch_meta"], "why nothing was captured is recorded"
+def test_a_pinned_snapshot_records_the_tickers_it_had_to_cover(built):
+    """Completeness is a claim the snapshot makes explicitly, so a partial fetch cannot imply it."""
+    md_snaps = glob.glob(os.path.join(built["md"], "data", "shadow", "evaluations", GAME,
+                                     f"*.{KS.SNAPSHOT_SUFFIX}"))
+    assert md_snaps, "the fixture pins one"
+    man = json.load(open(glob.glob(os.path.join(str(built["out"]), GAME,
+                                               "*.evaluation_manifest.json"))[0]))
+    ev = man["exchange_evidence"]
+    assert ev["scalar_dependent_tickers"] == [SCALAR_TICKER]
+    assert ev["terminal_records_held"] >= len(MARKETS)
+    assert ev["snapshot_pinned_this_batch"] is False, "the pinned evidence was reused, not re-frozen"
 
 
 def test_the_pinned_snapshot_is_not_refetched_on_a_later_run(built, monkeypatch):
@@ -647,6 +734,7 @@ def test_the_validator_reports_when_it_could_not_check_the_published_ledger(buil
 def test_a_game_whose_player_statistics_are_pending_is_deferred_whole(tmp_path, monkeypatch):
     """Not "settle the team markets now and the player markets later": the game waits, entire."""
     md, _ = build_market_data(tmp_path)
+    pin_snapshot(md)
     out = tmp_path / "evaluations"
     rc = run_settle(monkeypatch, md, out, book=result_book(complete=False))
     assert rc == 0
@@ -655,6 +743,7 @@ def test_a_game_whose_player_statistics_are_pending_is_deferred_whole(tmp_path, 
 
 def test_a_dry_run_reports_and_writes_nothing(tmp_path, monkeypatch):
     md, _ = build_market_data(tmp_path)
+    pin_snapshot(md)
     out = tmp_path / "evaluations"
     rc = run_settle(monkeypatch, md, out, "--dry-run")
     assert rc == 0
@@ -664,6 +753,7 @@ def test_a_dry_run_reports_and_writes_nothing(tmp_path, monkeypatch):
 def test_a_kickoff_disagreement_stops_the_close_from_being_chosen(tmp_path, monkeypatch):
     """A wrong kickoff silently changes which quote is the close, so a disagreement refuses to pick one."""
     md, _ = build_market_data(tmp_path)
+    pin_snapshot(md)
     ledger = glob.glob(os.path.join(md, "data", "shadow", "ledger", "*", "*.observations.jsonl.gz"))
     for path in ledger:
         rows = [json.loads(line) for line in gzip.open(path, "rt")]
