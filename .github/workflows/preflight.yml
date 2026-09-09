@@ -3,10 +3,10 @@ name: Pre-trade preflight
 # THE PRE-TRADE LEG. Event-driven, and deliberately not on a schedule.
 #
 # ChatGPT produces the candidate and can write Airtable; it cannot run a script, clone a branch, or dispatch
-# a workflow. So the control it must pass has to be reachable from Airtable:
+# a workflow. It CAN open a GitHub issue, so that is the doorbell:
 #
 #   ChatGPT writes a PREFLIGHT_REQUESTED row
-#     -> an Airtable Automation calls this workflow's workflow_dispatch          (one-time owner setup)
+#     -> ChatGPT opens a `[PREFLIGHT NFL]` issue in this repository               (the free trigger)
 #     -> this job checks out main + market-data + handicap-data
 #     -> scripts/handicap/preflight_airtable.py runs the SAME gates the ledger will later replay
 #     -> the row becomes PREFLIGHT_APPROVED or PREFLIGHT_BLOCKED, verdict in `Preflight Result`
@@ -16,6 +16,13 @@ name: Pre-trade preflight
 # needs the answer before it goes stale. Polling for that would also spend the Airtable free-tier allowance
 # the twelve-hourly archival importer depends on. The two legs have different jobs and different cadences:
 # this one is immediate safety, `sync-handicap-airtable` is archival transport and stays twelve-hourly.
+#
+# WHY AN ISSUE. Airtable's free tier has no "Run script" Automation action, so the paid path that used to
+# start this workflow is not available. ChatGPT's GitHub integration can open an issue but cannot dispatch a
+# workflow. So an issue is used as a TRIGGER SIGNAL and nothing else: it carries no candidate, no ticker, no
+# thesis, no probability, no price, no stake and no Airtable content. Airtable remains the transport and the
+# only place the verdict lives. Nothing in the issue -- title beyond the prefix, body, labels -- is read as
+# input, so a trigger cannot influence what the worker decides, only that it runs.
 #
 # NOTHING HERE WRITES A LEDGER BRANCH. It reads market-data and handicap-data and writes one Airtable field
 # plus a status. A preflight verdict is not a record; the record is filed later, through the normal bridge.
@@ -28,15 +35,21 @@ on:
         type: boolean
         required: false
         default: false
-  # Alternative trigger for an Automation that would rather POST /dispatches than
-  # /actions/workflows/preflight.yml/dispatches. workflow_dispatch needs only `Actions: read and write`,
-  # which is the narrower grant, so it is the documented default -- see docs/AIRTABLE_BRIDGE.md.
+  # Kept as a debugging fallback for anything holding a token that would rather POST /dispatches. The
+  # operating trigger is the issue below, which needs no token at all -- see docs/AIRTABLE_BRIDGE.md.
   repository_dispatch:
     types: [preflight]
+  # The free trigger. This repository is PUBLIC, so anyone can open an issue: the job-level `if` below is
+  # the security boundary, and it is what stops an arbitrary user from making the real Airtable worker run.
+  issues:
+    types: [opened]
 
 # Read-only on this repository's contents. This job never pushes.
+# `issues: write` is added for exactly one purpose: closing (and commenting once on) the trigger issue after
+# the attempt. It cannot push, cannot start workflows and cannot touch a pull request.
 permissions:
   contents: read
+  issues: write
 
 # Serialise: two runs answering the same row would each compute a verdict and the later write would win.
 # Do NOT cancel in progress -- a cancelled run leaves the row PREFLIGHT_REQUESTED, which is correctly "not
@@ -51,6 +64,20 @@ defaults:
 
 jobs:
   preflight:
+    # AN ALLOWLIST, NOT A DENYLIST. A trigger this expression does not name cannot start the worker, so a
+    # future `on:` entry added without thinking about authorisation is inert rather than open. For the issue
+    # trigger both conditions must hold: the author is the repository owner, and the title carries the
+    # prefix. The owner check is the security control; the prefix is routing, so an ordinary bug report from
+    # the owner does not spend a preflight run.
+    #
+    # A job that is skipped here never starts, so an outsider's issue costs nothing, reveals nothing and is
+    # not touched: no run, no comment, no close.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'repository_dispatch' ||
+      (github.event_name == 'issues' &&
+       github.event.issue.user.login == github.repository_owner &&
+       startsWith(github.event.issue.title, '[PREFLIGHT NFL]'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -102,7 +129,7 @@ jobs:
             echo "::error::PREFLIGHT_SIGNING_KEY is not configured for this repository."
             echo "A pre-trade approval is authenticated, not merely self-consistent. Generate one strong"
             echo "random key (e.g. openssl rand -hex 32) and add it under Settings -> Secrets and variables"
-            echo "-> Actions. It must never be stored in Airtable, the Automation, ChatGPT or this repo."
+            echo "-> Actions. It must never be stored in Airtable, a trigger issue, ChatGPT or this repo."
             exit 1
           fi
           echo "PREFLIGHT_SIGNING_KEY is present (value never printed)."
@@ -111,12 +138,30 @@ jobs:
         working-directory: code
         env:
           AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
-          # Authenticates the pre-trade approval. It exists ONLY here: never in Airtable, never in the
-          # Automation, never in ChatGPT, never in this repository. Without it the worker will not issue an
-          # approval and the importer will not archive a real recommendation.
+          # Authenticates the pre-trade approval. It exists ONLY here: never in Airtable, never in a
+          # trigger issue, never in ChatGPT, never in this repository. Without it the worker will not issue
+          # an approval and the importer will not archive a real recommendation.
           PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
         run: |
           python3 scripts/handicap/preflight_airtable.py \
             --market-data ../market-data \
             --handicap-root ../ledger \
             ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--no-write' || '' }}
+
+      # Cleanup runs on `always()` so a failed worker still closes its trigger. The comment is deliberately
+      # contentless: it names the Actions run and nothing else. It must never carry the verdict, a candidate,
+      # a ticker, a price, a probability, a stake or a thesis -- the Airtable row is the only place the
+      # answer lives, and "the issue closed" is never evidence that anything was approved.
+      - name: Close the trigger issue
+        if: always() && github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          BODY="Preflight workflow completed. See the Actions run: ${RUN_URL}"
+          BODY="${BODY} -- this issue was a trigger only. The verdict is in the Airtable row, which is"
+          BODY="${BODY} authoritative; a closed issue is not an approval."
+          gh issue close "$ISSUE" --comment "$BODY" \
+            || echo "::warning::could not close trigger issue #${ISSUE}; it carries no data, so a stale open trigger is harmless"
