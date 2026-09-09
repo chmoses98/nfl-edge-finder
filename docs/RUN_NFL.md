@@ -150,12 +150,35 @@ be old. It is never allowed to look new.
 
 ### `latest/` never moves backward
 
-The shadow cycle and the horizon conductor are in different concurrency groups and can overlap. A cycle
-that *started* before a T−30m horizon run but *finished* after it would otherwise roll `latest/` back to
-the older market, at the worst possible moment — `--force-with-lease` protects the other job's commit, not
-the freshness of our content. So a publish whose ledger snapshot is strictly older than the published one
-leaves `latest/` alone, while still recording its manifest line in `history/index.jsonl` and carrying the
-horizon capture state forward (the horizon *was* satisfied — by a fresher report).
+The shadow cycle and the horizon conductor are in different concurrency groups and can overlap, and
+`--force-with-lease` protects the other job's *commit*, not the freshness of our *content*.
+
+Comparing the ledger's `written_at` is not enough — that is when the snapshot was written, not how old the
+evidence in it is. A cycle can write a ledger at 15:40 that was priced from a **15:05** capture carrying
+**14:50** context, and so replace a horizon report written at 15:35 off a 15:30 capture with 15:34 context:
+newer by every artifact timestamp, older in everything a reader actually sees. So the guard runs on the
+**critical source vintages**, and every one must be non-regressing:
+
+| source | key | fallback |
+|---|---|---|
+| market | `vintages.kalshi_capture.queried_at` | `snapshot_run_id` (the same instant, run-stamp form) |
+| context | `vintages.context.captured_at` | last entry of `captures_used` |
+| *tie-break only* | `vintages.shadow_pricing.written_at` | `built_at` |
+
+Never `injuries.sources.*.content_vintage`. The capture is change-suppressed, so a run that re-confirmed
+byte-identical content writes no blob and carries an older content vintage while being strictly **newer
+confirmation**; ranking on it would treat a fresh re-confirmation as a regression.
+
+The rule: if either critical source is older than the published one, `latest/` is not replaced. Only when
+neither regresses may it be replaced, and only when both are exactly equal does the ledger time break the
+tie. Fallbacks, so a branch published by an earlier version is never frozen: a source the *published*
+report does not record has no baseline and does not vote; a source the published report records and the
+*incoming* one does not is a refusal, because non-regression cannot be shown against a baseline that
+exists.
+
+A superseded run still succeeds: it records its manifest line in `history/index.jsonl` and carries the
+horizon capture state forward (the horizon *was* satisfied — by a fresher report), and only `latest/` is
+left alone.
 
 ### RUN NFL builds from `main`
 

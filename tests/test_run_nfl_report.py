@@ -469,3 +469,176 @@ def test_an_equally_fresh_report_still_publishes(tmp_path):
                        text=True, capture_output=True)
     assert r.returncode == 0
     assert "does not move backward" not in r.stdout
+
+
+# ------------------------------------------------------------------- monotonicity on CRITICAL SOURCES
+
+def _report_with_vintages(d, *, ledger, market=None, context=None, **kw):
+    """A report whose manifest carries the evidence vintages, not just the artifact time."""
+    write_report(d, **kw)
+    man = json.load(open(os.path.join(d, "manifest.json")))
+    man["built_at"] = ledger
+    man["vintages"] = {
+        "shadow_pricing": {"written_at": ledger},
+        "kalshi_capture": ({"queried_at": market} if market else {}),
+        "context": ({"captured_at": context} if context else {}),
+    }
+    json.dump(man, open(os.path.join(d, "manifest.json"), "w"))
+    return d
+
+
+def _publish_repo(repo, src, message, extra=()):
+    return subprocess.run([sys.executable, PUBLISH, "--src", src, "--repo", str(repo),
+                           "--message", message, *extra], text=True, capture_output=True)
+
+
+def _published(repo):
+    _git(repo, "fetch", "-q", "origin", "handicap-reports")
+    return json.loads(_git(repo, "show", "origin/handicap-reports:latest/manifest.json"))
+
+
+T = "2026-09-13T%s:00+00:00".__mod__
+
+
+def _scenario(tmp_path, published_kw, incoming_kw, names=("2026_01_NE_SEA",)):
+    repo = _repo_with_remote(tmp_path)
+    first = _report_with_vintages(str(tmp_path / "pub"), games=names, **published_kw)
+    assert _publish_repo(repo, first, "published").returncode == 0
+    second = _report_with_vintages(str(tmp_path / "inc"), games=names, **incoming_kw)
+    r = _publish_repo(repo, second, "incoming")
+    assert r.returncode == 0, r.stderr
+    return repo, r
+
+
+# The reference case from review: every field the old guard looked at says "newer".
+PUBLISHED_T30 = {"ledger": T("15:35"), "market": T("15:30"), "context": T("15:34")}
+
+
+def test_A_a_newer_ledger_priced_from_an_older_kalshi_capture_cannot_replace_latest(tmp_path):
+    """The defect the ledger-time guard could not see. written_at 15:40 > 15:35, and the market it quotes
+    is 25 minutes older than what is already published."""
+    repo, r = _scenario(tmp_path, PUBLISHED_T30,
+                        {"ledger": T("15:40"), "market": T("15:05"), "context": T("15:36")})
+    assert "does not move backward" in r.stdout
+    assert "Kalshi capture" in r.stdout
+    assert _published(repo)["vintages"]["kalshi_capture"]["queried_at"] == T("15:30")
+
+
+def test_B_a_newer_ledger_and_market_but_older_context_cannot_replace_latest(tmp_path):
+    """Market is fine; the injuries, weather and availability in it are 44 minutes staler."""
+    repo, r = _scenario(tmp_path, PUBLISHED_T30,
+                        {"ledger": T("15:40"), "market": T("15:31"), "context": T("14:50")})
+    assert "does not move backward" in r.stdout
+    assert "context capture confirmation" in r.stdout
+    assert _published(repo)["vintages"]["context"]["captured_at"] == T("15:34")
+
+
+def test_C_the_same_kalshi_capture_with_newer_context_replaces_latest(tmp_path):
+    """A re-render off the same market with a newer injury confirmation is a strict improvement."""
+    repo, r = _scenario(tmp_path, PUBLISHED_T30,
+                        {"ledger": T("15:45"), "market": T("15:30"), "context": T("15:44")})
+    assert "does not move backward" not in r.stdout
+    assert _published(repo)["vintages"]["context"]["captured_at"] == T("15:44")
+
+
+def test_D_a_newer_kalshi_capture_with_the_same_context_replaces_latest(tmp_path):
+    repo, r = _scenario(tmp_path, PUBLISHED_T30,
+                        {"ledger": T("15:45"), "market": T("15:44"), "context": T("15:34")})
+    assert "does not move backward" not in r.stdout
+    assert _published(repo)["vintages"]["kalshi_capture"]["queried_at"] == T("15:44")
+
+
+def test_E_newer_everywhere_is_an_ordinary_replacement(tmp_path):
+    repo, r = _scenario(tmp_path, PUBLISHED_T30,
+                        {"ledger": T("16:40"), "market": T("16:35"), "context": T("16:34")})
+    assert "does not move backward" not in r.stdout
+    assert _published(repo)["vintages"]["shadow_pricing"]["written_at"] == T("16:40")
+
+
+def test_F_a_blocked_replacement_is_still_recorded_and_keeps_horizon_state(tmp_path):
+    """The run happened and any horizon it satisfied IS satisfied -- by the fresher report already up.
+    Dropping either would make the horizon fire again for no benefit."""
+    repo = _repo_with_remote(tmp_path)
+    first = _report_with_vintages(str(tmp_path / "pub"), **PUBLISHED_T30)
+    assert _publish_repo(repo, first, "T-30m horizon").returncode == 0
+    state = tmp_path / "hz.json"
+    state.write_text(json.dumps({"captured": {"2026-REG-01|20260913T1700Z|T-30m": {"status": "CAPTURED"}}}))
+    stale = _report_with_vintages(str(tmp_path / "inc"),
+                                  ledger=T("15:40"), market=T("15:05"), context=T("14:50"))
+    r = _publish_repo(repo, stale, "shadow cycle, finished later", ["--horizon-state", str(state)])
+    assert r.returncode == 0, "a superseded run must succeed, not fail the workflow"
+    assert "does not move backward" in r.stdout
+
+    _git(repo, "fetch", "-q", "origin", "handicap-reports")
+    index = _git(repo, "show", "origin/handicap-reports:history/index.jsonl").strip().split("\n")
+    assert len(index) == 2, "the superseded run vanished from the history index"
+    carried = json.loads(_git(repo, "show", "origin/handicap-reports:state/horizons.json"))
+    assert "2026-REG-01|20260913T1700Z|T-30m" in carried["captured"]
+    assert _published(repo)["vintages"]["kalshi_capture"]["queried_at"] == T("15:30")
+
+
+def test_a_report_that_stops_recording_a_source_cannot_replace_one_that_does(tmp_path):
+    """Non-regression has to be shown, not assumed, once there is a baseline to show it against."""
+    repo, r = _scenario(tmp_path, PUBLISHED_T30, {"ledger": T("16:40")})
+    assert "non-regression cannot be shown" in r.stdout
+    assert _published(repo)["vintages"]["kalshi_capture"]["queried_at"] == T("15:30")
+
+
+def test_a_legacy_published_report_without_source_vintages_does_not_freeze_the_branch(tmp_path):
+    """`handicap-reports` already carries a report published before these fields existed. A guard that
+    refused everything it could not compare would leave it stuck there forever."""
+    repo, r = _scenario(tmp_path, {"ledger": T("15:35")},
+                        {"ledger": T("15:40"), "market": T("15:38"), "context": T("15:37")})
+    assert "does not move backward" not in r.stdout
+    assert _published(repo)["vintages"]["kalshi_capture"]["queried_at"] == T("15:38")
+
+
+def test_the_ledger_time_only_breaks_a_tie_between_identical_sources(tmp_path):
+    """Same market, same context, older ledger: a re-render from a staler derived artifact adds nothing."""
+    repo, r = _scenario(tmp_path, PUBLISHED_T30,
+                        {"ledger": T("15:20"), "market": T("15:30"), "context": T("15:34")})
+    assert "the critical sources are unchanged" in r.stdout
+    assert _published(repo)["vintages"]["shadow_pricing"]["written_at"] == T("15:35")
+
+
+def test_an_older_ledger_does_not_block_strictly_fresher_evidence(tmp_path):
+    """The tie-break must not outrank the critical sources it is subordinate to."""
+    repo, r = _scenario(tmp_path, PUBLISHED_T30,
+                        {"ledger": T("15:20"), "market": T("15:44"), "context": T("15:44")})
+    assert "does not move backward" not in r.stdout
+    assert _published(repo)["vintages"]["kalshi_capture"]["queried_at"] == T("15:44")
+
+
+def test_the_source_vintages_fall_back_to_the_run_stamp_forms():
+    """`queried_at` and `captured_at` are the primary keys; `snapshot_run_id` and the last `captures_used`
+    entry are the same instants in run-stamp form and stand in when a manifest carries only those."""
+    sys.path.insert(0, os.path.join(ROOT, "scripts", "ci"))
+    from publish_handicap_report import source_vintages  # noqa: PLC0415
+
+    v = source_vintages({"vintages": {
+        "kalshi_capture": {"snapshot_run_id": "20260913T153000Z"},
+        "context": {"captures_used": ["20260913T140000Z", "20260913T153400Z"]},
+        "shadow_pricing": {"written_at": "2026-09-13T15:35:00+00:00"}}})
+    assert v["market"].isoformat() == "2026-09-13T15:30:00+00:00"
+    assert v["context"].isoformat() == "2026-09-13T15:34:00+00:00"
+    assert v["ledger"].isoformat() == "2026-09-13T15:35:00+00:00"
+
+
+def test_change_suppressed_content_vintage_is_never_the_freshness_marker():
+    """A run that re-confirmed byte-identical injuries writes no blob and carries an OLDER content
+    vintage while being strictly newer confirmation. Ranking on it would treat a fresh re-confirmation as
+    a regression and refuse to publish it."""
+    sys.path.insert(0, os.path.join(ROOT, "scripts", "ci"))
+    from publish_handicap_report import source_vintages, would_regress  # noqa: PLC0415
+
+    def man(confirmed, content):
+        return {"vintages": {"kalshi_capture": {"queried_at": "2026-09-13T15:30:00+00:00"},
+                             "context": {"captured_at": confirmed},
+                             "shadow_pricing": {"written_at": confirmed}},
+                "injuries_content_vintage": content}
+
+    published = man("2026-09-13T15:34:00+00:00", "2026-09-13T15:34:00+00:00")
+    # Newer confirmation, older content hash vintage because nothing changed.
+    incoming = man("2026-09-13T15:50:00+00:00", "2026-09-13T04:00:00+00:00")
+    assert source_vintages(incoming)["context"].isoformat() == "2026-09-13T15:50:00+00:00"
+    assert would_regress(incoming, published) is None

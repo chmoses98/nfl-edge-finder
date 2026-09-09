@@ -49,7 +49,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 BRANCH = "handicap-reports"
 README = """# handicap-reports
@@ -77,15 +77,49 @@ def _ts(x):
         return None
 
 
-def source_freshness(manifest: dict):
-    """When the data this report is made of was produced -- NOT when the report was rendered.
+def _run_stamp(x):
+    """`20260909T060120Z` -> aware UTC datetime, or None."""
+    try:
+        return datetime.strptime(str(x), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
 
-    The shadow ledger's `written_at` is the right key: every price, model view and disagreement in the
-    packet comes from that snapshot, and both the 2-hourly cycle and a horizon run stamp it at the moment
-    they priced. `built_at` is the fallback for a manifest that predates the field.
+
+# The two vintages that bound what a reader is actually looking at. Both are EVIDENCE times, not
+# artifact times.
+CRITICAL_SOURCES = (
+    ("market", "the Kalshi capture the ledger was priced from"),
+    ("context", "the context capture confirmation"),
+)
+
+
+def source_vintages(manifest: dict) -> dict:
+    """The critical source vintages of one report, plus the derived ledger time as a tie-break.
+
+    * **market** -- `vintages.kalshi_capture.queried_at`: when Kalshi was last successfully polled for the
+      snapshot the ledger was PRICED FROM. Falls back to parsing `snapshot_run_id`, which is the same
+      instant in run-stamp form.
+    * **context** -- `vintages.context.captured_at`: the newest context capture the packet CONFIRMED. Falls
+      back to the last entry of `captures_used`, the same run in run-stamp form.
+
+      Deliberately never `injuries.sources.*.content_vintage`. The capture is change-suppressed, so a run
+      that re-confirmed byte-identical content writes no blob and carries an older content vintage --
+      while being strictly newer confirmation. Ranking on content vintage would treat a fresh
+      re-confirmation as a regression and refuse to publish it.
+    * **ledger** -- `vintages.shadow_pricing.written_at`: when the packet's snapshot was WRITTEN. This is
+      derived-artifact time: a ledger written later can be priced from an older capture and carry older
+      context, so it can only break a tie, never establish freshness on its own.
     """
     v = (manifest or {}).get("vintages") or {}
-    return _ts((v.get("shadow_pricing") or {}).get("written_at")) or _ts((manifest or {}).get("built_at"))
+    kc = v.get("kalshi_capture") or {}
+    ctx = v.get("context") or {}
+    used = [c for c in (ctx.get("captures_used") or []) if c]
+    return {
+        "market": _ts(kc.get("queried_at")) or _run_stamp(kc.get("snapshot_run_id")),
+        "context": _ts(ctx.get("captured_at")) or (_run_stamp(used[-1]) if used else None),
+        "ledger": (_ts((v.get("shadow_pricing") or {}).get("written_at"))
+                   or _ts((manifest or {}).get("built_at"))),
+    }
 
 
 def published_manifest(wt: str) -> dict:
@@ -103,15 +137,42 @@ def would_regress(incoming: dict, published: dict):
 
     The shadow-pricing cycle and the horizon conductor run in different concurrency groups and can overlap.
     `--force-with-lease` protects the other job's COMMIT from being lost; it says nothing about whether our
-    CONTENT is older. Without this, a shadow cycle that started before a T-30m horizon run but finished
-    after it would quietly roll `latest/` back to the older market -- at the worst possible moment.
+    CONTENT is older.
+
+    Comparing the ledger's `written_at` is not enough, because that is when the snapshot was written rather
+    than how old the evidence in it is. A shadow cycle can write a ledger at 15:40 that was priced from a
+    15:05 Kalshi capture and carries 14:50 context, and so replace a horizon report written at 15:35 off a
+    15:30 capture with 15:34 context -- passing its own 45m gate, passing a written_at comparison, and
+    rolling the human-facing report backward in the actual evidence. So the guard runs on the CRITICAL
+    SOURCE vintages, and every one of them must be non-regressing.
+
+    Fallback policy, so this never freezes a report branch published by an earlier version:
+
+    * the published report does not record a source  -> no baseline, that source does not vote;
+    * the published report records it and the incoming one does not -> refuse, because non-regression
+      cannot be shown against a baseline that exists;
+    * every critical source equal (including both absent) -> the derived ledger time breaks the tie.
     """
-    new, old = source_freshness(incoming), source_freshness(published)
-    if old is None or new is None:
-        return None                      # nothing to compare against; the newer publish stands
-    if new < old:
-        return (f"this report is built from a {new.isoformat()} ledger snapshot and the published one is "
-                f"from {old.isoformat()}; latest/ does not move backward in source freshness")
+    new, old = source_vintages(incoming), source_vintages(published)
+    reasons = []
+    for key, label in CRITICAL_SOURCES:
+        n, o = new[key], old[key]
+        if o is None:
+            continue                                  # nothing published to regress from
+        if n is None:
+            reasons.append(f"this report does not record {label}, and the published one does "
+                           f"({o.isoformat()}), so non-regression cannot be shown")
+            continue
+        if n < o:
+            reasons.append(f"{label} is {n.isoformat()} here and {o.isoformat()} in the published report")
+    if reasons:
+        return ("latest/ does not move backward in source freshness: " + "; ".join(reasons))
+    if all(new[k] == old[k] for k, _ in CRITICAL_SOURCES):
+        n, o = new["ledger"], old["ledger"]
+        if n is not None and o is not None and n < o:
+            return ("latest/ does not move backward in source freshness: the critical sources are "
+                    f"unchanged and this report's ledger snapshot ({n.isoformat()}) is older than the "
+                    f"published one ({o.isoformat()})")
     return None
 
 
