@@ -180,6 +180,14 @@ jobs:
         id: build
         if: steps.week.outputs.status == 'OK'
         run: |
+          # A run that says force_fresh has just priced a local snapshot; if the copy into /tmp/md silently
+          # matched nothing, the packet would quietly build from the older PUBLISHED ledger and still be
+          # labelled fresh. An age limit turns that into a failure instead of a lie. 45m matches the
+          # shadow-pricing cycle's own limit.
+          AGE='${{ inputs.max_ledger_age_min }}'
+          if [ -z "$AGE" ] && [ '${{ inputs.force_fresh }}' = 'true' ]; then AGE=45; fi
+          LIMIT=""
+          if [ -n "$AGE" ]; then LIMIT="--max-ledger-age-min $AGE"; fi
           python3 scripts/handicap/build_report.py \
             --market-data /tmp/md \
             --out data/handicap_report \
@@ -188,7 +196,7 @@ jobs:
             --horizon-ids '${{ inputs.horizon_ids }}' \
             --focus-game-id '${{ inputs.game_id }}' \
             --artifact-name 'run-nfl-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}' \
-            ${{ inputs.max_ledger_age_min && format('--max-ledger-age-min {0}', inputs.max_ledger_age_min) || '' }}
+            $LIMIT
 
       # Immutable history lives here, not on the report branch: one artifact per run, traceable through its
       # manifest to the workflow run, both source SHAs, the model version and the packet SHA.

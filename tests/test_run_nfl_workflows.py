@@ -94,6 +94,16 @@ def test_the_fresh_path_rebuilds_the_state_the_packet_is_made_of():
     assert fresh, "no step is conditioned on force_fresh"
 
 
+def test_a_fresh_run_refuses_to_fall_back_to_the_published_ledger():
+    """If the copy of the freshly priced snapshot into the market-data tree silently matched nothing, the
+    packet would build from the older PUBLISHED ledger and still be labelled fresh. An age limit makes that
+    a failure rather than a lie."""
+    build = next(s for s in steps(wf("run-nfl.yml")) if "build_report.py" in (s.get("run") or ""))
+    body = build["run"]
+    assert "--max-ledger-age-min" in body
+    assert "force_fresh" in body, "the age limit is not tied to force_fresh"
+
+
 def test_a_manual_run_does_not_publish_a_duplicate_canonical_ledger():
     """A research question must not append to the immutable shadow ledger."""
     src = "\n".join(runs(wf("run-nfl.yml")))
