@@ -75,7 +75,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
       - name: Fetch final results (player statistics, snap counts, identities)
-        if: steps.gate.outputs.work == 'true' || github.event.inputs.games != ''
+        if: steps.gate.outputs.work == 'true' || steps.gate.outputs.arms_work == 'true' || steps.gate.outputs.autopsy_work == 'true' || github.event.inputs.games != ''
         run: |
           python3 scripts/data/nflverse_download.py --only stats_player,snap_counts,players \
             --seasons 2026-2026 2>&1 | tail -4
@@ -140,14 +140,75 @@ jobs:
           python3 scripts/ci/publish_market_data.py --src data/shadow/scorecards \
             --message "shadow evaluation scorecard ${{ steps.settle.outputs.batch_id }}"
 
+      # ---- three-arm experiment: evaluate the arms, autopsy the player projections, rebuild the reports ----
+      # Same evidence discipline as the incumbent corpus (readiness gate, strict pregame close, the incumbent
+      # settlement engine, write-once batches, conflicts fail closed). Derived corpora, published separately.
+      - name: Evaluate the three forecast arms of every ready game
+        id: arms
+        if: steps.gate.outputs.arms_work == 'true' || github.event.inputs.games != ''
+        env:
+          INPUT_GAMES: ${{ github.event.inputs.games }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          ARGS=()
+          for g in $INPUT_GAMES; do ARGS+=(--game "$g"); done
+          if [ "$INPUT_DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+          python3 scripts/shadow/settle_arms.py --market-data /tmp/md --out data/shadow/arm_evaluations \
+            "${ARGS[@]}" --github-output "$GITHUB_OUTPUT"
+      - name: Diagnose every settled player projection (autopsy)
+        id: autopsy
+        if: steps.gate.outputs.autopsy_work == 'true' || github.event.inputs.games != ''
+        env:
+          INPUT_GAMES: ${{ github.event.inputs.games }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          ARGS=()
+          for g in $INPUT_GAMES; do ARGS+=(--game "$g"); done
+          if [ "$INPUT_DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+          python3 scripts/shadow/player_autopsy.py --market-data /tmp/md --out data/shadow/player_autopsy \
+            "${ARGS[@]}" --github-output "$GITHUB_OUTPUT"
+      - name: Validate the three-arm artifacts before anything is published
+        if: steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE'
+        run: |
+          python3 scripts/shadow/validate_arms.py --evaluations data/shadow/arm_evaluations \
+            --autopsy data/shadow/player_autopsy --market-data /tmp/md --require-rows
+      - name: Publish the immutable arm evaluations
+        if: steps.arms.outputs.status == 'WROTE' && github.event.inputs.dry_run != 'true'
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/arm_evaluations \
+            --message "three-arm evaluations ${{ steps.arms.outputs.batch_id }} (${{ steps.arms.outputs.written }} records)"
+      - name: Publish the immutable player autopsies
+        if: steps.autopsy.outputs.status == 'WROTE' && github.event.inputs.dry_run != 'true'
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/player_autopsy \
+            --message "player autopsy ${{ steps.autopsy.outputs.batch_id }} (${{ steps.autopsy.outputs.written }} records)"
+      - name: Rebuild the three-arm per-slate, weekly and cumulative reports
+        id: arm_report
+        if: (steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE') && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        run: |
+          git fetch --depth=1 origin market-data
+          rm -rf /tmp/md3 && git worktree add -f /tmp/md3 origin/market-data
+          python3 scripts/shadow/arm_report.py --market-data /tmp/md3 \
+            --out data/shadow/arm_reports/${{ steps.arms.outputs.batch_id || steps.autopsy.outputs.batch_id }} 2>&1 | tail -5
+      - name: Publish the three-arm reports
+        if: (steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE') && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/arm_reports \
+            --message "three-arm reports ${{ steps.arms.outputs.batch_id || steps.autopsy.outputs.batch_id }}"
+
       - name: Upload the run's artifacts
-        if: steps.settle.outputs.status == 'WROTE'
+        if: steps.settle.outputs.status == 'WROTE' || steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE'
         uses: actions/upload-artifact@v4
         with:
-          name: shadow-evaluations-${{ steps.settle.outputs.batch_id }}
+          name: shadow-evaluations-${{ steps.settle.outputs.batch_id || steps.arms.outputs.batch_id || steps.autopsy.outputs.batch_id }}
           path: |
             data/shadow/evaluations
             data/shadow/scorecards
+            data/shadow/arm_evaluations
+            data/shadow/player_autopsy
+            data/shadow/arm_reports
           retention-days: 90
           if-no-files-found: warn
 
@@ -158,6 +219,11 @@ jobs:
         run: |
           echo "gate work=${{ steps.gate.outputs.work }} games=${{ steps.gate.outputs.n_games }}"
           echo "settle status=${{ steps.settle.outputs.status || 'SKIPPED' }} written=${{ steps.settle.outputs.written || 0 }} unchanged=${{ steps.settle.outputs.unchanged || 0 }} deferred=${{ steps.settle.outputs.games_deferred || 0 }}"
+          echo "arms status=${{ steps.arms.outputs.status || 'SKIPPED' }} written=${{ steps.arms.outputs.written || 0 }} deferred=${{ steps.arms.outputs.games_deferred || 0 }}; autopsy status=${{ steps.autopsy.outputs.status || 'SKIPPED' }} written=${{ steps.autopsy.outputs.written || 0 }}"
+          if [ "${{ steps.arms.outputs.status }}" = "CONFLICT" ] || [ "${{ steps.autopsy.outputs.status }}" = "CONFLICT" ]; then
+            echo "::error::a rerun contradicted an already-published three-arm evaluation or autopsy; nothing was written"
+            exit 1
+          fi
           if [ "${{ steps.gate.outputs.work }}" != "true" ] && [ -z "$INPUT_GAMES" ]; then
             echo "::notice::no final game is missing an evaluation batch; nothing was settled"
           elif [ "${{ steps.settle.outputs.games_deferred || 0 }}" != "0" ] && [ "${{ steps.settle.outputs.written || 0 }}" = "0" ]; then

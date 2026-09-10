@@ -160,3 +160,30 @@
     no series ticker) fail the run. A change on a series we later add to the registry only becomes
     actionable once that addition is committed, so a series added between weekly runs carries one cycle of
     unchecked announcements.
+39. **The three-arm experiment has zero prospective evidence.** Every arm record, evaluation and report exists as
+    infrastructure only; the first challenger record that counts is the first one written after this code is
+    merged, and the opener (`2026_01_NE_SEA`) is excluded permanently. No verdict prints before 64 distinct games.
+40. **The CURRENT centre is a replay of the frozen pricer, verified only where a ledger exists.** The pricer is
+    frozen Week-1 lineage and records no centre, so the harness replays its game-environment block call for call
+    (same seed, same order) and checks the replayed 40,000-row simulation against the ledger's prices to 1e-9 at
+    every 2-hourly cycle. At the four canonical horizons the report path publishes no ledger, so the same replay
+    runs with nothing to check against and is recorded as `exact_replay_unverified`; it never claims to be the
+    recorded production centre. The replay costs the incumbent's own game-environment time (about two minutes).
+41. **DATA_ONLY is the research model and nothing more.** No quarterback identity, weather or injury term: none has
+    a pre-2026 validated coefficient. They are recorded as unavailable inputs, not silently absent. The historical
+    result stands: against the closing line it is worse than the market in every season.
+42. **Challenger centres are placed on the half-point grid** before simulation so the residual bank's
+    fractional-part structure applies; the unrounded centre is what the centre-accuracy metrics score.
+43. **The closing market centre needs six liquid rungs**, like every snapshot centre; a thin close is
+    `MISSING_CLOSE` and movement toward it is unscored for that game.
+44. **The autopsy's team-volume dimension is built from the same player statistics that settle the props** (sum of
+    attempts / carries per team-game vs the team's prior games this season, or last season at week 1); it is a
+    diagnosis, and its thresholds are named constants, not calibrated quantities.
+45. **The funnel's BET is not a recommendation.** It says the mechanical gates would pass at the model's own number;
+    the human handicap, the signed preflight and the risk policy still stand between it and money.
+46. **Player anatomy exists only where the ledger exists.** The anatomy corpus is written at the 2-hourly cycle by
+    replaying the frozen player path and reconciling to the ledger row; the horizon conductor writes no ledger and
+    therefore no anatomy. The autopsy uses the latest pregame anatomy row, which is at most two hours older than
+    the last ledger snapshot. A row that does not reproduce the ledger to 1e-9 is `REPRODUCTION_MISMATCH` and is
+    excluded from the autopsy, so a library or data drift between the pricer and the collector shows up as
+    missing evidence, never as wrong evidence.
