@@ -160,3 +160,22 @@
     no series ticker) fail the run. A change on a series we later add to the registry only becomes
     actionable once that addition is committed, so a series added between weekly runs carries one cycle of
     unchecked announcements.
+39. **The three-arm experiment has zero prospective evidence.** Every arm record, evaluation and report exists as
+    infrastructure only; the first challenger record that counts is the first one written after this code is
+    merged, and the opener (`2026_01_NE_SEA`) is excluded permanently. No verdict prints before 64 distinct games.
+40. **At the four canonical horizons the CURRENT centre is re-derived, not read.** The report path never publishes
+    a ledger, so the horizon conductor re-runs the incumbent's centre estimator on the same capture with a fresh
+    random stream; a close grid-search call can land one half-point step from what the 2-hourly cycle recorded.
+    Each record names its provenance, and the reproduction check is recorded as unavailable there rather than faked.
+41. **DATA_ONLY is the research model and nothing more.** No quarterback identity, weather or injury term: none has
+    a pre-2026 validated coefficient. They are recorded as unavailable inputs, not silently absent. The historical
+    result stands: against the closing line it is worse than the market in every season.
+42. **Challenger centres are placed on the half-point grid** before simulation so the residual bank's
+    fractional-part structure applies; the unrounded centre is what the centre-accuracy metrics score.
+43. **The closing market centre needs six liquid rungs**, like every snapshot centre; a thin close is
+    `MISSING_CLOSE` and movement toward it is unscored for that game.
+44. **The autopsy's team-volume dimension is built from the same player statistics that settle the props** (sum of
+    attempts / carries per team-game vs the team's prior games this season, or last season at week 1); it is a
+    diagnosis, and its thresholds are named constants, not calibrated quantities.
+45. **The funnel's BET is not a recommendation.** It says the mechanical gates would pass at the model's own number;
+    the human handicap, the signed preflight and the risk policy still stand between it and money.

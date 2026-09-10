@@ -34,6 +34,9 @@ straight to it.
   costs it seconds rather than a second twenty-minute job.
 * **T−24h, T−6h, T−90m, T−30m before every kickoff cluster** — `RUN NFL decision horizons` wakes every 15
   minutes, spends a few seconds deciding whether a horizon is owed, and only then runs the full fresh path.
+* **the same horizons, for research** — `Three-arm decision horizons` freezes the CURRENT / DATA_ONLY / HYBRID_30
+  game-centre forecasts of the three-arm experiment into their own corpus on `market-data`. It never touches this
+  report and this report never reads it (`docs/PROSPECTIVE_THREE_ARM_EXPERIMENT.md`).
 
 **ChatGPT.** When the user says *RUN NFL — Pats Seahawks*, read the newest generated report:
 `handicap-reports/latest/slate.md` first, then `handicap-reports/latest/games/2026_01_NE_SEA.md`. Check

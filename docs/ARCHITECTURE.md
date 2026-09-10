@@ -28,7 +28,8 @@ Hard boundaries: RESEARCH (this repo's `research/`, free to experiment) → SHAD
 * `nfl_edge/data/` — bronze→silver builders and entity resolution.
 * `nfl_edge/research/` — reusable research code (ratings, distributions).
 * `nfl_edge/settlement/` — contract semantics, proven final results, and the postgame settlement engine.
-* `nfl_edge/shadow/` — the prospective ledger, the derived evaluation corpus, and the evaluation scorecard.
+* `nfl_edge/shadow/` — the prospective ledger, the derived evaluation corpus, the evaluation scorecard, the decision funnel and the player autopsy.
+* `nfl_edge/arms/` — the prospective three-arm game-centre experiment (CURRENT / DATA_ONLY / HYBRID_30): common-random-number simulation, football-only centre, immutable arm records, evaluation and scorecard. Reads the ledger, never writes it (`docs/PROSPECTIVE_THREE_ARM_EXPERIMENT.md`).
 * `scripts/data|kalshi|research|ci` — runnable entry points; `.github/workflows` — discovery/capture/backfill.
 * `config/kalshi_nfl_series.json` — reviewed series registry with capture tiers.
 * `research/` — experiment outputs (results.json + RESULTS.md per study), `research/hypothesis_registry/`.
