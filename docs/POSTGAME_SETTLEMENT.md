@@ -311,6 +311,98 @@ work still installs nothing and costs seconds. Two tests hold this: one walks th
 workflow actually invokes and fails when a reachable package is never installed, the other fails when the install
 condition stops covering any heavy step's condition.
 
+## What starts the job: a cron that is not enough on its own
+
+The first successful production settlement (`2026_01_NE_SEA`) happened only because a human dispatched the
+workflow. That prompted a measurement rather than an assumption, and the measurement is the reason there are
+now two automatic triggers.
+
+Between `2026-09-10T00:00Z` and `21:10Z`, against seven nominal `19 */3` slots, GitHub delivered **four**
+scheduled runs of this workflow: 04:52, 11:30, 16:30 and 20:56Z. In the same window Shadow Pricing, whose cron
+is **denser** at `37 */2`, was delivered **five** times: 00:32, 05:12, 11:45, 16:39 and 21:09Z.
+
+| workflow | cron | nominal runs/day | delivered in ~21 h |
+|---|---|---|---|
+| Postgame Settlement & Evaluation | `19 */3 * * *` | 8 | 4 |
+| Shadow Pricing (full universe) | `37 */2 * * *` | 12 | 5 |
+| RUN NFL decision horizons | `*/15 * * * *` | 96 | 4 runs in its entire history |
+
+Three workflows declaring 8, 12 and 96 runs a day all receive roughly the same handful. **The limit is how
+many scheduled runs the repository is given, not what any one cron asks for**, so tightening this cron would
+buy nothing. Only a different *event class* adds opportunities.
+
+Two things this evidence does **not** establish, and which are stated as unknowns rather than glossed:
+
+* GitHub's API does not report which nominal slot a delayed run belongs to, so every mapping from a run back
+  to a slot below is an inference from proximity, not a fact;
+* a nominal slot with no nearby run cannot be distinguished from a slot whose run was delayed so far that it
+  looks like the next slot's. "Dropped" is therefore never claimed as a count. The 20:56Z run is the caution:
+  it was 97 minutes after the 19:19Z slot, and had been called "dropped" at 20:20Z when it had not yet arrived.
+
+### The redundant trigger
+
+```yaml
+workflow_run:
+  workflows: ["Shadow Pricing (full universe)"]
+  types: [completed]
+  branches: [main]
+```
+
+plus a job-level condition, because `types: [completed]` also delivers failed and cancelled upstream runs:
+
+```yaml
+if: >-
+  github.event_name != 'workflow_run' ||
+  (github.event.workflow_run.conclusion == 'success' &&
+   github.event.workflow_run.head_branch == 'main')
+```
+
+It is an *opportunity*, not an instruction. The upstream completing runs the **same gate**, which still decides
+whether any final unevaluated game needs work; readiness, FINAL proof, stats, snaps and terminal exchange
+evidence are untouched. An idle event-driven check costs what an idle poll costs.
+
+**Why this is safe for the other event classes, by construction.** No step condition mentions
+`github.event_name`, and `schedule` and `workflow_run` both leave `github.event.inputs` **null**. GitHub's loose
+equality coerces null and `''` to `0`, so `github.event.inputs.games != ''` is **false** (an automatic run never
+looks like a dispatch naming games); `'true'` coerces to NaN, which equals nothing, so
+`github.event.inputs.dry_run != 'true'` is **true** (an automatic run never looks like a dry run and never
+silently stops publishing). Both events also give `actions/checkout` the same default-branch ref. A scheduled
+run and an upstream-triggered run are therefore indistinguishable to every step, which is asserted directly.
+
+**Duplicates are harmless.** The `postgame-settle` concurrency group with `cancel-in-progress: false` serialises
+them, and the loser finds the game already evaluated. This was proven live, not only in tests: run
+`34529337863` (schedule, 20:56Z) started 32 minutes after run `34525867725` published the batch, reported
+`work=false`, and skipped the settle step and every publishing step.
+
+**It cannot loop.** The upstream is a workflow *completion*, not a push. Publishing to `market-data` triggers
+nothing, this workflow has no `push` trigger, and Shadow Pricing has no `workflow_run` trigger of its own.
+
+The cron remains the fallback and `workflow_dispatch` remains for recovery. Neither was changed.
+
+## Known gap: ESPN's scoreboard date for a night game
+
+Not fixed here, and deliberately so — the cause could not be proven, and final-status logic is not something to
+change on a hypothesis.
+
+`2026_01_NE_SEA` kicked off at `2026-09-10T00:20Z`, which is `2026-09-09` on the US calendar (`gameday` in the
+schedule says so). `settle_games.py` derives the scoreboard date from the **UTC** kickoff:
+
+```python
+dates = sorted({book.games[g].kickoff_utc[:10].replace("-", "") for g in candidates ...})
+```
+
+so it queried `dates=20260910`. What is **proven** from the run's own manifest: the request returned HTTP 200
+with one event, and `final_proofs` came back `["postgame_tables"]` — ESPN contributed no proof. What is **not**
+proven: why. It could be that ESPN indexes the game under `20260909`, or that the event returned for
+`20260910` was a different game, or that its `status.type.completed` was not set. Distinguishing these needs a
+live request, and the agent sandbox cannot reach `site.api.espn.com` (403 on CONNECT).
+
+Nothing settled wrongly: ESPN can only *add* a proof or expose a contradiction, never be required, and the
+postgame tables proved the game independently. The consequence is narrower than it looks — the independent
+attestation is likely to be unavailable for late kickoffs, leaving those games resting on the postgame tables
+alone. The candidate fix is small (query the schedule's own `gameday` as well as the UTC date; extra dates can
+only add attestations, since they are keyed by ESPN id) but it belongs to a review that can actually call ESPN.
+
 ## Running it by hand
 
 ```bash

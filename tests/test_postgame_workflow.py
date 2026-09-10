@@ -223,3 +223,332 @@ def test_an_idle_poll_still_installs_nothing():
     gate_at = step_index("settle_gate.py")
     install_at = next(i for i, s in enumerate(steps()) if "pip install" in (s.get("run") or ""))
     assert gate_at < install_at, "the install must come after the gate has decided there is work"
+
+
+# --------------------------------------------------------------------- the redundant automatic trigger
+#
+# NE-SEA settled only because a human dispatched this workflow, so a second automatic trigger was added. These
+# tests exist because that trigger introduces a THIRD event class into conditions that were written when there
+# were two, and a `workflow_run` delivery that quietly behaved like a dispatch naming games -- or like a
+# dry run -- would either do heavy work on every upstream completion or silently stop publishing.
+
+import subprocess
+
+import pytest
+
+UPSTREAM = "Shadow Pricing (full universe)"
+
+
+def _num(v):
+    """GitHub's loose-equality coercion: null and '' are 0, booleans are 0/1, other strings parse or are NaN."""
+    if v is None or v == "":
+        return 0.0
+    if isinstance(v, bool):
+        return 1.0 if v else 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        return float(v)
+    except ValueError:
+        return float("nan")
+
+
+def _loose_eq(a, b):
+    if type(a) is type(b) and isinstance(a, str):
+        return a == b
+    x, y = _num(a), _num(b)
+    return not (x != x or y != y) and x == y          # NaN equals nothing, including itself
+
+
+_TOKEN = re.compile(r"\s*(\(|\)|\|\||&&|==|!=|'[^']*'|[A-Za-z_][\w.\-]*\(\)|[A-Za-z_][\w.]*)")
+
+
+def gh_expr(expr: str, ctx: dict):
+    """Evaluate the restricted GitHub expression grammar this workflow actually uses.
+
+    Only `==`, `!=`, `&&`, `||`, parentheses, single-quoted literals, context paths and `always()` appear, so a
+    real parser is unnecessary -- but the COERCION has to be GitHub's, because the whole safety argument rests
+    on `github.event.inputs.games != ''` being FALSE when inputs is null (0 == 0) while
+    `github.event.inputs.dry_run != 'true'` is TRUE (0 != NaN). Getting that backwards is the bug this catches.
+    """
+    toks, i = [], 0
+    while i < len(expr):
+        m = _TOKEN.match(expr, i)
+        if not m:
+            raise AssertionError(f"unsupported expression syntax at {expr[i:]!r} in {expr!r}")
+        toks.append(m.group(1))
+        i = m.end()
+    pos = 0
+
+    def peek():
+        return toks[pos] if pos < len(toks) else None
+
+    def value(tok):
+        if tok.startswith("'"):
+            return tok[1:-1]
+        if tok == "always()":
+            return True
+        cur = ctx
+        for part in tok.split("."):
+            if not isinstance(cur, dict):
+                return None
+            cur = cur.get(part)
+        return cur
+
+    def primary():
+        nonlocal pos
+        if peek() == "(":
+            pos += 1
+            v = disjunction()
+            assert toks[pos] == ")", f"unbalanced parentheses in {expr!r}"
+            pos += 1
+            return v
+        tok = toks[pos]; pos += 1
+        return value(tok)
+
+    def comparison():
+        nonlocal pos
+        left = primary()
+        if peek() in ("==", "!="):
+            op = toks[pos]; pos += 1
+            right = primary()
+            eq = _loose_eq(left, right)
+            return eq if op == "==" else not eq
+        return bool(left) if not isinstance(left, str) else left != ""
+
+    def conjunction():
+        nonlocal pos
+        v = comparison()
+        while peek() == "&&":
+            pos += 1
+            v = comparison() and v
+        return v
+
+    def disjunction():
+        nonlocal pos
+        v = conjunction()
+        while peek() == "||":
+            pos += 1
+            v = conjunction() or v
+        return v
+
+    out = disjunction()
+    assert pos == len(toks), f"trailing tokens in {expr!r}"
+    return out
+
+
+def ctx_for(event, *, conclusion="success", branch="main", games="", lookback="", dry_run=""):
+    """`github` context as GitHub builds it. schedule and workflow_run carry NO inputs object at all."""
+    c = {"event_name": event, "event": {}}
+    if event == "workflow_dispatch":
+        c["event"]["inputs"] = {"games": games, "lookback_days": lookback, "dry_run": dry_run}
+    if event == "workflow_run":
+        c["event"]["workflow_run"] = {"conclusion": conclusion, "head_branch": branch}
+    return {"github": c}
+
+
+def job_if():
+    return doc()["jobs"]["settle"]["if"]
+
+
+def step_conditions():
+    return [(s.get("name", "<unnamed>"), s["if"]) for s in steps() if s.get("if")]
+
+
+def outs(work="false", arms="false", autopsy="false", settle="", arms_st="", autopsy_st=""):
+    return {"steps": {"gate": {"outputs": {"work": work, "arms_work": arms, "autopsy_work": autopsy}},
+                      "settle": {"outputs": {"status": settle}},
+                      "arms": {"outputs": {"status": arms_st}},
+                      "autopsy": {"outputs": {"status": autopsy_st}}}}
+
+
+def evaluate(cond, event_ctx, step_outputs):
+    return gh_expr(cond, {**event_ctx, **step_outputs})
+
+
+# -- sanity: the evaluator reproduces the two coercions the safety argument depends on
+def test_the_expression_evaluator_matches_githubs_coercion_rules():
+    null = ctx_for("schedule")
+    assert gh_expr("github.event.inputs.games != ''", null) is False, (
+        "null inputs must NOT look like a dispatch that named games")
+    assert gh_expr("github.event.inputs.dry_run != 'true'", null) is True, (
+        "null inputs must NOT look like a dry run, or a scheduled run would stop publishing")
+    named = ctx_for("workflow_dispatch", games="2026_01_NE_SEA")
+    assert gh_expr("github.event.inputs.games != ''", named) is True
+
+
+# ---------------------------------------------------------------- A, B, C, D: the trigger surface
+def test_A_the_scheduled_trigger_is_unchanged_and_still_starts_the_job():
+    on = doc().get(True, doc().get("on"))
+    assert [c["cron"] for c in on["schedule"]] == ["19 */3 * * *"], "the cron stays the fallback"
+    assert evaluate(job_if(), ctx_for("schedule"), outs()) is True
+
+
+def test_B_workflow_dispatch_is_unchanged_and_still_starts_the_job():
+    on = doc().get(True, doc().get("on"))
+    assert {"games", "lookback_days", "dry_run"} <= set(on["workflow_dispatch"]["inputs"])
+    assert evaluate(job_if(), ctx_for("workflow_dispatch"), outs()) is True
+    assert evaluate(job_if(), ctx_for("workflow_dispatch", games="2026_01_NE_SEA"), outs()) is True
+
+
+def test_C_a_successful_upstream_run_on_main_reaches_the_cheap_gate():
+    on = doc().get(True, doc().get("on"))
+    wr = on["workflow_run"]
+    assert wr["workflows"] == [UPSTREAM], "the upstream is the pregame pricer, named exactly"
+    assert wr["types"] == ["completed"]
+    assert wr["branches"] == ["main"]
+    assert evaluate(job_if(), ctx_for("workflow_run"), outs()) is True
+    gate = next(s for s in steps() if "settle_gate.py" in (s.get("run") or ""))
+    assert "if" not in gate, "the gate must run unconditionally; it is what decides whether anything else does"
+
+
+@pytest.mark.parametrize("conclusion", ["failure", "cancelled", "skipped", "timed_out", "action_required", None])
+def test_D_an_unsuccessful_upstream_run_does_not_run_settlement(conclusion):
+    """`types: [completed]` delivers failures and cancellations too, so the conclusion is checked explicitly."""
+    assert evaluate(job_if(), ctx_for("workflow_run", conclusion=conclusion), outs()) is False
+
+
+def test_D_an_upstream_run_on_another_branch_does_not_run_settlement():
+    assert evaluate(job_if(), ctx_for("workflow_run", branch="claude/some-feature"), outs()) is False
+
+
+# ---------------------------------------------------------------- E, F: cost and behaviour of an event run
+HEAVY = ("nflverse_download.py --only stats_player", "pip install", "settle_games.py")
+
+
+def heavy_steps():
+    out = []
+    for s in steps():
+        run = s.get("run") or ""
+        if any(h in run for h in HEAVY) and s.get("if"):
+            out.append((s.get("name", "<unnamed>"), s["if"]))
+    return out
+
+
+def test_E_an_event_driven_run_with_no_work_installs_and_downloads_nothing():
+    idle = outs()                       # gate found no work of any kind
+    ran = [n for n, c in heavy_steps() if evaluate(c, ctx_for("workflow_run"), idle)]
+    assert ran == [], f"an idle upstream completion would have run heavy steps: {ran}"
+    # and it costs exactly what an idle poll costs, because the two events evaluate identically
+    assert [evaluate(c, ctx_for("schedule"), idle) for _, c in heavy_steps()] == \
+           [evaluate(c, ctx_for("workflow_run"), idle) for _, c in heavy_steps()]
+
+
+def test_F_an_event_driven_run_with_work_follows_the_normal_settlement_path():
+    busy = outs(work="true")
+    ran = {n for n, c in heavy_steps() if evaluate(c, ctx_for("workflow_run"), busy)}
+    assert len(ran) == len(heavy_steps()), f"a settleable game must reach every heavy step, reached {ran}"
+    wrote = outs(work="true", settle="WROTE")
+    published = [s.get("name") for s in steps()
+                 if s.get("if") and "publish_market_data.py" in (s.get("run") or "")
+                 and evaluate(s["if"], ctx_for("workflow_run"), wrote)]
+    assert any("evaluation" in (n or "").lower() for n in published), (
+        "an event-driven run that settled a game must publish it exactly as a scheduled run would")
+
+
+def test_the_event_classes_that_carry_no_inputs_are_indistinguishable_everywhere():
+    """The whole safety argument in one assertion.
+
+    `schedule` and `workflow_run` both leave `github.event.inputs` null, and no STEP condition mentions
+    `github.event_name`, so no step can tell them apart. Adding the trigger therefore cannot change what a
+    scheduled run does -- and if someone later adds an event_name test to a step, this fails.
+    """
+    for name, cond in step_conditions():
+        assert "github.event_name" not in cond, (
+            f"step {name!r} branches on the event name; schedule and workflow_run must stay interchangeable")
+    for st in (outs(), outs(work="true"), outs(work="true", settle="WROTE"),
+               outs(arms="true", arms_st="WROTE"), outs(autopsy="true", autopsy_st="WROTE")):
+        for name, cond in step_conditions():
+            assert evaluate(cond, ctx_for("schedule"), st) == evaluate(cond, ctx_for("workflow_run"), st), \
+                f"step {name!r} behaves differently under workflow_run than under schedule"
+
+
+def test_an_automatic_event_never_looks_like_a_dry_run_or_a_named_dispatch():
+    for event in ("schedule", "workflow_run"):
+        c = ctx_for(event)
+        assert gh_expr("github.event.inputs.games != ''", c) is False
+        assert gh_expr("github.event.inputs.dry_run != 'true'", c) is True
+    env = next(s for s in steps() if "settle_games.py" in (s.get("run") or ""))["env"]
+    assert env["INPUT_GAMES"] == "${{ github.event.inputs.games }}"
+    assert "${{" not in env["INPUT_GAMES"].replace("${{ github.event.inputs.games }}", ""), "no other interpolation"
+
+
+def test_blank_lookback_still_defaults_to_ten_days_for_every_event():
+    """`${INPUT_LOOKBACK:-10}` is what makes an automatic run look back as far as a dispatched one."""
+    for s in steps():
+        run = s.get("run") or ""
+        if "--lookback-days" in run:
+            assert '"${INPUT_LOOKBACK:-10}"' in run, f"step {s.get('name')!r} lost its lookback default"
+    r = subprocess.run(["bash", "-eo", "pipefail", "-c", 'echo "${INPUT_LOOKBACK:-10}"'],
+                       capture_output=True, text=True, env={"PATH": os.environ["PATH"], "INPUT_LOOKBACK": ""})
+    assert r.returncode == 0 and r.stdout.strip() == "10"
+
+
+# ---------------------------------------------------------------- G, H, I: duplicates are harmless
+def test_G_and_I_concurrency_still_serialises_duplicate_triggers():
+    d = doc()
+    assert d["concurrency"]["group"] == "postgame-settle", (
+        "one group for every event class, or a cron run and an upstream-triggered run overlap")
+    assert d["concurrency"]["cancel-in-progress"] is False, (
+        "cancelling the loser mid-publish would leave a batch written and unpublished; it must queue instead")
+
+
+def test_G_a_duplicate_trigger_cannot_publish_without_writing_and_validating_first():
+    names = [s.get("name", "") for s in steps()]
+    pub = [i for i, s in enumerate(steps()) if "publish_market_data.py" in (s.get("run") or "")]
+    val = [i for i, s in enumerate(steps()) if "validate_evaluations.py" in (s.get("run") or "")]
+    assert val and pub and min(val) < min(pub), "validation must precede the first publish"
+    for i in pub:
+        cond = steps()[i].get("if", "")
+        assert "outputs.status == 'WROTE'" in cond, (
+            f"publish step {names[i]!r} is not gated on something actually having been written")
+    # a second trigger that wrote nothing evaluates every publish step to false
+    for i in pub:
+        assert evaluate(steps()[i]["if"], ctx_for("workflow_run"), outs(work="true", settle="NO_OP")) is False
+
+
+def test_H_an_already_evaluated_game_makes_the_settlement_step_a_no_op():
+    """The gate is the only thing that decides, and it decides from the published corpus.
+
+    Proven live rather than only here: run 34529337863 (schedule, 20:56Z) started 32 minutes after run
+    34525867725 published the NE-SEA batch, reported `work=false`, and skipped the settle step and every
+    publishing step.
+    """
+    settle = next(s for s in steps() if "settle_games.py" in (s.get("run") or ""))
+    assert evaluate(settle["if"], ctx_for("workflow_run"), outs(work="false")) is False
+    assert evaluate(settle["if"], ctx_for("schedule"), outs(work="false")) is False
+
+
+def test_the_upstream_workflow_exists_and_cannot_be_triggered_by_this_one():
+    """A workflow_run pair that pointed at each other would ping-pong forever."""
+    up = os.path.join(ROOT, ".github", "workflows", "shadow-price.yml")
+    assert os.path.exists(up)
+    with open(up) as f:
+        upstream = yaml.safe_load(f)
+    assert upstream["name"] == UPSTREAM, "the trigger names the upstream by its `name:`, not its filename"
+    on_up = upstream.get(True, upstream.get("on"))
+    assert "workflow_run" not in on_up, "the upstream must not be triggered by a workflow, or the two loop"
+    assert "push" not in (doc().get(True, doc().get("on"))), (
+        "this workflow must never trigger on a push: it publishes to market-data, which would re-trigger it")
+
+
+# ---------------------------------------------------------------- J: nothing scientific moved
+FROZEN = ("nfl_edge/model", "nfl_edge/pricing", "nfl_edge/handicap/risk.py", "nfl_edge/handicap/gates.py",
+          "nfl_edge/settlement/settle.py", "nfl_edge/settlement/semantics.py", "nfl_edge/shadow/pricer.py",
+          "scripts/shadow/settle_arms.py", "scripts/shadow/three_arm_snapshot.py", "research/")
+
+
+def _changed_against_main():
+    r = subprocess.run(["git", "diff", "--name-only", "origin/main...HEAD"],
+                       cwd=ROOT, capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    return [p for p in r.stdout.split() if p]
+
+
+def test_J_no_model_risk_or_experiment_file_is_touched_by_this_change():
+    changed = _changed_against_main()
+    if changed is None:
+        pytest.skip("origin/main is not fetched here")
+    offenders = [p for p in changed for f in FROZEN if p.startswith(f)]
+    assert not offenders, f"trigger reliability work must not touch the scientific path: {offenders}"
