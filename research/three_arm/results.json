@@ -1,0 +1,525 @@
+{
+ "generated_at": "2026-09-10T06:24:32.755419+00:00",
+ "preregistration": {
+  "hypothesis_id": "H-20260910-026",
+  "arms": [
+   "CURRENT_MARKET_PRIOR",
+   "DATA_ONLY",
+   "HYBRID_30_DATA"
+  ],
+  "hybrid_weight_market": 0.7,
+  "hybrid_weight_data": 0.3,
+  "n_sims": 40000,
+  "primary_horizons_min": [
+   1440,
+   360,
+   90,
+   30
+  ],
+  "primary_game_center_metrics": [
+   "margin_rmse",
+   "margin_mae",
+   "total_rmse",
+   "total_mae"
+  ],
+  "primary_market_pricing_metrics": [
+   "paired_brier_vs_current",
+   "paired_payout_mse_vs_market_at_snapshot",
+   "movement_toward_close"
+  ],
+  "min_games_for_verdict": 64,
+  "disagreement_bands_points": [
+   "<=1",
+   "1-2",
+   "2-3",
+   "3-5",
+   ">5"
+  ],
+  "arms_version": "three-arm-1.0.0",
+  "data_only_version": "data_only-1.0.0",
+  "crn_version": "crn-1.0.0"
+ },
+ "note": "historical validation of the implementation; the consensus closing line stands in for the market centre",
+ "V1_walkforward_reproduction": {
+  "max_abs_diff_vs_frozen": 0.0,
+  "n_games": 3151,
+  "ok": true
+ },
+ "V2_center_accuracy": {
+  "CURRENT_MARKET_PRIOR": {
+   "margin": {
+    "rmse": 12.880517369480556,
+    "mae": 9.945890193589337,
+    "bias": 0.0055537924468422725
+   },
+   "total": {
+    "rmse": 13.17900643928644,
+    "mae": 10.454300222151698,
+    "bias": -0.2997461123452872
+   },
+   "by_season": {
+    "2014": {
+     "margin_rmse": 14.481062525761015,
+     "total_rmse": 13.060182210635501,
+     "n": 256
+    },
+    "2015": {
+     "margin_rmse": 12.875644704732265,
+     "total_rmse": 13.331156235019527,
+     "n": 256
+    },
+    "2016": {
+     "margin_rmse": 11.787423780241381,
+     "total_rmse": 12.428231471130557,
+     "n": 256
+    },
+    "2017": {
+     "margin_rmse": 13.124479156332262,
+     "total_rmse": 14.155422161225005,
+     "n": 256
+    },
+    "2018": {
+     "margin_rmse": 13.143848073813848,
+     "total_rmse": 13.464725326756577,
+     "n": 256
+    },
+    "2019": {
+     "margin_rmse": 13.127455127518052,
+     "total_rmse": 13.428630793941727,
+     "n": 256
+    },
+    "2020": {
+     "margin_rmse": 12.770778106188361,
+     "total_rmse": 12.849603289109746,
+     "n": 256
+    },
+    "2021": {
+     "margin_rmse": 13.669180932043485,
+     "total_rmse": 13.281559252454908,
+     "n": 272
+    },
+    "2022": {
+     "margin_rmse": 11.432861938435233,
+     "total_rmse": 13.227919707142078,
+     "n": 271
+    },
+    "2023": {
+     "margin_rmse": 13.07072109716981,
+     "total_rmse": 13.130146049991891,
+     "n": 272
+    },
+    "2024": {
+     "margin_rmse": 12.6051460079744,
+     "total_rmse": 12.551548123403649,
+     "n": 272
+    },
+    "2025": {
+     "margin_rmse": 12.271177672521421,
+     "total_rmse": 13.18644580397525,
+     "n": 272
+    }
+   }
+  },
+  "DATA_ONLY": {
+   "margin": {
+    "rmse": 13.26104299586786,
+    "mae": 10.311687577888975,
+    "bias": 0.3117555672480366
+   },
+   "total": {
+    "rmse": 13.524125987319499,
+    "mae": 10.712065440989273,
+    "bias": -0.21780687916163202
+   },
+   "by_season": {
+    "2014": {
+     "margin_rmse": 14.857994463435151,
+     "total_rmse": 13.16319479193427,
+     "n": 256
+    },
+    "2015": {
+     "margin_rmse": 13.08558256576646,
+     "total_rmse": 13.581014394613279,
+     "n": 256
+    },
+    "2016": {
+     "margin_rmse": 11.996854573911527,
+     "total_rmse": 12.99535781638288,
+     "n": 256
+    },
+    "2017": {
+     "margin_rmse": 13.753330937704774,
+     "total_rmse": 14.486060304464992,
+     "n": 256
+    },
+    "2018": {
+     "margin_rmse": 13.359427171178295,
+     "total_rmse": 14.12720599497772,
+     "n": 256
+    },
+    "2019": {
+     "margin_rmse": 13.493076036201987,
+     "total_rmse": 13.8383969605636,
+     "n": 256
+    },
+    "2020": {
+     "margin_rmse": 13.080673050600339,
+     "total_rmse": 13.566906289001041,
+     "n": 256
+    },
+    "2021": {
+     "margin_rmse": 14.10752903067355,
+     "total_rmse": 13.510196596643363,
+     "n": 272
+    },
+    "2022": {
+     "margin_rmse": 11.608724616249015,
+     "total_rmse": 13.502342005353093,
+     "n": 271
+    },
+    "2023": {
+     "margin_rmse": 13.546642172093106,
+     "total_rmse": 13.41402832459079,
+     "n": 272
+    },
+    "2024": {
+     "margin_rmse": 13.087387329178265,
+     "total_rmse": 12.854561467640751,
+     "n": 272
+    },
+    "2025": {
+     "margin_rmse": 12.897160387961684,
+     "total_rmse": 13.231294945878943,
+     "n": 272
+    }
+   }
+  },
+  "HYBRID_30_DATA": {
+   "margin": {
+    "rmse": 12.914460359038705,
+    "mae": 9.98905733450958,
+    "bias": 0.09741432488720052
+   },
+   "total": {
+    "rmse": 13.209130775266846,
+    "mae": 10.476143598536867,
+    "bias": -0.2751643423901935
+   },
+   "by_season": {
+    "2014": {
+     "margin_rmse": 14.536262393160902,
+     "total_rmse": 13.015800090308598,
+     "n": 256
+    },
+    "2015": {
+     "margin_rmse": 12.875033163156782,
+     "total_rmse": 13.354318365798362,
+     "n": 256
+    },
+    "2016": {
+     "margin_rmse": 11.786099860382697,
+     "total_rmse": 12.548693998275892,
+     "n": 256
+    },
+    "2017": {
+     "margin_rmse": 13.229597150701668,
+     "total_rmse": 14.214059672289247,
+     "n": 256
+    },
+    "2018": {
+     "margin_rmse": 13.138254331850861,
+     "total_rmse": 13.597530044023152,
+     "n": 256
+    },
+    "2019": {
+     "margin_rmse": 13.142879381327525,
+     "total_rmse": 13.492687038479177,
+     "n": 256
+    },
+    "2020": {
+     "margin_rmse": 12.77097842133233,
+     "total_rmse": 12.975938297900983,
+     "n": 256
+    },
+    "2021": {
+     "margin_rmse": 13.717402380586607,
+     "total_rmse": 13.274905434205463,
+     "n": 272
+    },
+    "2022": {
+     "margin_rmse": 11.381235701054937,
+     "total_rmse": 13.226054659761527,
+     "n": 271
+    },
+    "2023": {
+     "margin_rmse": 13.140574066792489,
+     "total_rmse": 13.115100605238156,
+     "n": 272
+    },
+    "2024": {
+     "margin_rmse": 12.6525872244808,
+     "total_rmse": 12.537612603945563,
+     "n": 272
+    },
+    "2025": {
+     "margin_rmse": 12.378608302180288,
+     "total_rmse": 13.118507445151858,
+     "n": 272
+    }
+   }
+  },
+  "paired": {
+   "DATA_ONLY_vs_CURRENT_MARKET_PRIOR": {
+    "margin": {
+     "n": 3151,
+     "mean_diff_abs_error": 0.3657973842996365,
+     "se": 0.05258486636277768,
+     "ci95": [
+      0.2627310462285922,
+      0.46886372237068075
+     ]
+    },
+    "total": {
+     "n": 3151,
+     "mean_diff_abs_error": 0.25776521883757364,
+     "se": 0.05137803916659962,
+     "ci95": [
+      0.15706426207103838,
+      0.35846617560410887
+     ]
+    }
+   },
+   "HYBRID_30_DATA_vs_CURRENT_MARKET_PRIOR": {
+    "margin": {
+     "n": 3151,
+     "mean_diff_abs_error": 0.04316714092024394,
+     "se": 0.01651779509446892,
+     "ci95": [
+      0.010792262535084862,
+      0.07554201930540302
+     ]
+    },
+    "total": {
+     "n": 3151,
+     "mean_diff_abs_error": 0.02184337638516899,
+     "se": 0.016114219711407717,
+     "ci95": [
+      -0.00974049424919013,
+      0.05342724701952811
+     ]
+    }
+   },
+   "HYBRID_30_DATA_vs_DATA_ONLY": {
+    "margin": {
+     "n": 3151,
+     "mean_diff_abs_error": -0.32263024337939256,
+     "se": 0.037522008777098895,
+     "ci95": [
+      -0.3961733805825064,
+      -0.24908710617627872
+     ]
+    },
+    "total": {
+     "n": 3151,
+     "mean_diff_abs_error": -0.23592184245240463,
+     "se": 0.0362804782271358,
+     "ci95": [
+      -0.3070315797775908,
+      -0.16481210512721844
+     ]
+    }
+   }
+  },
+  "early_season_weeks_1_4": {
+   "CURRENT_MARKET_PRIOR": {
+    "margin_rmse": 13.176140251862792
+   },
+   "DATA_ONLY": {
+    "margin_rmse": 13.448909870516554
+   },
+   "HYBRID_30_DATA": {
+    "margin_rmse": 13.178257563321774
+   }
+  },
+  "reconciliation_with_frozen_research": {
+   "frozen_rmse_spread": 12.880517369480556,
+   "frozen_rmse_model": 13.26104299586786,
+   "frozen_blend_0.3_rmse": 12.914460359038705,
+   "ours_current": 12.880517369480556,
+   "ours_data_only": 13.26104299586786,
+   "ours_hybrid": 12.914460359038705,
+   "ok": true
+  }
+ },
+ "V3_ratings_reproduction": {
+  "checked": [
+   {
+    "season": 2019,
+    "week": 3,
+    "teams": 32,
+    "max_abs_diff": 1.7763568394002505e-15,
+    "n_team_games": 1600
+   },
+   {
+    "season": 2022,
+    "week": 9,
+    "teams": 32,
+    "max_abs_diff": 3.552713678800501e-15,
+    "n_team_games": 1814
+   },
+   {
+    "season": 2024,
+    "week": 5,
+    "teams": 32,
+    "max_abs_diff": 1.3322676295501878e-15,
+    "n_team_games": 1758
+   },
+   {
+    "season": 2025,
+    "week": 1,
+    "teams": 32,
+    "max_abs_diff": 1.7763568394002505e-15,
+    "n_team_games": 1630
+   },
+   {
+    "season": 2025,
+    "week": 10,
+    "teams": 32,
+    "max_abs_diff": 8.881784197001252e-16,
+    "n_team_games": 1900
+   },
+   {
+    "season": 2025,
+    "week": 18,
+    "teams": 32,
+    "max_abs_diff": 2.6645352591003757e-15,
+    "n_team_games": 2142
+   }
+  ],
+  "ok": true
+ },
+ "V4_contract_pricing_crn": {
+  "seasons": "2020-2025",
+  "n_games": 1610,
+  "n_sims": 40000,
+  "market_center": "consensus closing line",
+  "bank": "residuals of the four seasons before each test season (point in time)",
+  "CURRENT_MARKET_PRIOR": {
+   "home_win": {
+    "n": 1610,
+    "brier": 0.21098001729114904,
+    "log_loss": 0.6096497919013012
+   },
+   "spread_ladder": {
+    "n": 8050,
+    "brier": 0.19466561128881987,
+    "log_loss": 0.5715762664789978
+   },
+   "total_ladder": {
+    "n": 8050,
+    "brier": 0.23343761759712736,
+    "log_loss": 0.6594086217393376
+   }
+  },
+  "DATA_ONLY": {
+   "home_win": {
+    "n": 1610,
+    "brier": 0.2232157988136646,
+    "log_loss": 0.6384584604014905
+   },
+   "spread_ladder": {
+    "n": 8050,
+    "brier": 0.20370170830116457,
+    "log_loss": 0.5933696774763042
+   },
+   "total_ladder": {
+    "n": 8050,
+    "brier": 0.24093563617942546,
+    "log_loss": 0.67702635296363
+   }
+  },
+  "HYBRID_30_DATA": {
+   "home_win": {
+    "n": 1610,
+    "brier": 0.21271933829153727,
+    "log_loss": 0.6138452180643102
+   },
+   "spread_ladder": {
+    "n": 8050,
+    "brier": 0.19537349412942548,
+    "log_loss": 0.5732905651158641
+   },
+   "total_ladder": {
+    "n": 8050,
+    "brier": 0.23426233887608697,
+    "log_loss": 0.6612029269432145
+   }
+  },
+  "paired_brier_DATA_ONLY_minus_CURRENT_home_win": {
+   "mean": 0.012235781522515527,
+   "se_naive": 0.0025330979868947536,
+   "note": "naive SE over rungs; rungs within a game are correlated"
+  },
+  "paired_brier_DATA_ONLY_minus_CURRENT_spread_ladder": {
+   "mean": 0.009036097012344719,
+   "se_naive": 0.0010315191632375854,
+   "note": "naive SE over rungs; rungs within a game are correlated"
+  },
+  "paired_brier_DATA_ONLY_minus_CURRENT_total_ladder": {
+   "mean": 0.007498018582298136,
+   "se_naive": 0.0011101754146228284,
+   "note": "naive SE over rungs; rungs within a game are correlated"
+  },
+  "paired_brier_HYBRID_30_DATA_minus_CURRENT_home_win": {
+   "mean": 0.0017393210003881982,
+   "se_naive": 0.000911486430151709,
+   "note": "naive SE over rungs; rungs within a game are correlated"
+  },
+  "paired_brier_HYBRID_30_DATA_minus_CURRENT_spread_ladder": {
+   "mean": 0.0007078828406055906,
+   "se_naive": 0.0003948556651990167,
+   "note": "naive SE over rungs; rungs within a game are correlated"
+  },
+  "paired_brier_HYBRID_30_DATA_minus_CURRENT_total_ladder": {
+   "mean": 0.0008247212789596265,
+   "se_naive": 0.0005123014766264271,
+   "note": "naive SE over rungs; rungs within a game are correlated"
+  },
+  "frozen_reference_normal_cdf": {
+   "logloss_spread": 0.6123459974987375,
+   "logloss_model": 0.634006248174119,
+   "logloss_blend30": 0.6152839910583767,
+   "brier_spread": 0.21219825517304075,
+   "brier_model": 0.2217693443840066,
+   "brier_blend30": 0.21341146069673347
+  }
+ },
+ "V5_leakage_audits": {
+  "future_team_games_cannot_reach_ratings": {
+   "max_abs_change": 0.0,
+   "ok": true
+  },
+  "artifact_trains_only_before_target": {
+   "train_seasons": [
+    2018,
+    2025
+   ],
+   "target": 2026,
+   "ok": true
+  },
+  "schedule_market_columns_dropped": [
+   "away_moneyline",
+   "away_spread_odds",
+   "home_moneyline",
+   "home_spread_odds",
+   "over_odds",
+   "spread_line",
+   "total_line",
+   "under_odds"
+  ],
+  "spread_line_as_a_feature_is_refused": {
+   "ok": true
+  }
+ },
+ "seconds": 39.09842324256897
+}
