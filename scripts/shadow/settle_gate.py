@@ -48,16 +48,23 @@ def ledger_start(market_data: str) -> str | None:
     return days[0] if days else None
 
 
-def evaluated_games(corpus_root: str, evaluation_version: str | None) -> set:
+def evaluated_games(corpus_root: str, evaluation_version: str | None, suffix: str = "evaluations") -> set:
     """Games that already have at least one published batch for this evaluation version."""
     out = set()
     for d in sorted(glob.glob(os.path.join(corpus_root, "*"))):
         if not os.path.isdir(d):
             continue
-        pattern = f"{evaluation_version}.*.evaluations.jsonl.gz" if evaluation_version else "*.evaluations.jsonl.gz"
+        pattern = f"{evaluation_version}.*.{suffix}.jsonl.gz" if evaluation_version else f"*.{suffix}.jsonl.gz"
         if glob.glob(os.path.join(d, pattern)):
             out.add(os.path.basename(d))
     return out
+
+
+def arms_start(market_data: str) -> str | None:
+    """The earliest day a three-arm snapshot exists for. Games before it have no challenger forecast and never will."""
+    days = sorted(os.path.basename(d) for d in glob.glob(os.path.join(
+        market_data, "data", "shadow", "arms", "*")) if os.path.isdir(d))
+    return days[0] if days else None
 
 
 def main():
@@ -84,6 +91,16 @@ def main():
 
     corpus_root = os.path.join(a.market_data, "data", "shadow", "evaluations")
     done = evaluated_games(corpus_root, a.eval_version)
+    # The derived corpora of the three-arm experiment gate the same way: a final game inside the window with a
+    # three-arm snapshot but no arm-evaluation batch, or with ledger rows but no autopsy batch, is work.
+    from nfl_edge.arms.registry import ARM_EVALUATION_VERSION
+    from nfl_edge.shadow.player_autopsy import AUTOPSY_VERSION, SUFFIX as AUTOPSY_SUFFIX
+    arms_done = evaluated_games(os.path.join(a.market_data, "data", "shadow", "arm_evaluations"),
+                                ARM_EVALUATION_VERSION, "arm_game_evaluations")
+    autopsy_done = evaluated_games(os.path.join(a.market_data, "data", "shadow", "player_autopsy"),
+                                   AUTOPSY_VERSION, AUTOPSY_SUFFIX)
+    a_start = arms_start(a.market_data)
+    arms_work, autopsy_work = [], []
     start = a.since or ledger_start(a.market_data)
     work, outside, waiting, before_ledger = [], [], [], 0
     for g in games:
@@ -95,6 +112,13 @@ def main():
         ko = datetime.fromisoformat(g.kickoff_utc)
         if ko > now:
             continue
+        settled_enough = now >= ko + timedelta(hours=a.min_hours_after_kickoff)
+        in_window = ko >= now - timedelta(days=a.lookback_days)
+        if settled_enough and in_window:
+            if a_start and g.kickoff_utc[:10] >= a_start and g.game_id not in arms_done:
+                arms_work.append(g.game_id)
+            if g.game_id not in autopsy_done:
+                autopsy_work.append(g.game_id)
         if g.game_id in done:
             continue
         if now < ko + timedelta(hours=a.min_hours_after_kickoff):
@@ -111,7 +135,9 @@ def main():
               "unevaluated_outside_window": sorted(outside)[-20:],
               "n_unevaluated_outside_window": len(outside),
               "ledger_starts": start, "games_before_the_ledger_ignored": before_ledger,
-              "already_evaluated_games": len(done)}
+              "already_evaluated_games": len(done),
+              "arms_corpus_starts": a_start, "games_needing_arm_evaluation": sorted(arms_work),
+              "games_needing_player_autopsy": sorted(autopsy_work)}
     print(json.dumps(report, indent=1))
     if outside:
         print(f"::notice::{len(outside)} final game(s) older than {a.lookback_days} days have no evaluation "
@@ -122,7 +148,10 @@ def main():
             f.write(f"n_games={len(work)}\n")
             f.write("games=" + " ".join(work) + "\n")
             f.write("game_args=" + " ".join(f"--game {g}" for g in work) + "\n")
-    print(f"work={'true' if work else 'false'} ({len(work)} game(s))")
+            f.write(f"arms_work={'true' if arms_work else 'false'}\n")
+            f.write(f"autopsy_work={'true' if autopsy_work else 'false'}\n")
+    print(f"work={'true' if work else 'false'} ({len(work)} game(s)); arms_work={'true' if arms_work else 'false'} "
+          f"({len(arms_work)}); autopsy_work={'true' if autopsy_work else 'false'} ({len(autopsy_work)})")
     return 0
 
 

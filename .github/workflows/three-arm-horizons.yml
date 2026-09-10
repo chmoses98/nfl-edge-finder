@@ -1,0 +1,120 @@
+name: Three-arm decision horizons
+
+# The prospective three-arm game-centre experiment (docs/PROSPECTIVE_THREE_ARM_EXPERIMENT.md) needs its
+# CURRENT / DATA_ONLY / HYBRID_30 forecasts frozen at T-24h, T-6h, T-90m and T-30m before every kickoff
+# cluster. The 2-hourly shadow-pricing cycle freezes them at its own cadence with the incumbent's exact
+# centre; this conductor guarantees the four canonical horizons.
+#
+# Why a separate conductor: the RUN NFL report path never pushes to market-data (an isolation invariant this
+# repository tests), so it cannot carry the challenger record. This workflow is cheap where it can be -- a
+# blobless fetch of market-data lists the append-only horizon markers, the schedule is one csv, and almost
+# every wake answers "nothing due" in seconds -- and pays for the football data only when a horizon is owed.
+#
+# RESEARCH ONLY. Nothing here selects, recommends, gates, or reaches the recommendation path. No secrets.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'evaluate the horizons and report, but do not build'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: three-arm-horizons
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      should_run: ${{ steps.gate.outputs.should_run }}
+      season: ${{ steps.gate.outputs.season }}
+      horizon_ids: ${{ steps.gate.outputs.horizon_ids }}
+      reason: ${{ steps.gate.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # No pip install: the gate is stdlib-only. The marker NAMES are all it needs, and a blobless fetch
+      # of market-data provides them without downloading the branch's gigabytes of captures.
+      - name: List the captured horizon markers on market-data
+        run: |
+          mkdir -p /tmp/hz
+          git fetch --depth=1 --filter=blob:none origin market-data || true
+          git ls-tree --name-only origin/market-data data/shadow/arms/horizons/ 2>/dev/null \
+            | xargs -r -n1 basename > /tmp/hz/markers.txt || true
+          echo "captured markers: $(wc -l < /tmp/hz/markers.txt)"
+      - name: Which three-arm horizons are due?
+        id: gate
+        run: |
+          python3 scripts/shadow/three_arm_horizon_gate.py --markers /tmp/hz/markers.txt \
+            --allow-download --github-output "$GITHUB_OUTPUT"
+      - name: Summary
+        run: |
+          echo "## Three-arm horizons" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "* snapshot required: **${{ steps.gate.outputs.should_run }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "* ${{ steps.gate.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+
+  snapshot:
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true' && !inputs.dry_run
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -q numpy pandas polars scipy pyarrow
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      # DATA_ONLY rates teams from play-by-play of the last four seasons only (the research's own window), so
+      # this is a fraction of the shadow cycle's download. The schedule carries the residual bank's population.
+      - name: Fetch the football data (schedule + four seasons of play-by-play) and market-data
+        run: |
+          S=${{ needs.gate.outputs.season }}
+          python3 scripts/data/nflverse_download.py --only schedules,pbp --seasons $((S-3))-$S 2>&1 | tail -3
+          python3 nfl_edge/data/silver.py $((S-3)) $S 2>&1 | tail -2
+          git fetch --depth=1 origin market-data
+          rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+      # The CURRENT centre is re-derived from the latest capture with the incumbent's own estimator (no ledger
+      # snapshot exists at this instant); the record says so. DATA_ONLY and HYBRID are then simulated on
+      # common random numbers, the same contracts priced, and the horizon marked captured -- append-only.
+      - name: Freeze the three arms for the due horizons
+        id: arms
+        run: |
+          python3 scripts/shadow/three_arm_snapshot.py --market-data /tmp/md --from-capture \
+            --target-season ${{ needs.gate.outputs.season }} --out data/shadow/arms \
+            --horizon-ids '${{ needs.gate.outputs.horizon_ids }}' --github-output "$GITHUB_OUTPUT" 2>&1 | tail -40
+      - name: Validate before anything is published
+        run: |
+          python3 scripts/shadow/validate_arms.py --arms data/shadow/arms --market-data /tmp/md --require-rows
+      - name: Publish the three-arm snapshot and the horizon markers
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/arms \
+            --message "three-arm horizon snapshot ${{ steps.arms.outputs.run_id }} (${{ needs.gate.outputs.horizon_ids }})"
+      - name: Report outcome
+        if: always()
+        run: |
+          echo "three-arm snapshot: ${{ steps.arms.outputs.status || 'FAILED' }} run=${{ steps.arms.outputs.run_id }} prekickoff games=${{ steps.arms.outputs.games_prekickoff }} contracts=${{ steps.arms.outputs.contracts }}"
+          if [ "${{ steps.arms.outcome }}" != "success" ]; then
+            echo "::error::the three-arm horizon snapshot failed; the horizon stays due for the next wake and is never reconstructed after kickoff"
+            exit 1
+          fi

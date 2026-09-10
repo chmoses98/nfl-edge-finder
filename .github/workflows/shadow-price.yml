@@ -60,6 +60,24 @@ jobs:
           python3 scripts/shadow/price_slate.py --market-data /tmp/md \
             ${{ github.event.inputs.model_version && format('--model-version {0}', github.event.inputs.model_version) || '' }} \
             --out data/shadow/ledger 2>&1 | tail -25
+      # ---- three-arm game-centre experiment (shadow research; zero authority) ------------------------
+      # Reads the ledger snapshot just written (its game_env sidecar carries the exact centre every game was
+      # priced from), rates teams from football data at the capture cutoff, blends 0.70/0.30, simulates the
+      # three arms on common random numbers and prices the same game contracts. Written to its own corpus,
+      # never into the ledger. A failure here is reported and cannot fail the pricing job.
+      - name: Three-arm game-centre snapshot
+        id: arms
+        continue-on-error: true
+        run: |
+          python3 scripts/shadow/three_arm_snapshot.py --market-data /tmp/md \
+            --ledger-dir data/shadow/ledger --out data/shadow/arms --github-output "$GITHUB_OUTPUT" 2>&1 | tail -40
+      - name: Validate the three-arm snapshot before it can be published
+        id: arms_validate
+        if: steps.arms.outputs.status == 'WRITTEN'
+        continue-on-error: true
+        run: |
+          python3 scripts/shadow/validate_arms.py --arms data/shadow/arms --market-data /tmp/md --require-rows
+
       - name: Ingest live information shocks
         run: |
           python3 scripts/shadow/ingest_shocks.py --md /tmp/md --out /tmp/md/data/shocks 2>&1 | tail -3
@@ -72,6 +90,11 @@ jobs:
       - name: Publish ledger
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/ledger --message "shadow ledger $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: Publish the three-arm snapshot
+        if: steps.arms.outputs.status == 'WRITTEN' && steps.arms_validate.outcome == 'success'
+        continue-on-error: true
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/arms --message "three-arm snapshot ${{ steps.arms.outputs.run_id }} ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
 
       # ---- handicap report -------------------------------------------------------------------------
       # This job has already paid for everything a report needs: the nflverse bronze inputs, the silver
@@ -143,6 +166,10 @@ jobs:
         if: always()
         run: |
           echo "handicap report: ${{ steps.report.outputs.report_status || 'SKIPPED' }} (${{ steps.week.outputs.status || 'no week' }})"
+          echo "three-arm snapshot: ${{ steps.arms.outputs.status || 'FAILED' }} (validated: ${{ steps.arms_validate.outcome || 'n/a' }})"
+          if [ "${{ steps.arms.outcome }}" != "success" ] || [ "${{ steps.arms_validate.outcome }}" == "failure" ]; then
+            echo "::warning::the three-arm snapshot did not build or validate this cycle; the ledger is published and this horizon's challenger record is MISSED, never reconstructed"
+          fi
           if [ "${{ steps.week.outputs.status }}" != "OK" ]; then
             echo "::notice::no active NFL slate: ${{ steps.week.outputs.reason }}"
           elif [ "${{ steps.report.outputs.report_status }}" != "SUCCESS" ]; then

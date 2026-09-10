@@ -91,10 +91,14 @@ def test_the_git_identity_is_configured_before_the_first_publish():
 
 
 def test_the_publish_steps_are_reached_only_after_something_was_written():
+    """Every publish is gated on the producing step (settle, arms or autopsy) having WRITTEN something."""
     for s in steps():
         if "publish_market_data" in (s.get("run") or ""):
-            assert "steps.settle.outputs.status == 'WROTE'" in (s.get("if") or ""), s.get("name")
-            assert "dry_run" in (s.get("if") or ""), "a dry run must never publish"
+            cond = s.get("if") or ""
+            assert re.search(r"steps\.(settle|arms|autopsy)\.outputs\.status == 'WROTE'", cond), s.get("name")
+            assert "dry_run" in cond, "a dry run must never publish"
+            if "--src data/shadow/evaluations" in s["run"] or "--src data/shadow/scorecards" in s["run"]:
+                assert "steps.settle.outputs.status == 'WROTE'" in cond
 
 
 def test_a_conflict_fails_the_run():
