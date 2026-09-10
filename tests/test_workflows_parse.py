@@ -172,3 +172,57 @@ def test_system_health_defaults_to_the_published_ledger():
         "--ledger must not default to the local repo path"
     assert 'os.path.join(a.md, "data", "shadow", "ledger")' in src, \
         "--ledger should default to the published ledger under --md"
+
+
+def _installed_packages(doc) -> set:
+    """Every package any `pip install` step in the workflow installs."""
+    out = set()
+    for _, run in _run_blocks(doc):
+        for m in re.finditer(r"pip\s+install\s+([^\n|&;]+)", run):
+            for tok in m.group(1).split():
+                if tok.startswith("-"):
+                    continue
+                if tok.startswith("requirements") or tok.endswith(".txt"):
+                    out.add("*")           # a requirements file: treat as covering everything
+                    continue
+                out.add(tok.split("==")[0].split(">=")[0].strip().lower())
+    return out
+
+
+@pytest.mark.parametrize("path", WORKFLOWS, ids=[os.path.basename(p) for p in WORKFLOWS])
+def test_workflows_install_what_their_scripts_import(path):
+    """A workflow that calls a script importing polars, and never installs polars, fails at run time only.
+
+    postgame-settle.yml shipped without an install step. Its first live scheduled run (34438883025) passed the
+    gate, downloaded the schedule, the player statistics and the identities, and then died on `import polars`
+    inside settle_games.py -- after the cheap part had proved there was a real game waiting to be settled.
+    Nothing here looked at the relationship between the scripts a workflow runs and the packages it installs,
+    so nothing caught it. Every other workflow that touches the scientific stack already installs it; this
+    test is what makes that a rule rather than a habit.
+
+    The walk is transitive on purpose: `settle_games.py` does not import polars itself. It reaches it through
+    nfl_edge.settlement.nflverse_results, which is exactly the shape that reading the top of the file misses.
+    """
+    from test_ci_dependencies import PIP_NAME, reachable_third_party
+
+    with open(path) as f:
+        doc = yaml.safe_load(f)
+
+    scripts = sorted({os.path.join(ROOT, s)
+                      for _, run in _run_blocks(doc) for s in _SCRIPT_RE.findall(run)
+                      if os.path.exists(os.path.join(ROOT, s))})
+    if not scripts:
+        pytest.skip("this workflow runs no repository scripts")
+
+    installed = _installed_packages(doc)
+    if "*" in installed:
+        return                             # installs a requirements file; covered by test_ci_dependencies
+
+    missing = []
+    for pkg, sources in sorted(reachable_third_party(scripts, precise=True).items()):
+        pip = PIP_NAME.get(pkg, pkg)
+        if pip.lower() not in installed:
+            missing.append(f"{pip} (reached from {', '.join(sorted(sources)[:3])})")
+    assert not missing, (
+        f"{os.path.basename(path)} runs scripts that import packages it never installs, so the step dies at "
+        f"run time with ModuleNotFoundError:\n  " + "\n  ".join(missing))

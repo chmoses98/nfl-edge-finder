@@ -294,6 +294,23 @@ from the pregame anatomy corpus `data/shadow/player_anatomy/` the shadow cycle w
 rule and settlement engine, each write-once with conflicts failing the run. `scripts/shadow/validate_arms.py` gates
 their publish. See `docs/PROSPECTIVE_THREE_ARM_EXPERIMENT.md`.
 
+### The scientific stack is installed behind the gate, for all three work states
+
+`postgame-settle.yml` installs `numpy pandas polars scipy pyarrow` in one step placed after the gate and before
+anything heavy. It shipped without that step, and the first live scheduled run (34438883025) passed the gate,
+downloaded the schedule, the player statistics and the identities, then died on `import polars` inside
+`settle_games.py` having settled nothing. Nothing was published and nothing was corrupted: the publish steps are
+gated on a `WROTE` status that was never set.
+
+The condition is `work || arms_work || autopsy_work || a dispatch that names games` — every work state the gate
+reports, not just incumbent settlement. `settle_arms.py` reaches numpy and polars and runs on `arms_work` alone;
+`player_autopsy.py` reaches polars and runs on `autopsy_work` alone. An install gated only on `work` would
+reproduce the identical failure one step further down, on a slate whose games are already settled but whose arm
+snapshots are not yet evaluated. `settle_gate.py` and `nflverse_download.py` are stdlib-only, so a poll with no
+work still installs nothing and costs seconds. Two tests hold this: one walks the import graph of the scripts each
+workflow actually invokes and fails when a reachable package is never installed, the other fails when the install
+condition stops covering any heavy step's condition.
+
 ## Running it by hand
 
 ```bash

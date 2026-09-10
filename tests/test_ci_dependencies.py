@@ -42,11 +42,41 @@ def _package_files(dotted: str) -> list:
     return [os.path.join(d, f) for f in sorted(os.listdir(d)) if f.endswith(".py")]
 
 
-def reachable_third_party() -> dict:
-    """Third-party package -> the files that pull it in, over the whole graph rooted at tests/."""
+def _precise_files(dotted: str, subnames) -> list:
+    """Only the modules `from <dotted> import <subnames>` actually executes.
+
+    The default walk queues every file in a package, which is the safe over-approximation for a requirements
+    file -- installing a package nothing imports costs install time, missing one costs a failed run. It is the
+    WRONG answer for "must this workflow install polars", because it charges a stdlib-only script for a
+    sibling module it never touches. `scripts/handicap/preflight_airtable.py` imports
+    nfl_edge.execution.{depth,quotes} and nothing else in that package, and is provably importable with numpy,
+    pandas, polars, scipy and pyarrow all replaced by ImportError stubs.
+    """
+    f = _module_file(dotted)
+    if f:
+        return [f]
+    d = os.path.join(ROOT, dotted.replace(".", "/"))
+    if not os.path.isdir(d):
+        return []
+    out = [os.path.join(d, "__init__.py")] if os.path.exists(os.path.join(d, "__init__.py")) else []
+    for n in subnames:                      # a name that is not a module is a function or class: no new file
+        sub = os.path.join(d, n + ".py")
+        if os.path.exists(sub):
+            out.append(sub)
+    return out
+
+
+def reachable_third_party(roots=None, *, precise: bool = False) -> dict:
+    """Third-party package -> the files that pull it in, over the graph rooted at `roots`.
+
+    Defaults to every file in tests/. `tests/test_workflows_parse.py` passes the scripts a workflow invokes
+    instead, so the same walk answers "what must CI install for this workflow" as well as "what must
+    requirements-test.txt declare".
+    """
     seen, found = set(), {}
-    queue = [os.path.join(ROOT, "tests", f)
-             for f in sorted(os.listdir(os.path.join(ROOT, "tests"))) if f.endswith(".py")]
+    queue = list(roots) if roots is not None else [
+        os.path.join(ROOT, "tests", f)
+        for f in sorted(os.listdir(os.path.join(ROOT, "tests"))) if f.endswith(".py")]
 
     while queue:
         path = queue.pop()
@@ -59,9 +89,9 @@ def reachable_third_party() -> dict:
             continue
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
-                names = [a.name for a in node.names]
+                names, subnames = [a.name for a in node.names], []
             elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-                names = [node.module]
+                names, subnames = [node.module], [a.name for a in node.names]
             else:
                 continue
             for name in names:
@@ -69,8 +99,11 @@ def reachable_third_party() -> dict:
                 if top in THIRD_PARTY:
                     found.setdefault(top, set()).add(os.path.relpath(path, ROOT))
                 elif top in LOCAL_ROOTS:
-                    f = _module_file(name)
-                    queue.extend([f] if f else _package_files(name))
+                    if precise:
+                        queue.extend(_precise_files(name, subnames))
+                    else:
+                        f = _module_file(name)
+                        queue.extend([f] if f else _package_files(name))
     return found
 
 

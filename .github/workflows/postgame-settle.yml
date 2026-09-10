@@ -74,6 +74,22 @@ jobs:
             --lookback-days "${INPUT_LOOKBACK:-10}" \
             --github-output "$GITHUB_OUTPUT"
 
+      # Behind the gate on purpose. The gate and the downloader are stdlib-only, so an idle poll still costs
+      # seconds and installs nothing; only a run that has real work to do pays for the scientific stack. Run 1
+      # (34438883025) proved the omission the expensive way: the gate found NE-SEA, the downloads succeeded, and
+      # settle_games.py died on `import polars` before it could settle a single row.
+      #
+      # The condition must cover EVERY heavy path, not just incumbent settlement. The gate reports three
+      # INDEPENDENT work states -- `work` (games ready to settle), `arms_work` (games with frozen three-arm
+      # snapshots to evaluate) and `autopsy_work` (games with a player-anatomy corpus to diagnose) -- and each
+      # drives its own step further down. A run where only `arms_work` is true still executes settle_arms.py,
+      # which reaches polars and numpy, so an install gated on `work` alone would reproduce the original
+      # ModuleNotFoundError in the arms path instead of the settlement path. Any one of the three, or a manual
+      # dispatch naming games, pays for the stack; none of them and the poll stays cheap.
+      - name: Install the dependencies the settlement scripts import
+        if: steps.gate.outputs.work == 'true' || steps.gate.outputs.arms_work == 'true' || steps.gate.outputs.autopsy_work == 'true' || github.event.inputs.games != ''
+        run: pip install -q numpy pandas polars scipy pyarrow
+
       - name: Fetch final results (player statistics, snap counts, identities)
         if: steps.gate.outputs.work == 'true' || steps.gate.outputs.arms_work == 'true' || steps.gate.outputs.autopsy_work == 'true' || github.event.inputs.games != ''
         run: |
