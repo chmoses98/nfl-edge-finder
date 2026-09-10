@@ -37,7 +37,8 @@ is the thing the question is about (`nfl_edge/arms/crn.py`).
   the CURRENT arm is DEGRADED. It then rates the teams from football data as of the capture time, blends, simulates
   the three arms on common random numbers, prices the same game contracts, and writes one immutable snapshot. The
   incumbent's own price for every ticker is carried alongside and the harness's CURRENT arm (shared draws) is also
-  checked against it at Monte Carlo tolerance.
+  checked against it at Monte Carlo tolerance; that cross-check is recorded, and it is the guard that degrades the
+  arm only where no exact replay was verified (`crn_check_authoritative`). A verified exact replay is the proof.
 * At **T-24h, T-6h, T-90m and T-30m** before every kickoff cluster, `three-arm-horizons.yml` wakes (every 15
   minutes, stdlib-only gate, blobless fetch of the marker list) and, only when a horizon is due, rates the teams
   from four seasons of play-by-play and freezes the three arms from the latest capture with the same exact replay.

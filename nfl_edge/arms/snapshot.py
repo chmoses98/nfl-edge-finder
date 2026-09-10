@@ -294,7 +294,12 @@ def build_snapshot(*, root: str, ledger: dict, now: datetime, target_season: int
             quality = IC.EXACT_UNVERIFIED if gid in incumbent_sims else "not_replayed"
             repro["replay"] = {"n_contracts": 0, "quality": quality}
         cur.detail["reproduction_quality"] = quality
-        if not repro["ok"] and cur.status == R.OK:
+        # The Monte Carlo cross-check (harness CURRENT on shared draws vs the incumbent's own draws) is the guard
+        # when the centre could NOT be replayed exactly. Once the replay is verified against the ledger the centre
+        # is proven, and two independent 40,000-row simulations differing by a few thousandths on correlated
+        # rungs is noise, recorded as such; it degrades nothing.
+        repro["crn_check_authoritative"] = quality != IC.EXACT_VERIFIED
+        if not repro["ok"] and cur.status == R.OK and repro["crn_check_authoritative"]:
             cur.status = R.DEGRADED
             cur.unavailable_reason = f"reproduction check failed: {repro}"
             for c in contract_records:

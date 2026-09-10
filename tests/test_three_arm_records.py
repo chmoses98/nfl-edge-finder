@@ -261,6 +261,8 @@ def test_an_exact_replay_of_the_incumbent_simulation_is_verified_and_a_wrong_one
     assert g["reproduction_check"]["replay"]["quality"] == IC.EXACT_VERIFIED
     assert g["reproduction_check"]["replay"]["max_abs_diff"] == 0.0
     assert g["arms"][R.CURRENT]["detail"]["reproduction_quality"] == IC.EXACT_VERIFIED
+    # with the replay proven exact, the Monte Carlo cross-check is informational and cannot degrade the arm
+    assert g["reproduction_check"]["crn_check_authoritative"] is False and g["arms"][R.CURRENT]["status"] == R.OK
     wrong = dict(ledger, sims={"2026_02_B_A": simulate_game(3.0, 44.5, bank, n=40000)})    # a different stream
     snap = build_snapshot(root=ROOT, ledger=wrong, now=OBSERVED + timedelta(minutes=5), target_season=2026, n_sims=4000,
                           inputs=inputs_for(games), verbose=lambda *_: None)
