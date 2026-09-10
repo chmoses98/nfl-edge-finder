@@ -91,10 +91,14 @@ def test_the_git_identity_is_configured_before_the_first_publish():
 
 
 def test_the_publish_steps_are_reached_only_after_something_was_written():
+    """Every publish is gated on the producing step (settle, arms or autopsy) having WRITTEN something."""
     for s in steps():
         if "publish_market_data" in (s.get("run") or ""):
-            assert "steps.settle.outputs.status == 'WROTE'" in (s.get("if") or ""), s.get("name")
-            assert "dry_run" in (s.get("if") or ""), "a dry run must never publish"
+            cond = s.get("if") or ""
+            assert re.search(r"steps\.(settle|arms|autopsy)\.outputs\.status == 'WROTE'", cond), s.get("name")
+            assert "dry_run" in cond, "a dry run must never publish"
+            if "--src data/shadow/evaluations" in s["run"] or "--src data/shadow/scorecards" in s["run"]:
+                assert "steps.settle.outputs.status == 'WROTE'" in cond
 
 
 def test_a_conflict_fails_the_run():
@@ -162,3 +166,60 @@ def test_the_settle_step_documents_its_network_reads():
     src = open(PATH).read()
     assert "ESPN" in src and "exact scalar payout" in src
 
+
+def _gate_terms(cond: str) -> set:
+    """The distinct work conditions a step's `if:` fires on: gate outputs, plus the dispatch-input escape."""
+    terms = set(re.findall(r"steps\.gate\.outputs\.(\w+)\s*==\s*'true'", cond or ""))
+    if re.search(r"github\.event\.inputs\.games\s*!=\s*''", cond or ""):
+        terms.add("__dispatch_games__")
+    return terms
+
+
+def test_the_dependency_install_covers_every_heavy_path_not_just_incumbent_settlement():
+    """The install must fire whenever ANY step that needs the scientific stack fires.
+
+    Two pieces of history meet in this one condition. The install step exists because run 34438883025 passed
+    the gate, downloaded everything, and died on `import polars` inside settle_games.py. It was written when
+    `work` was the only work state the gate reported. The three-arm experiment then added two INDEPENDENT
+    ones -- `arms_work` and `autopsy_work` -- each driving its own step: settle_arms.py reaches numpy and
+    polars, player_autopsy.py reaches polars. A run where a game has frozen arm snapshots to evaluate but
+    nothing left to settle sets `arms_work` and not `work`, so an install still gated on `work` alone would
+    reproduce the identical ModuleNotFoundError one step further down.
+
+    So the rule is not "the install step exists" but "the install step's condition is implied by every heavy
+    step's condition". Anything else is a run that installs nothing and then imports polars.
+    """
+    heavy_needs = {}
+    for s in steps():
+        run = s.get("run") or ""
+        scripts = [m for m in re.findall(r"python3?\s+((?:scripts|nfl_edge)/[\w./-]+\.py)", run)]
+        if not scripts or "pip install" in run:
+            continue
+        for script in scripts:
+            if script in ("scripts/shadow/settle_gate.py", "scripts/data/nflverse_download.py",
+                          "scripts/ci/publish_market_data.py"):
+                continue                    # the cheap gate, the downloader and the publisher are stdlib-only
+            heavy_needs.setdefault(s.get("name", "<unnamed>"), set()).update(_gate_terms(s.get("if")))
+
+    install = next((s for s in steps() if "pip install" in (s.get("run") or "")), None)
+    assert install is not None, "postgame-settle.yml installs nothing; the first live run died on import polars"
+    covered = _gate_terms(install.get("if"))
+    assert covered, "the install step is unconditional or its condition is unrecognised"
+
+    uncovered = {name: sorted(t - covered) for name, t in heavy_needs.items() if t - covered}
+    assert not uncovered, (
+        "these steps run scripts that need the scientific stack under conditions the install step does not "
+        f"cover, so they would die with ModuleNotFoundError: {uncovered}. Install condition covers {sorted(covered)}")
+    for token in ("work", "arms_work", "autopsy_work"):
+        assert token in covered, f"the install step ignores the gate's {token!r} work state"
+
+
+def test_an_idle_poll_still_installs_nothing():
+    """The cheap-idle-poll property is the reason the install sits behind the gate rather than at the top."""
+    install = next(s for s in steps() if "pip install" in (s.get("run") or ""))
+    cond = install.get("if") or ""
+    assert cond, "an unconditional install makes every 3-hourly no-work poll pay for the scientific stack"
+    assert "steps.gate.outputs" in cond, "the install must key off the gate, not run always"
+    gate_at = step_index("settle_gate.py")
+    install_at = next(i for i, s in enumerate(steps()) if "pip install" in (s.get("run") or ""))
+    assert gate_at < install_at, "the install must come after the gate has decided there is work"

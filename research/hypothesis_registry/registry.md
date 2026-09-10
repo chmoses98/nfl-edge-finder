@@ -33,3 +33,4 @@ consequence of it -- a standing rule can be live *and* have already forced a cha
 | `H-20260904-023` | REGISTERED_PROSPECTIVE | — | primary: share of prop-market decision-time books with a spread >= 2 c | Prop books will offer a passive level far more often than the 8.8% seen on game  |
 | `H-20260904-024` | REGISTERED_PROSPECTIVE | — | primary: gross P&L to settlement of reachable minus non-reachable cand | The difference stays negative prospectively at roughly -0.02 to -0.04, and marko |
 | `H-20260904-025` | REGISTERED_PROSPECTIVE | — | three separately reported components of the pre -> +60m change: locati | Prior is that a skill-position absence moves location slightly and does not chan |
+| `H-20260910-026` | REGISTERED_PROSPECTIVE | — | PRIMARY GAME-CENTRE METRICS: margin RMSE and MAE, total RMSE and MAE,  | Prior, from the closing-line research: at the close DATA_ONLY is worse than CURR |

@@ -284,6 +284,33 @@ replacement-role changes and post-injury-news movement can be studied later agai
 **Nothing here promotes a model change.** One week is a handful of games and a Brier difference of a few
 thousandths on a few hundred correlated contracts is not evidence.
 
+## The three-arm experiment and the autopsy ride the same job
+
+After the incumbent corpus is published, the same workflow runs `scripts/shadow/settle_arms.py` (arm-evaluation
+corpus under `data/shadow/arm_evaluations/`), `scripts/shadow/player_autopsy.py` (`data/shadow/player_autopsy/`, read
+from the pregame anatomy corpus `data/shadow/player_anatomy/` the shadow cycle writes) and
+`scripts/shadow/arm_report.py` (`data/shadow/arm_reports/<batch>/`), each behind the same cheap gate
+(`settle_gate.py` emits `arms_work` / `autopsy_work`), each using this document's result book, readiness gate, close
+rule and settlement engine, each write-once with conflicts failing the run. `scripts/shadow/validate_arms.py` gates
+their publish. See `docs/PROSPECTIVE_THREE_ARM_EXPERIMENT.md`.
+
+### The scientific stack is installed behind the gate, for all three work states
+
+`postgame-settle.yml` installs `numpy pandas polars scipy pyarrow` in one step placed after the gate and before
+anything heavy. It shipped without that step, and the first live scheduled run (34438883025) passed the gate,
+downloaded the schedule, the player statistics and the identities, then died on `import polars` inside
+`settle_games.py` having settled nothing. Nothing was published and nothing was corrupted: the publish steps are
+gated on a `WROTE` status that was never set.
+
+The condition is `work || arms_work || autopsy_work || a dispatch that names games` — every work state the gate
+reports, not just incumbent settlement. `settle_arms.py` reaches numpy and polars and runs on `arms_work` alone;
+`player_autopsy.py` reaches polars and runs on `autopsy_work` alone. An install gated only on `work` would
+reproduce the identical failure one step further down, on a slate whose games are already settled but whose arm
+snapshots are not yet evaluated. `settle_gate.py` and `nflverse_download.py` are stdlib-only, so a poll with no
+work still installs nothing and costs seconds. Two tests hold this: one walks the import graph of the scripts each
+workflow actually invokes and fails when a reachable package is never installed, the other fails when the install
+condition stops covering any heavy step's condition.
+
 ## Running it by hand
 
 ```bash
