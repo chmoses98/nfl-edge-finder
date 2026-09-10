@@ -3,7 +3,8 @@
 
     python3 scripts/shadow/player_autopsy.py --market-data /tmp/md --out data/shadow/player_autopsy [--game G]
 
-Reads the published ledger (never writes it), uses the same result book and readiness gate as settlement
+Reads the published player-anatomy corpus (the ledger is never read for intermediates and never written), uses
+the same result book and readiness gate as settlement
 (player statistics AND snap counts must be published; a game is deferred whole otherwise), and writes
 `data/shadow/player_autopsy/<game_id>/<version>.<batch>.autopsy.jsonl.gz` under the write-once store.
 """
@@ -36,6 +37,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--market-data", required=True)
     ap.add_argument("--out", default=os.path.join(ROOT, "data", "shadow", "player_autopsy"))
+    ap.add_argument("--anatomy-root", action="append", default=[], help="extra anatomy roots (local staging)")
     ap.add_argument("--season", type=int, default=0)
     ap.add_argument("--game", action="append", default=[])
     ap.add_argument("--lookback-days", type=float, default=10.0)
@@ -53,10 +55,8 @@ def main():
                             and now - timedelta(days=a.lookback_days) <= datetime.fromisoformat(gr.kickoff_utc) <= now)
     published = os.path.join(a.market_data, "data", "shadow", "player_autopsy")
     corpus = ST.EvaluationCorpus(a.out, read_roots=[published], suffix=PA.SUFFIX)
-    kicks = [datetime.fromisoformat(book.games[g].kickoff_utc) for g in candidates if g in book.games and book.games[g].kickoff_utc]
-    lo = (min(kicks) - timedelta(days=21)).date().isoformat() if kicks else None
-    hi = (max(kicks) + timedelta(days=1)).date().isoformat() if kicks else None
-    by_game = PA.load_observations(a.market_data, candidates, lo, hi) if candidates else {}
+    anatomy_roots = [os.path.join(a.market_data, "data", "shadow", "player_anatomy")] + list(a.anatomy_root)
+    by_game = PA.load_anatomy(anatomy_roots, candidates) if candidates else {}
     batch = ST.batch_id(now)
     written = unchanged = conflicts = 0
     deferred, done = [], []

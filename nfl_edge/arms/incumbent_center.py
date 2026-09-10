@@ -1,41 +1,72 @@
-"""The incumbent's game centre, re-derived from a capture snapshot with the incumbent's own estimator.
+"""The incumbent's game centre, obtained by REPLAYING the incumbent -- never by modifying it.
 
-The 2-hourly shadow cycle writes a `game_env` sidecar with the EXACT centre every game was priced from, and the
-three-arm snapshot reads it. The decision-horizon conductor runs between those cycles, with no ledger snapshot
-of its own (the RUN NFL report path never publishes to market-data, by design and by test). At a horizon the
-CURRENT centre is therefore re-derived here, step for step as `scripts/shadow/price_slate.py` derives it:
+`scripts/shadow/price_slate.py` is frozen Week-1 evidence lineage and is not touched. It also records neither
+the centre it priced each game from nor its source. This module reproduces that centre by executing the
+frozen script's own functions in the frozen script's own order, on the same inputs:
 
-    liquid full-game winner / spread / total quotes  ->  `implied_game_lines` grid search (same grids, 12,000
-    sims, width <= 0.06, >= 6 liquid rungs)  ->  else the nflverse consensus line  ->  else no environment
+    load_latest_quotes (imported from the frozen script)  ->  the same quotes dict, in the same order
+    the same `by_game` grouping, in the same insertion order
+    the same silver games table, the same residual-bank filter and construction, the SAME seed (11)
+    for each game, in the same order:
+        implied_game_lines(...)  with the same grids and 12,000 draws   (consumes the bank's generator)
+        simulate_game(..., n=40000)                                     (consumes it again)
 
-on the same residual bank. It is the incumbent's estimator on the incumbent's inputs; what differs is the
-random stream of the grid search, so an implied line can differ from the cycle's by one half-point grid step
-in a close call. Every record says which of the two provenances it carries, and the reproduction check is
-recorded as unavailable rather than faked.
+The bank's generator is one sequential stream shared by every grid search and every simulation, so the
+centre of the ninth game depends on everything drawn for the first eight. Replaying the whole sequence is
+therefore the ONLY way to reproduce a centre exactly, and it reproduces the incumbent's 40,000-row simulation
+of every game as a by-product. When the incumbent's ledger snapshot for the same capture is on disk, the
+replayed simulation's prices are compared with the ledger's prices ticker by ticker and the replay is marked
+`exact_replay_verified`; without a ledger (the horizon conductor) it is `exact_replay_unverified` -- the same
+algorithm, seed, inputs and order, with nothing on disk to check against. A replay whose prices do not match
+the ledger is `replay_mismatch`, and the CURRENT arm built from it is DEGRADED. Nothing here pretends a
+re-derived centre is the recorded production centre when it is not.
 
-The SUPPORT gating is mirrored too, so the contract universe is the one the incumbent would have priced:
-settlement semantics established, quote pregame, series confirmed complete in the capture, a game environment,
-and a full-game family the joint simulation prices.
+Cost: the incumbent's own game-environment cost (about 160 s for a 30-game capture), paid once per snapshot.
 """
 from __future__ import annotations
 
 import glob
+import importlib.util
 import json
+import math
 import os
+import sys
 from datetime import datetime
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from nfl_edge.arms import registry as R
 from nfl_edge.data.nfl_calendar import kickoff_utc
-from nfl_edge.pricing.game_env import simulate_game
+from nfl_edge.pricing.game_env import ResidualBank, simulate_game
 from nfl_edge.pricing.market_implied import implied_game_lines
 from nfl_edge.settlement import semantics as sem_mod
 
-SPREAD_GRID = np.arange(-17, 17.5, 0.5)
-TOTAL_GRID = np.arange(34, 62.5, 0.5)
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+FROZEN_PRICER = os.path.join(ROOT, "scripts", "shadow", "price_slate.py")
+
+# The incumbent's own constants, copied here so a drift in the frozen script is a visible test failure
+# (tests/test_incumbent_unchanged.py pins the script's text) rather than a silent divergence.
+IMPLIED_SPREAD_GRID = (-17, 17.5, 0.5)
+IMPLIED_TOTAL_GRID = (34, 62.5, 0.5)
 IMPLIED_NSIMS = 12000
+BANK_SEASON_LO = 2016
+BANK_HALFLIFE = 3.0
+BANK_SEED = 11
+MAX_QUOTE_AGE_MIN = 45.0
+
+EXACT_VERIFIED = "exact_replay_verified"
+EXACT_UNVERIFIED = "exact_replay_unverified"
+MISMATCH = "replay_mismatch"
+
+
+def frozen_pricer():
+    """The frozen script as a module (its top level only defines functions and constants)."""
+    spec = importlib.util.spec_from_file_location("_frozen_price_slate", FROZEN_PRICER)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def _f(x):
@@ -45,68 +76,99 @@ def _f(x):
         return None
 
 
-def load_capture_snapshot(capture_root: str) -> dict:
-    """Latest quote per ticker plus the manifest of the latest run -- as price_slate.load_latest_quotes does."""
-    files = sorted(glob.glob(os.path.join(capture_root, "*", "*.quotes.jsonl")))
-    mans = sorted(glob.glob(os.path.join(capture_root, "*", "*.manifest.json")))
-    if not files or not mans:
-        raise FileNotFoundError(f"no capture quotes/manifests under {capture_root}")
-    man = json.load(open(mans[-1]))
-    run_ts = datetime.fromisoformat(man["finished_at"])
-    confirmed = {s for s, v in (man.get("series") or {}).items() if v.get("complete")}
-    quotes = {}
-    for f in reversed(files):
-        for line in open(f):
-            r = json.loads(line)
-            if r["ticker"] not in quotes:
-                quotes[r["ticker"]] = r
-    return {"quotes": quotes, "run_ts": run_ts, "run_id": run_ts.strftime("%Y%m%dT%H%M%SZ"),
-            "confirmed_series": confirmed, "manifest_path": mans[-1]}
+def _num(v):
+    return None if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
 
 
-def game_environment(quotes: dict, games, target_season: int, bank) -> dict:
-    """price_slate's game-environment block, producing the same sidecar shape (centres only, no simulation)."""
-    sched = games.filter(games["season"] == target_season) if hasattr(games, "filter") else games
-    gidx = sched.to_pandas().set_index("game_id") if hasattr(sched, "to_pandas") else sched.set_index("game_id")
+def incumbent_bank(games: pl.DataFrame, target_season: int) -> tuple[ResidualBank, dict]:
+    """price_slate's residual bank, from the same silver table with the same filter, order and seed."""
+    g = games.filter((pl.col("game_type") == "REG") & pl.col("result").is_not_null()
+                     & pl.col("spread_line").is_not_null() & (pl.col("season") >= BANK_SEASON_LO))
+    result = g["result"].cast(pl.Float64).to_numpy()
+    spread = g["spread_line"].cast(pl.Float64).to_numpy()
+    total = g["total"].cast(pl.Float64).to_numpy()
+    total_line = g["total_line"].cast(pl.Float64).to_numpy()
+    overtime = g["overtime"].fill_null(0).cast(pl.Int64).to_numpy()
+    bank = ResidualBank(result - spread, total - total_line, g["season"].cast(pl.Float64).to_numpy(),
+                        ref_season=target_season, spread_lines=spread, total_lines=total_line, overtime=overtime,
+                        results=result, halflife=BANK_HALFLIFE, rng=np.random.default_rng(BANK_SEED))
+    meta = {"season_lo": int(g["season"].min()) if g.height else None, "season_hi": int(g["season"].max()) if g.height else None,
+            "n_pairs": int(g.height), "halflife_seasons": BANK_HALFLIFE, "rng_seed": BANK_SEED,
+            "population": "REG games with a result and a spread line, season >= 2016 (silver games.parquet), incumbent order"}
+    return bank, meta
+
+
+def replay_game_environment(market_data: str, root: str, target_season: int, *, limit_games: int = 0,
+                            verbose=lambda *_: None) -> dict:
+    """Execute the incumbent's game-environment block, call for call, and return everything it produced."""
+    P = frozen_pricer()
+    capture_root = os.path.join(market_data, "data", "kalshi", "capture")
+    quotes, run_ts, ages, confirmed_series = P.load_latest_quotes(capture_root, MAX_QUOTE_AGE_MIN)
+    if not quotes:
+        raise FileNotFoundError(f"no capture quotes under {capture_root}")
+    run_id = run_ts.strftime("%Y%m%dT%H%M%SZ")
+    books = P.load_books(capture_root)
+    games = pl.read_parquet(os.path.join(root, "data", "silver", "games.parquet"))
+    sched = games.filter(pl.col("season") == target_season)
+    gidx = {r["game_id"]: r for r in sched.to_dicts()}
+    # price_slate builds `rows` from quotes in quote order and groups by game_id in insertion order
     by_game = {}
     for t, q in quotes.items():
-        if q.get("game_id"):
-            by_game.setdefault(q["game_id"], []).append(q)
-    env = {"games": {}, "games_without_environment": {}, "target_season": target_season, "n_sims": R.N_SIMS,
-           "game_env_version": "game_env-0.2.0", "center_provenance": "incumbent_estimator_rerun",
-           "implied_line_search": {"spread_grid": [-17.0, 17.0, 0.5], "total_grid": [34.0, 62.0, 0.5],
-                                   "nsims": IMPLIED_NSIMS, "max_width": 0.06, "min_rungs": 6}}
-    for gid in sorted(by_game):
-        if gid not in gidx.index:
+        by_game.setdefault(q.get("game_id"), []).append(q)
+    bank, bank_meta = incumbent_bank(games, target_season)
+    env = {"run_id": run_id, "capture_finished_at": run_ts.isoformat(), "target_season": target_season,
+           "game_env_version": "game_env-0.2.0", "n_sims": R.N_SIMS, "center_provenance": "incumbent_replay",
+           "residual_bank": bank_meta,
+           "implied_line_search": {"spread_grid": list(IMPLIED_SPREAD_GRID), "total_grid": list(IMPLIED_TOTAL_GRID),
+                                   "nsims": IMPLIED_NSIMS, "max_width": 0.06, "min_rungs": 6},
+           "games": {}, "games_without_environment": {}}
+    sims = {}
+    gl = [g for g in by_game if g]
+    if limit_games:
+        gl = gl[:limit_games]
+    for gid in gl:
+        if gid not in gidx:
             env["games_without_environment"][gid] = "market did not join a scheduled game"
             continue
-        row = gidx.loc[gid]
+        row = gidx[gid]
         qs = [{"family": r.get("family"), "period": r.get("period"), "team": r.get("team"), "threshold": r.get("threshold"),
                "floor_strike": r.get("floor_strike"), "yes_bid": _f(r.get("yes_bid_dollars")), "yes_ask": _f(r.get("yes_ask_dollars")),
                "volume": _f(r.get("volume_fp"))} for r in by_game[gid]]
         s_imp, t_imp, diag = implied_game_lines(qs, bank, simulate_game, row["home_team"], row["away_team"],
-                                                spread_grid=SPREAD_GRID, total_grid=TOTAL_GRID, nsims=IMPLIED_NSIMS)
-        s_use = s_imp if s_imp is not None else (float(row["spread_line"]) if pd.notna(row["spread_line"]) else None)
-        t_use = t_imp if t_imp is not None else (float(row["total_line"]) if pd.notna(row["total_line"]) else None)
+                                                spread_grid=np.arange(*IMPLIED_SPREAD_GRID), total_grid=np.arange(*IMPLIED_TOTAL_GRID),
+                                                nsims=IMPLIED_NSIMS)
+        s_use = s_imp if s_imp is not None else _num(row.get("spread_line"))
+        t_use = t_imp if t_imp is not None else _num(row.get("total_line"))
         if s_use is None or t_use is None:
             env["games_without_environment"][gid] = "no Kalshi-implied line and no consensus line: " + str(diag.get("reason"))
             continue
-        ko = kickoff_utc(str(row["gameday"]), str(row["gametime"]))
+        sims[gid] = simulate_game(s_use, t_use, bank, n=R.N_SIMS)          # advances the stream exactly as the incumbent did
+        ko = kickoff_utc(str(row.get("gameday") or ""), str(row.get("gametime") or ""))
         env["games"][gid] = {
             "spread_home": float(s_use), "total": float(t_use), "source": "kalshi_implied" if s_imp is not None else "consensus_line",
             "kalshi_implied_spread": s_imp, "kalshi_implied_total": t_imp,
             "implied_diag": {k: (float(v) if isinstance(v, (int, float, np.floating)) else v) for k, v in diag.items()},
             "fallback_reason": None if s_imp is not None else str(diag.get("reason") or "implied lines unavailable"),
-            "consensus_spread_line": float(row["spread_line"]) if pd.notna(row["spread_line"]) else None,
-            "consensus_total_line": float(row["total_line"]) if pd.notna(row["total_line"]) else None,
+            "consensus_spread_line": _num(row.get("spread_line")), "consensus_total_line": _num(row.get("total_line")),
             "home": row["home_team"], "away": row["away_team"], "season": int(row["season"]), "week": int(row["week"]),
             "kickoff_utc": ko.isoformat() if ko else None, "n_sims": R.N_SIMS}
-    return env
+        verbose(f"  replay {gid}: spread {s_use} total {t_use} ({env['games'][gid]['source']})")
+    return {"env": env, "sims": sims, "bank": bank, "quotes": quotes, "books": books, "confirmed_series": confirmed_series,
+            "run_id": run_id, "run_ts": run_ts, "ages": ages, "gidx": gidx}
+
+
+def find_ledger_rows(ledger_dir: str, run_id: str):
+    """The incumbent's own observations for this capture run, if the pricer wrote them locally. Read only."""
+    import gzip
+    files = sorted(glob.glob(os.path.join(ledger_dir, "*", f"{run_id}.*.observations.jsonl.gz")))
+    if not files:
+        return None, None
+    return [json.loads(l) for l in gzip.open(files[-1], "rt")], files[-1]
 
 
 def observation_like_rows(quotes: dict, confirmed_series: set, env: dict, books: dict | None = None) -> list:
-    """Capture rows in the ledger-observation shape the snapshot builder consumes, with the incumbent's support
-    gating mirrored. No prices are modelled here: `model_contract_value` is None (nothing to reproduce against)."""
+    """Capture rows in the ledger-observation shape, with the incumbent's support gating mirrored. Used when no
+    ledger snapshot exists for the capture (the horizon conductor). No model price is invented."""
     books = books or {}
     out = []
     for t, q in quotes.items():
@@ -128,6 +190,12 @@ def observation_like_rows(quotes: dict, confirmed_series: set, env: dict, books:
         elif fam in ("SPREAD", "TOTAL", "TEAM_TOTAL") and period != "FULL":
             state, why = "UNSUPPORTED_MODEL", f"family {fam} period {period} not priced"
         bk = books.get(t) or {}
+        ob = (bk.get("orderbook_fp") or {}) if isinstance(bk, dict) else {}
+        def depth(key):
+            try:
+                return sum(float(x[1]) for x in (ob.get(key) or []))
+            except (TypeError, ValueError, IndexError):
+                return None
         out.append({"prediction_id": None, "ticker": t, "event_ticker": q.get("event_ticker"), "series_ticker": q.get("series_ticker"),
                     "family": fam, "period": period, "stat": q.get("stat"), "threshold": q.get("threshold"),
                     "floor_strike": q.get("floor_strike"), "operator": q.get("operator"), "direction": "YES",
@@ -139,6 +207,6 @@ def observation_like_rows(quotes: dict, confirmed_series: set, env: dict, books:
                     "quote_width": (ya - yb) if yb is not None and ya is not None else None,
                     "volume": _f(q.get("volume_fp")), "open_interest": _f(q.get("open_interest_fp")),
                     "liquidity": _f(q.get("liquidity_dollars")), "minutes_since_price_change": None,
-                    "book_depth_yes": bk.get("book_depth_yes"), "book_depth_no": bk.get("book_depth_no"),
+                    "book_depth_yes": depth("yes_dollars") if ob else None, "book_depth_no": depth("no_dollars") if ob else None,
                     "support_state": state, "support_reason": why})
     return out

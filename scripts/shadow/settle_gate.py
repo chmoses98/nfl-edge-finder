@@ -117,7 +117,8 @@ def main():
         if settled_enough and in_window:
             if a_start and g.kickoff_utc[:10] >= a_start and g.game_id not in arms_done:
                 arms_work.append(g.game_id)
-            if g.game_id not in autopsy_done:
+            has_anatomy = os.path.isdir(os.path.join(a.market_data, "data", "shadow", "player_anatomy", g.game_id))
+            if has_anatomy and g.game_id not in autopsy_done:
                 autopsy_work.append(g.game_id)
         if g.game_id in done:
             continue

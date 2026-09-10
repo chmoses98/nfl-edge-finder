@@ -1,18 +1,20 @@
-"""Build one three-arm snapshot from one incumbent ledger snapshot. The incumbent is read, never rerun.
+"""Build one three-arm snapshot from one capture. The incumbent is replayed, never modified.
 
-Inputs (all already on disk when the pricer has just run):
-    <ledger_dir>/<day>/<run>.<model>.observations.jsonl.gz   the market the incumbent saw, and its own prices
-    <ledger_dir>/<day>/<run>.<model>.game_env.json           the EXACT centre each game was priced from
+Inputs (all already on disk in the workflows):
+    market-data capture                                       the market the incumbent saw
+    <ledger_dir>/<day>/<run>.<model>.observations.jsonl.gz   the incumbent's own prices for that capture (optional:
+                                                              present in the shadow cycle, absent at horizons)
     data/silver/{team_game,games}.parquet + bronze pbp        the football data DATA_ONLY rates teams from
     research/three_arm/data_only_artifact_<season>.json      the frozen football-only model
 
 For every game with a pregame market snapshot:
-    CURRENT      centre from the sidecar (Kalshi-implied, or the documented consensus fallback)
+    CURRENT      centre from an exact replay of the incumbent's own estimator (nfl_edge/arms/incumbent_center)
     DATA_ONLY    centre from ratings at the capture cutoff through the frozen artifact -- or UNAVAILABLE
     HYBRID_30    0.70 x CURRENT + 0.30 x DATA_ONLY                             -- or UNAVAILABLE
 then ONE set of uniforms, three simulations of N_SIMS draws, and every game contract the incumbent priced is
-priced again under each arm. The incumbent's own number for the same ticker is carried alongside and the
-CURRENT arm is checked against it (a reproduction check, Monte Carlo tolerance).
+priced again under each arm. Two checks are recorded: the replayed incumbent simulation's prices against the
+ledger's (exact, when a ledger exists), and the harness's CURRENT arm on shared draws against the incumbent
+(Monte Carlo tolerance).
 
 The prekickoff gate is unconditional: a game whose kickoff is not strictly after both the capture time and
 the wall clock is written as POST_KICKOFF_EXCLUDED with no forecast at all.
@@ -31,7 +33,7 @@ import numpy as np
 import polars as pl
 
 from nfl_edge.arms import crn, data_only as DO, pricing as P, records as REC, registry as R
-from nfl_edge.pricing.game_env import ResidualBank
+from nfl_edge.arms import incumbent_center as IC
 
 
 def _dt(s):
@@ -49,42 +51,8 @@ def code_sha(root: str) -> str | None:
         return None
 
 
-def find_ledger_snapshot(ledger_dir: str, run_id: str | None = None) -> dict:
-    """The newest (or the named) ledger snapshot that HAS a game_env sidecar. No sidecar, no experiment."""
-    files = sorted(glob.glob(os.path.join(ledger_dir, "*", "*.observations.jsonl.gz")))
-    if run_id:
-        files = [f for f in files if os.path.basename(f).startswith(run_id + ".")]
-    if not files:
-        raise FileNotFoundError(f"no ledger snapshot under {ledger_dir}" + (f" for run {run_id}" if run_id else ""))
-    path = files[-1]
-    stem = os.path.basename(path).replace(".observations.jsonl.gz", "")
-    env_path = os.path.join(os.path.dirname(path), f"{stem}.game_env.json")
-    man_path = os.path.join(os.path.dirname(path), f"{stem}.ledger_manifest.json")
-    if not os.path.exists(env_path):
-        raise FileNotFoundError(f"ledger snapshot {stem} carries no game_env sidecar; the incumbent centre is "
-                                "unknown and the three-arm snapshot refuses to guess it")
-    return {"observations": path, "game_env": json.load(open(env_path)),
-            "manifest": json.load(open(man_path)) if os.path.exists(man_path) else {},
-            "stem": stem, "run_id": stem.split(".")[0], "model_version": ".".join(stem.split(".")[1:])}
 
 
-def build_bank(games: pl.DataFrame, target_season: int, env: dict) -> tuple[ResidualBank, dict]:
-    """The incumbent's residual population, rebuilt from the same silver table with the same rule."""
-    rb = env.get("residual_bank") or {}
-    lo = rb.get("season_lo") or 2016
-    # Sorted, so the bank -- and therefore every residual index and its fingerprint -- is identical however the
-    # silver rows happen to be ordered on disk. The distribution is the incumbent's either way.
-    g = games.filter((pl.col("game_type") == "REG") & pl.col("result").is_not_null()
-                     & pl.col("spread_line").is_not_null() & (pl.col("season") >= lo)).sort(["season", "week", "game_id"]).to_pandas()
-    g["mres"] = g.result - g.spread_line
-    g["tres"] = g.total - g.total_line
-    bank = ResidualBank(g.mres, g.tres, g.season, ref_season=target_season, spread_lines=g.spread_line,
-                        total_lines=g.total_line, overtime=g.overtime.fillna(0).astype(int), results=g.result,
-                        halflife=float(rb.get("halflife_seasons") or 3.0), rng=np.random.default_rng(0))
-    fp = crn.bank_fingerprint(bank, seasons_lo=int(g.season.min()), seasons_hi=int(g.season.max()),
-                              halflife=float(rb.get("halflife_seasons") or 3.0),
-                              extra={"incumbent_n_pairs": rb.get("n_pairs"), "n_pairs_match": rb.get("n_pairs") == len(g)})
-    return bank, fp
 
 
 def _arm_center(arm_id, version, *, margin, total, source, uses_market, status=R.OK, reason=None, **detail):
@@ -106,7 +74,7 @@ def build_snapshot(*, root: str, ledger: dict, now: datetime, target_season: int
     run_id = ledger["run_id"]
     observed_at = _dt(env.get("capture_finished_at"))
     if observed_at is None:
-        raise ValueError("the game_env sidecar carries no capture_finished_at; the snapshot time is unknown")
+        raise ValueError("the replayed game environment carries no capture_finished_at; the snapshot time is unknown")
     lag = (now - observed_at).total_seconds() / 60.0
     if lag > max_lag_min:
         raise ValueError(f"the capture was observed {lag:.0f} min before this run, beyond the "
@@ -118,7 +86,7 @@ def build_snapshot(*, root: str, ledger: dict, now: datetime, target_season: int
     rows = ledger.get("rows")
     if rows is None:
         rows = [json.loads(l) for l in gzip.open(ledger["observations"], "rt")]
-    center_provenance = env.get("center_provenance") or "incumbent_sidecar"
+    center_provenance = env.get("center_provenance") or "incumbent_replay"
     by_game = {}
     for r in rows:
         if r.get("game_id"):
@@ -129,7 +97,15 @@ def build_snapshot(*, root: str, ledger: dict, now: datetime, target_season: int
     games_df = inputs.get("games")
     if games_df is None:
         raise FileNotFoundError("silver games.parquet is required (the residual bank is built from it)")
-    bank, bank_fp = build_bank(games_df, target_season, env)
+    bank = ledger.get("bank")
+    if bank is None:
+        bank, _meta = IC.incumbent_bank(games_df, target_season)
+    bank_fp = crn.bank_fingerprint(bank, seasons_lo=(env.get("residual_bank") or {}).get("season_lo"),
+                                  seasons_hi=(env.get("residual_bank") or {}).get("season_hi"),
+                                  halflife=(env.get("residual_bank") or {}).get("halflife_seasons"),
+                                  extra={"incumbent_n_pairs": (env.get("residual_bank") or {}).get("n_pairs"),
+                                         "n_pairs_match": (env.get("residual_bank") or {}).get("n_pairs") == len(bank.m)})
+    incumbent_sims = ledger.get("sims") or {}
     artifact_path = artifact_path or os.path.join(root, "research", "three_arm", f"data_only_artifact_{target_season}.json")
     artifact, artifact_problem = None, None
     if os.path.exists(artifact_path):
@@ -244,6 +220,7 @@ def build_snapshot(*, root: str, ledger: dict, now: datetime, target_season: int
         # ---- price the SAME contract universe under each arm ----------------------------------------------
         n_priced, skipped = 0, {}
         cur_vs_incumbent = []
+        replay_vs_ledger = []
         for r in sorted(by_game.get(gid, []), key=lambda x: x.get("ticker") or ""):
             if r.get("family") not in R.GAME_FAMILIES_PRICED:
                 continue
@@ -285,6 +262,10 @@ def build_snapshot(*, root: str, ledger: dict, now: datetime, target_season: int
                 continue
             if c.cv_current is not None and r.get("model_contract_value") is not None:
                 cur_vs_incumbent.append(c.cv_current - float(r["model_contract_value"]))
+                if gid in incumbent_sims:
+                    _p, cv_replay, _why = P.price_contract(incumbent_sims[gid], q, home, away)
+                    if cv_replay is not None:
+                        replay_vs_ledger.append(cv_replay - float(r["model_contract_value"]))
             contract_records.append(c.to_dict())
             n_priced += 1
         # ---- reproduction check: the harness's CURRENT arm against the incumbent's own draws -------------
@@ -298,8 +279,21 @@ def build_snapshot(*, root: str, ledger: dict, now: datetime, target_season: int
                                                  and abs(repro["mean_signed_diff"]) <= 0.005))
         repro["available"] = bool(len(diffs))
         if not len(diffs):
-            repro["reason"] = ("no incumbent ledger prices at this snapshot (centre re-derived with the incumbent estimator)"
-                               if center_provenance != "incumbent_sidecar" else "no priced game contracts to compare")
+            repro["reason"] = "no incumbent ledger prices for this capture (nothing to compare the harness against)"
+        # The replayed incumbent simulation (same seed, same order) must reproduce the ledger's prices EXACTLY when
+        # the ledger exists. This is the provenance claim behind the CURRENT centre, and it is checked, not asserted.
+        rd = np.asarray(replay_vs_ledger, float)
+        if len(rd):
+            exact = bool(np.abs(rd).max() <= 1e-9)
+            quality = IC.EXACT_VERIFIED if exact else IC.MISMATCH
+            repro["replay"] = {"n_contracts": int(len(rd)), "max_abs_diff": float(np.abs(rd).max()), "quality": quality}
+            if not exact and cur.status == R.OK:
+                cur.status = R.DEGRADED
+                cur.unavailable_reason = f"incumbent replay did not reproduce the ledger prices: {repro['replay']}"
+        else:
+            quality = IC.EXACT_UNVERIFIED if gid in incumbent_sims else "not_replayed"
+            repro["replay"] = {"n_contracts": 0, "quality": quality}
+        cur.detail["reproduction_quality"] = quality
         if not repro["ok"] and cur.status == R.OK:
             cur.status = R.DEGRADED
             cur.unavailable_reason = f"reproduction check failed: {repro}"

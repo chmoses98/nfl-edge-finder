@@ -1,7 +1,11 @@
-"""Postgame player-projection autopsy: WHICH part of a projection missed, from the intermediates the model froze.
+"""Postgame player-projection autopsy: WHICH part of a projection missed, from the frozen anatomy corpus.
 
-For every settled player-stat projection with schema-1.1.0 intermediates in the ledger, the latest pregame
-snapshot is placed against the box score:
+The incumbent ledger records only P(stat >= K) and the contract value. The intermediates come from the SEPARATE
+player-anatomy corpus (`nfl_edge/arms/player_anatomy.py`, data/shadow/player_anatomy/<game_id>/), written at the
+same pregame snapshot by replaying the frozen pricer and reconciled to the ledger row within 1e-9. Only anatomy
+rows whose status is OK are evidence; a REPRODUCTION_MISMATCH row is INSUFFICIENT_DATA here, by construction.
+
+For every anatomy row of a final game, the latest pregame snapshot is placed against the box score:
 
     standardised surprise   robust z = (actual - p50) / (IQR / 1.349), from the fitted distribution's own
                             quantiles, so a 40-yard receiving miss and a 2-reception miss are on one scale;
@@ -21,8 +25,6 @@ season of those can be read together. No player is special-cased.
 """
 from __future__ import annotations
 
-import gzip
-import json
 import math
 import os
 from collections import defaultdict
@@ -46,6 +48,7 @@ AVAILABILITY_MISS = "AVAILABILITY_MISS"
 TEAM_VOLUME_MISS = "TEAM_VOLUME_MISS"
 UNEXPLAINED_VARIANCE = "UNEXPLAINED_VARIANCE"
 INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+OK_STATUS = "OK"
 NO_LARGE_MISS = "NO_LARGE_MISS"
 MODEL_MUCH_WORSE_THAN_MARKET = "MODEL_MUCH_WORSE_THAN_MARKET"
 MODEL_BETTER_THAN_MARKET = "MODEL_BETTER_THAN_MARKET"
@@ -64,26 +67,22 @@ def _f(x):
         return None
 
 
-def load_observations(market_data: str, game_ids, day_lo=None, day_hi=None) -> dict:
-    """SUPPORTED player-stat pregame rows per game, from the published ledger. Read only."""
-    import glob
+ANATOMY_SUFFIX = "anatomy"
+
+
+def load_anatomy(roots, game_ids) -> dict:
+    """Anatomy rows per game from the published (and any staged) anatomy corpus. Read only."""
+    from nfl_edge.shadow.evaluation_store import read_corpus
     want = set(game_ids)
     out = defaultdict(list)
-    for d in sorted(glob.glob(os.path.join(market_data, "data", "shadow", "ledger", "*"))):
-        day = os.path.basename(d)
-        if (day_lo and day < day_lo) or (day_hi and day > day_hi):
-            continue
-        for path in sorted(glob.glob(os.path.join(d, "*.observations.jsonl.gz"))):
-            with gzip.open(path, "rt") as fh:
-                for line in fh:
-                    r = json.loads(line)
-                    if r.get("game_id") in want and r.get("family") == "PLAYER_STAT" and r.get("support_state") == "SUPPORTED":
-                        out[r["game_id"]].append(r)
+    for r in read_corpus(list(roots) if not isinstance(roots, str) else [roots], suffix=ANATOMY_SUFFIX):
+        if r.get("game_id") in want:
+            out[r["game_id"]].append(r)
     return out
 
 
 def representative_rows(rows: list) -> list:
-    """One ledger row per (player, stat): the latest provably pregame snapshot, then the rung nearest the model's
+    """One anatomy row per (player, stat): the latest provably pregame snapshot, then the rung nearest the model's
     median (mu for the direct TD model). Deterministic tie-breaks on prediction_id."""
     groups = defaultdict(list)
     for r in rows:
@@ -153,7 +152,7 @@ def _percentile(q: dict, actual: float):
 
 
 def diagnose(row: dict, book: ResultBook, *, now: datetime | None = None, version: str = AUTOPSY_VERSION) -> dict:
-    """One representative ledger row -> one autopsy record. Deterministic."""
+    """One representative anatomy row -> one autopsy record. Deterministic."""
     now = now or datetime.now(timezone.utc)
     gid, pid, stat = row.get("game_id"), row.get("player_id"), row.get("stat")
     out = {"prediction_id": row["prediction_id"], "evaluation_version": version, "evaluated_at": now.isoformat(),
@@ -166,7 +165,8 @@ def diagnose(row: dict, book: ResultBook, *, now: datetime | None = None, versio
            "projected_stat_mean": _f(row.get("projected_stat_mean")), "projected_opportunity": _f(row.get("projected_opportunity_mean")),
            "projected_efficiency": None, "efficiency_feature": row.get("efficiency_feature"),
            "efficiency_decomposition": row.get("efficiency_decomposition"),
-           "model_event_probability": row.get("model_event_probability"), "model_contract_value": row.get("model_contract_value"),
+           "model_event_probability": row.get("ledger_event_probability", row.get("model_event_probability")),
+           "model_contract_value": row.get("ledger_contract_value", row.get("model_contract_value")),
            "market_mid": row.get("mid"), "market_yes_ask": row.get("yes_ask"),
            "availability_state": row.get("availability_state"), "p_plays": row.get("p_plays"),
            "ewma_stat": row.get("ewma_stat"), "ewma_opportunity": row.get("ewma_opportunity"),
@@ -176,11 +176,15 @@ def diagnose(row: dict, book: ResultBook, *, now: datetime | None = None, versio
            "usage_missing": False, "robust_z": None, "percentile": None, "realised_payout": None,
            "model_vs_market_payout_error_diff": None, "market_verdict": None, "team_volume": None,
            "large_miss": None, "classification": INSUFFICIENT_DATA, "tags": [], "evidence": []}
+    out["anatomy_status"] = row.get("anatomy_status")
     mu, muo = out["projected_stat_mean"], out["projected_opportunity"]
     if muo and mu is not None and out["efficiency_decomposition"] == "opportunity_x_efficiency":
         out["projected_efficiency"] = mu / muo
+    if row.get("anatomy_status", OK_STATUS) != OK_STATUS:
+        out["evidence"].append(f"anatomy row is {row.get('anatomy_status')}: {row.get('reason')}; not authoritative evidence")
+        return out
     if mu is None:
-        out["evidence"].append("no instrumented intermediates on this ledger row (pre-1.1.0 schema)")
+        out["evidence"].append("no intermediates on this anatomy row")
         return out
     pr = book.player(gid, pid) if gid and pid else None
     if pr is None:
@@ -238,7 +242,7 @@ def diagnose(row: dict, book: ResultBook, *, now: datetime | None = None, versio
     if thr is not None and actual is not None:
         y = 1.0 if actual >= thr else 0.0
         out["realised_payout"] = y
-        cv, mid = _f(row.get("model_contract_value")), _f(row.get("mid"))
+        cv, mid = _f(out["model_contract_value"]), _f(row.get("mid"))
         if cv is not None and mid is not None:
             d = abs(cv - y) - abs(mid - y)
             out["model_vs_market_payout_error_diff"] = d

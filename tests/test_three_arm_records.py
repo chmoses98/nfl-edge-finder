@@ -12,7 +12,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 from nfl_edge.arms import data_only as D, records as REC, registry as R                     # noqa: E402
 from nfl_edge.arms.snapshot import build_snapshot                                             # noqa: E402
-from nfl_edge.pricing.game_env import ResidualBank, simulate_game                            # noqa: E402
+from nfl_edge.pricing.game_env import simulate_game                            # noqa: E402
 from nfl_edge.shadow.ledger import Observation                                                # noqa: E402
 from test_three_arm_data_only import synthetic_team_games                                     # noqa: E402
 
@@ -168,10 +168,9 @@ def test_the_contract_universe_is_the_incumbents_supported_game_contracts_only()
 
 def test_the_reproduction_check_flags_an_incumbent_the_harness_cannot_reproduce():
     games = schedule()
-    bank_games = games.filter(pl.col("result").is_not_null()).to_pandas()
-    bank = ResidualBank(bank_games.result - bank_games.spread_line, bank_games.total - bank_games.total_line, bank_games.season,
-                        ref_season=2026, spread_lines=bank_games.spread_line, total_lines=bank_games.total_line,
-                        overtime=bank_games.overtime, results=bank_games.result, halflife=3.0, rng=np.random.default_rng(5))
+    from nfl_edge.arms import incumbent_center as IC
+    bank, _meta = IC.incumbent_bank(games, 2026)
+    bank.rng = np.random.default_rng(5)
     sim = simulate_game(3.0, 44.5, bank, n=40000)
     honest = {"GAME_WINNER": float(np.mean(sim["margin"] > 0)) + 0.5 * float(np.mean(sim["margin"] == 0)),
               "SPREAD": float(np.mean(sim["margin"] > 3.5)), "TOTAL": float(np.mean(sim["total"] >= 45)),
@@ -217,9 +216,9 @@ def test_existing_incumbent_ledger_rows_remain_valid_under_the_new_schema():
     n = 0
     for line in gzip.open(files[0], "rt"):
         row = json.loads(line)
-        o = Observation(**row)
-        assert o.projected_stat_mean is None and o.distribution_family is None and o.model_quantiles is None
-        assert o.to_dict()["prediction_id"] == row["prediction_id"]
+        o = Observation(**row)                     # the frozen 1.0.0 schema, untouched by this branch
+        d = o.to_dict()
+        assert all(d[k] == v for k, v in row.items())
         n += 1
         if n > 200:
             break
@@ -240,3 +239,34 @@ def test_the_packet_and_the_settle_job_can_never_read_a_three_arm_file(tmp_path)
     spec = importlib.util.spec_from_file_location("_sg", os.path.join(ROOT, "scripts", "shadow", "settle_games.py"))
     sg = importlib.util.module_from_spec(spec); spec.loader.exec_module(sg)
     assert sg.ledger_files(str(md)) == []
+
+
+def test_an_exact_replay_of_the_incumbent_simulation_is_verified_and_a_wrong_one_is_flagged():
+    """The CURRENT centre's provenance claim is checked, never asserted: the replayed 40,000-row simulation must
+    reproduce the incumbent's ledger price exactly; a replay that does not is `replay_mismatch` and DEGRADED."""
+    from nfl_edge.arms import incumbent_center as IC
+    games = schedule()
+    bank, _meta = IC.incumbent_bank(games, 2026)
+    bank.rng = np.random.default_rng(IC.BANK_SEED)
+    sim = simulate_game(3.0, 44.5, bank, n=40000)
+    ledger_cv = {"GAME_WINNER": float(np.mean(sim["margin"] > 0)) + 0.5 * float(np.mean(sim["margin"] == 0)),
+                 "SPREAD": float(np.mean(sim["margin"] > 3.5)), "TOTAL": float(np.mean(sim["total"] >= 45)),
+                 "TEAM_TOTAL": float(np.mean(sim["away"] >= 21))}
+    rows = rows_for("2026_02_B_A", "A", "B", incumbent_cv=ledger_cv)
+    e = env(games)
+    ledger = dict(ledger_for(games, rows, e), sims={"2026_02_B_A": sim}, bank=bank)
+    snap = build_snapshot(root=ROOT, ledger=ledger, now=OBSERVED + timedelta(minutes=5), target_season=2026, n_sims=4000,
+                          inputs=inputs_for(games), verbose=lambda *_: None)
+    g = snap["games"][0]
+    assert g["reproduction_check"]["replay"]["quality"] == IC.EXACT_VERIFIED
+    assert g["reproduction_check"]["replay"]["max_abs_diff"] == 0.0
+    assert g["arms"][R.CURRENT]["detail"]["reproduction_quality"] == IC.EXACT_VERIFIED
+    wrong = dict(ledger, sims={"2026_02_B_A": simulate_game(3.0, 44.5, bank, n=40000)})    # a different stream
+    snap = build_snapshot(root=ROOT, ledger=wrong, now=OBSERVED + timedelta(minutes=5), target_season=2026, n_sims=4000,
+                          inputs=inputs_for(games), verbose=lambda *_: None)
+    g = snap["games"][0]
+    assert g["reproduction_check"]["replay"]["quality"] == IC.MISMATCH and g["arms"][R.CURRENT]["status"] == R.DEGRADED
+    nolegder = dict(ledger, rows=rows_for("2026_02_B_A", "A", "B"))
+    g = build_snapshot(root=ROOT, ledger=nolegder, now=OBSERVED + timedelta(minutes=5), target_season=2026, n_sims=4000,
+                       inputs=inputs_for(games), verbose=lambda *_: None)["games"][0]
+    assert g["reproduction_check"]["replay"]["quality"] == IC.EXACT_UNVERIFIED

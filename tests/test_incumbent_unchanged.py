@@ -25,6 +25,10 @@ SOURCE_PINS = {
     "nfl_edge/handicap/schema.py": "1ea7b6c31b15d03e",           # recommendation schema, availability rules, ceilings
     "nfl_edge/handicap/preflight.py": "7910ea5b70ce8d38",        # the pre-trade check
     "config/risk_policy.json": "11d24fbea908f9ed",               # risk limits
+    # the frozen Week-1 code lineage (research/FREEZE_WEEK1_2026.json), byte-identical to main
+    "nfl_edge/shadow/ledger.py": "26949b1807296331",
+    "nfl_edge/shadow/models.py": "af2364218bf0aade",
+    "scripts/shadow/price_slate.py": "14e78b75ab662e88",
 }
 
 
@@ -52,8 +56,13 @@ def test_the_incumbent_centre_settlement_and_gate_sources_are_unchanged():
         assert got == pin, f"{rel} changed ({got} != {pin}); the incumbent/recommendation policy must not move in this PR"
 
 
-def test_the_pricer_still_uses_forty_thousand_rows_and_the_same_bank_rule():
+def test_the_replay_mirrors_the_pricers_own_constants():
+    """The replay's grids, seed, bank population and draw count are the frozen pricer's; a drift in either is loud."""
+    from nfl_edge.arms import incumbent_center as IC
     src = open(os.path.join(ROOT, "scripts", "shadow", "price_slate.py")).read()
     assert "sim = simulate_game(s_use, t_use, bank, n=40000)" in src
-    assert "halflife=3.0, rng=np.random.default_rng(11)" in src
-    assert "nsims=12000" in src and "np.arange(-17, 17.5, 0.5)" in src
+    assert f"halflife={IC.BANK_HALFLIFE}, rng=np.random.default_rng({IC.BANK_SEED})" in src
+    assert f"nsims={IC.IMPLIED_NSIMS}" in src and "np.arange(-17, 17.5, 0.5)" in src and "np.arange(34, 62.5, 0.5)" in src
+    assert IC.IMPLIED_SPREAD_GRID == (-17, 17.5, 0.5) and IC.IMPLIED_TOTAL_GRID == (34, 62.5, 0.5)
+    assert f'(pl.col("season") >= {IC.BANK_SEASON_LO})' in src
+    assert IC.frozen_pricer().MODEL_VERSION_DEFAULT == "shadow-0.4.0"
