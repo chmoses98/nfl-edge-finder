@@ -32,10 +32,9 @@ from nfl_edge.research import player_distributions as pdist                     
 from nfl_edge.settlement import semantics as sem_mod                               # noqa: E402
 from nfl_edge.settlement.availability import AvailabilityBook, UNKNOWN             # noqa: E402
 from nfl_edge.shadow import ledger as L                                            # noqa: E402
-from nfl_edge.shadow.models import fit_bundle, survival_quantiles, KALSHI_STAT_TO_SPEC  # noqa: E402
+from nfl_edge.shadow.models import fit_bundle, KALSHI_STAT_TO_SPEC                 # noqa: E402
 from nfl_edge.shadow.prospective import build_prospective_rows, upcoming_from_markets  # noqa: E402
 from nfl_edge.features import opportunity  # noqa: E402
-from nfl_edge.data.nfl_calendar import kickoff_utc as _kickoff_utc  # noqa: E402
 
 GAME_FAMILIES = {"GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL", "WIN_MARGIN_BUCKET", "TOTAL_TD", "BOTH_TEAMS_SCORE_N"}
 MODEL_VERSION_DEFAULT = "shadow-0.4.0"
@@ -186,15 +185,11 @@ def main():
                         overtime=hist_games.overtime.fillna(0).astype(int), results=hist_games.result,
                         halflife=3.0, rng=np.random.default_rng(11))
     game_env = {}
-    # Sidecar record of the exact game centre each game was priced from (three-arm experiment reads it; the
-    # incumbent pricing below is unchanged). A game with no environment is recorded with the reason.
-    env_record = {"games": {}, "games_without_environment": {}}
     gl = [g for g in by_game if g]
     if a.limit_games:
         gl = gl[: a.limit_games]
     for gid in gl:
         if gid not in gidx.index:
-            env_record["games_without_environment"][gid] = "market did not join a scheduled game"
             continue
         row = gidx.loc[gid]
         qs = [{"family": r["family"], "period": r["period"], "team": r["team"], "threshold": r["threshold"],
@@ -206,24 +201,12 @@ def main():
         s_use = s_imp if s_imp is not None else (float(row["spread_line"]) if pd.notna(row["spread_line"]) else None)
         t_use = t_imp if t_imp is not None else (float(row["total_line"]) if pd.notna(row["total_line"]) else None)
         if s_use is None or t_use is None:
-            env_record["games_without_environment"][gid] = ("no Kalshi-implied line and no consensus line: "
-                                                            + str(diag.get("reason")))
             continue
         sim = simulate_game(s_use, t_use, bank, n=40000)
         game_env[gid] = {"sim": sim, "spread": s_use, "total": t_use, "source": "kalshi_implied" if s_imp is not None else "consensus_line",
                          "diag": diag, "home": row["home_team"], "away": row["away_team"],
                          "kickoff": row["gameday"] + " " + str(row["gametime"])}
         print(f"  {gid}: implied spread {s_use} total {t_use} ({game_env[gid]['source']}, {diag.get('n_liquid_rungs')} liquid rungs)", flush=True)
-        ko = _kickoff_utc(str(row["gameday"]), str(row["gametime"]))
-        env_record["games"][gid] = {
-            "spread_home": float(s_use), "total": float(t_use), "source": game_env[gid]["source"],
-            "kalshi_implied_spread": s_imp, "kalshi_implied_total": t_imp,
-            "implied_diag": {k: (float(v) if isinstance(v, (int, float, np.floating)) else v) for k, v in diag.items()},
-            "fallback_reason": (None if s_imp is not None else str(diag.get("reason") or "implied lines unavailable")),
-            "consensus_spread_line": (float(row["spread_line"]) if pd.notna(row["spread_line"]) else None),
-            "consensus_total_line": (float(row["total_line"]) if pd.notna(row["total_line"]) else None),
-            "home": row["home_team"], "away": row["away_team"], "season": int(row["season"]), "week": int(row["week"]),
-            "kickoff_utc": ko.isoformat() if ko else None, "n_sims": 40000}
 
     # ---- player models
     hist = pdist.load_player_games(ROOT, range(2013, a.target_season))
@@ -271,17 +254,6 @@ def main():
     out_root = a.out
     writer = L.LedgerWriter(out_root, run_id, model_version=a.model_version)
     feature_cutoff = run_ts.isoformat()
-    env_record.update({
-        "run_id": run_id, "model_version": a.model_version, "game_env_version": "game_env-0.2.0",
-        "capture_finished_at": run_ts.isoformat(), "target_season": a.target_season, "n_sims": 40000,
-        "residual_bank": {"season_lo": int(hist_games.season.min()) if len(hist_games) else None,
-                          "season_hi": int(hist_games.season.max()) if len(hist_games) else None,
-                          "n_pairs": int(len(hist_games)), "halflife_seasons": 3.0, "rng_seed": 11,
-                          "population": "REG games with a result and a spread line, season >= 2016 (silver games.parquet)"},
-        "implied_line_search": {"spread_grid": [-17.0, 17.0, 0.5], "total_grid": [34.0, 62.0, 0.5], "nsims": 12000,
-                                "max_width": 0.06, "min_rungs": 6}})
-    with open(os.path.join(writer.dir, f"{writer.stem}.game_env.json"), "w") as fh:
-        json.dump(env_record, fh, indent=1, default=str)
     n_priced = 0
     survival_cache = {}
     for t, q in quotes.items():
@@ -370,25 +342,11 @@ def main():
                     writer.write(obs); continue
                 av = book_av.get(gsis)
                 obs.availability_state = av.state; obs.p_plays = av.p_plays; obs.p_inactive = av.p_inactive
-                # instrumentation (schema 1.1.0): what the model saw and what it produced, never what it prices
-                obs.stat_spec = spec_name
-                obs.p_active_no_snap = av.p_active_no_snap
-                obs.availability_stale_minutes = av.stale_minutes
-                obs.availability_sources = {k: v.get("state") for k, v in (av.sources or {}).items()}
-                obs.feature_n_prior = int(sub["n_prior"].iloc[0]) if "n_prior" in sub.columns else None
-                obs.feature_shrink_w = f(sub["shrink_w"].iloc[0]) if "shrink_w" in sub.columns else None
-                obs.implied_total_input = f(sub["implied_total"].iloc[0]) if "implied_total" in sub.columns else None
-                obs.qb_starter = bool(sub["qb_starter"].iloc[0]) if "qb_starter" in sub.columns else None
                 if spec_name == "anytime_td":
                     if bundle.td_model is None:
                         obs.support_state = L.UNSUPPORTED_MODEL; obs.support_reason = "TD model unavailable"
                         writer.write(obs); continue
                     p1 = float(bundle.td_model.predict(sub)[0])
-                    obs.distribution_family = "direct_binary"; obs.efficiency_decomposition = "none"
-                    obs.projected_stat_mean = p1
-                    obs.projected_opportunity_mean = f(sub["ewma_touches"].iloc[0]) if "ewma_touches" in sub.columns else None
-                    obs.ewma_stat = f(sub["ewma_any_td"].iloc[0]) if "ewma_any_td" in sub.columns else None
-                    obs.ewma_opportunity = obs.projected_opportunity_mean
                     kk = float(q.get("threshold") or 1)
                     if kk <= 1:
                         p = p1
@@ -412,25 +370,13 @@ def main():
                     ck = (spec_name, gsis, gid)
                     if ck not in survival_cache:
                         grid, S, mu = sm.survival(sub)
-                        im = sm.intermediates(sub)
-                        survival_cache[ck] = (grid, S[0], float(mu[0]), {
-                            "muo": f(im["muo"][0]), "eff": (f(im["eff"][0]) if im["eff"] is not None else None),
-                            "efficiency_feature": im["efficiency_feature"], "family": im["family"],
-                            "quantiles": survival_quantiles(grid, S[0]),
-                            "ewma_stat": f(sub[f"ewma_{im['stat_col']}"].iloc[0]) if f"ewma_{im['stat_col']}" in sub.columns else None,
-                            "ewma_opp": f(sub[f"ewma_{im['opp_col']}"].iloc[0]) if f"ewma_{im['opp_col']}" in sub.columns else None})
-                    grid, S, mu, im = survival_cache[ck]
-                    obs.projected_stat_mean = mu; obs.projected_opportunity_mean = im["muo"]
-                    obs.projected_efficiency = im["eff"]; obs.efficiency_feature = im["efficiency_feature"]
-                    obs.efficiency_decomposition = "opportunity_x_efficiency" if im["eff"] is not None else "none"
-                    obs.distribution_family = im["family"]; obs.model_quantiles = im["quantiles"]
-                    obs.ewma_stat = im["ewma_stat"]; obs.ewma_opportunity = im["ewma_opp"]
+                        survival_cache[ck] = (grid, S[0], float(mu[0]))
+                    grid, S, mu = survival_cache[ck]
                     k = float(q["threshold"])
                     idx = int(np.searchsorted(grid, k, side="left"))
                     p = float(S[min(idx, len(S) - 1)]) if k <= grid[-1] else 0.0
                 cv = sem_mod.player_prop_contract_value(p, av.p_plays, av.p_active_no_snap, mid)
                 obs.model_contract_value = cv.contract_value
-                obs.fair_price_used = cv.fair_price_used
                 if av.state == UNKNOWN:
                     obs.quality_flags.append("availability_unknown")
                 if av.stale_minutes and av.stale_minutes > a.max_availability_age_min:

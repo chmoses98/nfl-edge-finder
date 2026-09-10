@@ -23,12 +23,10 @@ import sys
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
-import numpy as np
-
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
-from nfl_edge.arms import evaluation as AE, records as REC, registry as R     # noqa: E402
+from nfl_edge.arms import evaluation as AE, incumbent_center as IC, records as REC, registry as R  # noqa: E402
 from nfl_edge.data import silver as SV                                        # noqa: E402
 from nfl_edge.pricing.game_env import ResidualBank                           # noqa: E402
 from nfl_edge.settlement.final_status import fetch_espn_scoreboard            # noqa: E402
@@ -39,15 +37,15 @@ from nfl_edge.shadow import evaluation_store as ST                            # 
 from nfl_edge.shadow.quote_history import load_game_quotes                    # noqa: E402
 
 
-def bank_from_schedule(target_season: int, lo: int = 2016) -> ResidualBank:
-    """The incumbent's residual population from the bronze schedule alone (no play-by-play needed here)."""
-    import polars as pl
-    g = SV.load_games().filter((pl.col("game_type") == "REG") & pl.col("result").is_not_null()
-                               & pl.col("spread_line").is_not_null() & (pl.col("season") >= lo)).to_pandas()
-    g["mres"] = g.result - g.spread_line; g["tres"] = g.total - g.total_line
-    return ResidualBank(g.mres, g.tres, g.season, ref_season=target_season, spread_lines=g.spread_line,
-                        total_lines=g.total_line, overtime=g.overtime.fillna(0).astype(int), results=g.result,
-                        halflife=3.0, rng=np.random.default_rng(7))
+def bank_from_schedule(target_season: int, games=None) -> ResidualBank:
+    """The incumbent's residual population from the bronze schedule alone (no play-by-play needed here).
+
+    `games` may be supplied (a polars frame in the silver `games` shape); by default the bronze games.csv the
+    workflow has just downloaded is read. Tests inject a frame, so the closing centre needs no live file."""
+    if games is None:
+        games = SV.load_games()
+    bank, _meta = IC.incumbent_bank(games, target_season)
+    return bank
 
 
 def _emit(path, values):

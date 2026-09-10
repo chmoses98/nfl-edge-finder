@@ -26,20 +26,31 @@ is the thing the question is about (`nfl_edge/arms/crn.py`).
 
 **Before every game.**
 
-* Every ~2 hours the shadow-pricing cycle prices the slate as before. `price_slate.py` now also writes a
-  `game_env.json` sidecar beside the ledger snapshot with the exact centre each game was priced from (nothing about
-  the pricing changed). `three_arm_snapshot.py` reads that sidecar and the snapshot's rows, rates the teams from
-  football data as of the capture time, blends, simulates the three arms on common random numbers, prices the same
-  game contracts the incumbent priced, and writes one immutable three-arm snapshot. The incumbent's own price for
-  every ticker is carried alongside and the CURRENT arm is checked against it (`reproduction_check`, Monte Carlo
-  tolerance); a snapshot that fails the check is flagged DEGRADED, never silently used.
+* Every ~2 hours the shadow-pricing cycle prices the slate exactly as before; the frozen pricer is not modified
+  (`research/FREEZE_WEEK1_2026.json` names it, and `tests/test_negative_research_preserved.py` fails if it moves).
+  `three_arm_snapshot.py` then obtains the CURRENT centre by **replaying** the pricer's game-environment block on
+  the same capture — its own loaders, residual bank and seed, grid search and 40,000-row simulation, in its own
+  call order (`nfl_edge/arms/incumbent_center.py`). Because the bank's random stream is shared sequentially across
+  every game, the replay reproduces every game's centre and simulation exactly, and that claim is **checked**: the
+  replayed simulation's price for every game contract is compared with the ledger snapshot just written, ticker by
+  ticker, and must match to 1e-9 (`exact_replay_verified`); a replay that does not match is `replay_mismatch` and
+  the CURRENT arm is DEGRADED. It then rates the teams from football data as of the capture time, blends, simulates
+  the three arms on common random numbers, prices the same game contracts, and writes one immutable snapshot. The
+  incumbent's own price for every ticker is carried alongside and the harness's CURRENT arm (shared draws) is also
+  checked against it at Monte Carlo tolerance.
 * At **T-24h, T-6h, T-90m and T-30m** before every kickoff cluster, `three-arm-horizons.yml` wakes (every 15
   minutes, stdlib-only gate, blobless fetch of the marker list) and, only when a horizon is due, rates the teams
-  from four seasons of play-by-play and freezes the three arms from the latest capture. No ledger snapshot exists at
-  that instant, so the CURRENT centre is **re-derived with the incumbent's own estimator** on the same quotes
-  (`nfl_edge/arms/incumbent_center.py`); the record says `center_provenance: incumbent_estimator_rerun`. The
-  horizon is then marked captured by one new marker file; a failed build leaves it due; a horizon whose kickoff
-  passed is MISSED and is never reconstructed.
+  from four seasons of play-by-play and freezes the three arms from the latest capture with the same exact replay.
+  No ledger snapshot exists at that instant, so there is nothing to verify the replay against: the record says
+  `reproduction_quality: exact_replay_unverified` — same algorithm, seed, inputs and order, unverified — and never
+  claims more. The horizon is then marked captured by one new marker file; a failed build leaves it due; a horizon
+  whose kickoff passed is MISSED and is never reconstructed.
+* At the same 2-hourly cycle, `player_anatomy.py` replays the pricer's player path (loaders, features, fitted
+  bundle, branch logic — imported from the frozen modules, never edited) and freezes, per supported player-stat
+  row, the real intermediates: mu, muo, the efficiency feature, the family, five fitted quantiles, the EWMA inputs,
+  the availability branches, the bundle hash and the feature cutoff — together with the **reproduced** probability
+  and contract value, reconciled against the ledger row within 1e-9. A row outside that tolerance is
+  `REPRODUCTION_MISMATCH` and is never autopsy evidence. The ledger schema is untouched.
 * Every record carries `observed_at < kickoff` **and** `generated_at < kickoff`, or it is written as
   `POST_KICKOFF_EXCLUDED` with no forecast. A snapshot generated more than four hours after its capture is refused.
 
@@ -66,6 +77,7 @@ risk policy, Airtable or the recommendation ledger (`tests/test_run_nfl_isolatio
 | `data/shadow/arms/horizons/<slate>__<cluster>__T-<n>m.json` | horizon capture markers |
 | `data/shadow/arm_evaluations/<game_id>/arm-eval-1.0.0.<batch>.arm_game_evaluations.jsonl.gz` | centre errors, market at snapshot, closing centre, movement |
 | `data/shadow/arm_evaluations/<game_id>/arm-eval-1.0.0.<batch>.arm_contract_evaluations.jsonl.gz` | settlement, close, the three probabilities verbatim |
+| `data/shadow/player_anatomy/<game_id>/anatomy-1.0.0.<run>.anatomy.jsonl.gz` | the intermediates of every supported player projection, reconciled to the ledger |
 | `data/shadow/player_autopsy/<game_id>/autopsy-1.0.0.<batch>.autopsy.jsonl.gz` | one diagnosis per player-stat projection |
 | `data/shadow/arm_reports/<batch>/{cumulative,weekNN}.REPORT.md`, `games/<game_id>.REPORT.md` | derived reports (regenerable) |
 
@@ -114,10 +126,11 @@ rows, contracts, games and weeks. Uncertainty is clustered at the game.
 ## Player props: instrumented and autopsied, not redesigned
 
 Player props are a different architecture and are **not** part of the game-centre hybrid. Their probabilities did
-not change. Every supported player projection now freezes the real intermediates the model computes — the projected
-statistic mean (`mu`), the projected opportunity mean (`muo`), the efficiency feature the family conditions on, the
-family, the fitted quantiles, the EWMA inputs, availability branches — in the ledger (schema 1.1.0, optional fields,
-old rows unchanged). After each game the autopsy places every projection against the box score, standardises the miss
+not change and their ledger did not change. The real intermediates the model computes — the projected statistic
+mean (`mu`), the projected opportunity mean (`muo`), the efficiency feature the family conditions on, the family,
+the fitted quantiles, the EWMA inputs, the availability branches — are frozen in a **separate** anatomy corpus at
+the same pregame snapshot, by replaying the frozen pricer and reconciling to the ledger row (above). After each
+game the autopsy places every OK anatomy row against the box score, standardises the miss
 inside the model's own distribution, and classifies deterministically: OPPORTUNITY_MISS, EFFICIENCY_MISS,
 AVAILABILITY_MISS, TEAM_VOLUME_MISS, UNEXPLAINED_VARIANCE, NO_LARGE_MISS, INSUFFICIENT_DATA, with a separate
 model-vs-market verdict. Missing usage is explicit. No player is special-cased.
@@ -144,13 +157,14 @@ recommendation means one good contract or a board that mostly failed mapping and
 1. **The incumbent's centre** is chosen in `scripts/shadow/price_slate.py`: `implied_game_lines` over the liquid
    full-game winner/spread/total quotes (grid −17…17 × 34…62 by 0.5, 12,000 draws per grid point, width ≤ 0.06,
    ≥ 6 liquid rungs), else the nflverse consensus line, else no environment. Then `simulate_game(…, n=40000)`.
+   The script is frozen Week-1 lineage and is not modified; its functions are imported and replayed.
 2. **Randomness**: one `ResidualBank` seeded 11 per run whose generator is consumed sequentially by every grid
    search and every simulation, in game order. The grid search's own `seed=3` generator is created and unused.
-   This is why the harness reproduces the CURRENT arm to Monte Carlo tolerance rather than bit for bit.
+   This is why an exact reproduction requires replaying the whole sequence, which the harness does, and verifies.
 3. **Residual population**: REG games since 2016 with a result and a spread line, residual = result − spread and
    total − total line, season half-life 3, fractional-part matching of lines, overtime model from historical OT games.
 4. **The player model's game context is the consensus line**, not Kalshi (`prospective.upcoming_from_markets` reads
-   the schedule's `spread_line`/`total_line` into `implied_total`). Recorded on each row as `implied_total_input`.
+   the schedule's `spread_line`/`total_line` into `implied_total`). Recorded on each anatomy row as `implied_total_input`.
 5. **Horizon runs never published a ledger** (by design and by test); only the 2-hourly cycle does. The canonical
    T-24h…T-30m challenger record therefore needed its own conductor and its own CURRENT-centre derivation.
 6. **`eval_report.py` crashed on every run** after writing its files (`KeyError: n_evaluations`, hidden behind

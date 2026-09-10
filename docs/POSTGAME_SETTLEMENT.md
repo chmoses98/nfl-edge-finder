@@ -287,7 +287,8 @@ thousandths on a few hundred correlated contracts is not evidence.
 ## The three-arm experiment and the autopsy ride the same job
 
 After the incumbent corpus is published, the same workflow runs `scripts/shadow/settle_arms.py` (arm-evaluation
-corpus under `data/shadow/arm_evaluations/`), `scripts/shadow/player_autopsy.py` (`data/shadow/player_autopsy/`) and
+corpus under `data/shadow/arm_evaluations/`), `scripts/shadow/player_autopsy.py` (`data/shadow/player_autopsy/`, read
+from the pregame anatomy corpus `data/shadow/player_anatomy/` the shadow cycle writes) and
 `scripts/shadow/arm_report.py` (`data/shadow/arm_reports/<batch>/`), each behind the same cheap gate
 (`settle_gate.py` emits `arms_work` / `autopsy_work`), each using this document's result book, readiness gate, close
 rule and settlement engine, each write-once with conflicts failing the run. `scripts/shadow/validate_arms.py` gates

@@ -94,13 +94,15 @@ jobs:
           python3 nfl_edge/data/silver.py $((S-3)) $S 2>&1 | tail -2
           git fetch --depth=1 origin market-data
           rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
-      # The CURRENT centre is re-derived from the latest capture with the incumbent's own estimator (no ledger
-      # snapshot exists at this instant); the record says so. DATA_ONLY and HYBRID are then simulated on
-      # common random numbers, the same contracts priced, and the horizon marked captured -- append-only.
+      # The CURRENT centre is an exact replay of the incumbent pricer's game-environment block on the latest
+      # capture (same loaders, bank, seed, grid search and call order). No ledger snapshot exists at this
+      # instant, so the replay is recorded as exact_replay_unverified; the record says so. DATA_ONLY and
+      # HYBRID are then simulated on common random numbers, the same contracts priced, and the horizon marked
+      # captured -- append-only.
       - name: Freeze the three arms for the due horizons
         id: arms
         run: |
-          python3 scripts/shadow/three_arm_snapshot.py --market-data /tmp/md --from-capture \
+          python3 scripts/shadow/three_arm_snapshot.py --market-data /tmp/md \
             --target-season ${{ needs.gate.outputs.season }} --out data/shadow/arms \
             --horizon-ids '${{ needs.gate.outputs.horizon_ids }}' --github-output "$GITHUB_OUTPUT" 2>&1 | tail -40
       - name: Validate before anything is published

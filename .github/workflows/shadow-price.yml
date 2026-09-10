@@ -61,16 +61,27 @@ jobs:
             ${{ github.event.inputs.model_version && format('--model-version {0}', github.event.inputs.model_version) || '' }} \
             --out data/shadow/ledger 2>&1 | tail -25
       # ---- three-arm game-centre experiment (shadow research; zero authority) ------------------------
-      # Reads the ledger snapshot just written (its game_env sidecar carries the exact centre every game was
-      # priced from), rates teams from football data at the capture cutoff, blends 0.70/0.30, simulates the
-      # three arms on common random numbers and prices the same game contracts. Written to its own corpus,
-      # never into the ledger. A failure here is reported and cannot fail the pricing job.
+      # Replays the frozen pricer's game-environment block on the same capture to obtain the exact CURRENT
+      # centre (verified against the ledger snapshot just written), rates teams from football data at the
+      # capture cutoff, blends 0.70/0.30, simulates the three arms on common random numbers and prices the
+      # same game contracts. Written to its own corpus, never into the ledger. A failure here is reported
+      # and cannot fail the pricing job.
       - name: Three-arm game-centre snapshot
         id: arms
         continue-on-error: true
         run: |
-          python3 scripts/shadow/three_arm_snapshot.py --market-data /tmp/md \
+          python3 scripts/shadow/three_arm_snapshot.py --market-data /tmp/md --target-season 2026 \
             --ledger-dir data/shadow/ledger --out data/shadow/arms --github-output "$GITHUB_OUTPUT" 2>&1 | tail -40
+      # Player-projection anatomy: replays the frozen pricer's player path on the same capture, freezes the
+      # intermediates (mu, muo, efficiency, family, quantiles, EWMA inputs, availability branches) per supported
+      # player-stat row, and reconciles the reproduced probability with the ledger row within 1e-9. A separate
+      # corpus; the ledger is read, never written.
+      - name: Player-projection anatomy
+        id: anatomy
+        continue-on-error: true
+        run: |
+          python3 scripts/shadow/player_anatomy.py --market-data /tmp/md --target-season 2026 \
+            --ledger-dir data/shadow/ledger --out data/shadow/player_anatomy --github-output "$GITHUB_OUTPUT" 2>&1 | tail -15
       - name: Validate the three-arm snapshot before it can be published
         id: arms_validate
         if: steps.arms.outputs.status == 'WRITTEN'
@@ -95,6 +106,11 @@ jobs:
         continue-on-error: true
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/arms --message "three-arm snapshot ${{ steps.arms.outputs.run_id }} ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+      - name: Publish the player-projection anatomy
+        if: steps.anatomy.outputs.status == 'WROTE'
+        continue-on-error: true
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/player_anatomy --message "player anatomy ${{ steps.anatomy.outputs.run_id }} (${{ steps.anatomy.outputs.written }} rows, ${{ steps.anatomy.outputs.mismatches }} mismatches)"
 
       # ---- handicap report -------------------------------------------------------------------------
       # This job has already paid for everything a report needs: the nflverse bronze inputs, the silver
@@ -166,7 +182,7 @@ jobs:
         if: always()
         run: |
           echo "handicap report: ${{ steps.report.outputs.report_status || 'SKIPPED' }} (${{ steps.week.outputs.status || 'no week' }})"
-          echo "three-arm snapshot: ${{ steps.arms.outputs.status || 'FAILED' }} (validated: ${{ steps.arms_validate.outcome || 'n/a' }})"
+          echo "three-arm snapshot: ${{ steps.arms.outputs.status || 'FAILED' }} (validated: ${{ steps.arms_validate.outcome || 'n/a' }}); player anatomy: ${{ steps.anatomy.outputs.status || 'FAILED' }} (${{ steps.anatomy.outputs.mismatches || '?' }} mismatches)"
           if [ "${{ steps.arms.outcome }}" != "success" ] || [ "${{ steps.arms_validate.outcome }}" == "failure" ]; then
             echo "::warning::the three-arm snapshot did not build or validate this cycle; the ledger is published and this horizon's challenger record is MISSED, never reconstructed"
           fi

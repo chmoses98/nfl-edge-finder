@@ -87,8 +87,20 @@ def write_arms(md, *, hybrid_bad=False, prekickoff=True):
     return out
 
 
+def synthetic_bank(target_season):
+    """A residual bank for the closing-centre estimator, from committed synthetic games: no live schedule file."""
+    import numpy as np
+    from nfl_edge.pricing.game_env import ResidualBank
+    rng = np.random.default_rng(0); n = 800
+    spreads = rng.choice([-7, -3.5, -3, -1.5, 0, 1, 2.5, 3, 3.5, 7], n); totals = rng.choice([41.5, 44, 45.5, 47, 49.5], n)
+    home = rng.poisson(23, n); away = rng.poisson(21, n); result = home - away
+    return ResidualBank(result - spreads, home + away - totals, rng.integers(2016, 2025, n), ref_season=target_season,
+                        spread_lines=spreads, total_lines=totals, overtime=np.zeros(n, int), results=result, rng=rng)
+
+
 def run(monkeypatch, md, out, *extra):
     monkeypatch.setattr(settle_arms, "build_result_book", lambda *a, **k: PP.result_book())
+    monkeypatch.setattr(settle_arms, "bank_from_schedule", lambda season, games=None: synthetic_bank(season))
     monkeypatch.setattr(sys, "argv", ["settle_arms.py", "--market-data", md, "--out", str(out), "--game", GAME,
                                       "--game", PP.PENDING_GAME, "--no-espn-final", *extra])
     return settle_arms.main()
@@ -140,6 +152,7 @@ def test_a_rerun_writes_nothing_and_a_contradiction_fails_closed(monkeypatch, tr
     assert PP.tree_digest(str(out)) == before
     # the same game with a different final score is a different truth: refused, nothing written
     monkeypatch.setattr(settle_arms, "build_result_book", lambda *a, **k: PP.result_book(score_override=(20, 27)))
+    monkeypatch.setattr(settle_arms, "bank_from_schedule", lambda season, games=None: synthetic_bank(season))
     monkeypatch.setattr(sys, "argv", ["settle_arms.py", "--market-data", md, "--out", str(out), "--game", GAME, "--no-espn-final"])
     assert settle_arms.main() == 4
     assert PP.tree_digest(str(out)) == before

@@ -39,7 +39,7 @@ def test_the_horizon_snapshot_validates_before_it_publishes_and_publishes_only_t
     ss = steps(wf("three-arm-horizons.yml"), "snapshot")
     build, validate, publish = idx(ss, "three_arm_snapshot.py"), idx(ss, "validate_arms.py"), idx(ss, "publish_market_data.py")
     assert build < validate < publish
-    assert "--from-capture" in ss[build]["run"] and "--horizon-ids" in ss[build]["run"]
+    assert "--horizon-ids" in ss[build]["run"] and "--ledger-dir" not in ss[build]["run"], "no ledger exists at a horizon: replay is unverified by design"
     assert "--src data/shadow/arms" in ss[publish]["run"]
     assert not any(p in ss[publish]["run"] for p in ("data/shadow/ledger", "data/kalshi", "data/shadow/evaluations"))
     assert idx(ss, "git config user.name") < publish
@@ -53,8 +53,12 @@ def test_the_shadow_cycle_snapshots_after_pricing_and_cannot_fail_the_ledger():
     assert price < arms < validate < ledger_pub < arms_pub
     for i in (arms, validate, arms_pub):
         assert ss[i].get("continue-on-error") is True, ss[i].get("name")
-    assert "--ledger-dir data/shadow/ledger" in ss[arms]["run"], "the snapshot reads the ledger just written, not the published one"
+    assert "--ledger-dir data/shadow/ledger" in ss[arms]["run"], "the snapshot verifies its replay against the ledger just written"
     assert "arms_validate.outcome == 'success'" in ss[arms_pub]["if"]
+    anatomy, anatomy_pub = idx(ss, "player_anatomy.py"), idx(ss, r"publish_market_data.py --src data/shadow/player_anatomy")
+    assert price < anatomy < ledger_pub < anatomy_pub and ss[anatomy].get("continue-on-error") is True
+    assert "--ledger-dir data/shadow/ledger" in ss[anatomy]["run"], "anatomy must reconcile against the ledger just written"
+    assert "anatomy.outputs.status == 'WROTE'" in ss[anatomy_pub]["if"]
 
 
 def test_the_report_workflows_still_publish_nothing_to_market_data():

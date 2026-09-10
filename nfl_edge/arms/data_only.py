@@ -194,14 +194,15 @@ def fit_artifact(features: pl.DataFrame, target_season: int, *, lam: float = RID
                          & pl.col("result").is_not_null() & pl.col("total").is_not_null())
     if tr.height < 200:
         raise ValueError(f"only {tr.height} training games for {target_season}; refusing to fit")
-    pdf = tr.to_pandas()
-    Xm = pdf[MARGIN_FEATURES].fillna(0).to_numpy(); ym = pdf["result"].to_numpy(dtype=float)
-    Xt = pdf[TOTAL_FEATURES].fillna(0).to_numpy(); yt = pdf["total"].to_numpy(dtype=float)
-    seasons = sorted(int(s) for s in pdf["season"].unique())
+    def matrix(cols):
+        return tr.select([pl.col(c).cast(pl.Float64).fill_null(0.0).fill_nan(0.0) for c in cols]).to_numpy()
+    Xm = matrix(MARGIN_FEATURES); ym = tr["result"].cast(pl.Float64).to_numpy()
+    Xt = matrix(TOTAL_FEATURES); yt = tr["total"].cast(pl.Float64).to_numpy()
+    seasons = sorted(int(s) for s in tr["season"].unique().to_list())
     art = DataOnlyArtifact(version=version, target_season=int(target_season), train_seasons=[seasons[0], seasons[-1]],
                            margin_model=ridge_fit(Xm, ym, lam), total_model=ridge_fit(Xt, yt, lam),
                            margin_features=list(MARGIN_FEATURES), total_features=list(TOTAL_FEATURES),
-                           n_train_games=int(len(pdf)), training_source=dict(source or {}),
+                           n_train_games=int(tr.height), training_source=dict(source or {}),
                            fitted_at=datetime.now(timezone.utc).isoformat())
     art.sha()
     return art

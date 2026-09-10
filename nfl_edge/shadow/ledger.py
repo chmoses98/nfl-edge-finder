@@ -36,9 +36,7 @@ STALE_DATA = "STALE_DATA"
 DEGRADED_INPUT = "DEGRADED_INPUT"
 POST_KICKOFF_EXCLUDED = "POST_KICKOFF_EXCLUDED"
 
-# 1.1.0 adds the OPTIONAL player-projection intermediates (projected_* / distribution_family / model_quantiles
-# ...). Every earlier row stays readable: the new fields default to None and nothing reads them positionally.
-LEDGER_SCHEMA_VERSION = "1.1.0"
+LEDGER_SCHEMA_VERSION = "1.0.0"
 
 
 def prediction_id(run_id: str, ticker: str, model_version: str, calibration_version: str) -> str:
@@ -90,28 +88,6 @@ class Observation:
     p_inactive: float | None = None
     game_env_version: str | None = None
     weather_vintage: str | None = None
-    # ---- player-projection intermediates (schema 1.1.0). The REAL quantities the model computes on its way to
-    # P(stat >= K): the projected statistic mean `mu`, the projected opportunity mean `muo`, the efficiency
-    # feature the family conditions on, the family itself, and the quantiles of the fitted distribution. Frozen
-    # so a postgame autopsy can say WHICH part missed without re-running anything. Nothing here changes a price.
-    stat_spec: str | None = None
-    distribution_family: str | None = None
-    projected_stat_mean: float | None = None            # mu
-    projected_opportunity_mean: float | None = None     # muo
-    projected_efficiency: float | None = None           # the EWMA efficiency feature (ypc, ypt, catch_rate, ...)
-    efficiency_feature: str | None = None
-    efficiency_decomposition: str | None = None         # 'opportunity_x_efficiency' | 'none'
-    model_quantiles: dict | None = None                 # {'p05':..,'p25':..,'p50':..,'p75':..,'p95':..}
-    ewma_stat: float | None = None
-    ewma_opportunity: float | None = None
-    feature_n_prior: int | None = None
-    feature_shrink_w: float | None = None
-    implied_total_input: float | None = None            # team implied total from the CONSENSUS line (a market input)
-    qb_starter: bool | None = None
-    p_active_no_snap: float | None = None
-    fair_price_used: float | None = None
-    availability_sources: dict | None = None
-    availability_stale_minutes: float | None = None
     # market observed AT THIS TIMESTAMP (never a later or earlier price)
     yes_bid: float | None = None
     yes_ask: float | None = None
