@@ -49,8 +49,30 @@ def test_the_frozen_artifact_trains_only_on_seasons_before_2026(artifact):
 
 
 def test_the_frozen_artifact_is_reproducible_from_the_frozen_features(artifact):
-    refit = D.fit_artifact(pl.read_parquet(FEAT), 2026)
-    assert refit.artifact_sha == artifact.artifact_sha
+    """The same code on the same frozen features refits the same model.
+
+    "Same" is numerical, not bitwise: the ridge solve goes through LAPACK, whose result differs in the last
+    few ulps between BLAS builds and CPUs. The first CI run of this test refit a coefficient vector whose
+    16-hex sha differed from the frozen one while every number agreed to far better than 1e-9. The sha is the
+    identity of the frozen FILE (checked against its own content below, and pinned by the manifest of every
+    snapshot); the refit is checked as a model: identical structure, and parameters and training-set
+    predictions within 1e-9 of the frozen ones.
+    """
+    feats = pl.read_parquet(FEAT)
+    refit = D.fit_artifact(feats, 2026)
+    for key in ("version", "target_season", "train_seasons", "margin_features", "total_features",
+                "n_train_games", "rating_hyperparams"):
+        assert getattr(refit, key) == getattr(artifact, key), key
+    for name in ("margin_model", "total_model"):
+        got, want = getattr(refit, name), getattr(artifact, name)
+        assert got["lam"] == want["lam"]
+        for part in ("beta", "xm", "xs", "ym"):
+            np.testing.assert_allclose(got[part], want[part], rtol=1e-9, atol=1e-9, err_msg=f"{name}.{part}")
+    tr = feats.filter((pl.col("season") < 2026) & (pl.col("season") >= 2026 - D.TRAIN_WINDOW_SEASONS))
+    for name, cols in (("margin_model", D.MARGIN_FEATURES), ("total_model", D.TOTAL_FEATURES)):
+        X = tr.select([pl.col(c).cast(pl.Float64).fill_null(0.0).fill_nan(0.0) for c in cols]).to_numpy()
+        np.testing.assert_allclose(D.ridge_pred(getattr(refit, name), X), D.ridge_pred(getattr(artifact, name), X),
+                                   rtol=0, atol=1e-9, err_msg=name)
     assert artifact.sha() == json.load(open(ART))["artifact_sha"]
 
 

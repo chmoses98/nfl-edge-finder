@@ -95,7 +95,7 @@ The Milestone-E research model made reusable and point-in-time safe (`nfl_edge/a
 * matchup features (home offence + away defence, away offence + home defence, their difference), rest difference,
   divisional game, neutral site, indoor;
 * ridge margin and total models (λ = 30) fitted on seasons 2018–2025 and **frozen** as
-  `research/three_arm/data_only_artifact_2026.json` (sha `e544b99917b9d0b1`, refit-reproducible from the frozen
+  `research/three_arm/data_only_artifact_2026.json` (sha `e544b99917b9d0b1`, refit-reproducible to 1e-9 from the frozen
   research features).
 
 Point in time: only games whose result is published and whose kickoff plus four hours precedes the capture time
