@@ -35,6 +35,14 @@ import os
 from datetime import datetime, timezone
 
 EVALUATIONS_DIRNAME = "evaluations"
+# File suffix of a batch. The incumbent corpus is `<stem>.evaluations.jsonl.gz` with `<stem>.evaluation_manifest.json`;
+# a derived corpus (arm evaluations, player autopsies) reuses this store under its own suffix and root, so the
+# write-once / no-op / conflict discipline is shared rather than reimplemented.
+DEFAULT_SUFFIX = "evaluations"
+
+
+def manifest_suffix(suffix: str) -> str:
+    return "evaluation_manifest" if suffix == DEFAULT_SUFFIX else f"{suffix}_manifest"
 # Fields that describe WHEN a row was produced rather than WHAT it claims. Excluded from the content hash so a
 # rerun of identical evidence is a no-op instead of a conflict.
 VOLATILE_FIELDS = ("evaluated_at",)
@@ -97,15 +105,16 @@ class EvaluationCorpus:
     second run inside the same job cannot duplicate what the first one staged.
     """
 
-    def __init__(self, write_root: str, read_roots=None):
+    def __init__(self, write_root: str, read_roots=None, suffix: str = DEFAULT_SUFFIX):
         self.write_root = write_root
         self.read_roots = [r for r in ([write_root] + list(read_roots or [])) if r]
+        self.suffix = suffix
 
     # ------------------------------------------------------------------ reading
     def batch_files(self, game_id: str | None = None) -> list:
         out = []
         for root in self.read_roots:
-            pattern = os.path.join(root, game_id or "*", "*.evaluations.jsonl.gz")
+            pattern = os.path.join(root, game_id or "*", f"*.{self.suffix}.jsonl.gz")
             out.extend(sorted(glob.glob(pattern)))
         return out
 
@@ -125,7 +134,7 @@ class EvaluationCorpus:
                 continue
             for name in os.listdir(root):
                 if os.path.isdir(os.path.join(root, name)) and glob.glob(
-                        os.path.join(root, name, "*.evaluations.jsonl.gz")):
+                        os.path.join(root, name, f"*.{self.suffix}.jsonl.gz")):
                     seen.add(name)
         return sorted(seen)
 
@@ -177,7 +186,7 @@ class EvaluationCorpus:
         d = game_dir(self.write_root, game_id)
         os.makedirs(d, exist_ok=True)
         stem = f"{evaluation_version}.{batch}"
-        path = os.path.join(d, f"{stem}.evaluations.jsonl.gz")
+        path = os.path.join(d, f"{stem}.{self.suffix}.jsonl.gz")
         if os.path.exists(path):
             raise FileExistsError(f"evaluation batch already exists (write-once, never rewritten): {path}")
         # mtime=0 so an identical batch compresses to identical bytes; the gzip header must not carry the
@@ -201,7 +210,7 @@ class EvaluationCorpus:
                "by_family": _count(plan["new"], "family"),
                "by_model_version": _count(plan["new"], "model_version")}
         man.update(manifest_extra or {})
-        with open(os.path.join(d, f"{stem}.evaluation_manifest.json"), "w") as f:
+        with open(os.path.join(d, f"{stem}.{manifest_suffix(self.suffix)}.json"), "w") as f:
             json.dump(man, f, indent=1, default=str)
         return man
 
@@ -211,13 +220,13 @@ def read_rows(path: str) -> list:
         return [json.loads(line) for line in f if line.strip()]
 
 
-def read_corpus(roots, game_id: str | None = None) -> list:
+def read_corpus(roots, game_id: str | None = None, suffix: str = DEFAULT_SUFFIX) -> list:
     """Every evaluation row under `roots`, de-duplicated by (prediction_id, evaluation_version)."""
     if isinstance(roots, str):
         roots = [roots]
     out, seen = [], set()
     for root in roots:
-        for path in sorted(glob.glob(os.path.join(root, game_id or "*", "*.evaluations.jsonl.gz"))):
+        for path in sorted(glob.glob(os.path.join(root, game_id or "*", f"*.{suffix}.jsonl.gz"))):
             for row in read_rows(path):
                 key = (row.get("prediction_id"), row.get("evaluation_version"))
                 if key in seen:
@@ -227,7 +236,7 @@ def read_corpus(roots, game_id: str | None = None) -> list:
     return out
 
 
-def verify_batches(roots, *, game_id: str | None = None) -> dict:
+def verify_batches(roots, *, game_id: str | None = None, suffix: str = DEFAULT_SUFFIX) -> dict:
     """Re-derive every manifest's checksums from the files on disk. Used before publishing.
 
     Checks that each batch file's sha256 and row-level content hashes match the manifest, that every row's
@@ -238,9 +247,9 @@ def verify_batches(roots, *, game_id: str | None = None) -> dict:
         roots = [roots]
     problems, batches, rows_seen = [], 0, {}
     for root in roots:
-        for path in sorted(glob.glob(os.path.join(root, game_id or "*", "*.evaluations.jsonl.gz"))):
+        for path in sorted(glob.glob(os.path.join(root, game_id or "*", f"*.{suffix}.jsonl.gz"))):
             batches += 1
-            man_path = path.replace(".evaluations.jsonl.gz", ".evaluation_manifest.json")
+            man_path = path.replace(f".{suffix}.jsonl.gz", f".{manifest_suffix(suffix)}.json")
             if not os.path.exists(man_path):
                 problems.append(f"{path}: no manifest alongside the batch")
             else:

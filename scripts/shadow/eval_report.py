@@ -60,10 +60,16 @@ def main():
         wk = build_scorecard(weekly, evaluation_version=version, min_segment_n=a.min_segment_n)
         _write(a.out, f"week{a.week:02d}", wk, f"Shadow evaluation scorecard - week {a.week}")
     print(f"corpus: {len(rows)} evaluations from {len(roots)} root(s) -> {a.out}")
-    print(json.dumps({"n_evaluations": cumulative["n_evaluations"], "n_games": cumulative["n_games"],
-                      "counts": cumulative["counts"]["by_settlement_status"],
-                      "model_vs_market": cumulative["model_vs_market"]["model"],
-                      "market": cumulative["model_vs_market"]["market_at_snapshot"]}, indent=1))
+    # The summary line reads the keys build_scorecard actually produces. The previous version indexed
+    # `n_evaluations` / `model_vs_market`, which the scorecard never had, so every run died with a KeyError
+    # after writing its files -- silently, behind the workflow's continue-on-error.
+    raw = cumulative["sample_units"]["raw"]
+    con = cumulative["sample_units"]["latest_pregame"]
+    view = cumulative["views"]["latest_pregame"]["contract_payout_quality"]
+    print(json.dumps({"n_observations": raw["n_observations"], "n_contracts": con["n_unique_contracts"],
+                      "n_games": raw["n_games"], "counts": cumulative["counts"]["by_settlement_status"],
+                      "model_contract_value": view["model_contract_value"],
+                      "market_at_snapshot": view["market_at_snapshot"]}, indent=1))
     return 0
 
 

@@ -112,6 +112,16 @@ class StatModel:
         S = np.clip(1.0 - np.concatenate([np.zeros((F.shape[0], 1)), F[:, :-1]], axis=1), 0.0, 1.0)
         return self.grid, S, mu
 
+    def intermediates(self, rows: pd.DataFrame) -> dict:
+        """The quantities `survival` computes on its way to S: mu, muo and the efficiency feature. Read-only
+        instrumentation for the ledger; `survival` is untouched and the two are asserted equal in tests."""
+        spec = pdist.STAT_SPECS[self.spec_name]
+        mu = pdist.predict_mean(self.mean_model, rows, spec, spec.col, pdist.MU_FLOOR[spec.kind])
+        muo = pdist.predict_mean(self.opp_model, rows, spec, spec.opp, 0.1)
+        eff = rows[spec.eff].to_numpy(dtype=float) if spec.eff and spec.eff in rows.columns else None
+        return {"mu": mu, "muo": muo, "eff": eff, "efficiency_feature": spec.eff, "stat_col": spec.col,
+                "opp_col": spec.opp, "family": self.family_name}
+
     def p_at_least(self, rows: pd.DataFrame, ks) -> np.ndarray:
         grid, S, _mu = self.survival(rows)
         idx = np.searchsorted(grid, np.asarray(ks, float), side="left")
@@ -147,6 +157,17 @@ class ModelBundle:
                 "train_seasons": list(self.train_seasons), "config": self.config,
                 "stat_models": {k: {"family": v.family_name, "train_rows": v.train_rows} for k, v in self.stat_models.items()},
                 "td_model": self.td_model.to_json() if self.td_model is not None else None}
+
+
+def survival_quantiles(grid: np.ndarray, S: np.ndarray, probs=(0.05, 0.25, 0.50, 0.75, 0.95)) -> dict:
+    """Quantiles of a lattice distribution given S[g] = P(Y >= grid[g]): the smallest grid value whose CDF
+    reaches p. Five numbers that let a postgame autopsy place an outcome inside the fitted distribution."""
+    cdf = 1.0 - np.concatenate([S[1:], [0.0]])          # P(Y <= grid[g]) = 1 - P(Y >= grid[g+1])
+    out = {}
+    for p in probs:
+        i = int(np.searchsorted(cdf, p - 1e-12, side="left"))
+        out[f"p{int(round(p * 100)):02d}"] = float(grid[min(i, len(grid) - 1)])
+    return out
 
 
 def fit_bundle(df_hist: pd.DataFrame, target_season: int, version: str, config: dict,
