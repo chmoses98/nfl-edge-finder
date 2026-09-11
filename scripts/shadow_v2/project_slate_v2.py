@@ -450,17 +450,18 @@ def settlement_matrix(rows: list) -> list:
 
 
 def context_coverage(rows: list) -> dict:
-    """How much point-in-time context the records actually carry (KNOWN vs UNKNOWN), by block."""
+    """How much point-in-time context the records actually carry (KNOWN vs UNKNOWN), by block, from the compact inline views."""
     pl_rows = [r for r in rows if r.get("engine") == "PLAYER" and r.get("p_yes") is not None]
     def frac(pred, rs):
         return (round(100.0 * sum(1 for r in rs if pred(r)) / len(rs), 1) if rs else None)
     pc = lambda r: r.get("player_context") or {}  # noqa: E731
     return {"n_player_probability_rows": len(pl_rows),
-            "injury_report_known_pct": frac(lambda r: (pc(r).get("injury_report") or {}).get("state") in ("LISTED", "NOT_LISTED"), pl_rows),
-            "depth_chart_known_pct": frac(lambda r: (pc(r).get("depth_chart") or {}).get("state") in ("LISTED", "NOT_LISTED"), pl_rows),
-            "availability_known_pct": frac(lambda r: (pc(r).get("availability") or {}).get("state") not in (None, "UNKNOWN"), pl_rows),
-            "weather_known_pct": frac(lambda r: (pc(r).get("weather") or {}).get("state") == "KNOWN", pl_rows),
-            "team_volume_known_pct": frac(lambda r: (pc(r).get("team_volume_estimates") or {}).get("pass_attempts") is not None, pl_rows),
+            "injury_report_known_pct": frac(lambda r: pc(r).get("injury_state") in ("LISTED", "NOT_LISTED"), pl_rows),
+            "depth_chart_known_pct": frac(lambda r: pc(r).get("depth_chart_vintage") is not None, pl_rows),
+            "availability_known_pct": frac(lambda r: pc(r).get("availability_state") not in (None, "UNKNOWN"), pl_rows),
+            "weather_known_pct": frac(lambda r: pc(r).get("weather_state") == "KNOWN", pl_rows),
+            "team_volume_known_pct": frac(lambda r: pc(r).get("team_pass_attempts") is not None, pl_rows),
+            "qb_known_pct": frac(lambda r: pc(r).get("qb_depth_chart") is not None or pc(r).get("qb_schedule") is not None, pl_rows),
             "last_trade_known_pct": frac(lambda r: (r.get("market_state") or {}).get("last_trade_at") not in (None, "UNKNOWN"), rows),
             "ladder_state_pct": frac(lambda r: "ladder" in (r.get("market_state") or {}), pl_rows)}
 
