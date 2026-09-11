@@ -1,0 +1,75 @@
+name: Tennis Bootstrap (sources + Kalshi tennis discovery)
+
+# The development sandbox cannot reach github.com raw content, tennis-data.co.uk or the Kalshi API.
+# This runner can. Two independent jobs fetch raw snapshots and publish them to the orphan
+# `tennis-data` branch (never to main / code branches). Read-only public GETs only; no secrets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      budget_minutes:
+        description: 'Kalshi phase-2 (candles/trades) wall budget in minutes'
+        required: false
+        default: '200'
+      skip_mcp:
+        description: 'skip Match Charting Project clone (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Acquire raw sources
+        id: acquire
+        continue-on-error: true
+        run: |
+          EXTRA=""
+          if [ "${{ github.event.inputs.skip_mcp }}" = "true" ]; then EXTRA="--skip-mcp"; fi
+          python3 tennis-edge-finder/scripts/data/bootstrap_sources.py --out tennis-edge-finder/data/sources $EXTRA
+      - name: Publish to tennis-data branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/sources --message "tennis sources bootstrap $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: Report partial acquisition
+        if: steps.acquire.outcome != 'success'
+        run: echo "::warning::source acquisition reported failures (see manifest.json); data published for inspection"
+
+  kalshi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Discover Kalshi tennis universe (publishes incrementally)
+        id: discover
+        continue-on-error: true
+        env:
+          TENNIS_PUBLISH: "1"
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python3 tennis-edge-finder/scripts/kalshi/discover_tennis.py --budget-minutes "${{ github.event.inputs.budget_minutes || '200' }}"
+      - name: Final publish
+        run: |
+          python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/kalshi --message "kalshi tennis discovery final publish $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: Fail if discovery was incomplete
+        if: steps.discover.outcome != 'success'
+        run: |
+          echo "::warning::discovery step exited non-zero (partial universe or error); data was still published"
+          exit 1

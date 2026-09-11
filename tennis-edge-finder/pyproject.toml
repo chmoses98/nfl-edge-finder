@@ -1,0 +1,15 @@
+[project]
+name = "tennis-edge-finder"
+version = "0.1.0"
+description = "Free-data tennis projection and Kalshi tennis-market research platform (research only; no execution)"
+requires-python = ">=3.11"
+dependencies = ["numpy", "pandas", "scipy", "scikit-learn", "pyarrow"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["tennis_edge*"]
