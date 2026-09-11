@@ -33,15 +33,15 @@ def test_registry_columns_and_bad_rows_dropped(registry):
     assert list(registry.columns) == ["tour", *pl.REGISTRY_COLUMNS]
     assert len(registry) == 15  # ids are labels: alphanumeric ids (TML 'D875', fixture 'abc') are valid keys
     assert registry["player_id"].is_unique
-    r = registry.set_index("player_id").loc[100001]
+    r = registry.set_index("player_id").loc["100001"]
     assert r["name_full"] == "Roger Federer" and r["name_norm"] == "roger federer"
     assert r["last_first_initial"] == "federer r"
     assert r["dob"] == date(1981, 8, 8) and r["ioc"] == "SUI" and r["height"] == 185
     assert r["wikidata_id"] == "Q1426"
-    assert registry.set_index("player_id").loc[100013, "last_first_initial"] == "o connell c"
+    assert registry.set_index("player_id").loc["100013", "last_first_initial"] == "o connell c"
     assert registry.set_index("player_id").loc[100014, "name_norm"] == "felix auger aliassime"
     assert registry.set_index("player_id").loc[100012, "dob"] is None
-    assert pd.isna(registry.set_index("player_id").loc[100007, "wikidata_id"])
+    assert pd.isna(registry.set_index("player_id").loc["100007", "wikidata_id"])
 
 
 def test_build_registry_requires_player_id():
@@ -57,14 +57,14 @@ def test_alias_table(registry, sackmann_matches):
     assert set(aliases["alias_type"]) <= {"full", "last_initial", "match_name"}
     assert not aliases.duplicated().any()
     # two Kuznetsovs share the 'kuznetsov a' alias -> lookup is ambiguous, never silently resolved
-    assert sorted(pl.registry_lookup(registry, aliases, "Kuznetsov A.")) == [100011, 100012]
-    assert pl.registry_lookup(registry, aliases, "Federer R.") == [100001]
+    assert sorted(pl.registry_lookup(registry, aliases, "Kuznetsov A.")) == ["100011", "100012"]
+    assert pl.registry_lookup(registry, aliases, "Federer R.") == ["100001"]
     assert pl.registry_lookup(registry, aliases, "Nobody X.") == []
     assert pl.registry_lookup(registry, aliases, None) == []
 
 
 def test_alias_table_picks_up_match_spellings(registry):
-    matches = pd.DataFrame({"winner_id": [100001], "winner_name": ["R. Federer"], "loser_id": [100002], "loser_name": ["Rafael Nadal"]})
+    matches = pd.DataFrame({"winner_id": ["100001"], "winner_name": ["R. Federer"], "loser_id": ["100002"], "loser_name": ["Rafael Nadal"]})
     aliases = pl.build_alias_table(registry, matches)
     extra = aliases[aliases["alias_type"] == "match_name"]
     assert extra["alias"].tolist() == ["r federer"]  # 'rafael nadal' already known as 'full'

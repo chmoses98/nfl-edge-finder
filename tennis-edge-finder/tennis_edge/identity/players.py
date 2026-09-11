@@ -167,7 +167,7 @@ def build_alias_table(registry: pd.DataFrame, matches: Optional[pd.DataFrame] = 
         known = {(pid, alias) for pid, alias, _ in rows}
         for side in ("winner", "loser"):
             pairs = matches[[f"{side}_id", f"{side}_name"]].dropna().drop_duplicates()
-            for pid, name in zip(pairs[f"{side}_id"], pairs[f"{side}_name"]):
+            for pid, name in zip((_id_str(v) for v in pairs[f"{side}_id"]), pairs[f"{side}_name"]):
                 alias = normalize_name(name)
                 if alias and (pid, alias) not in known:
                     rows.append((pid, alias, "match_name"))
@@ -377,16 +377,16 @@ def link_summary(links: pd.DataFrame) -> dict[str, Any]:
             "confidence_quantiles": {f"p{int(k * 100)}": round(float(v), 4) for k, v in q.items()}}
 
 
-def registry_lookup(registry: pd.DataFrame, aliases: pd.DataFrame, name: Any) -> list[int]:
+def registry_lookup(registry: pd.DataFrame, aliases: pd.DataFrame, name: Any) -> list[str]:
     """All player_ids whose alias equals the normalised ``name`` (may be several: ambiguous)."""
     key = normalize_name(name)
     if not key:
         return []
     hits = aliases.loc[aliases["alias"] == key, "player_id"].unique().tolist()
-    return [int(h) for h in hits]
+    return [str(h) for h in hits]
 
 
-def ids_for_names(registry: pd.DataFrame, names: Iterable[Any]) -> dict[str, list[int]]:
+def ids_for_names(registry: pd.DataFrame, names: Iterable[Any]) -> dict[str, list[str]]:
     """Convenience: map each raw name to candidate ids via the alias table (bulk)."""
     aliases = build_alias_table(registry)
     return {str(n): registry_lookup(registry, aliases, n) for n in names}
