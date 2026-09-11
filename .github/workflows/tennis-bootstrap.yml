@@ -5,6 +5,11 @@ name: Tennis Bootstrap (sources + Kalshi tennis discovery)
 # `tennis-data` branch (never to main / code branches). Read-only public GETs only; no secrets.
 
 on:
+  # workflow_dispatch is only registered for workflows on the default branch; a push to the
+  # tennis branch that touches the trigger file runs this workflow FROM that branch.
+  push:
+    branches: ['claude/tennis-edge-finder-nr4scu']
+    paths: ['tennis-edge-finder/.bootstrap-trigger']
   workflow_dispatch:
     inputs:
       budget_minutes:
