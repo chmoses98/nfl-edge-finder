@@ -29,6 +29,17 @@ Design (see docs/KALSHI_CAPTURE.md):
       data/kalshi/capture/state.json   (fingerprints + trade cursor)
   A failed series fetch is recorded in the manifest as PARTIAL; it is never an
   empty universe.
+
+SHADOW v2 additions (branch; inert on main until merged):
+  * The discovery -> registry loop is CLOSED. Series the daily discovery lists that the reviewed registry does
+    not hold are read from data/kalshi/capture/provisional_series.json (written by discover.py, restored from
+    market-data like state.json) and polled at their SAFE tier (LIGHT with open markets, else DAILY, never
+    FULL). Their rows carry `provisional=true`. Promotion stays a reviewed registry edit.
+  * Every quote row carries the STATIC semantics the pricer needs and the old schema dropped: strike_type,
+    cap_strike, range_lo / range_hi (winning-margin buckets), custom_strike text, tie/none legs.
+  * Order-book selection under --max-books is a DETERMINISTIC priority (pregame within 6h with volume first,
+    then pregame within 6h, then traded, then the rest; ties by minutes to kickoff then ticker) and the manifest
+    records how many candidates each tier had and how many were dropped by the cap, so capacity is observable.
 """
 from __future__ import annotations
 import argparse, csv, hashlib, io, json, os, sys, time, urllib.request
@@ -38,6 +49,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.kalshi.client import KalshiClient  # noqa
 from nfl_edge.kalshi.classifier import classify, KALSHI_TO_NFLVERSE  # noqa
+from nfl_edge.board.provisional import PROVISIONAL_FILE, capturable_provisional, load_provisional  # noqa
+from nfl_edge.semantics.questions import contract_question  # noqa
 
 REG_PATH = os.path.join(ROOT, "config", "kalshi_nfl_series.json")
 OUT_ROOT = os.path.join(ROOT, "data", "kalshi", "capture")
@@ -91,6 +104,26 @@ def fingerprint(m):
     return hashlib.sha1("|".join(str(m.get(k)) for k in QUOTE_FIELDS).encode()).hexdigest()[:16]
 
 
+def static_semantics(m, sem):
+    """The contract fields a pricer needs that are NOT in the classifier's flat output. Small, JSON-safe."""
+    q = contract_question(sem, m)
+    cs = m.get("custom_strike") if isinstance(m.get("custom_strike"), dict) else None
+    cs_text = {k: v for k, v in (cs or {}).items() if not isinstance(v, str) or len(v) < 80} if cs else None
+    return {"strike_type": m.get("strike_type"), "cap_strike": m.get("cap_strike"),
+            "range_lo": q.lo if q.kind == "RANGE" else None, "range_hi": q.hi if q.kind == "RANGE" else None,
+            "question_kind": q.kind, "question_stat": q.stat, "semantic_confidence": q.semantic_confidence,
+            "custom_strike": cs_text, "is_tie_leg": bool(sem.is_tie_leg), "is_none_leg": bool(sem.is_none_leg),
+            "subject_team_kalshi_id": sem.team_kalshi_id}
+
+
+def book_priority(minutes_to_kick, volume, ticker):
+    """Deterministic order for the order-book budget. Lower sorts first."""
+    traded = (volume or 0.0) > 0
+    near = minutes_to_kick is not None and minutes_to_kick <= 360.0
+    tier = 0 if (near and traded) else 1 if near else 2 if traded else 3
+    return (tier, minutes_to_kick if minutes_to_kick is not None else 1e9, ticker)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rps", type=float, default=4.0)
@@ -106,10 +139,17 @@ def main():
     state = json.load(open(state_path)) if os.path.exists(state_path) else {"fingerprints": {}, "trades_cursor_ts": None, "last_daily_run": None}
     state.setdefault("volume", {}); state.setdefault("trade_cursor", {})
     reg = json.load(open(REG_PATH))["series"]
+    # provisional series: discovered, not yet reviewed, captured at a safe tier so they cannot stay invisible
+    prov_path = os.path.join(OUT_ROOT, PROVISIONAL_FILE)
+    provisional = capturable_provisional(load_provisional(prov_path), reg)
+    universe = {tk: dict(rec) for tk, rec in reg.items()}
+    for tk, tier in provisional.items():
+        universe[tk] = {"tier": "LIGHT" if tier == "FULL_MICROSTRUCTURE" else tier, "provisional": True}
     sched, sched_src = load_schedule(os.path.join(OUT_ROOT, "schedule_cache.csv"))
     c = KalshiClient(rps=a.rps)
     manifest = {"run_id": run_id, "started_at": t_start.isoformat(), "trigger_source": a.trigger_source, "schedule_source": sched_src,
-                "series": {}, "partial": False, "errors": []}
+                "series": {}, "partial": False, "errors": [], "provisional_series": sorted(provisional),
+                "provisional_file_present": os.path.exists(prov_path), "schema_version": "capture-1.1.0"}
     do_daily = a.force_daily or (state.get("last_daily_run") or "")[:10] != t_start.strftime("%Y-%m-%d")
     quotes_f = open(os.path.join(day_dir, f"{run_id}.quotes.jsonl"), "w")
     books_f = open(os.path.join(day_dir, f"{run_id}.books.jsonl"), "w")
@@ -119,8 +159,9 @@ def main():
     book_candidates = []
     trade_candidates = []
     seen_now = set()
-    for tk, rec in reg.items():
+    for tk, rec in universe.items():
         tier = rec.get("tier", "LIGHT")
+        is_prov = bool(rec.get("provisional"))
         if tier == "NOT_CAPTURED":
             continue
         if tier == "DAILY" and not do_daily:
@@ -135,7 +176,7 @@ def main():
         # -- it would let a capture taken AFTER the decision look like it came before). Recording the real
         # per-series time removes the need to choose.
         manifest["series"][tk] = {"n": len(items), "complete": complete, "tier": tier,
-                                  "observed_at": obs_ts}
+                                  "observed_at": obs_ts, "provisional": is_prov}
         if not complete:
             manifest["partial"] = True; manifest["errors"].append({"series": tk, "info": info})
         for m in items:
@@ -154,6 +195,7 @@ def main():
                    "game_id": kick["game_id"] if kick else None, "kickoff_utc": kick["kickoff_utc"] if kick else None,
                    "minutes_to_kickoff": round(minutes_to_kick, 1) if minutes_to_kick is not None else None,
                    "pregame": (minutes_to_kick is None) or (minutes_to_kick > 0),
+                   "provisional": is_prov, **static_semantics(m, sem),
                    "fingerprint": fp, "changed": state["fingerprints"].get(m["ticker"]) != fp,
                    **{k: m.get(k) for k in QUOTE_FIELDS}, "open_time": m.get("open_time"), "expected_expiration_time": m.get("expected_expiration_time")}
             if row["changed"]:
@@ -171,10 +213,18 @@ def main():
                 trade_candidates.append((-(vol - prev_vol), m["ticker"]))
             state["volume"][m["ticker"]] = vol
             if tier == "FULL_MICROSTRUCTURE" and minutes_to_kick is not None and minutes_to_kick <= a.book_window_hours * 60:
-                book_candidates.append((minutes_to_kick, m["ticker"], row["pregame"]))
-    # order books: closest kickoffs first, capped per run
+                book_candidates.append((book_priority(minutes_to_kick, vol, m["ticker"]), minutes_to_kick, m["ticker"], row["pregame"]))
+    # order books: deterministic priority (near kickoff and traded first), capped per run, cap observable
     book_candidates.sort()
-    for minutes_to_kick, ticker, pregame in book_candidates[: a.max_books]:
+    tiers = {}
+    for pri, _mtk, _t, _pg in book_candidates:
+        tiers[pri[0]] = tiers.get(pri[0], 0) + 1
+    manifest["books_candidates_by_priority_tier"] = {str(k): v for k, v in sorted(tiers.items())}
+    manifest["books_dropped_by_cap"] = max(0, len(book_candidates) - a.max_books)
+    manifest["books_dropped_by_cap_by_tier"] = {}
+    for pri, _mtk, _t, _pg in book_candidates[a.max_books:]:
+        k = str(pri[0]); manifest["books_dropped_by_cap_by_tier"][k] = manifest["books_dropped_by_cap_by_tier"].get(k, 0) + 1
+    for _pri, minutes_to_kick, ticker, pregame in book_candidates[: a.max_books]:
         body, err = c.try_get(f"markets/{ticker}/orderbook", {"depth": 10})
         obs = {"run_id": run_id, "observed_at": now_utc().isoformat(), "ticker": ticker, "minutes_to_kickoff": round(minutes_to_kick, 1),
                "orderbook_fp": (body or {}).get("orderbook_fp"), "error": err}
