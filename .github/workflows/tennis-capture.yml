@@ -65,7 +65,7 @@ jobs:
               rm -rf tennis-edge-finder/data/kalshi/discovery
             fi
             python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/kalshi/capture --message "kalshi tennis capture $(date -u +'%Y-%m-%dT%H:%M:%SZ') (conductor pass $PASS)" || echo "::warning::publish failed on pass $PASS"
-            rm -rf tennis-edge-finder/data/kalshi/capture/2*
+            rm -rf tennis-edge-finder/data/kalshi/capture/2*; find tennis-edge-finder/data/kalshi/capture -size +95M -delete
             PASS=$((PASS+1))
             ELAPSED=$(( $(date +%s) - T0 ))
             SLEEP=$(( INTERVAL - ELAPSED )); [ $SLEEP -gt 0 ] && sleep $SLEEP

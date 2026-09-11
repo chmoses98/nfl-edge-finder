@@ -65,7 +65,12 @@ def main():
             for fn in files:
                 if fn.endswith(".part"):
                     continue
-                shutil.copy2(os.path.join(root, fn), os.path.join(dest, rel, fn))
+                srcp = os.path.join(root, fn)
+                if os.path.getsize(srcp) > 95 * 1024 * 1024:
+                    # GitHub rejects files > 100 MB and the whole push with them; never let one file block the rest
+                    print(f"::warning::skipping oversized file {srcp} ({os.path.getsize(srcp) / 1e6:.1f} MB)")
+                    continue
+                shutil.copy2(srcp, os.path.join(dest, rel, fn))
         sh(["git", "add", "-A", "--", a.src], cwd=wt)
         if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=wt).returncode == 0:
             print("no changes to publish"); return 0

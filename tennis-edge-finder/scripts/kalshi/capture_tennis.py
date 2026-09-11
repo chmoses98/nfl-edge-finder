@@ -24,6 +24,7 @@ sweep time, last discovery time. It is republished with the data so the next run
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
 import os
@@ -66,6 +67,7 @@ def main():
     ap.add_argument("--book-horizon-hours", type=float, default=6.0)
     ap.add_argument("--book-budget", type=int, default=400)
     ap.add_argument("--force-hourly", action="store_true")
+    ap.add_argument("--candle-budget", type=int, default=4000, help="max newly-settled markets candled per hourly sweep")
     a = ap.parse_args()
     run_id = now_utc().strftime("%Y%m%dT%H%M%SZ")
     day = run_id[:8]
@@ -80,7 +82,10 @@ def main():
     manifest = {"run_id": run_id, "started_at": now_utc().isoformat(), "incomplete": [], "counts": {}}
     hourly = a.force_hourly or (t_now - state["last_hourly_ts"] >= 3600)
 
-    files = {k: open(os.path.join(day_dir, f"{run_id}.{k}.jsonl"), "w") for k in ("quotes", "books", "trades", "events", "settlements", "candles")}
+    # gzip every stream: a 60-min + 1-min candle dump for a day of settled markets reached 163 MB raw and was
+    # rejected by GitHub's 100 MB file limit, which silently lost 5.7 hours of capture on 2026-09-11.
+    files = {k: gzip.open(os.path.join(day_dir, f"{run_id}.{k}.jsonl.gz"), "wt", compresslevel=6) for k in ("quotes", "books", "trades", "events", "settlements", "candles")}
+    candle_shard = {"n": 0, "idx": 0}
 
     def w(kind, obj):
         files[kind].write(json.dumps({"run_id": run_id, "captured_at": now_utc().isoformat(), **obj}, separators=(",", ":"), default=str) + "\n")
@@ -172,12 +177,19 @@ def main():
                                                          "settlement_value_dollars", "settlement_ts", "close_time", "open_time",
                                                          "occurrence_datetime", "expected_expiration_time", "volume_fp", "open_interest_fp", "last_price_dollars")})
                 n_s += 1
-                if tk in MATCH_SCOPE_SERIES:
+                if tk in MATCH_SCOPE_SERIES and n_c < a.candle_budget:
                     o = ts(m.get("open_time")) or since; cl = min(ts(m.get("close_time")) or t_now, t_now)
                     c60, e1 = c.try_get(f"series/{tk}/markets/{key}/candlesticks", {"start_ts": o, "end_ts": cl, "period_interval": 60})
-                    c1, e2 = c.try_get(f"series/{tk}/markets/{key}/candlesticks", {"start_ts": max(o, cl - 6 * 3600), "end_ts": cl, "period_interval": 1})
-                    w("candles", {"ticker": key, "series_ticker": tk, "open_ts": o, "close_ts": cl, "candles_60": c60 or {"error": e1}, "candles_1_last6h": c1 or {"error": e2}})
+                    c1, e2 = c.try_get(f"series/{tk}/markets/{key}/candlesticks", {"start_ts": max(o, cl - 3 * 3600), "end_ts": cl, "period_interval": 1})
+                    # keep only the candle arrays (drop per-response _meta noise) to bound size
+                    rec = {"ticker": key, "series_ticker": tk, "open_ts": o, "close_ts": cl,
+                           "candles_60": (c60 or {}).get("candlesticks", {"error": e1}), "candles_1_last3h": (c1 or {}).get("candlesticks", {"error": e2})}
+                    w("candles", rec)
                     n_c += 1
+                    candle_shard["n"] += 1
+                    if candle_shard["n"] >= 1500:   # ~1500 markets per shard keeps each gz file far below 100 MB
+                        files["candles"].close(); candle_shard["idx"] += 1; candle_shard["n"] = 0
+                        files["candles"] = gzip.open(os.path.join(day_dir, f"{run_id}.candles.{candle_shard['idx']}.jsonl.gz"), "wt", compresslevel=6)
                 state["candled"][key] = run_id
         # prune candled older than 10 days
         cut = (now_utc() - timedelta(days=10)).strftime("%Y%m%dT%H%M%SZ")
@@ -188,10 +200,13 @@ def main():
 
     for f in files.values():
         f.close()
-    for k in list(files):
-        p = os.path.join(day_dir, f"{run_id}.{k}.jsonl")
-        if os.path.getsize(p) == 0:
-            os.remove(p)
+    for fn in os.listdir(day_dir):
+        if fn.startswith(run_id) and fn.endswith(".jsonl.gz"):
+            p = os.path.join(day_dir, fn)
+            with gzip.open(p, "rb") as g:
+                empty = g.read(1) == b""
+            if empty:
+                os.remove(p)
     manifest["client_stats"] = c.stats.to_dict(); manifest["finished_at"] = now_utc().isoformat()
     with open(os.path.join(day_dir, f"{run_id}.manifest.json"), "w") as f:
         json.dump(manifest, f, indent=1)
