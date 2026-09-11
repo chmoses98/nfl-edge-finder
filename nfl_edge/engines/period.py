@@ -113,28 +113,30 @@ class PeriodBank:
     """Per-quarter regression centres + a joint empirical residual bank, fitted on training games only."""
 
     def __init__(self, train: pl.DataFrame, *, ref_season: int, halflife: float = 3.0):
-        d = train.to_pandas()
-        X = np.column_stack([np.ones(len(d)), d["home_implied"].to_numpy(float), d["away_implied"].to_numpy(float)])
+        # polars -> numpy directly (no pandas / pyarrow bridge: the test runner installs neither pyarrow nor needs it)
+        col = lambda c: train[c].to_numpy().astype(float)  # noqa: E731
+        X = np.column_stack([np.ones(train.height), col("home_implied"), col("away_implied")])
         self.beta = {}
-        Y = d[COLS].to_numpy(float)
+        Y = np.column_stack([col(c) for c in COLS])
         self.resid = np.empty_like(Y)
         for j, c in enumerate(COLS):
             b = np.linalg.lstsq(X, Y[:, j], rcond=None)[0]
             self.beta[c] = b
             self.resid[:, j] = Y[:, j] - X @ b
-        w = 0.5 ** ((ref_season - d["season"].to_numpy(float)) / halflife)
+        season = col("season")
+        w = 0.5 ** ((ref_season - season) / halflife)
         self.w = w / w.sum()
-        self.n = len(d)
+        self.n = train.height
         self.Y = Y                                    # the historical 8-vectors themselves (kernel methods)
         self.fitted = X @ np.column_stack([self.beta[c] for c in COLS])
-        self.lines = np.column_stack([d["spread_line"].to_numpy(float), d["total_line"].to_numpy(float)])
+        self.lines = np.column_stack([col("spread_line"), col("total_line")])
         # overtime model from training games that went to overtime
-        ot = d["overtime"].fillna(0).to_numpy(int) == 1
-        res = d["result"].to_numpy(float)
+        ot = train["overtime"].fill_null(0).to_numpy().astype(int) == 1
+        res = col("result")
         self.p_tie_given_ot = float(np.mean(res[ot] == 0)) if ot.sum() else 0.05
         nz = np.abs(res[ot][res[ot] != 0])
         self.ot_abs_margin = nz if len(nz) else np.array([3.0, 3.0, 6.0, 7.0])
-        self.train_seasons = (int(d["season"].min()), int(d["season"].max()))
+        self.train_seasons = (int(season.min()), int(season.max()))
         self.fingerprint = hashlib.sha256(self.resid.tobytes() + self.w.tobytes()).hexdigest()[:16]
 
     def center(self, spread_home: float, total_line: float) -> np.ndarray:
