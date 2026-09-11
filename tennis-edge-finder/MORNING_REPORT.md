@@ -99,7 +99,8 @@ RESULTS_SR_ATP.md, research/kalshi_backtest/RESULTS.md.
 
 | forecaster | set | n | Brier | log-loss | slope |
 |---|---|---|---|---|---|
-| elo_levelprior | ATP all levels 2015-26 | 321,293 | 0.2000 | 0.5835 | 0.91 |
+| elo_levelprior | ATP all levels 2015-26 | 321,480 | 0.2000 | 0.5836 | 0.91 |
+| naive rank baseline | ATP all levels 2015-26 | 321,480 | 0.2142 | 0.6182 | 1.21 |
 | elo_levelprior | WTA all levels 2015-26 (post parser fix) | 299,185 | 0.1933 | 0.5667 | 1.04 |
 | Pinnacle | ATP tour 2020-26 (linked) | 13,323 | 0.2026 | 0.5884 | 1.02 |
 | ensemble | same | 13,323 | 0.2111 | 0.6084 | 1.04 |
@@ -219,4 +220,4 @@ feed, Kalshi fee schedule not byte-verified, contract PDFs unparsed.
 * Non-executable prices: all ROI figures are hypothetical; Kalshi ROI uses the ask + taker fee; bookmaker ROI
   uses vig-free prices (not executable).
 * Mixed id systems contaminated the first state fit (Zverev twice) — fixed; studies rerun on one system.
-* Unresolved: rank baseline NaN (broken), WTA ITF score notation, doubles names, first-ball truth.
+* Unresolved: doubles surname-only names, first-ball truth. (Rank baseline NaN and the WTA ITF score notation were fixed and the studies rerun before hand-off.)

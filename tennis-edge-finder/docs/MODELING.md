@@ -9,7 +9,7 @@ bracket DP.
 ## Models implemented
 | model | inputs | update | notes |
 |---|---|---|---|
-| naive rank | pre-tournament ranks (log-rank difference, fixed slope) | -- | WTA Brier 0.2196 / LL 0.6304 (ATP study predates the NaN fix) |
+| naive rank | pre-tournament ranks (log-rank difference, fixed slope) | -- | ATP Brier 0.2142 / LL 0.6182; WTA 0.2196 / 0.6304 |
 | elo_plain | results | K = 250/(n+5)^0.4 | best log-loss on all-level corpora |
 | elo_levelprior | + level-dependent initial rating | same | marginally best on ATP/WTA all-level |
 | elo_surface | + surface rating partially pooled (w_max 0.5, n_half 20) | same | slightly worse on all-level corpora, best on tour-only (2000-2026 TML study) |
@@ -20,8 +20,8 @@ bracket DP.
 | doubles baseline | mean singles Elo per team, blend prior | -- | unvalidated; grade capped C |
 
 ## Walk-forward results (symmetric orientation)
-ATP all levels 1990-2026, eval 2015+ (n = 321,293, single id system): elo_levelprior Brier 0.2000 / LL 0.5835;
-elo_plain 0.2001 / 0.5836; elo_surface_k_lo 0.2041 / 0.5933 (slope 1.07).
+ATP all levels 1990-2026, eval 2015+ (n = 321,480, single id system): elo_levelprior Brier 0.2000 / LL 0.5836;
+elo_plain 0.2001 / 0.5837; elo_surface_k_lo 0.2042 / 0.5934 (slope 1.07); naive rank 0.2142 / 0.6182.
 WTA all levels (n = 299,185, after the ITF match-tiebreak parser fix): elo_levelprior 0.1933 / 0.5667; elo_surface_k_lo 0.2004 / 0.5850; naive rank 0.2196 / 0.6304.
 By level (elo_plain LL): ITF 0.556-0.564 (favourite-heavy), Challenger 0.628, tour 0.607-0.630, slams 0.589-0.591.
 
