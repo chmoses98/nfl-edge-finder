@@ -56,8 +56,8 @@
    "requirement": "every modelable contract settleable or explicitly non-settleable",
    "before": "PARTIAL",
    "evidence_before": "catalog says SUPPORTED / PLANNED / UNSUPPORTED; TEAM_WINS_BY_WEEK, MAKE_PLAYOFFS, DIVISION_WINNER carry probabilities with PLANNED settlement and no automatic matrix",
-   "after": "COMPLETE",
-   "evidence_after": "settlement coverage matrix generated per snapshot (family x has_probability x settleable x validated x bettable); wins-through-week settles once the week's games are final; season standings families explicitly NON_SETTLEABLE_THIS_SEASON"
+   "after": "PARTIAL",
+   "evidence_after": "settlement coverage matrix generated per snapshot (family/period x records x has_probability x settleable x historically_validated x bettable=0) and the flags make settlement_supported explicit per record; STILL OPEN: TEAM_WINS_BY_WEEK (726 records), MAKE_PLAYOFFS (30) and DIVISION_WINNER (32) carry probabilities with catalog settlement PLANNED, reported as probability_without_settlement in every run summary; wins-through-week settlement is not implemented"
   },
   {
    "id": "R08",
@@ -105,7 +105,7 @@
    "before": "PARTIAL",
    "evidence_before": "record stores the quote and observed_at but not which capture run confirmed it nor the change-suppression semantics",
    "after": "COMPLETE",
-   "evidence_after": "market_provenance on every record: capture run, series observed_at (confirmation instant), last-change observed_at, capture completeness"
+   "evidence_after": "market_state on every record: price-change run, snapshot run, series confirmation instant and completeness, last-change observed_at; the close selector reproduces the same two instants independently"
   },
   {
    "id": "R14",
@@ -214,7 +214,8 @@
  ],
  "instrumentation_commits": [
   "8f9f7911de485e05849000d6c1eedcb7a55e7c63",
-  "(context-coverage summary fix, the commit carrying this file)"
+  "8a29479f40dad51757aa32ab1824bf2accfa5035",
+  "(this commit)"
  ],
  "validation_runs": {
   "projector_full_snapshot_20260911T010527Z": {
