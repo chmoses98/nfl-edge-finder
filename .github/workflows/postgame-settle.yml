@@ -4,14 +4,37 @@ name: Postgame Settlement & Evaluation
 # evaluation corpus on `market-data`: settlement proven from nflverse, the last complete quote strictly before
 # kickoff as the close, CLV, and the research scorecard. The shadow ledger is read and never written.
 #
-# Cadence: every three hours. A game ends and nflverse publishes its player statistics some hours later, so a
-# 3-hourly poll settles a Sunday slate the same evening or overnight without a queue of pending games. Almost
-# every run does nothing: a gate reads the schedule (one csv) plus a directory listing, and the heavy steps are
-# skipped unless a final game has no evaluation batch yet. That keeps a season of polling to seconds per run.
+# Cadence: every three hours, PLUS a second chance after each successful Shadow Pricing run. Almost every run
+# does nothing: a gate reads the schedule (one csv) plus a directory listing, and the heavy steps are skipped
+# unless a final game has no evaluation batch yet. That keeps a season of polling to seconds per run.
+#
+# Why a second trigger at all. NE-SEA settled only after a human dispatched this workflow, so the cron was
+# measured. Between 2026-09-10T00:00Z and 21:10Z, against 7 nominal `19 */3` slots, GitHub delivered 4
+# scheduled runs (04:52, 11:30, 16:30, 20:56Z). Shadow Pricing, declaring a DENSER `37 */2` cron, was delivered
+# 5 times in the same window (00:32, 05:12, 11:45, 16:39, 21:09Z). Two workflows, 8/day and 12/day nominal,
+# both got ~5: the constraint is not this cron, it is how many scheduled runs the repository receives, so
+# tightening the cron would buy nothing. A second, DIFFERENT event class is the only thing that adds
+# opportunities. Note the 20:56Z run: the 19:19Z slot was not dropped, it arrived 97 minutes late -- which is
+# also why the fallback must be an extra opportunity rather than a replacement.
+#
+# workflow_run does not force a settlement. It runs the SAME gate, which still decides whether any final
+# unevaluated game needs work; an idle event-driven check costs the same seconds as an idle poll. Duplicate
+# triggers are harmless: the concurrency group serialises them and the second one finds the game already
+# evaluated and becomes a no-op (proven live by run 34529337863, which found `work=false` and skipped every
+# heavy and publishing step 32 minutes after run 34525867725 published the batch).
+#
+# It cannot loop: the upstream is a WORKFLOW COMPLETION, not a push. Publishing to `market-data` triggers
+# nothing, and Shadow Pricing has no trigger on this workflow.
 
 on:
   schedule:
     - cron: '19 */3 * * *'
+  # Completion of the pregame pricer -- success only, main only, enforced again at job level because the
+  # `types` filter alone would also deliver failed and cancelled upstream runs.
+  workflow_run:
+    workflows: ["Shadow Pricing (full universe)"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       games:
@@ -44,6 +67,13 @@ concurrency:
 
 jobs:
   settle:
+    # A `workflow_run` delivery is an opportunity, not an instruction: take it only when the upstream actually
+    # succeeded on main. Every other event class (schedule, workflow_dispatch) is unaffected by this condition,
+    # so their behaviour is exactly what it was.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
