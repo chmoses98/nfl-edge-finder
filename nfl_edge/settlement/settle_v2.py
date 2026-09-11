@@ -4,6 +4,9 @@ Extends the incumbent engine (`nfl_edge/settlement/settle.py`, untouched and sti
 families it settles) to the families v2 projects:
 
     WIN_MARGIN_BUCKET       range on the final margin (schedule final; overtime included)
+    TEAM_WINS_BY_WEEK       wins through a stated week, settled as soon as no remaining game can change it
+    DIVISION_WINNER         read back off the postseason bracket (seeds 1-4 are the division winners)
+    MAKE_PLAYOFFS           presence in / proven absence from a structurally complete bracket
     PERIOD markets          winner / spread / total / team total / both-score for 1H, 2H, 1Q..4Q (play-by-play quarter scores)
     HALF_FULL_RESULT        composite: 1H result (period book) AND full-game result (schedule final, tie leg)
     PLAYER_STAT             every stat the incumbent settles, plus rush_rec_yards (sum of two proven columns)
@@ -18,6 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from nfl_edge.settlement import season_settlement as SS
 from nfl_edge.settlement import settle as S1
 from nfl_edge.settlement.period_results import PeriodBook
 from nfl_edge.settlement.results import FINAL, ResultBook
@@ -123,8 +127,23 @@ def _settle_score_question(q: dict, hs: float, aws: float, home: str, away: str,
     return Settlement(SETTLED, 1.0 if met else 0.0, KIND_BINARY, ev["comparison"], ev)
 
 
+def _season_ledger(rec: dict, book: ResultBook, ledger):
+    """The season's games, built once per season and reused (the caller may pass one in)."""
+    season = rec.get("season")
+    if season is None:
+        return None
+    if isinstance(ledger, SS.SeasonLedger):
+        return ledger if ledger.season == int(season) else None
+    if isinstance(ledger, dict):
+        got = ledger.get(int(season))
+        if got is not None:
+            return got
+    return SS.SeasonLedger(book.games, int(season))
+
+
 def settle_projection(rec: dict, book: ResultBook, period_book: PeriodBook | None = None, *, exact_scalar_payout=None,
-                      exact_scalar_source=None, exact_scalar_unavailable_reason=None, season_games: dict | None = None) -> Settlement:
+                      exact_scalar_source=None, exact_scalar_unavailable_reason=None, season_games: dict | None = None,
+                      season_ledger=None) -> Settlement:
     """Settle one projection record (its `question` field is the authority on what was priced)."""
     q = rec.get("question") or {}
     fam, period = rec.get("market_family"), rec.get("period") or "FULL"
@@ -143,6 +162,20 @@ def settle_projection(rec: dict, book: ResultBook, period_book: PeriodBook | Non
     # ---- season
     if fam in ("SEASON_WINS", "SEASON_WINS_EXACT"):
         return _settle_season_wins(rec, q, book, season_games)
+    if fam in ("TEAM_WINS_BY_WEEK", "MAKE_PLAYOFFS", "DIVISION_WINNER"):
+        led = _season_ledger(rec, book, season_ledger)
+        if led is None:
+            return _refuse(REFUSED_SEASON_INCOMPLETE, "season record without a season")
+        team = rec.get("subject_id")
+        if not team:
+            return _refuse(REFUSED_TEAM, f"{fam} record without a team")
+        fn = {"TEAM_WINS_BY_WEEK": lambda: SS.settle_wins_through_week(team, led.season, q, led),
+              "MAKE_PLAYOFFS": lambda: SS.settle_make_playoffs(team, led.season, led),
+              "DIVISION_WINNER": lambda: SS.settle_division_winner(team, led.season, led)}[fam]
+        r = fn()
+        if r["status"] != "SETTLED":
+            return _refuse(REFUSED_SEASON_INCOMPLETE, r["reason"], r.get("evidence"))
+        return Settlement(SETTLED, r["settled_yes"], KIND_BINARY, r["reason"], {"family": fam, **(r.get("evidence") or {})})
     # ---- game-scoped families need a final game
     if not gid:
         return _refuse(REFUSED_GAME, "record did not join a scheduled game")

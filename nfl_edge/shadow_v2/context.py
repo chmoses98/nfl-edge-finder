@@ -23,7 +23,16 @@ import os
 from datetime import datetime, timezone
 
 UNKNOWN = "UNKNOWN"
-CONTEXT_VERSION = "context-1.0.0"
+CONTEXT_VERSION = "context-1.1.0"       # 1.1.0: real route participation and red-zone opportunity replace two UNKNOWNs
+ROUTE_SOURCE = "nflverse pbp_participation (offense_players per play, 2016-2025) via research/opportunity/player_usage.parquet; point-in-time EWMA over strictly prior games"
+ROUTE_MISSING = "no prior game with participation coverage for this player (rookie, or a season the participation release does not cover)"
+RZ_SOURCE = "nflverse play-by-play yardline_100 <= 20 (red zone), <= 5 (goal line) opportunity shares; point-in-time EWMA over strictly prior games"
+RZ_MISSING = "no prior red-zone opportunity for this player in the participation window"
+
+
+def _or_unknown(v):
+    """A real number, or UNKNOWN. Never a silent zero: no prior data and no usage look identical as 0.0."""
+    return UNKNOWN if v is None else v
 SKILL = ("QB", "RB", "WR", "TE", "FB")
 
 
@@ -236,8 +245,19 @@ def player_context(src: ContextSources, *, gsis, team, week, game_id, kickoff, f
             "availability": av, "injury_report": inj, "depth_chart": dep,
             "qb_identity": {"schedule_listed": g("_schedule_qb"), "depth_chart_qb1": dep.get("team_qb1"), "qb_changed_recent": g("qb_changed_recent")},
             "teammates": src.teammate_block(team, week, gsis),
-            "usage_estimates": {"snap_share": g("ewma_snap_share"), "route_participation": UNKNOWN, "route_participation_reason": "routes are not in free data; snap share is the only proxy",
-                                "target_share": g("ewma_target_share"), "carry_share": g("ewma_carry_share"), "red_zone_usage": UNKNOWN, "red_zone_reason": "red-zone usage feature not built",
+            # Route participation and red-zone opportunity are REAL, not proxies: nflverse pbp_participation
+            # lists the eleven offensive players on the field for every play 2016-2025, so a route is a dropback
+            # the player was on the field for, and red-zone / inside-10 / inside-5 opportunity comes from the
+            # play-by-play's own yardline. Every value is the point-in-time EWMA over STRICTLY PRIOR games
+            # (nfl_edge/features/opportunity.py). UNKNOWN survives only where the cache genuinely has no prior.
+            "usage_estimates": {"snap_share": g("ewma_snap_share"), "target_share": g("ewma_target_share"), "carry_share": g("ewma_carry_share"),
+                                "route_participation": _or_unknown(g("pit_route_share")), "routes_per_dropback": _or_unknown(g("pit_route_share")),
+                                "targets_per_route_run": _or_unknown(g("pit_tprr")), "route_source": ROUTE_SOURCE,
+                                "route_participation_reason": (None if g("pit_route_share") is not None else ROUTE_MISSING),
+                                "pbp_snap_share": _or_unknown(g("pit_snap_share")), "air_yards_per_target": _or_unknown(g("pit_adot")),
+                                "red_zone_target_share": _or_unknown(g("pit_rz_target_share")), "red_zone_carry_share": _or_unknown(g("pit_rz_carry_share")),
+                                "inside_5_carry_share": _or_unknown(g("pit_i5_carry_share")), "red_zone_source": RZ_SOURCE,
+                                "red_zone_reason": (None if (g("pit_rz_target_share") is not None or g("pit_rz_carry_share") is not None) else RZ_MISSING),
                                 "share_recent_delta_target": g("share_recent_delta_target"), "share_recent_delta_carry": g("share_recent_delta_carry")},
             "team_volume_estimates": {"pass_attempts": g("ewma_team_pass_att"), "rush_attempts": g("ewma_team_rush_att"), "snaps": g("ewma_team_snaps"),
                                       "yards_per_attempt": g("ewma_team_ypa"), "pass_rate": g("ewma_team_pass_rate")},
@@ -300,7 +320,9 @@ def compact_player_context(full: dict, cid: str) -> dict:
             "qb_schedule": qb.get("schedule_listed"), "qb_depth_chart": qb.get("depth_chart_qb1"), "qb_changed_recent": qb.get("qb_changed_recent"),
             "teammates_out_or_doubtful": (full.get("teammates") or {}).get("n_out_or_doubtful"),
             "snap_share": use.get("snap_share"), "target_share": use.get("target_share"), "carry_share": use.get("carry_share"),
-            "route_participation": use.get("route_participation"), "red_zone_usage": use.get("red_zone_usage"),
+            "route_participation": use.get("route_participation"), "targets_per_route_run": use.get("targets_per_route_run"),
+            "red_zone_target_share": use.get("red_zone_target_share"), "red_zone_carry_share": use.get("red_zone_carry_share"),
+            "inside_5_carry_share": use.get("inside_5_carry_share"), "air_yards_per_target": use.get("air_yards_per_target"),
             "team_pass_attempts": tv.get("pass_attempts"), "team_rush_attempts": tv.get("rush_attempts"),
             "n_prior_games": smp.get("n_prior_games"), "shrink_w": smp.get("shrink_w"),
             "weather_state": w.get("state"), "wind_mph": w.get("wind_mph"), "temperature_f": w.get("temperature_f"), "precipitation_probability": w.get("precipitation_probability")}

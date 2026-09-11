@@ -1,0 +1,105 @@
+{
+ "title": "First-week irretrievability test: if the system runs exactly once, what could never be reconstructed?",
+ "version": "irretrievability-1.0.0",
+ "question": "If week 2 kicks off tomorrow and we run this system exactly once, which useful facts could NEVER be recovered later?",
+ "method": "Each item is classified by whether the fact survives the week without being captured at the time. RECONSTRUCTABLE_LATER means a free source can still produce the same value afterwards with the same meaning. IRRETRIEVABLY_MISSING means the fact is destroyed by the passage of the week -- including facts that can be looked up afterwards but can no longer be shown to have been KNOWABLE at the moment the projection was frozen, because that is the property the research needs.",
+ "labels": ["CAPTURED_NOW", "RECONSTRUCTABLE_LATER", "IRRETRIEVABLY_MISSING"],
+ "items": [
+  {"area": "market microstructure", "fact": "best bid / best ask / mid / width / volume / open interest / liquidity at each horizon",
+   "label": "CAPTURED_NOW",
+   "evidence": "frozen on every projection record at the horizon's own observation instant; the capture is change-suppressed so every price CHANGE is written"},
+
+  {"area": "market microstructure", "fact": "ORDER-BOOK DEPTH (resting size per level) at each horizon",
+   "label": "IRRETRIEVABLY_MISSING",
+   "severity": "BLOCKER",
+   "evidence": "Kalshi publishes no historical order books (docs/DATA_SOURCE_AUDIT.md); a book not fetched at the moment is gone permanently. Measured on the live board, only 16.4% of probability-carrying contracts had a book at the horizon, because the 10-minutely capture is capacity-bound (10,591 candidates against a 2,500 cap). The remaining 83.6% would be permanently unanswerable for every size question.",
+   "remedy_built": "scripts/shadow_v2/capture_depth_v2.py, wired into the horizons workflow at budget 8000, covers 100% of the 7,723 in-window probability-carrying contracts in ~32 minutes with whole ladders and a priority that never uses the model's own view",
+   "remaining_risk": "the remedy is inert until PR #9 is merged and has never run prospectively"},
+
+  {"area": "market presence", "fact": "whether an exact contract was OPEN at an exact capture run, and why it was not",
+   "label": "IRRETRIEVABLY_MISSING",
+   "severity": "HIGH",
+   "evidence": "the capture writes quote rows only on change and state.last_seen records only the LAST run a ticker was open, so absence at any earlier run cannot be reconstructed afterwards from anything on disk; a contract the exchange delisted before kickoff and one missing because a series fetch half-failed look identical",
+   "remedy_built": "nfl_edge/evaluation/openset.py records the per-run open set as a verified delta inside the capture, distinguishing OPEN / CLOSED / DELISTED / NOT_RETURNED_DUE_PARTIAL_FETCH / SERIES_NOT_POLLED / UNKNOWN",
+   "remaining_risk": "only ever true from the first run after merge; runs before that stay UNKNOWN, which the reader reports rather than guesses"},
+
+  {"area": "market microstructure", "fact": "the intraday price path between two capture runs",
+   "label": "RECONSTRUCTABLE_LATER",
+   "evidence": "the 1-minute candlestick endpoint (/series/{s}/markets/{t}/candlesticks) returns the path after the fact, and the change-suppressed capture already records every fingerprint change"},
+
+  {"area": "trade state", "fact": "the trade tape for a ticker whose volume did not move, or that lost the 400-ticker cap",
+   "label": "RECONSTRUCTABLE_LATER",
+   "evidence": "/markets/trades accepts min_ts and pages backwards; the declared historical cutoff (2026-07-12) is already behind the first v2 week, so the live endpoint covers it. Recovery costs API calls, not evidence"},
+
+  {"area": "trade state", "fact": "last-trade recency and taker direction at the horizon",
+   "label": "CAPTURED_NOW",
+   "evidence": "57.3% of rows carry a last trade in the replay; the captured tape holds taker_side, taker_book_side, taker_outcome_side and is_block_trade, so directional pressure is supported by the exchange data rather than inferred"},
+
+  {"area": "injury / inactive state", "fact": "the OFFICIAL gameday inactive list as it stood ~90 minutes before kickoff",
+   "label": "IRRETRIEVABLY_MISSING",
+   "severity": "MEDIUM",
+   "evidence": "the list can be looked up after the game, but not shown to have been knowable at T-90m, and that is the property a frozen projection needs. Reconstructing it afterwards and presenting it as pregame knowledge is the specific dishonesty the module refuses",
+   "remedy_built": "scripts/shadow_v2/capture_inactives_v2.py runs inside the publication window and labels anything observed after kickoff POSTGAME_OBSERVATION, which freezes nothing",
+   "remaining_risk": "inert until merged; and the source has not yet been shown across several game days to deliver a real list, so the first week may legitimately record zero confirmed inactives"},
+
+  {"area": "injury / inactive state", "fact": "the weekly injury report vintage used by a projection",
+   "label": "CAPTURED_NOW",
+   "evidence": "report status, practice status and the file's retrieval timestamp and sha256 are frozen on the record. The replay showed only 275 of 6,419 player rows are on a published report at the snapshot, which the record states as NOT_LISTED rather than hiding"},
+
+  {"area": "availability", "fact": "the availability state at each horizon and the transitions between them",
+   "label": "CAPTURED_NOW",
+   "evidence": "89.7% of player rows carry a state from the real context captures; transitions are derived from the frozen records, so they cannot contradict what was observed"},
+
+  {"area": "point-in-time weather", "fact": "the forecast that was available when the projection was frozen",
+   "label": "CAPTURED_NOW",
+   "evidence": "the 3-hourly context capture stores the NWS forecast with its issue time and the Open-Meteo hourly arrays with their retrieval time; the record freezes the nearest prior vintage. Actual game weather is never attached to an old prediction"},
+
+  {"area": "point-in-time weather", "fact": "a forecast for an instant between two 3-hourly context captures",
+   "label": "RECONSTRUCTABLE_LATER",
+   "evidence": "Open-Meteo exposes a historical-forecast API (already probed by scripts/data/probe_sources.py) that returns what the model predicted at a past issue time; NWS does not, so the captured nearest-prior vintage remains the primary record"},
+
+  {"area": "lineups / depth charts", "fact": "the depth chart and listed quarterback as of the projection",
+   "label": "CAPTURED_NOW",
+   "evidence": "99.9% depth-chart coverage with the ESPN daily vintage timestamp frozen on the record; nflverse rebuilds these files in place, so the value used must be frozen and is"},
+
+  {"area": "model inputs", "fact": "every feature value the projection consumed",
+   "label": "CAPTURED_NOW",
+   "evidence": "the point-in-time EWMA opportunity, efficiency, team volume, share, route and red-zone features are frozen per record with the sample size and shrink weight; full context blocks live in the write-once sidecar"},
+
+  {"area": "model inputs", "fact": "route participation and red-zone usage as of the projection",
+   "label": "CAPTURED_NOW",
+   "evidence": "95.3% of player rows, computed from nflverse participation and play-by-play over strictly prior games. Previously recorded as UNKNOWN on the false premise that routes are not in free data"},
+
+  {"area": "model inputs", "fact": "the exact code and artefacts that produced a number",
+   "label": "CAPTURED_NOW",
+   "evidence": "lineage block: engine versions, model bundle sha, identity-map sha, period bank fingerprint, capture and discovery run ids, schema and rule versions"},
+
+  {"area": "outcomes", "fact": "final scores, quarter scores, player statistics, snap counts",
+   "label": "RECONSTRUCTABLE_LATER",
+   "evidence": "nflverse publishes these after the games; settlement proves finality independently through the postgame-only releases and ESPN's completed flag"},
+
+  {"area": "outcomes", "fact": "the exchange's own settlement result and timestamp",
+   "label": "RECONSTRUCTABLE_LATER",
+   "evidence": "the daily discovery fetches status=settled, and the historical backfill holds finalized markets; the cross-check reads both without new API calls"},
+
+  {"area": "outcomes", "fact": "route participation and red-zone counts FOR THE GAME BEING PREDICTED",
+   "label": "RECONSTRUCTABLE_LATER",
+   "evidence": "nflverse participation and play-by-play publish after the game; the autopsy needs them only post hoc, and the prior-game features the projection used are already frozen"},
+
+  {"area": "derived research", "fact": "research rows, scorecards, size/slippage tables, availability transitions, coverage audits",
+   "label": "RECONSTRUCTABLE_LATER",
+   "evidence": "all are recomputed from the frozen records by design, so a change of method never rewrites what was observed"},
+
+  {"area": "market presence", "fact": "whether a contract in a DAILY-tier or unpolled series was open at a given run",
+   "label": "IRRETRIEVABLY_MISSING",
+   "severity": "LOW",
+   "evidence": "the open set covers only series the run actually polled; a series outside the poll is recorded as SERIES_NOT_POLLED, which is honest but is not presence information",
+   "remaining_risk": "accepted: these series carry no probability-bearing contracts the model prices"}
+ ],
+ "verdict_inputs": {
+  "irretrievably_missing": 5,
+  "blockers": ["order-book depth for the 83.6% of probability-carrying contracts the capacity-bound capture never fetches"],
+  "high": ["per-run open-set evidence, which exists only from the first run after merge"],
+  "note": "Every blocker and high item has a remedy built and wired in this PR. None of them has run prospectively, because the workflows are guarded to refs/heads/main and PR #9 is not merged. That gap is the verdict."
+ }
+}

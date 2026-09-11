@@ -40,6 +40,10 @@ SHADOW v2 additions (branch; inert on main until merged):
   * Order-book selection under --max-books is a DETERMINISTIC priority (pregame within 6h with volume first,
     then pregame within 6h, then traded, then the rest; ties by minutes to kickoff then ticker) and the manifest
     records how many candidates each tier had and how many were dropped by the cap, so capacity is observable.
+  * The per-run OPEN SET is recorded as a delta (nfl_edge/evaluation/openset.py). `last_seen` says when a
+    ticker was last open; the open set says whether it was open at any given run, which is what separates a
+    contract the exchange delisted before kickoff (its last live quote IS its close) from one missing because a
+    series fetch half-failed (absence proves nothing). Writing it is non-fatal by construction.
 """
 from __future__ import annotations
 import argparse, csv, hashlib, io, json, os, sys, time, urllib.request
@@ -50,6 +54,7 @@ sys.path.insert(0, ROOT)
 from nfl_edge.kalshi.client import KalshiClient  # noqa
 from nfl_edge.kalshi.classifier import classify, KALSHI_TO_NFLVERSE  # noqa
 from nfl_edge.board.provisional import PROVISIONAL_FILE, capturable_provisional, load_provisional  # noqa
+from nfl_edge.evaluation import openset as OS  # noqa
 from nfl_edge.semantics.questions import contract_question  # noqa
 
 REG_PATH = os.path.join(ROOT, "config", "kalshi_nfl_series.json")
@@ -266,6 +271,12 @@ def main():
     # Ticker-level confirmation is therefore strictly better evidence than the series-level flag, which is
     # why the gate prefers it.
     state.setdefault("last_seen", {})
+    # OPEN-SET EVIDENCE. `last_seen` answers "when was this ticker last open", which is enough to pick a close
+    # and not enough to defend one: it cannot say whether a ticker was open at some EARLIER run. Written here,
+    # before `last_seen` folds this run in, because the previous run's open set is exactly the tickers whose
+    # `last_seen` is still the previous run -- so the delta costs no extra state. Never fatal: an open-set
+    # failure must not cost the run its quotes.
+    manifest["openset"] = OS.record_open_set(day_dir, run_id, now_utc().isoformat(), seen_now, state)
     for tk in seen_now:
         state["last_seen"][tk] = run_id
     manifest["tickers_confirmed_open"] = len(seen_now)

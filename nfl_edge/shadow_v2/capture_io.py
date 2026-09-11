@@ -45,11 +45,23 @@ def load_latest_quotes(capture_root: str, *, snapshot_id: str | None = None):
     return quotes, run_ts, ages, confirmed, man
 
 
-def load_books(capture_root: str) -> dict:
+def load_books(capture_root: str, *, snapshot_id: str | None = None) -> dict:
+    """Latest order book per ticker AT OR BEFORE the snapshot.
+
+    The cutoff is not decoration. A horizon record is a claim about what was knowable at that instant, and a
+    book file written after it is exactly the kind of evidence a frozen projection must never see. Files are
+    bounded by the run id in their name and rows by their own `observed_at`, so a run that straddles the
+    snapshot cannot leak its later rows either.
+    """
     books = {}
+    cutoff = None
     for f in sorted(glob.glob(os.path.join(capture_root, "*", "*.books.jsonl"))):
+        if snapshot_id and os.path.basename(f)[:16] > snapshot_id:
+            continue
         for line in open(f):
             r = json.loads(line)
+            if snapshot_id and (r.get("run_id") or "") > snapshot_id:
+                continue
             books[r["ticker"]] = r
     return books
 

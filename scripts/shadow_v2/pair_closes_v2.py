@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
-from nfl_edge.evaluation import close as CL, clv as CV                                   # noqa: E402
+from nfl_edge.evaluation import clv as CV, close as CL, openset as OS                    # noqa: E402
 from nfl_edge.execution.fees import load_fee_schedule                                   # noqa: E402
 from nfl_edge.projection.store import read_projections                                  # noqa: E402
 from nfl_edge.shadow import evaluation_store as ST                                      # noqa: E402
@@ -71,13 +71,23 @@ def main(argv=None):
         if r.get("game_id") and r.get("kickoff_utc"):
             by_game.setdefault(r["game_id"], []).append(r)
     runs = CL.CaptureRuns(capture_root)
+    # One open-set ledger, shared across games: it answers "was this exact contract open at this run", which is
+    # what separates a close that stands on a delisting from one standing on a failed fetch. Captures written
+    # before the open set existed carry none, and the close then behaves exactly as it did before.
+    oset = OS.OpenSetLedger(capture_root)
+    if not oset.runs:
+        oset = None
+        log("no open-set evidence in this capture window: closes carry presence UNKNOWN (pre-openset captures)")
+    else:
+        v = oset.verify()
+        log(f"open-set ledger: {v['runs']} runs, {v['verified']} hash-verified, {len(v['mismatched'])} mismatched, {len(v['chain_breaks'])} chain breaks")
     summary = {"games_paired": [], "games_skipped_not_kicked_off": [], "written_closes": 0, "written_clv": 0, "close_status": Counter(), "close_quality": Counter(), "clv_status": Counter()}
     for gid in sorted(by_game):
         recs = by_game[gid]
         ko = _dt(recs[0]["kickoff_utc"])
         if now < ko:
             summary["games_skipped_not_kicked_off"].append(gid); continue
-        idx = CL.CloseIndex(capture_root, gid, ko.isoformat(), runs=runs, days_back=a.days_back)
+        idx = CL.CloseIndex(capture_root, gid, ko.isoformat(), runs=runs, days_back=a.days_back, openset=oset)
         close_rows, clv_rows, cache = [], [], {}
         for r in recs:
             key = r["ticker"]

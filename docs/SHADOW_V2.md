@@ -251,3 +251,108 @@ Unsupported markets are retained per discovery run with their prices (`data/shad
 10. Weather, Sleeper and ESPN context exist only where the context-capture workflow ran on market-data; locally they
     are UNKNOWN and the health gate says so. Route participation and red-zone usage are UNKNOWN everywhere.
 11. CLV has no historical validation of its own here; the first prospective week is its first evidence.
+
+---
+
+## 10. First-week evidence: settlement paths, presence, depth and real context
+
+Round 2 of the instrumentation closed the gaps the first-week audit found. Everything here is SHADOW / RESEARCH
+ONLY and carries `betting_authorized: false`.
+
+### 10.1 Season settlement (`nfl_edge/settlement/season_settlement.py`, `season-settle-1.0.0`)
+
+`TEAM_WINS_BY_WEEK`, `DIVISION_WINNER` and `MAKE_PLAYOFFS` were the last families carrying probabilities with no
+settlement path. They now have one, and it never runs the NFL's tie-breaking procedure — which this repo
+deliberately does not reproduce, and which is exactly why the season engine's projections are LIKELY and
+shadow-only.
+
+* **Wins through week W.** Counted from the team's own regular-season games. The final total lies between the
+  wins already proven and those wins plus every game still to play, so the contract settles as soon as the
+  comparison is constant across that interval — often long before the week arrives. What a TIE is worth is not
+  pinned by the rules text, so both readings are evaluated and the contract settles only where they agree.
+* **Division winner.** Read back off the postseason bracket. By rule the four division winners of a conference
+  take seeds 1–4, and the wild-card round is played at the higher seed's home field, so seeds 1–4 are exactly
+  {wild-card hosts} ∪ {bye teams}. The league applies its own tie-breakers when it seeds the bracket; reading
+  the bracket back is reading the official answer. Refused unless the bracket is structurally complete (eight
+  winners, four per conference) and unless each derived winner is tied-for-best on W-L-T inside its own
+  division.
+* **Make playoffs.** Presence anywhere in the bracket proves qualification. Absence from a structurally
+  complete bracket (12 or 14 participants, split evenly by conference) proves elimination. Standings are never
+  consulted, so a team cannot be declared out because its record looks bad.
+
+### 10.2 Exchange cross-check (`nfl_edge/settlement/crosscheck.py`)
+
+Every settled row is compared against Kalshi's own terminal resolution, read from the daily discovery's
+`settled` bucket and the historical backfill — no API calls. The derived football result is **never** replaced
+by the exchange value: a settlement that failed on football evidence stays failed. A disagreement is a hard
+research-quality warning naming the family, because it means either we read the contract wrong or the exchange
+settled against the football facts, and every projection priced on that reading is suspect.
+
+### 10.3 Open-set evidence (`nfl_edge/evaluation/openset.py`, `openset-1.0.0`)
+
+`state.last_seen` says when a ticker was last open. It cannot say whether a ticker was open at an *earlier* run,
+so a contract the exchange delisted before kickoff and one missing because a series fetch half-failed were
+indistinguishable after the fact. The capture now records the open set per run as a delta with a set hash and
+periodic anchors, and the reader answers six distinct states:
+
+| state | meaning |
+|---|---|
+| `OPEN` | in the open set of that run |
+| `CLOSED` | absent, series complete, the contract's own `close_time` had passed |
+| `DELISTED` | absent, series complete, `close_time` not reached — its last live quote **is** a legitimate close |
+| `NOT_RETURNED_DUE_PARTIAL_FETCH` | the series fetch did not complete: **absence is not evidence** |
+| `SERIES_NOT_POLLED` | the series was not fetched in that run |
+| `UNKNOWN` | no open-set record for that run |
+
+Only the first three are statements about the market. Close selection is unchanged (`close-2.1.0` keeps the same
+rule) but a close now says **why** nothing came after it, and never claims confirmation at a run the open set
+says the ticker was not open in.
+
+### 10.4 Executable size (`nfl_edge/evaluation/execution_depth.py`)
+
+A 1.2-point edge means nothing if four contracts were resting at the ask. Every record carries the depth on the
+side the model would have bought, or `DEPTH_NOT_CAPTURED` with a named reason. The derived table walks the real
+ladder for 1 / 5 / 10 / 25 / 50 / 100 contracts with the exchange's own per-fill fee carried across the order.
+
+Three rules: **no book, no number** (never extrapolate the top level down the ladder); **partial fills are said
+so**; and **canonical CLV is untouched** — top-of-book CLV keeps its definition and sign convention, and
+size-adjusted execution lives in its own block. A test pins that separation.
+
+Depth is captured at the horizons by `scripts/shadow_v2/capture_depth_v2.py`, not by the 10-minutely capture,
+which is capacity-bound. The priority is a function of **market** properties only — kickoff proximity, whole
+ladders, traded before untraded — and never of the model's own disagreement, because selecting the depth sample
+by the quantity under study would make "edges survive size" indistinguishable from "we only measured size where
+we had an edge". Coverage is reported by disagreement band so any residual gradient is visible.
+
+### 10.5 Official inactives (`nfl_edge/shadow_v2/inactives.py`)
+
+`scripts/data/probe_inactives.py` explains why this repo never had an inactives collector: a feed that silently
+returns nothing does not degrade to "no information", it degrades to "everyone is playing". The collector is
+built so that cannot happen. It can only ever ADD a confirmed-inactive player; **no code path emits an active
+state** (pinned by test). A team block with an implausible count is UNUSABLE rather than half-true, an outage
+yields zero rows, and an observation after kickoff is `POSTGAME_OBSERVATION` and freezes nothing. It is research
+only and is not wired into the availability gate, whose `INACTIVE_CONFIRMED` state remains unpopulated by
+design.
+
+### 10.6 Route participation and red-zone usage
+
+The previous round recorded both as UNKNOWN, on the stated grounds that "routes are not in free data". That was
+wrong about this repo. nflverse `pbp_participation` lists the eleven offensive players on the field for every
+play from 2016 through 2025, and those counts were already built into `research/opportunity/player_usage.parquet`
+(102,422 player-games). The v2 projector simply never attached the role features. It now does, so route share,
+targets per route run, red-zone target and carry share and inside-5 carry share are frozen per record as
+point-in-time values over strictly prior games — **95.3% known**, where they had been 0%.
+
+### 10.7 Coverage, honestly (`nfl_edge/evaluation/coverage.py`)
+
+Every context field is reported KNOWN / UNKNOWN / NOT_APPLICABLE separately, because one aggregate percentage
+hides the fields that matter. Two rules: a **state is not a value** (`injury_state = NOT_LISTED` is a correct
+answer but is not knowledge of an injury status), and **NOT_APPLICABLE is not KNOWN** (a dome has no missing
+wind). The first run of this audit immediately exposed a gap the aggregate had concealed: `injury_report_status`
+is 0% known, because only 275 of 6,419 player rows are on a published report at all.
+
+### 10.8 Availability change events (`nfl_edge/evaluation/availability_events.py`)
+
+Transitions between horizons are **derived** from the frozen records, never captured separately, so they cannot
+contradict what was observed. Direction is ranked by severity, both raw states are kept on every event, and a
+source going quiet is `EVIDENCE_LOST` rather than a downgrade.

@@ -22,7 +22,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
-SCHEMA_VERSION = "projection-2.1.0"
+SCHEMA_VERSION = "projection-2.2.0"
 PROSPECTIVE_FROZEN = "PROSPECTIVE_FROZEN"
 HISTORICAL_RESEARCH = "HISTORICAL_RESEARCH"
 VOLATILE_FIELDS = ("generated_at",)
@@ -136,6 +136,9 @@ class ProjectionRecord:
     lineage: dict = field(default_factory=dict)
     flags: dict = field(default_factory=dict)             # has_probability, semantics_proven, ... betting_authorized (always False)
     horizon_quality: dict = field(default_factory=dict)   # ON_TIME / LATE_ACCEPTABLE / LATE_DEGRADED / MISSED / CYCLE + timestamps
+    # Executable depth on the model's own side at this horizon, or DEPTH_NOT_CAPTURED with the named reason
+    # (schema 2.2.0). Absence of a depth record must never be readable as a thin or absent market.
+    depth: dict = field(default_factory=dict)
     # ---- research-only comparisons (never "edge")
     model_market_disagreement_mid: float | None = None   # contract_value - mid  (probability benchmarking)
     yes_ask_disagreement: float | None = None            # contract_value - yes_ask (economics side, pre-fee)

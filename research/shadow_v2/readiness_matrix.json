@@ -1,5 +1,5 @@
 {
- "title": "Shadow v2 first-week readiness matrix",
+ "title": "SHADOW v2 first-week readiness matrix (v2: expanded with execution, evidence-of-presence and settlement-path dimensions)",
  "audited_head_before": "5d7d8684bcb7f7885f263d5371f4b473430b13ff",
  "method": "code paths traced (projector, store, settle_v2, scorecard_v2, board accounting, capture) against the shadow-build standard; a field that exists but is never populated counts as PARTIAL; data captured but not persisted counts as MISSING",
  "requirements": [
@@ -56,8 +56,8 @@
    "requirement": "every modelable contract settleable or explicitly non-settleable",
    "before": "PARTIAL",
    "evidence_before": "catalog says SUPPORTED / PLANNED / UNSUPPORTED; TEAM_WINS_BY_WEEK, MAKE_PLAYOFFS, DIVISION_WINNER carry probabilities with PLANNED settlement and no automatic matrix",
-   "after": "PARTIAL",
-   "evidence_after": "settlement coverage matrix generated per snapshot (family/period x records x has_probability x settleable x historically_validated x bettable=0) and the flags make settlement_supported explicit per record; STILL OPEN: TEAM_WINS_BY_WEEK (726 records), MAKE_PLAYOFFS (30) and DIVISION_WINNER (32) carry probabilities with catalog settlement PLANNED, reported as probability_without_settlement in every run summary; wins-through-week settlement is not implemented"
+   "after": "COMPLETE",
+   "evidence_after": "season settlement implemented (nfl_edge/settlement/season_settlement.py, season-settle-1.0.0) and routed from settle_v2: TEAM_WINS_BY_WEEK settles from the team's own games through week W, early once the achievable win interval makes the comparison constant, and refuses when the two tie readings disagree; DIVISION_WINNER and MAKE_PLAYOFFS are read off the postseason bracket (seeds 1-4 are the division winners) with a W-L-T contradiction check, never from a reconstructed tie-break. Catalog now marks all three SUPPORTED. 22 tests, mostly on the refusals."
   },
   {
    "id": "R08",
@@ -210,12 +210,149 @@
    "evidence_before": "projector runtime / RSS / bytes only",
    "after": "COMPLETE",
    "evidence_after": "pairing, settlement, export and report runtimes and RSS recorded in their summaries; artifact growth per snapshot reported"
+  },
+  {
+   "id": "R27",
+   "requirement": "season settlement path exists for every probability written today",
+   "before": "MISSING",
+   "evidence_before": "TEAM_WINS_BY_WEEK / DIVISION_WINNER / MAKE_PLAYOFFS carried probabilities with catalog settlement PLANNED",
+   "after": "COMPLETE",
+   "evidence_after": "three deterministic branches, each fail-closed; no branch can be reached before its evidence exists; the NFL tie-break procedure is never reproduced, the league's own bracket output is read instead"
+  },
+  {
+   "id": "R28",
+   "requirement": "exchange settlement cross-check",
+   "before": "MISSING",
+   "evidence_before": "v2 settlement was nflverse-only; a wrong reading of a contract would settle confidently and wrongly with nothing to notice",
+   "after": "COMPLETE",
+   "evidence_after": "nfl_edge/settlement/crosscheck.py compares every settled row against Kalshi's own terminal resolution read from the daily discovery's settled bucket and the historical backfill (no API calls); provenance, timestamps and both answers preserved; disagreement is a hard warning and is never allowed to substitute for a failed football settlement"
+  },
+  {
+   "id": "R29",
+   "requirement": "per-run open-set evidence (was this contract open at this moment)",
+   "before": "MISSING",
+   "evidence_before": "state.last_seen gives only the LAST run a ticker was open; absence at any earlier run was unanswerable, so a delisting and a half-failed series fetch were indistinguishable after the fact",
+   "after": "COMPLETE",
+   "evidence_after": "nfl_edge/evaluation/openset.py writes a delta-encoded open set per capture run with a set hash and periodic anchors; six distinct states (OPEN / CLOSED / DELISTED / NOT_RETURNED_DUE_PARTIAL_FETCH / SERIES_NOT_POLLED / UNKNOWN) of which only three are statements about the market; replay verified against the recorded hashes"
+  },
+  {
+   "id": "R30",
+   "requirement": "canonical close explains why nothing came after it",
+   "before": "PARTIAL",
+   "evidence_before": "close-2.0.0 selected the last complete valid pre-kickoff observation but could not say why later observations were absent",
+   "after": "COMPLETE",
+   "evidence_after": "close-2.1.0 keeps the selection rule unchanged and adds the presence record at the confirming run plus the disappearance classification; DELISTED_BEFORE_KICKOFF / CLOSED_BEFORE_KICKOFF / ABSENCE_UNEXPLAINED flags; a confirmation is never claimed at a run the open set says the ticker was not open in (CONFIRMATION_RETREATED)"
+  },
+  {
+   "id": "R31",
+   "requirement": "top-of-book CLV kept pure",
+   "before": "COMPLETE",
+   "evidence_before": "one pinned sign convention, fee applied once",
+   "after": "COMPLETE",
+   "evidence_after": "unchanged by this round and pinned by test: the depth module may not define or overwrite any canonical CLV field; size-adjusted execution lives in its own block"
+  },
+  {
+   "id": "R32",
+   "requirement": "order-book depth preserved at the horizons",
+   "before": "MISSING",
+   "evidence_before": "v2 recorded only has_book as a boolean; the full ladder in nfl_edge/execution/depth.py was wired to the v1 path only",
+   "after": "PARTIAL",
+   "evidence_after": "every record now carries a depth block or a named reason for its absence, and scripts/shadow_v2/capture_depth_v2.py captures depth at horizons with a ladder-whole budget. Measured on the live board only 16.4% of probability-carrying contracts had a book, because the 10-minutely capture is capacity-bound; the horizon job at budget 8000 covers 100% of the 7,723 in-window contracts in ~32 minutes but has not yet run prospectively"
+  },
+  {
+   "id": "R33",
+   "requirement": "size / slippage research from captured depth",
+   "before": "MISSING",
+   "evidence_before": "no size-adjusted execution anywhere in v2",
+   "after": "COMPLETE",
+   "evidence_after": "nfl_edge/evaluation/execution_depth.py walks the real ladder for 1/5/10/25/50/100 contracts with the exchange's own per-fill fee carried across the order; partial fills reported as partial; NO BOOK means no number, never an extrapolation of the top level"
+  },
+  {
+   "id": "R34",
+   "requirement": "depth selection bias is measured, not assumed away",
+   "before": "MISSING",
+   "evidence_before": "not considered",
+   "after": "COMPLETE",
+   "evidence_after": "the capture priority is a function of market properties only (kickoff proximity, whole ladders, traded) and never of the model's own disagreement; coverage is reported by disagreement band so any residual gradient is visible. The first measurement found one: 25.3% coverage at 0-0.5pp disagreement falling to 8.8% above 10pp"
+  },
+  {
+   "id": "R35",
+   "requirement": "official gameday inactive state frozen",
+   "before": "MISSING",
+   "evidence_before": "INACTIVE_CONFIRMED was reserved and never populated; the repo deliberately refused to build a collector that could degrade to 'everyone is playing'",
+   "after": "COMPLETE",
+   "evidence_after": "nfl_edge/shadow_v2/inactives.py can only ever ADD a confirmed-inactive player: no code path emits an active state (pinned by test), a team block with an implausible count is UNUSABLE rather than half-true, an outage yields zero rows, and an observation after kickoff is POSTGAME_OBSERVATION and freezes nothing. Research only; not wired to the availability gate"
+  },
+  {
+   "id": "R36",
+   "requirement": "availability change events between horizons",
+   "before": "MISSING",
+   "evidence_before": "raw states were frozen per horizon; the transitions were never derived",
+   "after": "COMPLETE",
+   "evidence_after": "nfl_edge/evaluation/availability_events.py derives transitions from the frozen records (never captured separately, so it cannot contradict them), ranks direction by severity, keeps both raw states on every event, and labels a source going quiet EVIDENCE_LOST rather than a downgrade"
+  },
+  {
+   "id": "R37",
+   "requirement": "availability context validated against real captured evidence",
+   "before": "PARTIAL",
+   "evidence_before": "0% locally; the real context captures live on main's market-data branch and had never been ingested by branch code",
+   "after": "COMPLETE",
+   "evidence_after": "read-only replay against origin/market-data (10,819 files): availability 89.7% known on player rows, with EXPECTED_ACTIVE / OUT / QUESTIONABLE / UNKNOWN distinguished; the content-addressed dedupe of the context captures parses correctly"
+  },
+  {
+   "id": "R38",
+   "requirement": "weather context validated against real captured evidence",
+   "before": "PARTIAL",
+   "evidence_before": "0% locally",
+   "after": "COMPLETE",
+   "evidence_after": "replay: weather state known on 100% of player rows; wind and temperature present on 82.2% of the rows where they can apply, with domes and closed roofs classified NOT_APPLICABLE rather than missing. Forecast issue time and observation time are both preserved, so no actual game weather can ever be attached to an old prediction"
+  },
+  {
+   "id": "R39",
+   "requirement": "trade-tape context validated against real captured evidence",
+   "before": "PARTIAL",
+   "evidence_before": "0% locally",
+   "after": "COMPLETE",
+   "evidence_after": "replay: last-trade recency known on 57.3% of rows, which is the real coverage of a volume-gated tape, not a parse failure. The captured tape carries taker_side / taker_book_side / taker_outcome_side / is_block_trade, so directional pressure is genuinely supported by the exchange data rather than inferred"
+  },
+  {
+   "id": "R40",
+   "requirement": "route participation",
+   "before": "MISSING",
+   "evidence_before": "recorded as UNKNOWN with the reason 'routes are not in free data; snap share is the only proxy' -- which was wrong about this repo",
+   "after": "COMPLETE",
+   "evidence_after": "real routes exist for 2016-2025 from nflverse pbp_participation (the eleven offensive players on the field per play) and were already built into research/opportunity/player_usage.parquet, 102,422 player-games; v2 simply never attached them. Now frozen as point-in-time route share and targets per route run: 95.3% known on player rows"
+  },
+  {
+   "id": "R41",
+   "requirement": "red-zone and goal-line usage",
+   "before": "MISSING",
+   "evidence_before": "recorded as UNKNOWN with the reason 'red-zone usage feature not built'",
+   "after": "COMPLETE",
+   "evidence_after": "red-zone target share, red-zone carry share and inside-5 carry share from the play-by-play's own yardline, point-in-time over strictly prior games: 95.3% known on player rows"
+  },
+  {
+   "id": "R42",
+   "requirement": "field-by-field context coverage, no headline hiding a gap",
+   "before": "MISSING",
+   "evidence_before": "coverage was reported as a few aggregate percentages",
+   "after": "COMPLETE",
+   "evidence_after": "nfl_edge/evaluation/coverage.py reports every field as KNOWN / UNKNOWN / NOT_APPLICABLE with per-field rules. It immediately exposed one the aggregate had hidden: injury_report_status is 0% known because only 275 of 6,419 player rows are on a published report at all, which the 95.6% 'injury state known' headline concealed"
+  },
+  {
+   "id": "R43",
+   "requirement": "execution context on every research observation",
+   "before": "PARTIAL",
+   "evidence_before": "bid/ask/mid/width/volume/open interest/fees were present; depth, top-level size and size-adjusted execution were not",
+   "after": "COMPLETE",
+   "evidence_after": "the research row carries the quote, the book shape, the size-adjusted walk and the reason when depth is absent, with prediction research and execution research kept in separate blocks"
   }
  ],
  "instrumentation_commits": [
   "8f9f7911de485e05849000d6c1eedcb7a55e7c63",
   "8a29479f40dad51757aa32ab1824bf2accfa5035",
-  "(this commit)"
+  "(this commit)",
+  "round 2: season settlement, exchange cross-check, open-set evidence, depth + size research, inactives, availability events, route/red-zone, coverage audit"
  ],
  "validation_runs": {
   "projector_full_snapshot_20260911T010527Z": {
@@ -258,5 +395,12 @@
    "rows": 17774,
    "bytes": 411441
   }
+ },
+ "matrix_version": "readiness-2.0.0",
+ "round_2_head_before": "7abaa65630966b40a6bb103c3cf63f0377c7bb5b",
+ "completeness_rule": "A dimension is COMPLETE when the system captures the value wherever it is genuinely available, preserves UNKNOWN explicitly with a reason wherever it is not, and makes absence impossible to mistake for healthy data. A field that is often UNKNOWN can therefore be COMPLETE; a field that is usually present but silently empty when its source fails cannot be.",
+ "summary_after": {
+  "COMPLETE": 42,
+  "PARTIAL": 1
  }
 }

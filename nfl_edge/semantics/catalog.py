@@ -23,7 +23,7 @@ from nfl_edge.semantics.questions import (
 )
 
 # model support states
-CATALOG_VERSION = "catalog-1.0.0"
+CATALOG_VERSION = "catalog-1.1.0"       # 1.1.0: season settlement (wins-through-week, division, playoffs) is SUPPORTED
 PRICED = "PRICED"                       # validated engine; automatic pricing (incumbent game families)
 SHADOW = "SHADOW"                       # research engine; projections written as shadow-only
 RESEARCH_REQUIRED = "RESEARCH_REQUIRED"
@@ -172,12 +172,15 @@ _add(_e("SEASON_WINS", "SEASON", SEASON, "season_wins", LIKELY, "regular-season 
         "rules_primary 'wins at least K games in the regular season'", reason="schedule Monte Carlo; tie treatment not pinned by the rules text"))
 _add(_e("SEASON_WINS_EXACT", "SEASON", SEASON, "season_wins", LIKELY, "regular-season wins == K", "n/a", "LIKELY", "NA", SHADOW, SETTLE_SUPPORTED,
         _SCHED + " (season aggregate; settles only once every regular-season game of the team is FINAL)", "settle-2.0.0", "titles"))
-_add(_e("TEAM_WINS_BY_WEEK", "SEASON", SEASON, "wins_through_week", LIKELY, "wins through week W >= K", "no push", "LIKELY", "NA", SHADOW, SETTLE_PLANNED, _SCHED, "settle-2.0.0", "titles"))
-_add(_e("MAKE_PLAYOFFS", "SEASON", SEASON, "playoffs", LIKELY, "team is one of the 14 qualifiers", "n/a", "NFL tie-breakers (approximated)", "NA",
-        SHADOW, SETTLE_PLANNED, "final standings (nflverse schedule) with approximate tie-breakers", "settle-2.0.0", "rules_primary",
-        reason="tie-breaker procedure approximated in simulation; settlement needs the official standings"))
-_add(_e("DIVISION_WINNER", "SEASON", SEASON, "division", LIKELY, "team wins its division", "n/a", "tie-breakers approximated", "NA", SHADOW, SETTLE_PLANNED,
-        "final standings", "settle-2.0.0", "rules_primary"))
+_add(_e("TEAM_WINS_BY_WEEK", "SEASON", SEASON, "wins_through_week", LIKELY, "wins through week W >= K", "no push",
+        "both readings evaluated (a tie is 0 wins / half a win); settles only where they agree", "NA", SHADOW, SETTLE_SUPPORTED,
+        _SCHED + " (the team's own games through week W; settles early once no remaining game can change the answer)", "season-settle-1.0.0", "titles"))
+_add(_e("MAKE_PLAYOFFS", "SEASON", SEASON, "playoffs", LIKELY, "team is one of the 14 qualifiers", "n/a", "no tie-break is run: the bracket is read, not computed", "NA",
+        SHADOW, SETTLE_SUPPORTED, "nflverse schedules/games.csv postseason games: presence proves qualification, absence from a structurally complete bracket proves elimination",
+        "season-settle-1.0.0", "rules_primary", reason="projection tie-breaks are approximate (LIKELY); settlement never uses them"))
+_add(_e("DIVISION_WINNER", "SEASON", SEASON, "division", LIKELY, "team wins its division", "n/a", "no tie-break is run: the league's own seeding is read back", "NA", SHADOW, SETTLE_SUPPORTED,
+        "nflverse schedules/games.csv postseason bracket: seeds 1-4 of a conference are its division winners, i.e. {wild-card hosts} + {bye teams}, cross-checked against the divisions' W-L-T",
+        "season-settle-1.0.0", "rules_primary"))
 _add(_e("CONFERENCE_WINNER", "SEASON", SEASON, "conference", LIKELY, "team wins the conference championship", "n/a", "n/a", "NA", SHADOW, SETTLE_PLANNED,
         "playoff results", "settle-2.0.0", "rules_primary"))
 _add(_e("SUPER_BOWL_WINNER", "SEASON", SEASON, "super_bowl", LIKELY, "team wins the Super Bowl", "n/a", "n/a", "NA", SHADOW, SETTLE_PLANNED,

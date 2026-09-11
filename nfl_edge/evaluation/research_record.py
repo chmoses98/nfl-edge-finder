@@ -66,7 +66,7 @@ def family_group(r: dict) -> str:
 
 
 def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement: dict | None, autopsy: dict | None, sidecar: dict | None) -> dict:
-    pc, gc, ms, hq, fl = (proj.get(k) or {} for k in ("player_context", "game_context", "market_state", "horizon_quality", "flags"))
+    pc, gc, ms, hq, fl, dp = (proj.get(k) or {} for k in ("player_context", "game_context", "market_state", "horizon_quality", "flags", "depth"))
     h_mid = proj.get("mid")
     cv = proj.get("contract_value")
     dis_pp = (100.0 * (cv - h_mid)) if (cv is not None and h_mid is not None) else None
@@ -104,6 +104,14 @@ def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement
            **{f"ctx_{k}": v for k, v in pc.items() if k != "player_context_id"}, "player_context_id": pc.get("player_context_id"),
            **{f"game_{k}": v for k, v in gc.items() if k != "game_context_id"}, "game_context_id": gc.get("game_context_id"),
            "context_in_sidecar": bool(full_pc or full_gc),
+           # executable depth at this horizon: the state and the reason travel together, so an unobserved book
+           # can never be read as a thin market. Canonical CLV above is untouched by any of this.
+           "depth": dp, "depth_state": dp.get("state", "DEPTH_NOT_CAPTURED"), "depth_reason": dp.get("why"),
+           "depth_side": dp.get("side"), "depth_top_size": dp.get("top_size"), "depth_levels": dp.get("levels"),
+           "depth_contracts_available": dp.get("avail"), "depth_book_age_min": dp.get("age_min"),
+           "exec_vwap_1": dp.get("vwap1"), "exec_vwap_10": dp.get("vwap10"), "exec_vwap_50": dp.get("vwap50"),
+           "exec_slippage_1_to_50": (None if dp.get("vwap1") is None or dp.get("vwap50") is None else round(dp["vwap50"] - dp["vwap1"], 6)),
+           "exec_size_to_exhaust_edge": dp.get("edge_size"),
            # close + clv
            "close_status": (close or {}).get("close_status", "CLV_CLOSE_MISSING" if close is None else None), "close_reason": (close or {}).get("close_reason"),
            "close_quality": (close or {}).get("close_quality", "MISSING"), "close_id": (close or {}).get("close_id"), "close_age_seconds": (close or {}).get("close_age_seconds"),

@@ -40,6 +40,8 @@ from nfl_edge.data.nfl_calendar import kickoff_utc                              
 from nfl_edge.engines import coherence as CE, game as GE, joint as JE, period as PE, season as SE  # noqa: E402
 from nfl_edge.engines.player import data_dist as DD, hybrid_dist as HD, market_dist as MD   # noqa: E402
 from nfl_edge.engines.player.features_v2 import add_v2_features                             # noqa: E402
+from nfl_edge.evaluation import clv as CLV                                                 # noqa: E402
+from nfl_edge.evaluation import execution_depth as XD                                      # noqa: E402
 from nfl_edge.execution.fees import load_fee_schedule                                      # noqa: E402
 from nfl_edge.pricing.game_env import ResidualBank, simulate_game                          # noqa: E402
 from nfl_edge.pricing.market_implied import implied_game_lines                             # noqa: E402
@@ -47,6 +49,7 @@ from nfl_edge.projection import horizons as HZ                                  
 from nfl_edge.projection import quality as QU                                              # noqa: E402
 from nfl_edge.projection import record as R                                                # noqa: E402
 from nfl_edge.projection.store import DIRNAME, ProjectionConflict, ProjectionStore, context_id, sidecar_path, write_sidecar  # noqa: E402
+from nfl_edge.features import opportunity                                                  # noqa: E402
 from nfl_edge.research import player_distributions as pdist                                # noqa: E402
 from nfl_edge.semantics import catalog as CAT, questions as Q                              # noqa: E402
 from nfl_edge.settlement import semantics as sem_mod                                       # noqa: E402
@@ -58,6 +61,7 @@ from nfl_edge.shadow_v2.capture_io import (discovery_markets_by_ticker, fnum, la
 
 MODEL_VERSION = "shadow-v2-1.0.0"
 ARM_BOARD = "BOARD_V2"
+BOOK_WINDOW_MIN = 72.0 * 60                 # the capture fetches books only inside this window (scripts/kalshi/capture.py)
 ARM_DATA, ARM_MARKET, ARM_HYBRID = "DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST"
 PLAYER_ARMS = (ARM_DATA, ARM_MARKET, ARM_HYBRID)
 ENGINE_STATS = {"passing_yards": "passing_yards", "passing_tds": "passing_tds", "interceptions": "interceptions", "attempts": "attempts",
@@ -145,7 +149,8 @@ def main(argv=None):
     if not quotes:
         log("no capture quotes found"); return 2
     snapshot_id = run_ts.strftime("%Y%m%dT%H%M%SZ")
-    books = load_books(capture_root)
+    books = load_books(capture_root, snapshot_id=snapshot_id)
+    book_tiers = {s: (v or {}).get("tier") for s, v in (man.get("series") or {}).items()}
     ddir = a.discovery_dir or latest_discovery_dir(a.market_data)
     disc_markets = discovery_markets_by_ticker(ddir) if ddir else {}
     log(f"snapshot {snapshot_id}: {len(quotes)} tickers, {len(books)} books, discovery {os.path.basename(ddir) if ddir else 'none'} ({len(disc_markets)} markets)")
@@ -304,6 +309,13 @@ def main(argv=None):
                            "engine_versions": lineage.get("engine_versions"), "bundle_sha": lineage.get("bundle_sha"), "period_bank_fingerprint": lineage.get("period_bank_fingerprint"),
                            "depth_chart_vintage": lineage.get("depth_chart_vintage"), "injury_report_retrieved_at": lineage.get("injury_report_retrieved_at"), "sidecar": os.path.basename(sidecar_path(store_root, snapshot_id))}
         base["horizon_quality"] = QU.horizon_quality(base.get("horizon_label"), base.get("horizon_target_min"), base.get("kickoff_utc"), q.get("observed_at"), gen_iso, snapshot_reused=reused)
+        book_row, book_why = books.get(t), None
+        if book_row is None:
+            # WHY there is no book, not merely that there is none: a series never fetched for books and a
+            # ticker that lost the per-run cap are different facts, and only one of them is about this market.
+            book_why = ("SERIES_TIER_NOT_FULL" if book_tiers.get(q.get("series_ticker")) != "FULL_MICROSTRUCTURE"
+                        else ("OUTSIDE_BOOK_WINDOW" if (q.get("minutes_to_kickoff") is None or q["minutes_to_kickoff"] > BOOK_WINDOW_MIN)
+                              else "DROPPED_BY_BUDGET"))
         # ---- non-player engines -> BOARD arm
         if qq.engine != Q.PLAYER:
             ans, eng_ver, dist_ver = None, "none", "none"
@@ -328,6 +340,7 @@ def main(argv=None):
                                               generated_before_kickoff=gen_before, allow_historical=a.allow_historical)
             base["flags"] = QU.status_flags(support_state=st, semantic_confidence=qq.semantic_confidence, identity_confidence=None, subject_kind=qq.subject_kind,
                                             settlement_support=(entry.settlement if entry else None), engine=qq.engine)
+            base["depth"] = depth_block(cv, base, book_row, book_why, q, fee_sched, run_ts)
             rec = R.ProjectionRecord(record_id="", model_arm=ARM_BOARD, engine=qq.engine, engine_version=eng_ver, distribution_version=dist_ver,
                                      model_version=MODEL_VERSION, p_yes=p, contract_value=cv, support_state=st, support_reason=reason,
                                      projection_lineage={"game_env": ({"spread": env["spread"], "total": env["total"], "source": env["source"]} if env else None),
@@ -358,6 +371,7 @@ def main(argv=None):
             base["player_context"] = CX.compact_player_context(full, pc_id)
             base["flags"] = QU.status_flags(support_state=st, semantic_confidence=qq.semantic_confidence, identity_confidence=lineage.get("identity_confidence"),
                                             subject_kind="player", settlement_support=(entry.settlement if entry else None), engine=Q.PLAYER)
+            base["depth"] = depth_block(cv, base, book_row, book_why, q, fee_sched, run_ts)
             rec = R.ProjectionRecord(record_id="", model_arm=arm, engine=Q.PLAYER, engine_version=eng_ver, distribution_version=dist_ver,
                                      model_version=MODEL_VERSION, p_yes=p, contract_value=cv, support_state=st, support_reason=reason,
                                      identity_confidence=lineage.get("identity_confidence"), projection_lineage=lineage, feature_lineage=feat,
@@ -415,6 +429,27 @@ def main(argv=None):
     open(os.path.join(sd, f"{snapshot_id}.SUMMARY.md"), "w").write(render_summary(summ))
     log(f"done in {perf['seconds']:.0f}s, rss {perf['max_rss_mb']:.0f} MB, {len(all_rows)} records")
     return 0
+
+
+def depth_block(cv, base, book_row, book_why, q, fee_sched, as_of) -> dict:
+    """Executable depth on the side the frozen model would have bought, or the named reason there is none.
+
+    A contract with no model probability has no execution question, so it records NOT_PROBABILITY_CARRYING
+    rather than a missing book -- otherwise the depth-coverage percentage would be measured against a
+    denominator that includes contracts nobody would ever trade. The side is the model's own, taken through the
+    canonical CLV sign convention so the depth block and the CLV block can never disagree about which side was
+    being bought.
+    """
+    if cv is None:
+        return {"state": XD.DEPTH_NOT_CAPTURED, "why": "NOT_PROBABILITY_CARRYING"}
+    yb, ya = base.get("yes_bid"), base.get("yes_ask")
+    mid = (yb + ya) / 2.0 if (yb is not None and ya is not None) else None
+    side = CLV.model_side(cv, mid)
+    side = "YES" if side in (CLV.YES, CLV.NO_VIEW) else "NO"
+    fair = cv if side == "YES" else (1.0 - cv)
+    table = XD.execution_table(book_row, side, fair=fair, schedule=fee_sched, series_ticker=q.get("series_ticker"),
+                               as_of=as_of, not_captured_reason=book_why)
+    return {**XD.record_block(table), "side": side}
 
 
 def snapshot_reused(roots, snapshot_id: str) -> bool:
@@ -618,13 +653,29 @@ def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now) -> PlayerArms:
     combined = build_prospective_rows(hist, upcoming)
     combined = pdist.add_ewma_features(combined, halflife=cfg["halflife"], season_carry=cfg["season_carry"], shrink_k=cfg["shrink_k"], priors=priors)
     combined = add_v2_features(combined, halflife=cfg["halflife"], season_carry=cfg["season_carry"], shrink_k=cfg["shrink_k"])
+    # ROLE FEATURES: real route participation and red-zone / goal-line opportunity, strictly point in time.
+    # These are NOT new modelling -- the incumbent pricer has used them from the start, and the underlying
+    # counts are nflverse participation + play-by-play, already built into
+    # research/opportunity/player_usage.parquet. v2 was simply not attaching them, so every v2 record said
+    # "routes UNKNOWN" about data this repo has for 2016-2025. The recursion writes row i from rows 0..i-1 only,
+    # and a prospective row's own counts are NaN, so a projection can never see its own game.
+    role_state = {"attached": False, "reason": None}
+    try:
+        combined = opportunity.attach_role_features(combined, halflife=cfg["halflife"], season_carry=cfg["season_carry"],
+                                                    shrink_k=cfg["shrink_k"])
+        role_state["attached"] = pdist.has_role_features(combined)
+        role_state["reason"] = None if role_state["attached"] else "role columns absent after attach"
+    except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
+        role_state["reason"] = f"{type(exc).__name__}: {str(exc)[:120]}"
+        log(f"::warning::role features unavailable ({role_state['reason']}); route and red-zone context will be UNKNOWN")
     combined = DD.ensure_columns(combined)
     feat = combined[combined.is_prospective == True].reset_index(drop=True)   # noqa: E712
     histf = combined[combined.is_prospective != True]                          # noqa: E712
     stats_needed = sorted({ENGINE_STATS[k[2]] for k in ladders if k[2] in ENGINE_STATS})
     P.bundle = DD.fit_bundle(histf, a.target_season, feature_set="v2", stats=stats_needed, verbose=log)
-    keep = [c for c in feat.columns if c.startswith("ewma_") or c.startswith("share_recent") or c in
+    keep = [c for c in feat.columns if c.startswith("ewma_") or c.startswith("share_recent") or c.startswith("pit_") or c in
             ("team", "position", "opponent_team", "home", "implied_total", "spread_team", "qb_changed_recent", "n_prior", "shrink_w", "w_eff", "qb_starter")]
+    P.role_features = role_state
     for i, r in feat.iterrows():
         row = {c: r[c] for c in keep}
         row["_schedule_qb"] = P.qb.get((r["game_id"], r["team"]))

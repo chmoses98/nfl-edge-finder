@@ -27,6 +27,8 @@ sys.path.insert(0, ROOT)
 from nfl_edge.engines.player import autopsy_v2 as AU                                     # noqa: E402
 from nfl_edge.evaluation import scorecard_v2 as SC                                       # noqa: E402
 from nfl_edge.projection.store import read_projections, read_sidecars                    # noqa: E402
+from nfl_edge.settlement import crosscheck as XC                                         # noqa: E402
+from nfl_edge.settlement import season_settlement as SS                                  # noqa: E402
 from nfl_edge.settlement import settle_v2 as S2                                          # noqa: E402
 from nfl_edge.settlement.nflverse_results import build_result_book                       # noqa: E402
 from nfl_edge.settlement.period_results import PeriodBook                                # noqa: E402
@@ -35,6 +37,7 @@ from nfl_edge.shadow import evaluation_store as ST                              
 
 SUFFIX = "settlements_v2"
 AUTOPSY_SUFFIX = "autopsy_v2"
+CROSSCHECK_SUFFIX = "crosscheck_v2"
 
 
 def log(*a):
@@ -79,6 +82,9 @@ def main(argv=None):
         if r.get("game_id"):
             by_game.setdefault(r["game_id"], []).append(r)
     ready, deferred, written, settled_rows = [], {}, 0, []
+    # One SeasonLedger per season, built once: wins-through-week, division winners and playoff qualification all
+    # read the same season's games, and rebuilding it per record would be quadratic in the board.
+    season_ledgers = {s: SS.SeasonLedger(book.games, s) for s in sorted({g.season for g in book.games.values() if g.season})}
     for gid in sorted(by_game):
         needs_players = any(r.get("engine") == "PLAYER" for r in by_game[gid])
         state, reason = book.readiness(gid, needs_player_stats=needs_players, now=now)
@@ -90,7 +96,7 @@ def main(argv=None):
         for r in by_game[gid]:
             if r.get("p_yes") is None:
                 continue                                    # a refusal has nothing to settle
-            s = S2.settle_projection(r, book, pbook)
+            s = S2.settle_projection(r, book, pbook, season_ledger=season_ledgers)
             out_rows.append({"prediction_id": r["record_id"], "evaluation_version": S2.SETTLE_VERSION, "evaluated_at": now.isoformat(),
                              **{k: r.get(k) for k in ("record_id", "snapshot_id", "ticker", "model_arm", "engine", "market_family", "period", "stat_family",
                                                       "game_id", "season", "week", "subject_id", "subject_name", "horizon_label", "minutes_to_kickoff",
@@ -128,16 +134,42 @@ def main(argv=None):
             au_corpus.write_batch(gid, au_rows, evaluation_version=AU.AUTOPSY_VERSION, batch=batch, plan=plan)
     # scorecard from the WHOLE corpus (published + staged)
     all_rows = [row for (row, _) in corpus.load().values()]
-    sc = SC.build_scorecard(all_rows)
+    # EXCHANGE CROSS-CHECK. Read only from what the pipeline already captured (daily discovery's settled bucket
+    # and the historical backfill), so it costs no API calls. The derived football settlement is never replaced
+    # by the exchange value: this is a check on our reading of the contract, and a disagreement is a hard
+    # research-quality warning that the whole family may have been priced on a wrong reading.
+    xres = XC.ExchangeResults(a.market_data)
+    xrows = XC.crosscheck_rows(all_rows, xres)
+    xsum = XC.summarize(xrows)
+    log(f"exchange cross-check: {xsum['n']} rows, {xsum['by_agreement']}, disagreements {xsum['n_disagreements']}"
+        f"{' in ' + ', '.join(xsum['families_with_disagreement']) if xsum['families_with_disagreement'] else ''}")
+    for d in xsum["disagreements"][:10]:
+        log(f"  ::warning::SETTLEMENT DISAGREEMENT {d['ticker']}: derived {d['derived_settled_yes']} vs exchange {d['exchange_payout']}")
     sc_dir = os.path.join(a.out, "scorecards")
     if not a.dry_run:
         os.makedirs(sc_dir, exist_ok=True)
+        json.dump(xsum, open(os.path.join(sc_dir, "exchange_crosscheck.json"), "w"), indent=1, default=str)
+        xc_corpus = ST.EvaluationCorpus(os.path.join(a.out, "crosscheck"),
+                                        read_roots=[os.path.join(a.market_data, "data", "shadow", "v2", "crosscheck")],
+                                        suffix=CROSSCHECK_SUFFIX)
+        by_g = {}
+        for r, row in zip(all_rows, xrows):
+            by_g.setdefault(r.get("game_id") or "SEASON", []).append({**row, "prediction_id": r.get("prediction_id") or r.get("record_id")})
+        for gid, rws in by_g.items():
+            plan = xc_corpus.plan(rws, gid)
+            if plan["conflicts"]:
+                raise ST.EvaluationConflict(plan["conflicts"])
+            xc_corpus.write_batch(gid, rws, evaluation_version=XC.CROSSCHECK_VERSION, batch=batch, plan=plan)
         json.dump(sc, open(os.path.join(sc_dir, "scorecard_v2.json"), "w"), indent=1, default=str)
         open(os.path.join(sc_dir, "SCORECARD_V2.md"), "w").write(SC.render(sc))
         au_all = [row for (row, _) in au_corpus.load().values()]
         json.dump(AU.summarize(au_all), open(os.path.join(sc_dir, "autopsy_v2_summary.json"), "w"), indent=1, default=str)
     summary = {"batch_id": batch, "settle_version": S2.SETTLE_VERSION, "games_ready": ready, "games_deferred": deferred, "written": written,
-               "by_status": dict(Counter(r["settlement_status"] for r in settled_rows)), "corpus_rows": len(all_rows), "dry_run": a.dry_run}
+               "by_status": dict(Counter(r["settlement_status"] for r in settled_rows)), "corpus_rows": len(all_rows), "dry_run": a.dry_run,
+               "season_settle_version": SS.SEASON_SETTLE_VERSION,
+               "exchange_crosscheck": {k: xsum[k] for k in ("n", "by_agreement", "comparable", "agreement_rate",
+                                                            "n_disagreements", "families_with_disagreement")},
+               "exchange_sources": xres.summary()}
     log(json.dumps(summary, indent=1, default=str))
     if a.github_output:
         with open(a.github_output, "a") as f:

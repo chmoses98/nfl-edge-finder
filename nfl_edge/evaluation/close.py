@@ -15,7 +15,21 @@ reason, anything that is not a strict pre-kickoff observation of the same contra
 a non-open status, a kickoff that moved after the projection, a capture stamped exactly at kickoff, an empty
 side. It never infers a price from a neighbouring rung or a different contract.
 
-Selection rule version: close-2.0.0.
+close-2.1.0 adds OPEN-SET EVIDENCE (nfl_edge/evaluation/openset.py) without moving the selection rule. The close
+is still the last complete valid pre-kickoff observation of the exact contract; what is new is that the record
+can now say WHY no later observation exists, which is the difference between a close that stands and one that
+merely looks like one:
+
+    the contract was DELISTED before kickoff        its last live quote is a legitimate close (flag DELISTED_BEFORE_KICKOFF)
+    the contract CLOSED before kickoff              likewise (flag CLOSED_BEFORE_KICKOFF)
+    the series fetch failed after the last sighting  absence proves nothing (flag ABSENCE_UNEXPLAINED)
+    the series was not polled after the last sighting likewise (flag ABSENCE_UNEXPLAINED)
+
+and that a confirmation instant is never claimed at a run in which the open set says the ticker was NOT open --
+if the manifest-derived confirming run disagrees with the open set, the open set wins and the claim retreats to
+the last run the contract was provably open (flag CONFIRMATION_RETREATED).
+
+Selection rule version: close-2.1.0.
 """
 from __future__ import annotations
 
@@ -25,9 +39,10 @@ import json
 import os
 from datetime import datetime, timezone
 
+from nfl_edge.evaluation import openset as OS
 from nfl_edge.shadow.quote_history import load_game_quotes
 
-CLOSE_RULE_VERSION = "close-2.0.0"
+CLOSE_RULE_VERSION = "close-2.1.0"
 EXCELLENT, GOOD, STALE, MISSING = "EXCELLENT", "GOOD", "STALE", "MISSING"
 # tiers on close_age_seconds (kickoff - confirmation instant). Named once.
 TIER_EXCELLENT_S = 20 * 60           # confirmed live within 20 minutes of kickoff
@@ -118,10 +133,12 @@ class CaptureRuns:
 class CloseIndex:
     """Closes for every ticker of one game, built once from the capture (bounded to the game's days)."""
 
-    def __init__(self, capture_root: str, game_id: str, kickoff_utc: str, *, runs: CaptureRuns | None = None, days_back: int = 14):
+    def __init__(self, capture_root: str, game_id: str, kickoff_utc: str, *, runs: CaptureRuns | None = None, days_back: int = 14,
+                 openset: "OS.OpenSetLedger | None" = None):
         self.game_id = game_id
         self.kickoff = _dt(kickoff_utc)
         self.runs = runs or CaptureRuns(capture_root)
+        self.openset = openset
         self.quotes, self.stats = load_game_quotes(capture_root, game_id, kickoff_utc=kickoff_utc, days_back=days_back)
         self._raw = {}
         # duplicates (the same run writing the same ticker twice) collapse to one row per (run_id, observed_at)
@@ -155,6 +172,7 @@ class CloseIndex:
             return base
         series = series_ticker or ticker.rsplit("-", 2)[0]
         conf = self.runs.confirmation(ticker, series, self.kickoff)
+        presence, disappearance, os_flags = self._open_set_evidence(ticker, series, conf, last)
         confirmed_at = conf.get("confirmed_at") or last.get("observed_at")
         confirmed_dt = _dt(confirmed_at)
         age_s = (self.kickoff - confirmed_dt).total_seconds() if confirmed_dt else None
@@ -164,6 +182,7 @@ class CloseIndex:
             flags.append("NO_CONFIRMING_RUN")          # price row exists but no manifest proves a later complete fetch
         elif not conf.get("complete"):
             flags.append("SERIES_FETCH_INCOMPLETE")
+        flags += os_flags
         yb, ya, nb, na = last.get("yes_bid"), last.get("yes_ask"), last.get("no_bid"), last.get("no_ask")
         one_sided = (yb is None or ya is None or nb is None or na is None) or (yb is not None and yb <= 0.0 and na is not None and na >= 1.0) or (ya is not None and ya >= 1.0 and nb is not None and nb <= 0.0)
         if one_sided:
@@ -185,11 +204,46 @@ class CloseIndex:
                "quote_width": last.get("quote_width"), "volume": last.get("volume"), "open_interest": last.get("open_interest"),
                "liquidity": last.get("liquidity"), "last_price": last.get("last_price"),
                "capture_completeness": {"series_complete": conf.get("complete"), "partial_run": conf.get("partial_run"), "tier": conf.get("tier"), "n_in_series": conf.get("n_in_series")},
-               "market_quality": {"status": last.get("status"), "n_pregame_rows": len(rows), "n_rows_total": len(self.quotes.get(ticker, []))}}
+               "market_quality": {"status": last.get("status"), "n_pregame_rows": len(rows), "n_rows_total": len(self.quotes.get(ticker, []))},
+               "close_presence": presence, "close_disappearance": disappearance,
+               "absence_explained": (disappearance or {}).get("explained")}
         return rec
 
+    def _open_set_evidence(self, ticker, series, conf, last):
+        """Presence at the confirming run, and why nothing later exists. Absent evidence changes nothing."""
+        if self.openset is None:
+            return ({"state": OS.UNKNOWN, "reason": "no open-set ledger supplied"}, None, [])
+        flags = []
+        run = conf.get("run_id") or last.get("run_id")
+        close_time = last.get("close_time")
+        presence = self.openset.presence(ticker, run, series_ticker=series, close_time=close_time) if run else \
+            {"state": OS.UNKNOWN, "reason": "no confirming run to check"}
+        # A confirmation is never claimed at a run the open set says the ticker was not open in.
+        if presence.get("state") not in (OS.OPEN, OS.UNKNOWN):
+            back = self.openset.last_open_run(ticker, before=self.kickoff)
+            if back:
+                obs = self.openset.run_at.get(back)
+                conf.update(run_id=back, confirmed_at=obs.isoformat() if obs else conf.get("confirmed_at"),
+                            confirmed_at_dt=obs, openset_retreat=True)
+                flags.append("CONFIRMATION_RETREATED")
+                presence = self.openset.presence(ticker, back, series_ticker=series, close_time=close_time)
+        dis = self.openset.disappearance(ticker, after_run=conf.get("run_id") or run, until=self.kickoff,
+                                         series_ticker=series, close_time=close_time)
+        first = dis.get("first_non_open") or {}
+        if first.get("state") == OS.DELISTED:
+            flags.append("DELISTED_BEFORE_KICKOFF")
+        elif first.get("state") == OS.CLOSED:
+            flags.append("CLOSED_BEFORE_KICKOFF")
+        elif first.get("state") in (OS.PARTIAL_FETCH, OS.SERIES_NOT_POLLED):
+            flags.append("ABSENCE_UNEXPLAINED")
+        return presence, dis, flags
 
-def build_indexes(capture_root: str, games: dict, days_back: int = 14) -> dict:
-    """games: game_id -> kickoff_utc. One CloseIndex per game; the CaptureRuns are shared."""
+
+def build_indexes(capture_root: str, games: dict, days_back: int = 14, *, with_openset: bool = True) -> dict:
+    """games: game_id -> kickoff_utc. One CloseIndex per game; the CaptureRuns and open-set ledger are shared."""
     runs = CaptureRuns(capture_root)
-    return {gid: CloseIndex(capture_root, gid, ko, runs=runs, days_back=days_back) for gid, ko in games.items() if ko}
+    led = OS.OpenSetLedger(capture_root) if with_openset else None
+    if led is not None and not led.runs:
+        led = None                                   # captures written before open-set evidence existed
+    return {gid: CloseIndex(capture_root, gid, ko, runs=runs, days_back=days_back, openset=led)
+            for gid, ko in games.items() if ko}

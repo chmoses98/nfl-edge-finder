@@ -203,4 +203,47 @@
 52. **The canonical close dates confirmation to the last run a ticker was seen open**, not to the exchange's own
     close, and quality tiers cut on that age; a STALE close is reported and segmentable, never pooled with EXCELLENT.
 53. **Point-in-time context is as good as the sources on disk at generation time:** weather / Sleeper / ESPN only
-    where context captures exist; route participation and red-zone usage are UNKNOWN by construction.
+    where context captures exist. (The clause that once stood here — that route participation and red-zone usage
+    are UNKNOWN by construction — was wrong about this repo and is superseded by item 59: both come from
+    nflverse participation and play-by-play and are now frozen on 95.3% of player rows.)
+
+54. **Order-book depth reaches only 16.4% of probability-carrying contracts under the current capture.** The
+    10-minutely capture is capacity-bound (10,591 book candidates against a 2,500 cap). Kalshi publishes no
+    historical order books, so a book not fetched at the horizon is gone permanently. The horizon depth job
+    (`scripts/shadow_v2/capture_depth_v2.py`, budget 8000) covers 100% of the 7,723 in-window contracts in about
+    32 minutes, but it is inert until PR #9 is merged and has never run prospectively. This is the one
+    first-week gap that is genuinely irretrievable rather than merely inconvenient.
+
+55. **Depth coverage today has a selection gradient.** Measured on the live board, 25.3% of contracts in the
+    0–0.5pp disagreement band have a captured book against 8.8% above 10pp, because large disagreements
+    concentrate in illiquid player markets that lose the incumbent capture's traded-first book priority. Any
+    depth-conditional result computed on the current sample is unrepresentative. The horizon job's priority does
+    not use the model's own view, and coverage is reported by band so the gradient stays measurable.
+
+56. **Per-run open-set evidence only exists from the first capture run after merge.** Earlier runs cannot be
+    reconstructed and are reported as `UNKNOWN` presence rather than guessed. Closes over those runs behave
+    exactly as they did before.
+
+57. **The official inactive list has not been shown to arrive reliably.** The collector is built so a failure
+    yields zero rows rather than a false "everyone is playing", but the source itself is still unproven across
+    game days; the first week may legitimately record no confirmed inactives.
+
+58. **`injury_report_status` is 0% known at the current snapshot** because only 275 of 6,419 player rows are on
+    a published injury report — the week's report had not been published into the nflverse vintage. This is
+    correct behaviour (`NOT_LISTED`), not a parse failure, but it means injury-conditional research has a much
+    smaller sample than the 95.6% "injury state known" headline suggests.
+
+59. **Route participation and red-zone features stop at the 2025 season.** The committed usage cache covers
+    2016–2025; 2026 games enter it only once nflverse publishes participation for them. Point-in-time features
+    for early 2026 therefore rest on prior-season history, which is correct but staler than it will later be.
+
+60. **Season settlement cannot be exercised until a season ends.** The wins-through-week branch settles during
+    the season, but the division and playoff branches need a structurally complete postseason bracket, so both
+    are proven only by tests until January.
+
+61. **`tests/test_postgame_pipeline.py::test_a_rerun_with_identical_evidence_writes_nothing` is order-dependent
+    and fails roughly one run in twenty.** Reproduced on `7abaa65` with this round's changes stashed, so it
+    predates the round and is not caused by it; it passes in isolation and under a fixed collection order. The
+    no-op rerun assertion compares a directory digest, so the likely cause is shared state between test modules
+    rather than a corpus defect. Untriaged, and a flaky gate is a live risk once the first week's settle job
+    depends on CI.
