@@ -29,6 +29,7 @@ from typing import Any, Iterable, Optional
 import numpy as np
 import pandas as pd
 
+from tennis_edge.data.frames import clean_text, is_missing, object_series, text_column
 from tennis_edge.data.sources import find_files, read_csv_gz, sackmann_dir, year_from_filename
 from tennis_edge.rules.score_parser import ScoreParse, parse_score
 
@@ -120,7 +121,7 @@ class NormalizeResult:
 # --- small pure helpers -------------------------------------------------------
 def normalize_surface(value: Any) -> Optional[str]:
     """Map free-text surface to Hard/Clay/Grass/Carpet; None when unknown/blank."""
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if is_missing(value):
         return None
     key = str(value).strip().lower()
     if not key or key in ("none", "nan", "unknown"):
@@ -149,7 +150,7 @@ def infer_indoor(surface: Optional[str], tourney_name: Any) -> Optional[bool]:
 
 def canonical_level(level_raw: Any, tour: str) -> tuple[str, bool]:
     """Return (level_canonical, known) for one raw level code."""
-    if level_raw is None or (isinstance(level_raw, float) and np.isnan(level_raw)):
+    if is_missing(level_raw):
         return OTHER, False
     code = str(level_raw).strip()
     mapped = _LEVEL_MAP.get(tour, {}).get(code.upper())
@@ -162,7 +163,7 @@ def canonical_level(level_raw: Any, tour: str) -> tuple[str, bool]:
 
 def parse_tourney_date(value: Any) -> Optional[date]:
     """``20240115`` (int/float/str) -> date; None when malformed."""
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if is_missing(value):
         return None
     try:
         s = str(int(float(value)))
@@ -175,7 +176,7 @@ def parse_tourney_date(value: Any) -> Optional[date]:
 
 def is_qualifying_round(round_value: Any) -> bool:
     """Q1/Q2/Q3 are qualifying; 'QF' is a quarter-final and must not match."""
-    if round_value is None:
+    if is_missing(round_value):
         return False
     return bool(_QUAL_ROUND_RE.match(str(round_value).strip().upper()))
 
@@ -205,22 +206,20 @@ def _to_float(series: pd.Series) -> pd.Series:
 
 def _to_str_or_none(series: pd.Series) -> pd.Series:
     """Object column of stripped strings with None for blanks (keeps seeds like '1' and entries like 'WC')."""
-    out = series.astype("object").where(series.notna(), None)
-    return out.map(lambda v: None if v is None else (str(v).strip() or None)).astype("object")
+    return text_column(series)
 
 
 def _seed_to_str(series: pd.Series) -> pd.Series:
     """Seeds arrive as floats (1.0) in some files; render them as '1'."""
     def fmt(v: Any) -> Optional[str]:
-        if v is None or (isinstance(v, float) and np.isnan(v)):
+        if is_missing(v):
             return None
         if isinstance(v, (int, np.integer)):
             return str(int(v))
         if isinstance(v, (float, np.floating)) and float(v).is_integer():
             return str(int(v))
-        s = str(v).strip()
-        return s or None
-    return series.map(fmt).astype("object")
+        return clean_text(v)
+    return object_series((fmt(v) for v in series), series.index)
 
 
 def _score_frame(scores: Iterable[Any]) -> pd.DataFrame:
@@ -235,8 +234,14 @@ def _score_frame(scores: Iterable[Any]) -> pd.DataFrame:
             cache[key] = sp
         rows.append((sp.sets_w, sp.sets_l, sp.games_w, sp.games_l, list(sp.set_scores), sp.completed, sp.outcome_type,
                      sp.tiebreaks_played, sp.advantage_set, sp.parse_error, sp.error_reason))
-    return pd.DataFrame(rows, columns=["sets_w", "sets_l", "games_w", "games_l", "set_scores", "completed", "outcome_type",
-                                       "tiebreaks_played", "advantage_set", "parse_error", "parse_error_reason"])
+    cols = ["sets_w", "sets_l", "games_w", "games_l", "set_scores", "completed", "outcome_type",
+            "tiebreaks_played", "advantage_set", "parse_error", "parse_error_reason"]
+    out = pd.DataFrame({c: object_series(vals) for c, vals in zip(cols, zip(*rows))}) if rows else pd.DataFrame({c: object_series([]) for c in cols})
+    for c in ("sets_w", "sets_l", "games_w", "games_l", "tiebreaks_played"):
+        out[c] = out[c].astype("int64")
+    for c in ("completed", "advantage_set", "parse_error"):
+        out[c] = out[c].astype(bool)
+    return out
 
 
 def _check_columns(df: pd.DataFrame, required: Iterable[str], source_file: str) -> None:
@@ -273,29 +278,28 @@ def normalize_matches(raw: pd.DataFrame, tour: str, source_file: str, source_kin
     out["tourney_id"] = _to_str_or_none(col("tourney_id"))
     out["tourney_name"] = _to_str_or_none(col("tourney_name"))
     out["match_num"] = _to_int_or_none(col("match_num"))
-    out["match_key"] = [
-        f"{tour}:{tid}:{mn}" if tid is not None and mn is not pd.NA else None
-        for tid, mn in zip(out["tourney_id"], out["match_num"])
-    ]
+    out["match_key"] = object_series(
+        (f"{tour}:{tid}:{mn}" if tid is not None and not is_missing(mn) else None
+         for tid, mn in zip(out["tourney_id"], out["match_num"])), df.index)
 
-    out["surface"] = col("surface").map(normalize_surface).astype("object")
+    out["surface"] = object_series((normalize_surface(v) for v in col("surface")), df.index)
     unknown_surface = col("surface").notna() & out["surface"].isna()
     if unknown_surface.any():
         vals = sorted(set(map(str, col("surface")[unknown_surface])))
         warnings.append(f"{source_file}: {int(unknown_surface.sum())} rows with unrecognised surface {vals}")
-    out["indoor"] = [infer_indoor(s, t) for s, t in zip(out["surface"], out["tourney_name"])]
+    out["indoor"] = object_series((infer_indoor(s, t) for s, t in zip(out["surface"], out["tourney_name"])), df.index)
     out["draw_size"] = _to_int_or_none(col("draw_size"))
 
     out["level_raw"] = _to_str_or_none(col("tourney_level"))
     levels = [canonical_level(v, tour) for v in out["level_raw"]]
-    out["level_canonical"] = [lv for lv, _ in levels]
+    out["level_canonical"] = object_series((lv for lv, _ in levels), df.index)
     unknown_levels = sorted({str(r) for r, (_, known) in zip(out["level_raw"], levels) if not known and r is not None})
     if unknown_levels:
         warnings.append(f"{source_file}: unknown tourney_level codes {unknown_levels} mapped to OTHER (level_raw preserved)")
 
     out["round"] = _to_str_or_none(col("round"))
-    out["is_qualifying"] = out["round"].map(is_qualifying_round).astype(bool)
-    out["tourney_date"] = col("tourney_date").map(parse_tourney_date).astype("object")
+    out["is_qualifying"] = pd.Series([is_qualifying_round(r) for r in out["round"]], index=df.index, dtype=bool)
+    out["tourney_date"] = object_series((parse_tourney_date(v) for v in col("tourney_date")), df.index)
 
     best_of = _to_int_or_none(col("best_of"))
     inferred = [infer_best_of(tour, lv, q, d) for lv, q, d in zip(out["level_canonical"], out["is_qualifying"], out["tourney_date"])]
@@ -321,7 +325,7 @@ def normalize_matches(raw: pd.DataFrame, tour: str, source_file: str, source_kin
 
     parsed = _score_frame(out["score_raw"])
     for c in parsed.columns:
-        out[c] = parsed[c].values
+        out[c] = parsed[c].set_axis(df.index)
 
     out = out[CANONICAL_COLUMNS]
     for w in warnings:
@@ -428,16 +432,15 @@ def normalize_doubles(raw: pd.DataFrame, tour: str, source_file: str) -> Normali
     out["season"] = year_from_filename(source_file)
     out["tourney_id"] = _to_str_or_none(col("tourney_id"))
     out["tourney_name"] = _to_str_or_none(col("tourney_name"))
-    out["surface"] = col("surface").map(normalize_surface).astype("object")
+    out["surface"] = object_series((normalize_surface(v) for v in col("surface")), df.index)
     out["draw_size"] = _to_int_or_none(col("draw_size"))
     out["level_raw"] = _to_str_or_none(col("tourney_level"))
-    out["level_canonical"] = [canonical_level(v, tour)[0] for v in out["level_raw"]]
-    out["tourney_date"] = col("tourney_date").map(parse_tourney_date).astype("object")
+    out["level_canonical"] = object_series((canonical_level(v, tour)[0] for v in out["level_raw"]), df.index)
+    out["tourney_date"] = object_series((parse_tourney_date(v) for v in col("tourney_date")), df.index)
     out["match_num"] = _to_int_or_none(col("match_num"))
-    out["match_key"] = [
-        f"{tour}-DBL:{tid}:{mn}" if tid is not None and mn is not pd.NA else None
-        for tid, mn in zip(out["tourney_id"], out["match_num"])
-    ]
+    out["match_key"] = object_series(
+        (f"{tour}-DBL:{tid}:{mn}" if tid is not None and not is_missing(mn) else None
+         for tid, mn in zip(out["tourney_id"], out["match_num"])), df.index)
     out["round"] = _to_str_or_none(col("round"))
     best_of = _to_int_or_none(col("best_of"))
     out["best_of_inferred"] = best_of.isna().astype(bool)
@@ -445,13 +448,13 @@ def normalize_doubles(raw: pd.DataFrame, tour: str, source_file: str) -> Normali
     for p in ("winner1", "winner2", "loser1", "loser2"):
         out[f"{p}_id"] = _to_int_or_none(col(f"{p}_id"))
         out[f"{p}_name"] = _to_str_or_none(col(f"{p}_name"))
-    out["winner_team_key"] = [team_key(a, b) for a, b in zip(out["winner1_id"], out["winner2_id"])]
-    out["loser_team_key"] = [team_key(a, b) for a, b in zip(out["loser1_id"], out["loser2_id"])]
+    out["winner_team_key"] = object_series((team_key(a, b) for a, b in zip(out["winner1_id"], out["winner2_id"])), df.index)
+    out["loser_team_key"] = object_series((team_key(a, b) for a, b in zip(out["loser1_id"], out["loser2_id"])), df.index)
     out["score_raw"] = _to_str_or_none(col("score"))
     out["minutes"] = _to_float(col("minutes"))
     parsed = _score_frame(out["score_raw"])
     for c in ("sets_w", "sets_l", "games_w", "games_l", "set_scores", "completed", "outcome_type", "tiebreaks_played", "parse_error", "parse_error_reason"):
-        out[c] = parsed[c].values
+        out[c] = parsed[c].set_axis(df.index)
     return NormalizeResult(out[DOUBLES_COLUMNS], warnings)
 
 
@@ -503,11 +506,14 @@ def discover_match_files(run_dir: Path | str, tour: str, include: Iterable[str] 
         pattern = FILE_PATTERNS.get(tour, {}).get(kind)
         if pattern is None:
             continue  # kind not published for this tour (e.g. WTA doubles)
+        # A glob for "atp_matches_*.csv.gz" would also swallow qual_chall/doubles files,
+        # so the year slot is matched with an exact 4-digit regex instead.
+        exact = re.compile("^" + re.escape(pattern).replace(re.escape("{year}"), r"(\d{4})") + "$")
         for path in find_files(d, pattern.format(year="*")):
-            year = year_from_filename(path)
-            if year is None:
-                log.warning("cannot determine season year from %s; skipping", path)
+            m = exact.match(path.name)
+            if not m:
                 continue
+            year = int(m.group(1))
             if years_set is not None and year not in years_set:
                 continue
             found.append((kind, year, path))

@@ -60,7 +60,7 @@ def test_surname_initials(raw, surname, initials):
     ("Zverev A.", "Mischa Zverev", 0.0),           # wrong initial is never partial credit
     ("Zverev M.", "Mischa Zverev", 1.0),
     ("Kwon S.W.", "Soon Woo Kwon", 1.0),
-    ("Kwon S.", "Soon Woo Kwon", 0.9),             # fewer initials than first-name tokens
+    ("Kwon S.", "Soon Woo Kwon", 1.0),             # fewer initials than first-name tokens is still consistent
     ("Kwon S.X.", "Soon Woo Kwon", 0.9),           # first initial ok, second wrong
     ("Kuznetsov An.", "Andrey Kuznetsov", 1.0),
     ("Kuznetsov An.", "Alexey Kuznetsov", 0.0),    # two-letter group disambiguates

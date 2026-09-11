@@ -35,19 +35,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Acquire raw sources
+      - name: Acquire Sackmann snapshots
         id: acquire
         continue-on-error: true
+        timeout-minutes: 25
         run: |
           if grep -q "jobs=kalshi" tennis-edge-finder/.bootstrap-trigger 2>/dev/null; then echo "trigger requests kalshi only; skipping sources"; exit 0; fi
           EXTRA=""
           if [ "${{ github.event.inputs.skip_mcp }}" = "true" ]; then EXTRA="--skip-mcp"; fi
-          python3 tennis-edge-finder/scripts/data/bootstrap_sources.py --out tennis-edge-finder/data/sources $EXTRA
-      - name: Publish to tennis-data branch
+          python3 tennis-edge-finder/scripts/data/bootstrap_sources.py --only sackmann --out tennis-edge-finder/data/sources $EXTRA
+      - name: Publish Sackmann snapshots
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/sources --message "tennis sources bootstrap $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/sources --message "tennis sources bootstrap (sackmann) $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          rm -rf tennis-edge-finder/data/sources
+      - name: Acquire tennis-data.co.uk (+ mirrors)
+        id: acquire_td
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          if grep -q "jobs=kalshi" tennis-edge-finder/.bootstrap-trigger 2>/dev/null; then exit 0; fi
+          sleep 2
+          python3 tennis-edge-finder/scripts/data/bootstrap_sources.py --only tennisdata --out tennis-edge-finder/data/sources
+      - name: Publish tennis-data snapshots
+        run: |
+          python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/sources --message "tennis sources bootstrap (tennis-data + mirrors) $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
       - name: Report partial acquisition
         if: steps.acquire.outcome != 'success'
         run: echo "::warning::source acquisition reported failures (see manifest.json); data published for inspection"

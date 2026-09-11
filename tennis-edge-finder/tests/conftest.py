@@ -44,7 +44,7 @@ def tennis_data_frame(csv_path: Path) -> pd.DataFrame:
 
 
 def write_xlsx_gz(df: pd.DataFrame, dest: Path, sheet_name: str = "2024") -> None:
-    openpyxl = pytest.importorskip("openpyxl")  # noqa: F841 - skip the caller when unavailable
+    pytest.importorskip("openpyxl")  # skip the caller when unavailable
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xw:
         df.to_excel(xw, sheet_name=sheet_name, index=False)

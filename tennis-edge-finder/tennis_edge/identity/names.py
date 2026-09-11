@@ -98,9 +98,11 @@ def surname_initials(s: Any) -> tuple[tuple[str, ...], tuple[str, ...]]:
 def player_match_score(td_name: Any, full_name: Any, last_name: Optional[Any] = None) -> float:
     """How well a tennis-data name ("Federer R.") fits a Sackmann full name ("Roger Federer").
 
-    Returns 1.0 for surname + all initial groups matching, 0.9 when the first
-    initial matches but later groups do not (or are unavailable), 0.7 for a
-    surname-only match (no initials in the source), 0.0 otherwise -- including
+    Returns 1.0 for surname + every supplied initial group matching ("Kwon S."
+    and "Kwon S.W." both fit "Soon Woo Kwon"), 0.9 when the first initial
+    matches but a later group does not or refers to a first-name token the
+    registry lacks, 0.7 for a surname-only match (no initials in the source),
+    0.0 otherwise -- including
     a *wrong* first initial, which is the "Zverev A." vs "Zverev M." case and
     must never be treated as a partial match.
 

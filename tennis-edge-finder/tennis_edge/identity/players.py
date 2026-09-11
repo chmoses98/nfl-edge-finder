@@ -31,9 +31,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-import numpy as np
 import pandas as pd
 
+from tennis_edge.data.frames import is_missing, object_series, text_column
 from tennis_edge.data.sources import read_csv_gz
 from tennis_edge.identity.names import last_first_initial, name_tokens, normalize_name, player_match_score, surname_initials
 
@@ -83,7 +83,7 @@ _DEFAULT_TOURNAMENT_DAYS = 8
 
 # --- registry -----------------------------------------------------------------
 def _parse_dob(value: Any) -> Optional[date]:
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if is_missing(value):
         return None
     try:
         s = str(int(float(value)))
@@ -92,13 +92,6 @@ def _parse_dob(value: Any) -> Optional[date]:
         return date(int(s[:4]), int(s[4:6]), int(s[6:8]))
     except (ValueError, TypeError, OverflowError):
         return None
-
-
-def _str_or_none(v: Any) -> Optional[str]:
-    if v is None or (isinstance(v, float) and np.isnan(v)):
-        return None
-    s = str(v).strip()
-    return s or None
 
 
 def build_registry(players: pd.DataFrame, tour: str) -> pd.DataFrame:
@@ -123,17 +116,17 @@ def build_registry(players: pd.DataFrame, tour: str) -> pd.DataFrame:
     out = pd.DataFrame(index=df.index)
     out["player_id"] = pd.to_numeric(df["player_id"], errors="coerce").astype("Int64")
     out["tour"] = tour.upper()
-    out["name_first"] = col("name_first").map(_str_or_none)
-    out["name_last"] = col("name_last").map(_str_or_none)
-    out["name_full"] = [" ".join(t for t in (f, l) if t) or None for f, l in zip(out["name_first"], out["name_last"])]
-    out["name_norm"] = out["name_full"].map(normalize_name)
-    out["last_norm"] = out["name_last"].map(normalize_name)
-    out["last_first_initial"] = [last_first_initial(f, l) for f, l in zip(out["name_first"], out["name_last"])]
-    out["hand"] = col("hand").map(_str_or_none)
-    out["dob"] = col("dob").map(_parse_dob).astype("object")
-    out["ioc"] = col("ioc").map(_str_or_none)
+    out["name_first"] = text_column(col("name_first"))
+    out["name_last"] = text_column(col("name_last"))
+    out["name_full"] = object_series((" ".join(t for t in (f, l) if t) or None for f, l in zip(out["name_first"], out["name_last"])), df.index)
+    out["name_norm"] = object_series((normalize_name(v) for v in out["name_full"]), df.index)
+    out["last_norm"] = object_series((normalize_name(v) for v in out["name_last"]), df.index)
+    out["last_first_initial"] = object_series((last_first_initial(f, l) for f, l in zip(out["name_first"], out["name_last"])), df.index)
+    out["hand"] = text_column(col("hand"))
+    out["dob"] = object_series((_parse_dob(v) for v in col("dob")), df.index)
+    out["ioc"] = text_column(col("ioc"))
     out["height"] = pd.to_numeric(col("height"), errors="coerce").astype("Float64")
-    out["wikidata_id"] = col("wikidata_id").map(_str_or_none)
+    out["wikidata_id"] = text_column(col("wikidata_id"))
     return out[["tour", *REGISTRY_COLUMNS]]
 
 
@@ -260,6 +253,8 @@ def _surname_key(td_name: Any) -> Optional[str]:
 
 def _score_candidate(td: dict[str, Any], sk: dict[str, Any], cfg: LinkConfig) -> Optional[dict[str, float]]:
     """Component scores for one (tennis-data row, Sackmann row) pair; None if a hard filter fails."""
+    if not isinstance(td["date"], date) or not isinstance(sk["tourney_date"], date):
+        return None
     ds = date_score(td["date"], sk["tourney_date"], sk["level_canonical"], cfg)
     if ds is None:
         return None
@@ -274,7 +269,7 @@ def _score_candidate(td: dict[str, Any], sk: dict[str, Any], cfg: LinkConfig) ->
         # the same pair meeting at a *different* event in the window, not a
         # plausible alternative, so it must not block a MATCH via the runner-up rule.
         return None
-    ss = 1.0 if td["surface"] is not None and sk["surface"] is not None and td["surface"] == sk["surface"] else 0.0
+    ss = 1.0 if not is_missing(td["surface"]) and not is_missing(sk["surface"]) and td["surface"] == sk["surface"] else 0.0
     comp = {"players": (pw + pl) / 2.0, "tournament": ts, "date": ds, "round": rs, "surface": ss}
     comp["confidence"] = sum(WEIGHTS[k] * comp[k] for k in WEIGHTS)
     return comp
@@ -291,7 +286,8 @@ def link_tennis_data_names(td_frame: pd.DataFrame, sackmann_matches: pd.DataFram
     """
     cfg = config or LinkConfig()
     if len(sackmann_matches) == 0 or len(td_frame) == 0:
-        return pd.DataFrame({c: pd.Series(dtype="object") for c in LINK_COLUMNS}).assign(td_key=list(td_frame.get("td_key", [])))
+        return _links_frame([{**{c: None for c in LINK_COLUMNS}, "td_key": k, "status": UNMATCHED, "n_candidates": 0,
+                              "confidence": 0.0, "second_confidence": 0.0} for k in td_frame.get("td_key", [])])
     sk = sackmann_matches.reset_index(drop=True)
     w_index, l_index = _candidate_index(sk)
     sk_records = sk[["match_key", "tour", "tourney_name", "tourney_date", "level_canonical", "surface", "round", "draw_size",
@@ -306,7 +302,7 @@ def link_tennis_data_names(td_frame: pd.DataFrame, sackmann_matches: pd.DataFram
         row: dict[str, Any] = {c: None for c in LINK_COLUMNS}
         row.update({"td_key": td["td_key"], "status": UNMATCHED, "n_candidates": 0, "confidence": 0.0, "second_confidence": 0.0})
         wk, lk = _surname_key(td["winner_name_td"]), _surname_key(td["loser_name_td"])
-        if td["date"] is None or wk is None or lk is None:
+        if is_missing(td["date"]) or wk is None or lk is None:
             out_rows.append(row)
             continue
         positions = w_index.get((td["tour"], wk), set()) & l_index.get((td["tour"], lk), set())
@@ -336,7 +332,7 @@ def link_tennis_data_names(td_frame: pd.DataFrame, sackmann_matches: pd.DataFram
                 row["status"] = UNMATCHED
         out_rows.append(row)
 
-    links = pd.DataFrame(out_rows, columns=LINK_COLUMNS)
+    links = _links_frame(out_rows)
     counts = links["status"].value_counts().to_dict()
     log.info("tennis-data linking: %s", counts)
     # A Sackmann match claimed by two MATCHED rows is a data problem: demote both to AMBIGUOUS.
@@ -347,6 +343,15 @@ def link_tennis_data_names(td_frame: pd.DataFrame, sackmann_matches: pd.DataFram
         log.warning("%d tennis-data rows share a Sackmann match_key; demoted to AMBIGUOUS", len(idx))
         links.loc[idx, "status"] = AMBIGUOUS
     return links
+
+
+def _links_frame(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """Build the linking frame with object columns so absent keys stay ``None``."""
+    out = pd.DataFrame({c: object_series([r[c] for r in rows]) for c in LINK_COLUMNS})
+    for c in ("confidence", "second_confidence"):
+        out[c] = pd.to_numeric(out[c], errors="coerce").astype(float)
+    out["n_candidates"] = pd.to_numeric(out["n_candidates"], errors="coerce").fillna(0).astype(int)
+    return out
 
 
 def link_summary(links: pd.DataFrame) -> dict[str, Any]:

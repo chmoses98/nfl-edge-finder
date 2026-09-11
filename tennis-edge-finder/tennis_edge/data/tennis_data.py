@@ -31,6 +31,7 @@ from typing import Any, Iterable, Optional
 import numpy as np
 import pandas as pd
 
+from tennis_edge.data.frames import is_missing, object_series, text_column
 from tennis_edge.data.sources import find_files, read_excel_gz, tennis_data_dir, year_from_filename
 from tennis_edge.rules.score_parser import COMPLETED, DEFAULT, RETIRED, UNKNOWN, WALKOVER
 
@@ -76,7 +77,7 @@ class ImpliedProbabilityError(ValueError):
 
 # --- pure helpers -------------------------------------------------------------
 def normalize_court(value: Any) -> Optional[str]:
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if is_missing(value):
         return None
     v = str(value).strip().lower()
     if v.startswith("in"):
@@ -88,7 +89,7 @@ def normalize_court(value: Any) -> Optional[str]:
 
 def normalize_surface(value: Any) -> Optional[str]:
     """Same vocabulary as the Sackmann loader so the two frames can be compared directly."""
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if is_missing(value):
         return None
     v = str(value).strip().lower()
     for needle, canon in (("hard", "Hard"), ("clay", "Clay"), ("grass", "Grass"), ("carpet", "Carpet")):
@@ -99,7 +100,7 @@ def normalize_surface(value: Any) -> Optional[str]:
 
 def parse_round(value: Any) -> tuple[Optional[str], Optional[int], Optional[int]]:
     """Return (round label, ordinal for 'Nth Round', stage-before-final for F/SF/QF/RR)."""
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if is_missing(value):
         return None, None, None
     label = str(value).strip()
     key = label.lower()
@@ -113,7 +114,7 @@ def parse_round(value: Any) -> tuple[Optional[str], Optional[int], Optional[int]
 
 def parse_td_date(value: Any) -> Optional[date]:
     """Excel dates arrive as Timestamp/datetime; older files sometimes as 'dd/mm/yyyy' text."""
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if is_missing(value):
         return None
     if isinstance(value, (pd.Timestamp, datetime)):
         return value.date() if not pd.isna(value) else None
@@ -130,7 +131,7 @@ def parse_td_date(value: Any) -> Optional[date]:
 
 
 def comment_outcome(value: Any) -> str:
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if is_missing(value):
         return UNKNOWN
     return _COMMENT_OUTCOME.get(str(value).strip().lower(), UNKNOWN)
 
@@ -167,7 +168,7 @@ def _to_int(series: pd.Series) -> pd.Series:
 
 
 def _to_str(series: pd.Series) -> pd.Series:
-    return series.map(lambda v: None if v is None or (isinstance(v, float) and np.isnan(v)) else (str(v).strip() or None)).astype("object")
+    return text_column(series)
 
 
 def _set_scores(df: pd.DataFrame) -> list[list[tuple[int, int]]]:
@@ -220,25 +221,25 @@ def normalize_tennis_data(raw: pd.DataFrame, tour: Optional[str] = None, source_
 
     if season is None:
         season = year_from_filename(source_file)
-    dates = col("Date").map(parse_td_date)
+    dates = object_series((parse_td_date(v) for v in col("Date")), df.index)
     if season is None:
         years = [d.year for d in dates if d is not None]
         season = max(set(years), key=years.count) if years else None
 
     out = pd.DataFrame(index=df.index)
-    out["td_key"] = [f"TD:{tour}:{season}:{i:05d}" for i in range(n)]
+    out["td_key"] = object_series((f"TD:{tour}:{season}:{i:05d}" for i in range(n)), df.index)
     out["tour"] = tour
     out["source_file"] = source_file
     out["season"] = season
     out["tourney_no"] = _to_int(col(tour))
-    out["date"] = dates.astype("object")
+    out["date"] = dates
     out["tournament"] = _to_str(col("Tournament"))
     out["location"] = _to_str(col("Location"))
     out["series_tier"] = _to_str(col("Series") if "Series" in df.columns else col("Tier"))
-    out["court"] = col("Court").map(normalize_court).astype("object")
-    out["surface"] = col("Surface").map(normalize_surface).astype("object")
+    out["court"] = object_series((normalize_court(v) for v in col("Court")), df.index)
+    out["surface"] = object_series((normalize_surface(v) for v in col("Surface")), df.index)
     rounds = [parse_round(v) for v in col("Round")]
-    out["round"] = [r[0] for r in rounds]
+    out["round"] = object_series((r[0] for r in rounds), df.index)
     out["round_ordinal"] = pd.array([r[1] for r in rounds], dtype="Int64")
     out["round_stage"] = pd.array([r[2] for r in rounds], dtype="Int64")
     out["best_of"] = _to_int(col("Best of"))
@@ -249,13 +250,13 @@ def normalize_tennis_data(raw: pd.DataFrame, tour: Optional[str] = None, source_
     out["winner_pts"] = _to_int(col("WPts"))
     out["loser_pts"] = _to_int(col("LPts"))
     sets = _set_scores(df)
-    out["set_scores"] = sets
+    out["set_scores"] = object_series(sets, df.index)
     out["sets_w"] = _to_int(col("Wsets"))
     out["sets_l"] = _to_int(col("Lsets"))
     out["games_w"] = [sum(w for w, _ in s) for s in sets]
     out["games_l"] = [sum(l for _, l in s) for s in sets]
     out["comment_raw"] = _to_str(col("Comment"))
-    out["outcome_type"] = out["comment_raw"].map(comment_outcome)
+    out["outcome_type"] = object_series((comment_outcome(v) for v in out["comment_raw"]), df.index)
     unknown_comments = sorted({str(c) for c, o in zip(out["comment_raw"], out["outcome_type"]) if o == UNKNOWN and c is not None})
     if unknown_comments:
         warnings.append(f"{source_file}: unrecognised Comment values {unknown_comments} -> outcome UNKNOWN")

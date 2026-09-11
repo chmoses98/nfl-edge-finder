@@ -135,6 +135,8 @@ def main():
     ap.add_argument("--work", default=None)
     ap.add_argument("--skip-mcp", action="store_true")
     ap.add_argument("--tennis-data-years", default="2000-2026")
+    ap.add_argument("--only", default="all", choices=["all", "sackmann", "tennisdata"], help="which source group to acquire")
+    ap.add_argument("--http-timeout", type=int, default=20)
     a = ap.parse_args()
     proj = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -158,7 +160,7 @@ def main():
         manifest["files"].append(rec)
 
     # ---- Sackmann repos
-    repos = [("JeffSackmann", "tennis_atp", None), ("JeffSackmann", "tennis_wta", None)]
+    repos = [] if a.only == "tennisdata" else [("JeffSackmann", "tennis_atp", None), ("JeffSackmann", "tennis_wta", None)]
     if not a.skip_mcp:
         repos.append(("JeffSackmann", "tennis_MatchChartingProject",
                       lambda fn: fn.endswith(("-matches.csv", "-stats-Overview.csv", "-stats-ServeBasics.csv", "-stats-ReturnOutcomes.csv", "-stats-KeyPointsServe.csv", "-stats-KeyPointsReturn.csv"))))
@@ -184,16 +186,22 @@ def main():
 
     # ---- tennis-data.co.uk (results + bookmaker odds)
     y0, y1 = [int(x) for x in a.tennis_data_years.split("-")]
+    if a.only == "sackmann":
+        y1 = y0 - 1  # skip
     td = {"url": "http://www.tennis-data.co.uk/", "licence": "free download; site terms: personal/non-commercial use; attribution",
           "retrieved_at": datetime.now(timezone.utc).isoformat(), "files": 0}
     manifest["sources"]["tennis_data_co_uk"] = td
+    consecutive_fail = 0
     for tour, suffix in (("atp", ""), ("wta", "w")):
         for y in range(y0, y1 + 1):
             got = False
+            if consecutive_fail >= 6:
+                manifest["failures"].append({"source": "tennis_data_co_uk", "tour": tour, "year": y, "error": "skipped: site unreachable (6 consecutive failures)"})
+                continue
             for scheme, ext in (("https", "xlsx"), ("https", "xls"), ("http", "xlsx"), ("http", "xls")):
                 url = f"{scheme}://www.tennis-data.co.uk/{y}{suffix}/{y}.{ext}"
                 try:
-                    data, status = fetch_retry(url, attempts=2, headers=BROWSER_HEADERS)
+                    data, status = fetch_retry(url, attempts=1, headers=BROWSER_HEADERS, timeout=a.http_timeout)
                     if status != 200 or len(data) < 2000:
                         continue
                     local = os.path.join(work, f"td_{tour}_{y}.{ext}")
@@ -206,7 +214,10 @@ def main():
                 except Exception as e:  # noqa: BLE001
                     last = str(e)[:200]
             if not got:
+                consecutive_fail += 1
                 manifest["failures"].append({"source": "tennis_data_co_uk", "tour": tour, "year": y, "error": locals().get("last", "no file")})
+            else:
+                consecutive_fail = 0
     for extra_url, name in (("http://www.tennis-data.co.uk/notes.txt", "notes.txt"),):
         try:
             data, status = fetch(extra_url)
@@ -218,7 +229,7 @@ def main():
 
     # ---- tennis-data mirrors on GitHub (lower authority: third-party copies). Only used to fill years the
     # primary site did not serve; provenance is recorded per file so the registry can rank them.
-    if td["files"] < (y1 - y0 + 1):
+    if a.only != "sackmann" and td["files"] < (y1 - y0 + 1):
         import re as _re
         for owner, repo in (("0xsimulacra", "MLT"), ("gmalbert", "tennis-predictions")):
             try:
