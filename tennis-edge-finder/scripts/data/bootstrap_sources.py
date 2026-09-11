@@ -77,7 +77,7 @@ def fetch_retry(url, attempts=3, headers=None, timeout=60):
     raise last
 
 
-def github_search_candidates(name, token, per_page=30):
+def github_search_candidates(name, token, per_page=100):
     """Public repositories named `name` (forks/clones of the Sackmann data), most recently pushed first.
 
     Used because JeffSackmann/tennis_atp and /tennis_wta returned 404 on 2026-09-11 (repositories made
@@ -86,7 +86,8 @@ def github_search_candidates(name, token, per_page=30):
     import urllib.parse
     if not token:
         return []
-    q = urllib.parse.quote(f"{name} in:name")
+    # forks are EXCLUDED from search results unless fork:true is in the query -- and forks are exactly what we need
+    q = urllib.parse.quote(f"{name} in:name fork:true")
     url = f"https://api.github.com/search/repositories?q={q}&sort=updated&order=desc&per_page={per_page}"
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
     try:
@@ -104,8 +105,23 @@ def github_search_candidates(name, token, per_page=30):
 
 
 def snapshot_ok(dest, must_have):
+    """must_have entries are filename prefixes; an entry may be a tuple of alternatives (any one suffices)."""
     files = set(os.listdir(dest))
-    return all(any(f.startswith(m) for f in files) for m in must_have)
+    for m in must_have:
+        alts = m if isinstance(m, tuple) else (m,)
+        if not any(f.startswith(a) for f in files for a in alts):
+            return False
+    return True
+
+
+def max_season(dest, prefix):
+    import re as _re
+    best = 0
+    for f in os.listdir(dest):
+        mm = _re.match(prefix + r"(\d{4})\.csv$", f)
+        if mm:
+            best = max(best, int(mm.group(1)))
+    return best
 
 
 def clone_repo(owner, repo, work, branch="master"):
@@ -193,9 +209,9 @@ def main():
     # ---- Sackmann-format match repositories: upstream first, then live forks (discovered), then known clones
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     groups = [] if a.only == "tennisdata" else [
-        ("tennis_atp", ["atp_matches_2024", "atp_players", "atp_rankings_current", "atp_matches_qual_chall_2024", "atp_matches_futures_2024"], None,
-         [("JeffSackmann", "tennis_atp"), ("stakah", "tennis_atp"), ("beta2k", "tennis_atp")]),
-        ("tennis_wta", ["wta_matches_2024", "wta_players", "wta_rankings_current", "wta_matches_qual_itf_2024"], None,
+        ("tennis_atp", [("atp_matches_2026", "atp_matches_2025", "atp_matches_2024", "atp_matches_2023"), "atp_players", "atp_matches_qual_chall_20"], None,
+         [("JeffSackmann", "tennis_atp")]),
+        ("tennis_wta", [("wta_matches_2026", "wta_matches_2025", "wta_matches_2024", "wta_matches_2023"), "wta_players", "wta_matches_qual_itf_20"], None,
          [("JeffSackmann", "tennis_wta")]),
     ]
     if not a.skip_mcp and a.only != "tennisdata":
@@ -211,11 +227,11 @@ def main():
         manifest.setdefault("candidates", {})[name] = [f"{o}/{r}" for o, r in cands]
         got = False
         errors = []
-        for owner, repo in cands[:12]:
+        for owner, repo in cands[:25]:
             try:
                 dest, sha, date = clone_repo(owner, repo, work)
                 if not snapshot_ok(dest, must_have):
-                    errors.append(f"{owner}/{repo}: missing expected files {must_have}")
+                    errors.append(f"{owner}/{repo}: missing expected files; max season {max_season(dest, name.split('_')[1] + '_matches_') if '_' in name else '?'}")
                     shutil.rmtree(dest, ignore_errors=True)
                     continue
                 n = 0
@@ -228,6 +244,7 @@ def main():
                     add_file(name, fn, pth, f"sackmann/{name}/{fn}.gz")
                     n += 1
                 manifest["sources"][name] = {"url": f"https://github.com/{owner}/{repo}", "owner": owner, "commit": sha, "commit_date": date,
+                                             "max_season_file": max_season(dest, name.split('_')[1] + '_matches_') if name in ("tennis_atp", "tennis_wta") else None,
                                              "licence": "CC BY-NC-SA 4.0 (per upstream README)", "retrieved_at": datetime.now(timezone.utc).isoformat(), "files": n,
                                              "authority": "UPSTREAM" if owner == "JeffSackmann" else "FORK_OR_CLONE",
                                              "note": "" if owner == "JeffSackmann" else "upstream JeffSackmann repo unavailable (404) on retrieval date; data from a public fork/clone -- verify freshness via max season file"}

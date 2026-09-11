@@ -24,6 +24,7 @@ Schema assumptions marked ``ASSUMPTION`` need checking against real data.
 from __future__ import annotations
 
 import logging
+import re
 import math
 from collections import defaultdict
 from dataclasses import dataclass
@@ -82,6 +83,17 @@ _DEFAULT_TOURNAMENT_DAYS = 8
 
 
 # --- registry -----------------------------------------------------------------
+def _id_str(v: Any) -> Optional[str]:
+    if v is None or (isinstance(v, float) and v != v):
+        return None
+    t = str(v).strip()
+    if not t:
+        return None
+    if re.fullmatch(r"\d+(\.0+)?", t):
+        return t.split(".")[0]
+    return t
+
+
 def _parse_dob(value: Any) -> Optional[date]:
     if is_missing(value):
         return None
@@ -104,17 +116,18 @@ def build_registry(players: pd.DataFrame, tour: str) -> pd.DataFrame:
     if "player_id" not in players.columns:
         raise ValueError("players file lacks 'player_id'")
     df = players.reset_index(drop=True)
-    ids = pd.to_numeric(df["player_id"], errors="coerce")
+    ids = df["player_id"].map(lambda v: None if v is None or (isinstance(v, float) and v != v) or str(v).strip() == "" else str(v).strip())
     bad = ids.isna()
     if bad.any():
-        log.warning("%s players: %d rows without numeric player_id dropped", tour, int(bad.sum()))
+        log.warning("%s players: %d rows without player_id dropped", tour, int(bad.sum()))
     df = df.loc[~bad].reset_index(drop=True)
 
     def col(name: str) -> pd.Series:
         return df[name] if name in df.columns else pd.Series([None] * len(df), index=df.index, dtype="object")
 
     out = pd.DataFrame(index=df.index)
-    out["player_id"] = pd.to_numeric(df["player_id"], errors="coerce").astype("Int64")
+    # ids are LABELS: numeric Sackmann ids become canonical digit strings ('104925'), alphanumeric TML ids stay verbatim
+    out["player_id"] = object_series((_id_str(v) for v in df["player_id"]), df.index)
     out["tour"] = tour.upper()
     out["name_first"] = text_column(col("name_first"))
     out["name_last"] = text_column(col("name_last"))
@@ -147,18 +160,18 @@ def build_alias_table(registry: pd.DataFrame, matches: Optional[pd.DataFrame] = 
         if pd.isna(pid):
             continue
         if full:
-            rows.append((int(pid), full, "full"))
+            rows.append((pid, full, "full"))
         if lfi:
-            rows.append((int(pid), lfi, "last_initial"))
+            rows.append((pid, lfi, "last_initial"))
     if matches is not None and len(matches):
         known = {(pid, alias) for pid, alias, _ in rows}
         for side in ("winner", "loser"):
             pairs = matches[[f"{side}_id", f"{side}_name"]].dropna().drop_duplicates()
             for pid, name in zip(pairs[f"{side}_id"], pairs[f"{side}_name"]):
                 alias = normalize_name(name)
-                if alias and (int(pid), alias) not in known:
-                    rows.append((int(pid), alias, "match_name"))
-                    known.add((int(pid), alias))
+                if alias and (pid, alias) not in known:
+                    rows.append((pid, alias, "match_name"))
+                    known.add((pid, alias))
     table = pd.DataFrame(rows, columns=ALIAS_COLUMNS)
     return table.drop_duplicates().reset_index(drop=True)
 

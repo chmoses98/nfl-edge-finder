@@ -31,7 +31,7 @@ def td_matches() -> pd.DataFrame:
 # --- registry -----------------------------------------------------------------
 def test_registry_columns_and_bad_rows_dropped(registry):
     assert list(registry.columns) == ["tour", *pl.REGISTRY_COLUMNS]
-    assert len(registry) == 14  # 'abc' player_id row cannot be keyed and is dropped (logged)
+    assert len(registry) == 15  # ids are labels: alphanumeric ids (TML 'D875', fixture 'abc') are valid keys
     assert registry["player_id"].is_unique
     r = registry.set_index("player_id").loc[100001]
     assert r["name_full"] == "Roger Federer" and r["name_norm"] == "roger federer"
@@ -52,7 +52,7 @@ def test_build_registry_requires_player_id():
 def test_alias_table(registry, sackmann_matches):
     aliases = pl.build_alias_table(registry, sackmann_matches)
     assert list(aliases.columns) == pl.ALIAS_COLUMNS
-    fed = aliases[aliases["player_id"] == 100001]
+    fed = aliases[aliases["player_id"] == "100001"]
     assert set(fed["alias"]) == {"roger federer", "federer r"}
     assert set(aliases["alias_type"]) <= {"full", "last_initial", "match_name"}
     assert not aliases.duplicated().any()
@@ -116,7 +116,7 @@ def test_link_tennis_data_names(td_matches, sackmann_matches):
     assert by.loc["TD:ATP:2024:00000", "status"] == pl.MATCHED
     assert by.loc["TD:ATP:2024:00000", "match_key"] == "ATP:2024-580:100"
     assert by.loc["TD:ATP:2024:00000", "confidence"] == 1.0
-    assert by.loc["TD:ATP:2024:00000", "winner_id"] == 100001 and by.loc["TD:ATP:2024:00000", "loser_id"] == 100002
+    assert by.loc["TD:ATP:2024:00000", "winner_id"] == "100001" and by.loc["TD:ATP:2024:00000", "loser_id"] == "100002"
     assert by.loc["TD:ATP:2024:00001", "match_key"] == "ATP:2024-580:102"   # retirement, 2nd round
     assert by.loc["TD:ATP:2024:00002", "match_key"] == "ATP:2024-580:101"
     assert by.loc["TD:ATP:2024:00003", "match_key"] == "ATP:2024-580:103"   # Zverev A. vs Zverev M.

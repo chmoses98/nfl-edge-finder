@@ -54,7 +54,9 @@ LEVELS = (GRAND_SLAM, TOUR_FINALS, MASTERS_1000, TOUR_500_250, TEAM, CHALLENGER,
 # should be verified against the real files; unknown codes map to OTHER with a
 # warning and ``level_raw`` preserved.
 _LEVEL_MAP: dict[str, dict[str, str]] = {
-    "ATP": {"G": GRAND_SLAM, "M": MASTERS_1000, "A": TOUR_500_250, "D": TEAM, "F": TOUR_FINALS,
+    "ATP": {
+        "250": TOUR_500_250, "500": TOUR_500_250, "1000": MASTERS_1000,   # TML-Database codes
+        "G": GRAND_SLAM, "M": MASTERS_1000, "A": TOUR_500_250, "D": TEAM, "F": TOUR_FINALS,
             "C": CHALLENGER, "S": ITF, "O": OLYMPICS, "E": OTHER, "J": OTHER, "T": OTHER},
     "WTA": {"G": GRAND_SLAM, "PM": MASTERS_1000, "P": TOUR_500_250, "I": TOUR_500_250, "D": TEAM,
             "F": TOUR_FINALS, "C": WTA_125, "O": OLYMPICS, "E": OTHER, "J": OTHER,
@@ -195,6 +197,21 @@ def infer_best_of(tour: str, level_canonical: str, is_qual: bool, tourney_date: 
     return 3
 
 
+def _id_to_str(series: pd.Series) -> pd.Series:
+    """Player ids as canonical strings: numeric Sackmann ids ('104925', '104925.0') -> '104925';
+    alphanumeric TML ids ('D875') kept verbatim; blanks -> None. Ids are labels, never numbers."""
+    def conv(v: Any) -> Optional[str]:
+        if is_missing(v):
+            return None
+        t = str(v).strip()
+        if not t:
+            return None
+        if re.fullmatch(r"\d+(\.0+)?", t):
+            return t.split(".")[0]
+        return t
+    return object_series([conv(v) for v in series])
+
+
 def _to_int_or_none(series: pd.Series) -> pd.Series:
     """Coerce to nullable Int64 (bad tokens -> <NA>)."""
     return pd.to_numeric(series, errors="coerce").round().astype("Int64")
@@ -307,7 +324,7 @@ def normalize_matches(raw: pd.DataFrame, tour: str, source_file: str, source_kin
     out["best_of"] = best_of.where(best_of.notna(), pd.array(inferred, dtype="Int64")).astype("Int64")
 
     for side in ("winner", "loser"):
-        out[f"{side}_id"] = _to_int_or_none(col(f"{side}_id"))
+        out[f"{side}_id"] = _id_to_str(col(f"{side}_id"))
         out[f"{side}_name"] = _to_str_or_none(col(f"{side}_name"))
         out[f"{side}_hand"] = _to_str_or_none(col(f"{side}_hand"))
         out[f"{side}_ht"] = _to_float(col(f"{side}_ht"))
@@ -446,7 +463,7 @@ def normalize_doubles(raw: pd.DataFrame, tour: str, source_file: str) -> Normali
     out["best_of_inferred"] = best_of.isna().astype(bool)
     out["best_of"] = best_of.fillna(3).astype("Int64")  # doubles is best-of-3 (slams included since 2000s)
     for p in ("winner1", "winner2", "loser1", "loser2"):
-        out[f"{p}_id"] = _to_int_or_none(col(f"{p}_id"))
+        out[f"{p}_id"] = _id_to_str(col(f"{p}_id"))
         out[f"{p}_name"] = _to_str_or_none(col(f"{p}_name"))
     out["winner_team_key"] = object_series((team_key(a, b) for a, b in zip(out["winner1_id"], out["winner2_id"])), df.index)
     out["loser_team_key"] = object_series((team_key(a, b) for a, b in zip(out["loser1_id"], out["loser2_id"])), df.index)
