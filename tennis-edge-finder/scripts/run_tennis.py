@@ -175,14 +175,25 @@ def main():
         # re-derive the match probability under the actual format (bo5 amplifies the favourite)
         spw = st["baselines"].get(f"{tour}|{surface}", None) or (0.64 if tour == "ATP" else 0.57)
         from tennis_edge.rules.formats import TOUR_SINGLES_BO3
-        pa, pb = point_probs_from_match_prob(p_elo_bo3, 2 * spw, TOUR_SINGLES_BO3)
-        dist = match_distribution(pa, pb, fmt)
-        # structural serve/return alternative
         import math
+        # structural serve/return probabilities
         base = math.log(spw / (1 - spw))
         sr_pa = 1 / (1 + math.exp(-(base + ra_rec["sr_s"] - rb_rec["sr_r"])))
         sr_pb = 1 - 1 / (1 + math.exp(-(base + rb_rec["sr_s"] - ra_rec["sr_r"])))
+        p_sr_bo3 = match_win_prob(sr_pa, sr_pb, TOUR_SINGLES_BO3)
         p_sr = match_win_prob(sr_pa, sr_pb, fmt)
+        # ENSEMBLE = logit average of Elo and structural on a bo3 basis (research/market_benchmark/RESULTS_SR_ATP.md:
+        # the average beats either component walk-forward); it is the model fair value. Point probabilities are
+        # inverted from the ensemble so every derivative market is priced from ONE coherent distribution.
+        sr_ok = min(ra_rec["sr_points"], rb_rec["sr_points"]) >= 1000
+        if sr_ok:
+            z = 0.5 * math.log(p_elo_bo3 / (1 - p_elo_bo3)) + 0.5 * math.log(p_sr_bo3 / (1 - p_sr_bo3))
+            p_ens_bo3 = 1 / (1 + math.exp(-z))
+        else:
+            p_ens_bo3 = p_elo_bo3   # no serve evidence: structural is prior-only, fall back to Elo
+        pa, pb = point_probs_from_match_prob(p_ens_bo3, 2 * spw, TOUR_SINGLES_BO3)
+        dist = match_distribution(pa, pb, fmt)
+        p_elo_fmt = match_win_prob(*point_probs_from_match_prob(p_elo_bo3, 2 * spw, TOUR_SINGLES_BO3), fmt)
         days_a = (today - date.fromisoformat(ra_rec["last_date"][:10])).days if ra_rec.get("last_date") and ra_rec["last_date"] != "None" else None
         days_b = (today - date.fromisoformat(rb_rec["last_date"][:10])).days if rb_rec.get("last_date") and rb_rec["last_date"] != "None" else None
         q = data_quality(QualityInputs(ra_rec["n"], rb_rec["n"], ra_rec["sr_points"], rb_rec["sr_points"], days_a, days_b,
@@ -212,10 +223,12 @@ def main():
                    "subject": pm.subject, "line": pm.line, "set_index": pm.set_index, "exact_score": pm.exact_score,
                    "model_version": st["model_version"], "ratings_as_of": st["as_of_date"], "git_sha": sha, "feature_snapshot_id": f"ratings:{st.get('matches_sha256', '')[:12]}",
                    "data_source_versions": {"discovery": disc_summary["run_id"], "ratings_built_at": st["built_at"]},
-                   "models": {"ELO": _orient(dist.p_match, pm) if pr.family == "MATCH_WINNER" else None, "ELO_DP_FAIR": pr.fair_yes,
-                              "STRUCTURAL": _orient(p_sr, pm) if pr.family == "MATCH_WINNER" else None, "MARKET_MID": (0.5 * (yes_bid + yes_ask)) if (yes_bid and yes_ask) else None,
-                              "HYBRID": None},
-                   "inputs": {"elo_a": ra, "elo_b": rb, "pa": pa, "pb": pb, "sr_pa": sr_pa, "sr_pb": sr_pb, "spw_baseline": spw, "p_elo_bo3": p_elo_bo3},
+                   "models": {"ELO": _orient(p_elo_fmt, pm) if pr.family == "MATCH_WINNER" else None,
+                              "STRUCTURAL": _orient(p_sr, pm) if pr.family == "MATCH_WINNER" else None,
+                              "ENSEMBLE": _orient(dist.p_match, pm) if pr.family == "MATCH_WINNER" else None,
+                              "ELO_DP_FAIR": pr.fair_yes, "MARKET_MID": (0.5 * (yes_bid + yes_ask)) if (yes_bid and yes_ask) else None,
+                              "HYBRID_MARKET_MODEL": None},
+                   "inputs": {"elo_a": ra, "elo_b": rb, "pa": pa, "pb": pb, "sr_pa": sr_pa, "sr_pb": sr_pb, "spw_baseline": spw, "p_elo_bo3": p_elo_bo3, "p_sr_bo3": p_sr_bo3, "p_ensemble_bo3": p_ens_bo3, "structural_used": sr_ok},
                    "quality": q, "market_quote": {"yes_bid": yes_bid, "yes_ask": yes_ask, "no_bid": no_bid, "no_ask": no_ask, "source": quote_src, "quote_ts": qrec.get("captured_at") or disc_summary["started_at"],
                                                   "volume": qrec.get("volume_fp"), "open_interest": qrec.get("open_interest_fp"), "liquidity": qrec.get("liquidity_dollars")},
                    "scheduled_start": sched, "seconds_to_scheduled_start": _secs(sched),
@@ -264,7 +277,7 @@ def write_report(out, path):
     L += ["## Largest model-vs-quote disagreements (hypothetical; quotes may be stale or illiquid)", "",
           "| match | market | side | price | fair | raw edge | EV after fees | bet up to | quality | why / risk |", "|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows[:40]:
-        why = f"Elo {r['inputs']['elo_a']:.0f} vs {r['inputs']['elo_b']:.0f} ({r['surface'] or 'surface?'}); SR p={r['models']['STRUCTURAL']:.2f}" if r["models"].get("STRUCTURAL") is not None else f"DP from Elo point probs pa={r['inputs']['pa']:.3f} pb={r['inputs']['pb']:.3f}"
+        why = f"Elo {r['inputs']['elo_a']:.0f} vs {r['inputs']['elo_b']:.0f} ({r['surface'] or 'surface?'}); Elo p={r['models']['ELO']:.2f}, SR p={r['models']['STRUCTURAL']:.2f}, ens={r['models']['ENSEMBLE']:.2f}" if r["models"].get("STRUCTURAL") is not None else f"DP from ensemble point probs pa={r['inputs']['pa']:.3f} pb={r['inputs']['pb']:.3f}"
         risk = f"quote {r['market_quote']['source']}; liq {r['market_quote']['liquidity']}; grade {r['quality']['grade']}"
         L.append(f"| {r['player_a']} vs {r['player_b']} ({r['competition']} {r['round']}) | {r['family']} {r['ticker']} | {r['ev']['best_side']} | {r['ev']['price']:.2f} | {r['ev']['best_side'] == 'YES' and r['models']['ELO_DP_FAIR'] or 1 - r['models']['ELO_DP_FAIR']:.3f} | {r['ev']['raw_edge']:+.3f} | {r['ev']['ev_after_fees']:+.3f} | {r['ev']['bet_up_to']:.2f} | {r['quality']['grade']} | {why} / {risk} |")
     L += ["", "## Exclusions (first 60)", "", "| ticker | stage | reason |", "|---|---|---|"]

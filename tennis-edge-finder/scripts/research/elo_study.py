@@ -32,7 +32,7 @@ def main():
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     m = pd.read_parquet(a.matches)
-    m = m[(m.tour == a.tour) & (m.outcome_type != "WALKOVER") & m.tourney_date.notna()].copy()
+    m = m[(m.tour == a.tour) & (m.outcome_type != "WALKOVER") & m.tourney_date.notna() & (m.id_system == "sackmann")].copy()
     m["tourney_date"] = pd.to_datetime(m["tourney_date"]).dt.date
     m = match_sort_key(m)
     ev = (m["season"] >= a.eval_from).to_numpy()

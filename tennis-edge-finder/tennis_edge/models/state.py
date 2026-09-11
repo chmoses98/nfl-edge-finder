@@ -25,7 +25,9 @@ PROD_ELO = EloConfig(k0=180, use_surface=True, use_level_k=True, use_level_prior
 
 
 def fit_state(matches: pd.DataFrame, tour: str, elo_cfg: EloConfig = PROD_ELO, sr_cfg: SRConfig = SRConfig()) -> dict:
-    m = matches[(matches.tour == tour) & (matches.outcome_type != "WALKOVER") & matches.tourney_date.notna()].copy()
+    # ONE id system per rating universe: TML rows carry ATP-site ids that are not linked to Sackmann ids, so
+    # replaying both would create duplicate rating entities (Zverev twice) -- production uses Sackmann ids only.
+    m = matches[(matches.tour == tour) & (matches.outcome_type != "WALKOVER") & matches.tourney_date.notna() & (matches.id_system == "sackmann")].copy()
     m["tourney_date"] = pd.to_datetime(m["tourney_date"]).dt.date
     m = match_sort_key(m)
     elo = Elo(elo_cfg); elo.run(m)

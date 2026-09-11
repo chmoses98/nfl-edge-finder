@@ -89,7 +89,7 @@ def main():
             df[f"mkt_{b}"] = df[f"p_winner_{b}"]
     if "mkt_PS" not in df:
         raise SystemExit("no Pinnacle column")
-    df = df[df.mkt_PS.notna() & df[a.elo_col].notna()].copy()
+    df = df[df.mkt_PS.notna() & df[a.elo_col].notna()].reset_index(drop=True)
     # symmetric orientation
     rng = np.random.default_rng(0); flip = rng.random(len(df)) < 0.5
     y = (~flip).astype(float)
