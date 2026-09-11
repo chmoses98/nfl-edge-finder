@@ -152,12 +152,15 @@ Exact bracket DP with invariants (title mass = 1, monotone reach probabilities, 
 is built and tested; tournament-winner / advance markets parse (2,787 + 541 historical). Not priced live: no
 draw feed reachable.
 
-## CURRENT LIVE PROJECTION STATUS (run 20260911T134749Z)
-Active 533 → closed since discovery 178, past nominal start 33, unsupported families 118, tournament scope 11,
-excluded events 67 (19 name-recovery, doubles players unmapped), unmapped players 4 → **projected 122 (incl.
+## CURRENT LIVE PROJECTION STATUS (run 20260911T135922Z, refreshed states)
+Active 533 → closed since discovery 178, past nominal start 43, unsupported families 118, tournament scope 11,
+excluded events 65 (19 name-recovery, doubles players unmapped), unmapped players 4 → **projected 114 (incl.
 8 doubles)**, consistency violations 0, 0 markets pass the actionability filter (two-sided, ≤ 10 c spread,
 liquidity > 0, grade A/B, SCHEDULED start basis, > 15 min to start). Report:
-data/research/projections/REPORT_20260911T134749Z.md. Ledger: 122 hash-chained rows.
+data/research/projections/REPORT_20260911T135922Z.md. Ledger: hash-chained rows across the day's runs; 4 rows already
+settled through scripts/ops/settle_ledger.py (close basis SCHEDULED_MINUS_MARGIN; scorecard withheld below 30
+gradeable rows). The `RUN TENNIS` workflow reproduces this on the runner and publishes data/research to the
+`tennis-data` branch.
 
 ## TEST STATUS
 215 tests pass (`python -m pytest -q tests`): scoring engine vs closed forms and Monte Carlo, format registry,

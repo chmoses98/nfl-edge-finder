@@ -1,7 +1,7 @@
-# Prospective scorecard (2026-09-11T13:54:18.367122+00:00)
+# Prospective scorecard (2026-09-11T13:59:31.233216+00:00)
 
-ledger rows: 122; settled rows: 2; gradeable binary with market mid: 2
+ledger rows: 236; settled rows: 4; gradeable binary with market mid: 4
 
 Fewer than 30 gradeable settled predictions: no scores reported (multiple-testing discipline).
 
-close basis counts: {'SCHEDULED_MINUS_MARGIN': 2}
+close basis counts: {'SCHEDULED_MINUS_MARGIN': 4}
