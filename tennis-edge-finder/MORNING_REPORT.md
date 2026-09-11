@@ -36,7 +36,8 @@ edge. Real-money authority stays OFF.**
 6. **Models:** naive rank, Elo (plain, level prior, surface-pooled, level-K, K variants), structural
    serve/return (three shrinkage settings), logit ensemble, doubles baseline, market-model hybrid.
 7. **Best out of sample:** the ENSEMBLE (Elo + structural) — Brier 0.2111 on 13,323 Pinnacle-linked ATP
-   matches; among Elo-only variants elo_levelprior/elo_plain on all-level corpora.
+   matches; among Elo-only variants elo_levelprior/elo_plain on all-level corpora (WTA 299k matches: Brier
+   0.1933, naive rank baseline 0.2196).
 8. **Did anything beat the market? No.** Pinnacle 0.2026 vs ensemble 0.2111 (paired bootstrap CI excludes
    zero); walk-forward hybrid puts a small NEGATIVE weight on the model. Kalshi's conservative pregame quote
    (≥ 7 h before close) Brier 0.1871 vs our frozen model 0.2060 on 1,869 settled markets.
@@ -99,7 +100,7 @@ RESULTS_SR_ATP.md, research/kalshi_backtest/RESULTS.md.
 | forecaster | set | n | Brier | log-loss | slope |
 |---|---|---|---|---|---|
 | elo_levelprior | ATP all levels 2015-26 | 321,293 | 0.2000 | 0.5835 | 0.91 |
-| elo_levelprior | WTA all levels 2015-26 | 291,738 | 0.1918 | 0.5634 | 1.05 |
+| elo_levelprior | WTA all levels 2015-26 (post parser fix) | 299,185 | 0.1933 | 0.5667 | 1.04 |
 | Pinnacle | ATP tour 2020-26 (linked) | 13,323 | 0.2026 | 0.5884 | 1.02 |
 | ensemble | same | 13,323 | 0.2111 | 0.6084 | 1.04 |
 | structural sr300 | same | 13,323 | 0.2133 | 0.6135 | 0.92 |
