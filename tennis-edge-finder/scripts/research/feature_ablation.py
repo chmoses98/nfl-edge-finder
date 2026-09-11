@@ -57,7 +57,7 @@ def main():
             feats[(pid, mk)] = (days, n14, g14, int(last_surface != surf[i]) if last_surface and surf[i] else 0)
     linked = pd.read_parquet(os.path.join(PROJ, "research", "market_benchmark", "linked_ATP.parquet"))
     sr = pd.read_parquet(os.path.join(PROJ, "research", "market_benchmark", "sr_predictions_ATP.parquet"))
-    df = linked.merge(sr[["match_key", "p_sr_300"]], on="match_key").merge(m[["match_key", "winner_id", "loser_id", "winner_rank", "loser_rank", "season"]], on="match_key")
+    df = linked.merge(sr[["match_key", "p_sr_300"]], on="match_key").merge(m[["match_key", "winner_id", "loser_id", "winner_rank", "loser_rank"]], on="match_key").drop(columns=["season"], errors="ignore").rename(columns={"season_m": "season"})
     flip = df["y"].to_numpy() == 0
     def side(a, b):
         return np.where(flip, b, a), np.where(flip, a, b)

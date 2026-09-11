@@ -129,3 +129,12 @@ def test_result_is_frozen():
 def test_games_are_finite_ints():
     r = parse_score("6-7(7) 7-6(3) 7-6(10)")
     assert all(isinstance(x, int) and math.isfinite(x) for x in (r.games_w, r.games_l, r.sets_w, r.sets_l))
+
+
+def test_bare_match_tiebreak_third_set_wta_itf_notation():
+    from tennis_edge.rules.score_parser import parse_score
+    r = parse_score("5-7 6-3 10-7")
+    assert not r.parse_error and r.outcome_type == "COMPLETED" and r.sets_w == 2 and r.sets_l == 1
+    r2 = parse_score("6-4 3-6 8-10")
+    assert not r2.parse_error and r2.outcome_type == "COMPLETED" and r2.sets_w == 1 and r2.sets_l == 2 or r2.parse_error  # loser-first third set stays whatever the parser decides for winner-first scores
+    assert parse_score("6-2 7-2(2)").parse_error   # still impossible

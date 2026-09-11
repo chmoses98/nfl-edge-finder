@@ -1,0 +1,176 @@
+[
+ {
+  "gate": "TENNIS-1",
+  "name": "kalshi_tennis_discovery",
+  "status": "PASS",
+  "detail": {
+   "run": "20260911T063759Z",
+   "age_hours": 7.2,
+   "complete": true,
+   "failures": 0,
+   "series_tennis": 143
+  }
+ },
+ {
+  "gate": "TENNIS-2",
+  "name": "taxonomy_normalization",
+  "status": "PASS",
+  "detail": {
+   "unknown_series": [],
+   "live_markets": 61592,
+   "unparsed": 1,
+   "parse_rate": 0.99998
+  }
+ },
+ {
+  "gate": "TENNIS-3",
+  "name": "active_market_mapping",
+  "status": "PASS",
+  "detail": {
+   "active": 533,
+   "unparsed": [],
+   "unsupported": 129
+  }
+ },
+ {
+  "gate": "TENNIS-4",
+  "name": "active_market_projection",
+  "status": "FAIL",
+  "detail": {
+   "projectable_open_pregame": 193,
+   "projected": 122,
+   "not_projected": 71,
+   "missing_sample": [
+    "KXATPTOTALSETS-26SEP11ZVEKHA-5: could not recover both competitors' full names from the even",
+    "KXATPTOTALSETS-26SEP11ZVEKHA-4: could not recover both competitors' full names from the even",
+    "KXATPTOTALSETS-26SEP11TIASHE-5: could not recover both competitors' full names from the even",
+    "KXATPTOTALSETS-26SEP11TIASHE-4: could not recover both competitors' full names from the even",
+    "KXATPCHALLENGERDOUBLES-26SEP11CUKPOLCORNEU-CUKPOL: doubles: player 'Victor Vlad Cornea' unmapped/ambiguous in [",
+    "KXATPCHALLENGERDOUBLES-26SEP11CUKPOLCORNEU-CORNEU: doubles: player 'Victor Vlad Cornea' unmapped/ambiguous in [",
+    "KXWTAGTOTAL-26SEP12SABRYB-29: could not recover both competitors' full names from the even",
+    "KXWTAGTOTAL-26SEP12SABRYB-24: could not recover both competitors' full names from the even",
+    "KXWTAGTOTAL-26SEP12SABRYB-19: could not recover both competitors' full names from the even",
+    "KXITFMATCH-26SEP11LAGVAL-VAL: Eduardo Lage: UNMAPPED (no exact full-name match)"
+   ],
+   "excluded_by_policy": {
+    "past_nominal_start": 33,
+    "closed_since_discovery": 178,
+    "unsupported_family": 118,
+    "tournament_scope_not_priced_tonight": 11
+   },
+   "projection_run": "20260911T134749Z"
+  }
+ },
+ {
+  "gate": "TENNIS-5",
+  "name": "market_capture_freshness",
+  "status": "FAIL",
+  "detail": {
+   "run": "20260911T133609Z",
+   "age_min": 13.1,
+   "incomplete": [
+    {
+     "stage": "trades",
+     "info": {
+      "pages": 40,
+      "error": null,
+      "truncated_by_max_pages": true
+     }
+    }
+   ]
+  }
+ },
+ {
+  "gate": "TENNIS-6",
+  "name": "no_post_start_leakage",
+  "status": "PASS",
+  "detail": {
+   "violations": [],
+   "n": 122,
+   "start_unknown_used_schedule": 122
+  }
+ },
+ {
+  "gate": "TENNIS-7",
+  "name": "player_identity_integrity",
+  "status": "PASS",
+  "detail": {
+   "ambiguous": 0,
+   "ambiguous_used": 0,
+   "MATCHED": 122
+  }
+ },
+ {
+  "gate": "TENNIS-8",
+  "name": "sports_truth_health",
+  "status": "UNKNOWN",
+  "detail": {
+   "reason": "no settled predictions yet"
+  }
+ },
+ {
+  "gate": "TENNIS-9",
+  "name": "exchange_settlement_health",
+  "status": "UNKNOWN",
+  "detail": {
+   "reason": "no settled predictions yet",
+   "rules_id_changes": []
+  }
+ },
+ {
+  "gate": "TENNIS-10",
+  "name": "clv_close_coverage",
+  "status": "UNKNOWN",
+  "detail": {
+   "reason": "no settled predictions yet"
+  }
+ },
+ {
+  "gate": "TENNIS-11",
+  "name": "probability_consistency",
+  "status": "PASS",
+  "detail": {
+   "violations": [],
+   "n": 0
+  }
+ },
+ {
+  "gate": "TENNIS-12",
+  "name": "append_only_ledger",
+  "status": "PASS",
+  "detail": {
+   "violations": []
+  }
+ },
+ {
+  "gate": "TENNIS-13",
+  "name": "reproducible_artifacts",
+  "status": "PASS",
+  "detail": {
+   "hash_match": true,
+   "built_at": "2026-09-11T13:06:25.313812+00:00",
+   "rows": 1617116
+  }
+ },
+ {
+  "gate": "TENNIS-14",
+  "name": "data_source_freshness",
+  "status": "FAIL",
+  "detail": {
+   "run": "20260911T071045Z",
+   "snapshot_age_days": 0.28,
+   "max_season_files": [
+    2026,
+    2026
+   ],
+   "ratings_as_of": {
+    "ATP": "2026-06-01",
+    "WTA": "2026-04-27"
+   },
+   "ratings_stale_days": {
+    "ATP": 102,
+    "WTA": 137
+   }
+  }
+ }
+]

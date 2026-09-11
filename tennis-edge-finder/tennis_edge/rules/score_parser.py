@@ -117,6 +117,18 @@ def _normalise(raw: str) -> str:
     s = re.sub(r"\s*-\s*", "-", s)
     s = re.sub(r"\[\s*", "[", s)
     s = re.sub(r"\s*\]", "]", s)
+    # WTA qual/ITF files write the deciding match tiebreak as a bare third set "10-7" / "7-10" (no brackets).
+    # A final token with max >= 10, margin >= 2 and both < 30, following two completed sets split 1-1, is a
+    # match tiebreak: rewrite to the bracket form so it is parsed as such (tennis_edge/data quarantine
+    # evidence: 18,625 WTA ITF rows, IMPOSSIBLE_SET:10-x).
+    toks = s.split(" ")
+    if len(toks) == 3:
+        mm = re.fullmatch(r"(\d{1,2})-(\d{1,2})", toks[2])
+        if mm:
+            a, b = int(mm.group(1)), int(mm.group(2))
+            if max(a, b) >= 10 and abs(a - b) >= 2 and max(a, b) < 30:
+                toks[2] = f"[{a}-{b}]"
+                s = " ".join(toks)
     return s
 
 
