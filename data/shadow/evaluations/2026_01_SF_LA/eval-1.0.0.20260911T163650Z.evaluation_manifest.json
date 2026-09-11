@@ -1,0 +1,141 @@
+{
+ "status": "WRITTEN",
+ "game_id": "2026_01_SF_LA",
+ "evaluation_version": "eval-1.0.0",
+ "batch_id": "20260911T163650Z",
+ "schema_version": "1.0.0",
+ "written_at": "2026-09-11T16:37:15.988908+00:00",
+ "written": 12227,
+ "unchanged": 0,
+ "evaluations_file": "eval-1.0.0.20260911T163650Z.evaluations.jsonl.gz",
+ "evaluations_sha256": "ca14068996397adb3c0f7214025b742c311b526cc128fa6cc2fac0c847bf5478",
+ "prediction_ids_sha256": "5d502bcb806ee4ca10a6311c9f0e813f2dfa87e1733a4f83e595dd5a78689f3c",
+ "content_hashes_sha256": "bd0d7f325c30f5f551affae12e2cbfb9fc622aa97d77f6db2954830545de0762",
+ "by_settlement_status": {
+  "REFUSED_PARTICIPATION_UNPROVEN": 63,
+  "SETTLED": 12164
+ },
+ "by_settlement_kind": {
+  "None": 63,
+  "binary": 12164
+ },
+ "by_close_status": {
+  "OK": 12197,
+  "OK_STALE": 30
+ },
+ "by_family": {
+  "BOTH_TEAMS_SCORE_N": 132,
+  "GAME_WINNER": 66,
+  "PLAYER_STAT": 9653,
+  "SPREAD": 825,
+  "TEAM_TOTAL": 924,
+  "TOTAL": 627
+ },
+ "by_model_version": {
+  "shadow-0.1.0": 285,
+  "shadow-0.2.0": 298,
+  "shadow-0.3.0": 298,
+  "shadow-0.4.0": 11346
+ },
+ "kickoff_utc": "2026-09-11T00:35:00+00:00",
+ "kickoff_source": "schedule",
+ "game_evidence": {
+  "game_id": "2026_01_SF_LA",
+  "game_status": "FINAL",
+  "home_team": "LA",
+  "away_team": "SF",
+  "home_score": 7.0,
+  "away_score": 27.0,
+  "total_points": 34.0,
+  "margin_home": -20.0,
+  "overtime": 0,
+  "kickoff_utc": "2026-09-11T00:35:00+00:00",
+  "source": "nflverse/schedules/games.csv",
+  "final_proofs": [
+   "postgame_tables",
+   "espn_scoreboard"
+  ]
+ },
+ "result_sources": {
+  "schedules": "data/raw/nflverse/schedules/games.csv",
+  "pfr_crosswalk": "nflverse/players/players.parquet",
+  "missing": [
+   "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+   "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+  ],
+  "espn_final_status": [
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260910",
+    "status": 200,
+    "bytes": 22978,
+    "events": 1,
+    "retrieved_at": "2026-09-11T16:36:59.657785+00:00"
+   },
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+    "status": 200,
+    "bytes": 5193,
+    "events": 0,
+    "retrieved_at": "2026-09-11T16:36:59.849589+00:00"
+   }
+  ]
+ },
+ "ledger_snapshots": [
+  "20260904T165925Z",
+  "20260904T174955Z",
+  "20260905T024946Z",
+  "20260905T065948Z",
+  "20260905T153002Z",
+  "20260905T183014Z",
+  "20260905T204016Z",
+  "20260906T000030Z",
+  "20260906T050056Z",
+  "20260906T111041Z",
+  "20260906T154104Z",
+  "20260906T183123Z",
+  "20260906T204120Z",
+  "20260907T001216Z",
+  "20260907T050405Z",
+  "20260907T125402Z",
+  "20260907T184423Z",
+  "20260907T225438Z",
+  "20260908T050826Z",
+  "20260908T113858Z",
+  "20260908T164905Z",
+  "20260908T211936Z",
+  "20260909T002920Z",
+  "20260909T050946Z",
+  "20260909T165052Z",
+  "20260909T210309Z",
+  "20260910T002848Z",
+  "20260910T050820Z",
+  "20260910T113803Z",
+  "20260910T163901Z",
+  "20260910T205648Z",
+  "20260911T002400Z",
+  "20260911T051059Z",
+  "20260911T114336Z"
+ ],
+ "tickers": 510,
+ "quote_rows_scanned": 150855,
+ "capture_days_scanned": [
+  "2026-09-04",
+  "2026-09-05",
+  "2026-09-06",
+  "2026-09-07",
+  "2026-09-08",
+  "2026-09-09",
+  "2026-09-10",
+  "2026-09-11"
+ ],
+ "by_settlement_reason": {
+  "player is absent from a complete snap table, so he took no snap; whether he was INACTIVE (settles $0.00) or ACTIVE-but-never-played (settles at the pregame fair price) is not provable from free data, and those settle differently": 63
+ },
+ "kalshi_crosscheck": {},
+ "exchange_evidence": {
+  "scalar_dependent_tickers": [],
+  "terminal_records_held": 0,
+  "snapshot_pinned_this_batch": false,
+  "sources": []
+ }
+}
