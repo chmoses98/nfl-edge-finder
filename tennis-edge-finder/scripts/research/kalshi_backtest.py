@@ -29,6 +29,7 @@ from tennis_edge.eval.metrics import summary, bootstrap_diff, reliability_table
 from tennis_edge.pricing.fees import taker_fee, FeeSchedule
 from tennis_edge.health.gates import _latest_discovery
 
+PREGAME_HOURS = float(os.environ.get("PREGAME_HOURS", "7"))
 MATCH_SERIES = [tk for tk, (fam, tour, lvl, disc) in SERIES.items() if fam == "MATCH_WINNER" and disc == "singles" and tour in ("ATP", "WTA")]
 
 
@@ -74,17 +75,22 @@ def main():
             t = os.path.basename(f)[:-5]
             if t in recs:
                 by_event[recs[t]["event_ticker"]].append((t, f))
-    matches = pd.read_parquet(os.path.join(PROJ, "data", "processed", "matches.parquet"), columns=["match_key", "tour", "tourney_date", "winner_id", "loser_id", "level_canonical", "id_system", "outcome_type"])
-    matches = matches[matches.id_system == "sackmann"]
-    matches["tourney_date"] = pd.to_datetime(matches["tourney_date"])
-    pair_idx = defaultdict(list)
-    for r in matches[matches.tourney_date >= "2026-05-01"].itertuples(index=False):
-        pair_idx[frozenset((r.winner_id, r.loser_id))].append(r)
-    preds = {}
-    for t in ("ATP", "WTA"):
-        p = os.path.join(PROJ, "research", "elo_study", f"predictions_{t}.parquet")
-        if os.path.exists(p):
-            preds[t] = pd.read_parquet(p).set_index("match_key")
+    # Model probabilities come from the FROZEN production rating states (Sackmann fork ends 2026-06-01 ATP /
+    # 2026-04-27 WTA): every rating predates every market here, so there is no leakage; the model is handicapped
+    # by 1-4 months of staleness. Truth = exchange binary result (scalar/fair-price settlements excluded).
+    from tennis_edge.pricing.competition import classify_competition, build_surface_lookup, lookup_surface
+    from tennis_edge.models.elo import expected as elo_expected
+    from tennis_edge.sim.analytic import match_win_prob, point_probs_from_match_prob
+    from tennis_edge.rules.formats import resolve_format, FormatResolutionError, TOUR_SINGLES_BO3
+    import math
+    mtab = pd.read_parquet(os.path.join(PROJ, "data", "processed", "matches.parquet"), columns=["tourney_name", "surface", "season"])
+    surf_lookup = build_surface_lookup(mtab)
+
+    def surface_rating(rec, surface, w_max=0.5, n_half=20.0):
+        r = rec["elo"]
+        if surface and surface in rec.get("surfaces", {}):
+            rs, ns = rec["surfaces"][surface]; w = w_max * ns / (ns + n_half); return (1 - w) * r + w * rs
+        return r
     rows = []; stats = defaultdict(int)
     for ev, lst in by_event.items():
         stats["events"] += 1
@@ -98,9 +104,8 @@ def main():
         if True not in names or False not in names:
             stats["missing_side"] += 1; continue
         pm_a, m_a, f_a = sides[True]
-        tour = "WTA" if pm_a.series_ticker.startswith(("KXWTA", "KXITFW")) else "ATP"
-        if pm_a.series_ticker == "KXITFWMATCH":
-            tour = "WTA"
+        info = classify_competition(pm_a.competition, pm_a.tour)
+        tour = info["tour"] if info["tour"] in ("ATP", "WTA") else ("WTA" if pm_a.series_ticker.startswith(("KXWTA", "KXITFW")) else "ATP")
         res_a = m_a.get("result")
         if res_a not in ("yes", "no"):
             stats["non_binary_settlement"] += 1; continue
@@ -108,47 +113,47 @@ def main():
         if ma["status"] != "MAPPED" or mb["status"] != "MAPPED":
             stats["unmapped"] += 1; continue
         sched = ts(m_a.get("occurrence_datetime") or m_a.get("expected_expiration_time"))
-        if not sched:
+        close_t = ts(m_a.get("close_time"))
+        if not sched or not close_t:
             stats["no_schedule"] += 1; continue
+        # occurrence_datetime is NOT a start time for ITF/Challenger series (it is a nominal session time that
+        # usually falls AFTER close_time). Conservative pregame cutoff: at least PREGAME_HOURS before the market
+        # closed (a match rarely lasts longer) AND before the nominal start.
+        cutoff = min(sched - 300, close_t - PREGAME_HOURS * 3600)
         body = json.load(open(f_a))
         c60 = body.get("candles_60")
         cands = (c60[0] if isinstance(c60, list) else c60) or {}
         candles = cands.get("candlesticks") or []
-        q = prestart_quote(candles, sched - 300)
+        q = prestart_quote(candles, cutoff)
         if not q:
             stats["no_prestart_quote"] += 1; continue
-        # canonical match: same pair, tournament started within 20 days before the scheduled date
+        try:
+            fmt = resolve_format(tour, info["level"], 2026, info["competition"] if info["level"] == "GRAND_SLAM" else None, "singles")
+        except FormatResolutionError:
+            stats["format_unresolved"] += 1; continue
+        st = states[tour]; ra_rec, rb_rec = st["players"][ma["player_id"]], st["players"][mb["player_id"]]
+        surface, _src = lookup_surface(pm_a.competition, info["surface_hint"], surf_lookup)
+        ra, rb = surface_rating(ra_rec, surface), surface_rating(rb_rec, surface)
+        p_elo_bo3 = elo_expected(ra, rb)
+        spw = st["baselines"].get(f"{tour}|{surface}", None) or (0.64 if tour == "ATP" else 0.57)
+        p_elo = match_win_prob(*point_probs_from_match_prob(p_elo_bo3, 2 * spw, TOUR_SINGLES_BO3), fmt)
+        base = math.log(spw / (1 - spw))
+        sr_pa = 1 / (1 + math.exp(-(base + ra_rec["sr_s"] - rb_rec["sr_r"]))); sr_pb = 1 - 1 / (1 + math.exp(-(base + rb_rec["sr_s"] - ra_rec["sr_r"])))
+        p_sr = match_win_prob(sr_pa, sr_pb, fmt)
+        sr_ok = min(ra_rec["sr_points"], rb_rec["sr_points"]) >= 1000
+        z = 0.5 * math.log(p_elo / (1 - p_elo)) + 0.5 * math.log(p_sr / (1 - p_sr)); p_ens = 1 / (1 + math.exp(-z)) if sr_ok else p_elo
         kd = datetime.fromtimestamp(sched, tz=timezone.utc)
-        cands_m = [r for r in pair_idx.get(frozenset((ma["player_id"], mb["player_id"])), []) if (kd.date() - r.tourney_date.date()).days in range(-1, 21)]
-        if not cands_m:
-            stats["no_canonical_match"] += 1; continue
-        if len(cands_m) > 1:
-            cands_m.sort(key=lambda r: abs((kd.date() - r.tourney_date.date()).days))
-        cm = cands_m[0]
-        if cm.outcome_type == "WALKOVER":
-            stats["walkover"] += 1; continue
-        y_a = 1.0 if res_a == "yes" else 0.0
-        # sports truth cross-check: exchange winner == canonical winner?
-        sports_a_won = cm.winner_id == ma["player_id"]
-        if bool(sports_a_won) != bool(y_a == 1.0):
-            stats["exchange_vs_sports_conflict"] += 1; continue
-        pr = preds.get(tour)
-        if pr is None or cm.match_key not in pr.index:
-            stats["no_walkforward_prediction"] += 1; continue
-        prow = pr.loc[cm.match_key]
-        # p_winner columns are P(actual winner); orient to side A
-        def orient(col):
-            v = float(prow[col]); return v if sports_a_won else 1 - v
-        rows.append({"event": ev, "tour": tour, "series": pm_a.series_ticker, "level": cm.level_canonical, "match_key": cm.match_key, "y_a": y_a,
-                     "kalshi_bid": q["bid"], "kalshi_ask": q["ask"], "kalshi_mid": q["mid"], "kalshi_oi": q["oi"], "hours_before_start": q["hours_before_start"],
-                     "p_elo_plain": orient("p_elo_plain"), "p_elo_levelprior": orient("p_elo_levelprior"), "p_elo_surface_k_lo": orient("p_elo_surface_k_lo"),
-                     "p_elo_surface_levelk": orient("p_elo_surface_levelk"), "n_min": float(prow["n_min_elo_plain"]), "sched": kd.isoformat()})
+        rows.append({"event": ev, "tour": tour, "series": pm_a.series_ticker, "level": info["level"], "surface": surface, "y_a": 1.0 if res_a == "yes" else 0.0,
+                     "kalshi_bid": q["bid"], "kalshi_ask": q["ask"], "kalshi_mid": q["mid"], "kalshi_oi": q["oi"], "hours_before_cutoff": q["hours_before_start"], "cutoff_hours_before_close": (close_t - cutoff) / 3600,
+                     "p_elo": p_elo, "p_sr": p_sr, "p_ens": p_ens, "sr_ok": sr_ok, "n_min": min(ra_rec["n"], rb_rec["n"]),
+                     "days_stale_a": (kd.date() - date.fromisoformat(ra_rec["last_date"][:10])).days if ra_rec.get("last_date") not in (None, "None") else None,
+                     "sched": kd.isoformat()})
         stats["linked"] += 1
     df = pd.DataFrame(rows)
     os.makedirs(os.path.join(PROJ, "research", "kalshi_backtest"), exist_ok=True)
     df.to_parquet(os.path.join(PROJ, "research", "kalshi_backtest", "linked.parquet"), index=False)
     L = ["# Model vs KALSHI pre-start price (settled match-winner markets, Jul-Sep 2026)", "", f"Funnel: {dict(stats)}", "",
-         "Kalshi quote = last hourly candle ending >= 5 min before scheduled start, two-sided, spread <= 15c, OI > 0. Model = walk-forward Elo (ratings from matches strictly before each match). Orientation: side A of the event; symmetric by construction (both sides listed).", ""]
+         f"Kalshi quote = last hourly candle ending before min(nominal start - 5 min, close_time - {PREGAME_HOURS:.0f} h) (occurrence_datetime is NOT a start time for ITF/Challenger: it usually falls after the close), two-sided, spread <= 15c, OI > 0. Model = production rating states FROZEN at the end of the Sackmann fork data (ATP 2026-06-01, WTA 2026-04-27), so ratings predate every market (no leakage) but are 1-4 months stale. Truth = exchange binary result. Orientation randomised.", ""]
     if len(df) == 0:
         L.append("No linked rows.")
     else:
@@ -158,24 +163,24 @@ def main():
             v = df[col].to_numpy(float); return np.where(flip, 1 - v, v)
         mkt = o("kalshi_mid")
         L += [f"n = {len(df)}", "", "| forecaster | brier | log_loss | accuracy | ECE | cal_slope | boot Brier diff vs Kalshi mid [95% CI] |", "|---|---|---|---|---|---|---|"]
-        for name in ["kalshi_mid", "p_elo_plain", "p_elo_levelprior", "p_elo_surface_k_lo", "p_elo_surface_levelk"]:
+        for name in ["kalshi_mid", "p_elo", "p_sr", "p_ens"]:
             p = o(name); s = summary(y, p); b = bootstrap_diff(y, p, mkt, n_boot=500)
             L.append(f"| {name} | {s['brier']:.4f} | {s['log_loss']:.4f} | {s['accuracy']:.4f} | {s['ece']:.4f} | {s['cal_slope']:.3f} | {b['diff']:+.5f} [{b['ci_low']:+.5f}, {b['ci_high']:+.5f}] |")
         # by series/level
-        L += ["", "## By series (log-loss)", "", "| series | n | Kalshi | elo_plain | elo_surface_k_lo |", "|---|---|---|---|---|"]
+        L += ["", "## By series (log-loss)", "", "| series | n | Kalshi | elo | ensemble |", "|---|---|---|---|---|"]
         for sname, g in df.groupby("series").groups.items():
             idx = np.zeros(len(df), bool); idx[np.asarray(list(g))] = True
             if idx.sum() < 50:
                 continue
-            L.append(f"| {sname} | {int(idx.sum())} | {summary(y[idx], mkt[idx])['log_loss']:.4f} | {summary(y[idx], o('p_elo_plain')[idx])['log_loss']:.4f} | {summary(y[idx], o('p_elo_surface_k_lo')[idx])['log_loss']:.4f} |")
+            L.append(f"| {sname} | {int(idx.sum())} | {summary(y[idx], mkt[idx])['log_loss']:.4f} | {summary(y[idx], o('p_elo')[idx])['log_loss']:.4f} | {summary(y[idx], o('p_ens')[idx])['log_loss']:.4f} |")
         # disagreement buckets + hypothetical execution at the ASK with taker fees
-        model = o("p_elo_plain"); dlt = model - mkt; ad = np.abs(dlt)
+        model = o("p_ens"); dlt = model - mkt; ad = np.abs(dlt)
         bid = o("kalshi_bid") if False else None
         # executable: buying the model-favoured side at its ask
         yes_ask = df.kalshi_ask.to_numpy(float); yes_bid = df.kalshi_bid.to_numpy(float)
         ask_a = np.where(flip, 1 - yes_bid, yes_ask)   # ask for side 'A after flip' = 1 - bid of the other side
         ask_b = np.where(flip, yes_ask, 1 - yes_bid)
-        L += ["", "## Disagreement buckets |elo_plain - Kalshi mid| (buy model-favoured side at its ASK, taker fee)", "",
+        L += ["", "## Disagreement buckets |ensemble - Kalshi mid| (buy model-favoured side at its ASK, taker fee)", "",
               "| bucket | n | model brier | Kalshi brier | model-side win% | avg ask paid | net ROI per $1 after fees |", "|---|---|---|---|---|---|---|"]
         edges = [0, 0.025, 0.05, 0.10, 0.15, 0.20, 1.01]
         for lo, hi in zip(edges, edges[1:]):
@@ -187,11 +192,11 @@ def main():
             fee = np.array([taker_fee(p, 1.0) for p in price])
             pnl = won * 1.0 - price - fee
             L.append(f"| {lo:.3f}-{min(hi, 1):.3f} | {int(idx.sum())} | {np.mean((model[idx] - y[idx]) ** 2):.4f} | {np.mean((mkt[idx] - y[idx]) ** 2):.4f} | {won.mean():.3f} | {price.mean():.3f} | {pnl.sum() / price.sum():+.3f} |")
-        L += ["", "## Reliability (Kalshi mid vs elo_plain)", "", "| bin | n | Kalshi mean p | obs | elo mean p | obs |", "|---|---|---|---|---|---|"]
+        L += ["", "## Reliability (Kalshi mid vs ensemble)", "", "| bin | n | Kalshi mean p | obs | elo mean p | obs |", "|---|---|---|---|---|---|"]
         rk = reliability_table(y, mkt); rm = reliability_table(y, model)
         for a_, b_ in zip(rk, rm):
             L.append(f"| {a_['bin']} | {a_['n']} | {a_['mean_p'] if a_['mean_p'] is None else round(a_['mean_p'], 3)} | {a_['obs_rate'] if a_['obs_rate'] is None else round(a_['obs_rate'], 3)} | {b_['mean_p'] if b_['mean_p'] is None else round(b_['mean_p'], 3)} | {b_['obs_rate'] if b_['obs_rate'] is None else round(b_['obs_rate'], 3)} |")
-        L += ["", f"Median hours between the quote candle and scheduled start: {df.hours_before_start.median():.1f}; median OI at quote: {df.kalshi_oi.median():.0f}"]
+        L += ["", f"Median hours between the quote candle and the cutoff: {df.hours_before_cutoff.median():.1f}; median hours between cutoff and market close: {df.cutoff_hours_before_close.median():.1f}; median OI at quote: {df.kalshi_oi.median():.0f}"]
     open(os.path.join(PROJ, "research", "kalshi_backtest", "RESULTS.md"), "w").write("\n".join(L) + "\n")
     print("\n".join(L))
 

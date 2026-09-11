@@ -118,11 +118,27 @@ def main():
     ledger = None if a.no_ledger else PredictionLedger(a.ledger)
     sha = git_sha()
 
+    # ACTIVE universe: discovery's open markets, intersected with the tickers still open in the freshest capture pass
+    # when that pass is < 45 min old (discovery snapshots are hours old; many of its 'open' markets are in play).
+    capture_fresh = False
+    if quotes:
+        newest = max(r["captured_at"] for r in quotes.values())
+        capture_fresh = (datetime.now(timezone.utc) - datetime.fromisoformat(newest)).total_seconds() < 45 * 60
+    now = datetime.now(timezone.utc)
     parsed = {}; by_event = defaultdict(list); coverage = defaultdict(int); excluded = []
     for m in markets:
         pm = parse_market(m)
         parsed[pm.ticker] = (pm, m)
         coverage["active"] += 1
+        if capture_fresh and pm.ticker not in quotes:
+            coverage["closed_since_discovery"] += 1; excluded.append({"ticker": pm.ticker, "stage": "lifecycle", "reason": "not open in the freshest capture pass (closed/settled since discovery)"}); continue
+        # PREGAME POLICY: refuse anything at or past its nominal start; for ITF/Challenger series the nominal
+        # occurrence_datetime is NOT a start time (it usually falls after the market closes), so those rows are
+        # additionally flagged start_basis=NOMINAL_UNRELIABLE and never actionable until first-ball truth exists.
+        sched = m.get("occurrence_datetime") or m.get("expected_expiration_time")
+        secs = _secs(sched)
+        if secs is None or secs <= 300:
+            coverage["past_nominal_start"] += 1; excluded.append({"ticker": pm.ticker, "stage": "pregame", "reason": f"nominal start {sched} is <= 5 min away or past (no first-ball truth available)"}); continue
         if pm.status == "UNPARSED":
             coverage["unparsed"] += 1; excluded.append({"ticker": pm.ticker, "stage": "parse", "reason": pm.reason}); continue
         if pm.status == "UNSUPPORTED_FAMILY" or not pm.projectable:
@@ -144,9 +160,16 @@ def main():
         info = classify_competition(head.competition, head.tour)
         tour = info["tour"]
         reason = None
-        if info["discipline"] != "singles" or head.discipline != "singles":
-            reason = "doubles/mixed: singles engine only (doubles baseline not wired to live pricing tonight)"
-        elif tour not in states:
+        is_doubles = info["discipline"] != "singles" or head.discipline != "singles"
+        if is_doubles:
+            dres = price_doubles_event(ev, pms, names, comp_ids, info, tour, states, mapper, today, quotes, parsed, fee_types, disc_summary, sha, ledger)
+            if dres["ok"]:
+                projections.extend(dres["rows"]); projected_tickers.extend(r["ticker"] for r in dres["rows"]); coverage["projected_doubles"] += len(dres["rows"])
+            else:
+                for pm in pms:
+                    coverage["excluded_event"] += 1; excluded.append({"ticker": pm.ticker, "stage": "doubles", "reason": dres["reason"]})
+            continue
+        if tour not in states:
             reason = f"tour {tour} has no rating state"
         elif not names[True] or not names[False]:
             reason = "could not recover both competitors' full names from the event's markets"
@@ -232,6 +255,7 @@ def main():
                    "quality": q, "market_quote": {"yes_bid": yes_bid, "yes_ask": yes_ask, "no_bid": no_bid, "no_ask": no_ask, "source": quote_src, "quote_ts": qrec.get("captured_at") or disc_summary["started_at"],
                                                   "volume": qrec.get("volume_fp"), "open_interest": qrec.get("open_interest_fp"), "liquidity": qrec.get("liquidity_dollars")},
                    "scheduled_start": sched, "seconds_to_scheduled_start": _secs(sched),
+                   "start_basis": "SCHEDULED" if info["level"] in ("GRAND_SLAM", "MASTERS_1000", "TOUR_500_250", "TOUR_FINALS", "OLYMPICS", "TEAM") else "NOMINAL_UNRELIABLE",
                    "ev": {"best_side": best.side if best else None, "price": best.price if best else None, "raw_edge": best.raw_edge if best else None,
                           "fee_per_contract": best.fee_per_contract if best else None, "ev_after_fees": best.ev_per_contract_after_fees if best else None,
                           "bet_up_to": breakeven_price(best.fair, fee) if best else None},
@@ -251,6 +275,69 @@ def main():
     write_report(out, os.path.join(a.out, f"REPORT_{run_id}.md"))
     print(json.dumps({"run_id": run_id, "coverage": dict(coverage), "consistency_violations": len(consistency_violations)}, indent=1))
     return 0
+
+
+def price_doubles_event(ev, pms, names, comp_ids, info, tour, states, mapper, today, quotes, parsed, fee_types, disc_summary, sha, ledger):
+    """MATCH_WINNER only, DoublesBaseline on the four players' singles Elo (documented prior, unvalidated):
+    quality grade capped at C, authority RESEARCH_ONLY, never actionable."""
+    from tennis_edge.doubles.model import DoublesBaseline
+    from tennis_edge.rules.formats import resolve_format, FormatResolutionError
+    if not names.get(True) or not names.get(False):
+        return {"ok": False, "reason": "doubles: could not recover both team names"}
+    teams = {}
+    for side in (True, False):
+        parts = [x.strip() for x in names[side].split("/")]
+        if len(parts) != 2:
+            return {"ok": False, "reason": f"doubles: team name not a pair: {names[side]!r}"}
+        ids = []
+        for nm in parts:
+            t_try = [tour] if tour in states else list(states)
+            if tour == "MIXED":
+                t_try = ["ATP", "WTA"]
+            hit = None
+            for tt in t_try:
+                r = mapper.resolve(tt, nm, None, today)
+                if r["status"] == "MAPPED":
+                    hit = (tt, r["player_id"]); break
+            if not hit:
+                return {"ok": False, "reason": f"doubles: player {nm!r} unmapped/ambiguous in {t_try}"}
+            ids.append(hit)
+        teams[side] = ids
+    singles = {pid: states[tt]["players"][pid]["elo"] for side in teams for tt, pid in teams[side]}
+    model = DoublesBaseline(singles_elo=singles)
+    pred = model.predict(tuple(pid for _, pid in teams[True]), tuple(pid for _, pid in teams[False]))
+    try:
+        fmt = resolve_format("ATP" if tour == "MIXED" else tour, info["level"], today.year, info["competition"] if info["level"] == "GRAND_SLAM" else None, "mixed" if tour == "MIXED" else "doubles")
+    except FormatResolutionError as e:
+        return {"ok": False, "reason": f"doubles format: {e}"}
+    rows = []
+    for pm in pms:
+        if pm.family != "MATCH_WINNER":
+            continue
+        fair = pred["p_a"] if pm.subject_is_a else 1 - pred["p_a"]
+        raw = parsed[pm.ticker][1]; qrec = quotes.get(pm.ticker) or raw
+        yes_bid, yes_ask, no_bid, no_ask = (fnum(qrec.get(k)) for k in ("yes_bid_dollars", "yes_ask_dollars", "no_bid_dollars", "no_ask_dollars"))
+        fee = fee_types.get(pm.series_ticker, FeeSchedule()); evs = expected_value(fair, yes_ask, no_ask, 100, fee)
+        best = max(evs, key=lambda e: e.ev_per_contract_after_fees) if evs else None
+        sched = raw.get("occurrence_datetime") or raw.get("expected_expiration_time")
+        row = {"match_id": ev, "ticker": pm.ticker, "family": pm.family, "event_ticker": ev, "series_ticker": pm.series_ticker,
+               "player_a": names[True], "player_b": names[False], "player_a_id": "|".join(pid for _, pid in teams[True]), "player_b_id": "|".join(pid for _, pid in teams[False]),
+               "tour": tour, "level": info["level"], "competition": pm.competition, "round": pm.round, "format": fmt.name, "surface": None, "surface_source": "n/a",
+               "subject": pm.subject, "line": None, "set_index": None, "exact_score": None, "model_version": "doubles_baseline_prior_v0", "ratings_as_of": min(states[t]["as_of_date"] for t in states),
+               "git_sha": sha, "feature_snapshot_id": "doubles_prior", "data_source_versions": {"discovery": disc_summary["run_id"]},
+               "models": {"ELO": None, "STRUCTURAL": None, "ENSEMBLE": None, "ELO_DP_FAIR": fair, "MARKET_MID": (0.5 * (yes_bid + yes_ask)) if (yes_bid and yes_ask) else None, "HYBRID_MARKET_MODEL": None, "DOUBLES_BASELINE": fair},
+               "inputs": {"rating_a": pred["rating_a"], "rating_b": pred["rating_b"], "basis_a": pred["basis_a"], "basis_b": pred["basis_b"]},
+               "quality": {"data_quality_score": 0.3, "grade": "C", "pillars": {"note": "doubles baseline prior; unvalidated"}},
+               "market_quote": {"yes_bid": yes_bid, "yes_ask": yes_ask, "no_bid": no_bid, "no_ask": no_ask, "source": "capture" if pm.ticker in quotes else "discovery_record", "quote_ts": qrec.get("captured_at") or disc_summary["started_at"],
+                                "volume": qrec.get("volume_fp"), "open_interest": qrec.get("open_interest_fp"), "liquidity": qrec.get("liquidity_dollars")},
+               "scheduled_start": sched, "seconds_to_scheduled_start": _secs(sched),
+               "ev": {"best_side": best.side if best else None, "price": best.price if best else None, "raw_edge": best.raw_edge if best else None, "fee_per_contract": best.fee_per_contract if best else None,
+                      "ev_after_fees": best.ev_per_contract_after_fees if best else None, "bet_up_to": breakeven_price(best.fair, fee) if best else None},
+               "notes": pred["note"], "conditional_yes": None, "p_played": None, "authority": "RESEARCH_ONLY_NO_REAL_MONEY"}
+        rows.append(row)
+        if ledger is not None:
+            ledger.append(dict(row))
+    return {"ok": True, "rows": rows}
 
 
 def _orient(p_a, pm):
@@ -281,21 +368,21 @@ def write_report(out, path):
             liq = 0.0
         two_sided = mq.get("yes_bid") is not None and mq.get("yes_ask") is not None
         spread = (mq["yes_ask"] - mq["yes_bid"]) if two_sided else 1.0
-        return two_sided and spread <= 0.10 and liq > 0 and r["quality"]["grade"] in ("A", "B")
+        return two_sided and spread <= 0.10 and liq > 0 and r["quality"]["grade"] in ("A", "B") and r.get("start_basis") == "SCHEDULED" and (r.get("seconds_to_scheduled_start") or 0) > 900
     act = [r for r in rows if actionable(r)]; act.sort(key=lambda r: -(r["ev"]["ev_after_fees"] or -1))
     rows.sort(key=lambda r: -(r["ev"]["ev_after_fees"] or -1))
     L += ["## Actionability-filtered opportunities (two-sided quote, spread <= 10c, liquidity > 0, quality A/B)", "",
           f"{len(act)} of {len(rows)} priced markets pass the actionability filter. HYPOTHETICAL: no model has beaten the market benchmark; treat as research candidates, not bets.", "",
           "| match | market | side | price | fair | raw edge | EV after fees | bet up to | quality | why / risk |", "|---|---|---|---|---|---|---|---|---|---|"]
     for r in act[:25]:
-        why = f"Elo {r['inputs']['elo_a']:.0f} vs {r['inputs']['elo_b']:.0f} ({r['surface'] or 'surface?'}); Elo p={r['models']['ELO']:.2f}, SR p={r['models']['STRUCTURAL']:.2f}, ens={r['models']['ENSEMBLE']:.2f}" if r["models"].get("STRUCTURAL") is not None else f"DP from ensemble point probs pa={r['inputs']['pa']:.3f} pb={r['inputs']['pb']:.3f}"
+        why = f"Elo {r['inputs']['elo_a']:.0f} vs {r['inputs']['elo_b']:.0f} ({r['surface'] or 'surface?'}); Elo p={r['models']['ELO']:.2f}, SR p={r['models']['STRUCTURAL']:.2f}, ens={r['models']['ENSEMBLE']:.2f}" if r["models"].get("STRUCTURAL") is not None else (f"DP from ensemble point probs pa={r['inputs']['pa']:.3f} pb={r['inputs']['pb']:.3f}" if 'pa' in r['inputs'] else f"doubles baseline {r['inputs'].get('rating_a', 0):.0f} vs {r['inputs'].get('rating_b', 0):.0f} (unvalidated prior)")
         risk = f"quote {r['market_quote']['source']} @ {r['market_quote']['quote_ts'][:16]}; liq {r['market_quote']['liquidity']}; grade {r['quality']['grade']}"
         fair = r['models']['ELO_DP_FAIR'] if r['ev']['best_side'] == 'YES' else 1 - r['models']['ELO_DP_FAIR']
         L.append(f"| {r['player_a']} vs {r['player_b']} ({r['competition']} {r['round']}) | {r['family']} {r['ticker']} | {r['ev']['best_side']} | {r['ev']['price']:.2f} | {fair:.3f} | {r['ev']['raw_edge']:+.3f} | {r['ev']['ev_after_fees']:+.3f} | {r['ev']['bet_up_to']:.2f} | {r['quality']['grade']} | {why} / {risk} |")
     L += ["", "## All priced markets by raw disagreement (unfiltered; most are illiquid or stale quotes -> PASS)", "",
           "| match | market | side | price | fair | raw edge | EV after fees | bet up to | quality | why / risk |", "|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows[:40]:
-        why = f"Elo {r['inputs']['elo_a']:.0f} vs {r['inputs']['elo_b']:.0f} ({r['surface'] or 'surface?'}); Elo p={r['models']['ELO']:.2f}, SR p={r['models']['STRUCTURAL']:.2f}, ens={r['models']['ENSEMBLE']:.2f}" if r["models"].get("STRUCTURAL") is not None else f"DP from ensemble point probs pa={r['inputs']['pa']:.3f} pb={r['inputs']['pb']:.3f}"
+        why = f"Elo {r['inputs']['elo_a']:.0f} vs {r['inputs']['elo_b']:.0f} ({r['surface'] or 'surface?'}); Elo p={r['models']['ELO']:.2f}, SR p={r['models']['STRUCTURAL']:.2f}, ens={r['models']['ENSEMBLE']:.2f}" if r["models"].get("STRUCTURAL") is not None else (f"DP from ensemble point probs pa={r['inputs']['pa']:.3f} pb={r['inputs']['pb']:.3f}" if 'pa' in r['inputs'] else f"doubles baseline {r['inputs'].get('rating_a', 0):.0f} vs {r['inputs'].get('rating_b', 0):.0f} (unvalidated prior)")
         risk = f"quote {r['market_quote']['source']}; liq {r['market_quote']['liquidity']}; grade {r['quality']['grade']}"
         L.append(f"| {r['player_a']} vs {r['player_b']} ({r['competition']} {r['round']}) | {r['family']} {r['ticker']} | {r['ev']['best_side']} | {r['ev']['price']:.2f} | {r['ev']['best_side'] == 'YES' and r['models']['ELO_DP_FAIR'] or 1 - r['models']['ELO_DP_FAIR']:.3f} | {r['ev']['raw_edge']:+.3f} | {r['ev']['ev_after_fees']:+.3f} | {r['ev']['bet_up_to']:.2f} | {r['quality']['grade']} | {why} / {risk} |")
     L += ["", "## Exclusions (first 60)", "", "| ticker | stage | reason |", "|---|---|---|"]

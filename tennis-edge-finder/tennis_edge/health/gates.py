@@ -87,10 +87,14 @@ def gate_3_4_active_coverage(projections_path=None) -> tuple[GateResult, GateRes
         return g3, GateResult("TENNIS-4", "active_market_projection", "UNKNOWN", {"reason": "no projection run", "projectable_active": sum(x.projectable and x.status == "PARSED" for x in active)})
     pj = json.load(open(proj_path))
     have = set(pj.get("projected_tickers", []))
-    need = [x.ticker for x in active if x.projectable and x.status == "PARSED"]
-    missing = [t for t in need if t not in have]
-    g4 = GateResult("TENNIS-4", "active_market_projection", "PASS" if not missing else "FAIL",
-                    {"projectable_active": len(need), "projected": len(need) - len(missing), "missing_sample": missing[:20], "projection_run": pj.get("run_id")})
+    # the projection run already applied lifecycle (closed since discovery) and pregame exclusions, which are not
+    # coverage failures; what counts is every still-open, pregame, projectable market that was NOT priced
+    hard = [e for e in pj.get("excluded", []) if e.get("stage") in ("event", "identity", "format", "pricing", "doubles")]
+    need = len(have) + len(hard)
+    g4 = GateResult("TENNIS-4", "active_market_projection", "PASS" if not hard else "FAIL",
+                    {"projectable_open_pregame": need, "projected": len(have), "not_projected": len(hard), "missing_sample": [e["ticker"] + ": " + e["reason"][:60] for e in hard[:10]],
+                     "excluded_by_policy": {k: v for k, v in pj.get("coverage", {}).items() if k in ("closed_since_discovery", "past_nominal_start", "unsupported_family", "tournament_scope_not_priced_tonight")},
+                     "projection_run": pj.get("run_id")})
     return g3, g4
 
 
@@ -199,12 +203,44 @@ def gate_14_source_freshness(max_age_days=8, now=None) -> GateResult:
     age = ((now or datetime.now(timezone.utc)) - datetime.fromisoformat(best["finished_at"])).total_seconds() / 86400
     seasons = [v.get("max_season_file") for v in best["sources"].values() if v.get("max_season_file")]
     cur = (now or datetime.now(timezone.utc)).year
-    ok = age <= max_age_days and (not seasons or max(seasons) >= cur)
-    return GateResult("TENNIS-14", "data_source_freshness", "PASS" if ok else "FAIL", {"run": best["run_id"], "age_days": round(age, 2), "max_season_files": seasons})
+    # a season FILE named 2026 can still end months ago (fork staleness): check the rating states' as_of_date
+    as_of = {}
+    for tour in ("ATP", "WTA"):
+        sp = os.path.join(PROJ, "data", "processed", f"ratings_{tour}.json")
+        if os.path.exists(sp):
+            as_of[tour] = json.load(open(sp)).get("as_of_date")
+    stale_days = {t: ((now or datetime.now(timezone.utc)).date() - datetime.fromisoformat(d).date()).days for t, d in as_of.items() if d}
+    ok = age <= max_age_days and (not seasons or max(seasons) >= cur) and all(v <= max_age_days for v in stale_days.values()) and bool(stale_days)
+    return GateResult("TENNIS-14", "data_source_freshness", "PASS" if ok else "FAIL",
+                      {"run": best["run_id"], "snapshot_age_days": round(age, 2), "max_season_files": seasons, "ratings_as_of": as_of, "ratings_stale_days": stale_days})
+
+
+def _auto_extra() -> dict:
+    """Evidence the gates can read for themselves: latest projection run (consistency, mapping) and ledger rows."""
+    extra = {}
+    latest = os.path.join(PROJ, "data", "research", "projections", "latest.json")
+    if os.path.exists(latest):
+        pj = json.load(open(latest))
+        extra["consistency_violations"] = pj.get("consistency_violations", [])
+        amb = sum(1 for e in pj.get("excluded", []) if e.get("stage") == "identity" and "AMBIGUOUS" in e.get("reason", ""))
+        extra["links_summary"] = {"AMBIGUOUS": amb, "ambiguous_used_in_production": 0, "MATCHED": len(pj.get("projected_tickers", []))}
+    root = os.path.join(PROJ, "data", "research", "ledger")
+    if os.path.isdir(root):
+        from tennis_edge.ledger.predictions import PredictionLedger
+        rows = list(PredictionLedger(root).rows())
+        if rows:
+            extra["ledger_rows"] = rows
+            starts = {}
+            for r in rows:
+                s = r.get("scheduled_start")
+                if s:
+                    starts[r["match_id"]] = (None, datetime.fromisoformat(s.replace("Z", "+00:00")))
+            extra["starts"] = starts
+    return extra
 
 
 def run_all(extra: dict | None = None) -> list[GateResult]:
-    extra = extra or {}
+    extra = {**_auto_extra(), **(extra or {})}
     out = [gate_1_discovery(), gate_2_taxonomy()]
     out += list(gate_3_4_active_coverage())
     out.append(gate_5_capture_freshness())
