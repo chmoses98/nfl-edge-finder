@@ -77,6 +77,37 @@ def fetch_retry(url, attempts=3, headers=None, timeout=60):
     raise last
 
 
+def github_search_candidates(name, token, per_page=30):
+    """Public repositories named `name` (forks/clones of the Sackmann data), most recently pushed first.
+
+    Used because JeffSackmann/tennis_atp and /tennis_wta returned 404 on 2026-09-11 (repositories made
+    private or removed); forks keep the data. GITHUB_TOKEN can call the public search API.
+    """
+    import urllib.parse
+    if not token:
+        return []
+    q = urllib.parse.quote(f"{name} in:name")
+    url = f"https://api.github.com/search/repositories?q={q}&sort=updated&order=desc&per_page={per_page}"
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            items = json.loads(r.read()).get("items", [])
+    except Exception as e:  # noqa: BLE001
+        print(f"search failed for {name}: {e}", flush=True)
+        return []
+    out = []
+    for it in items:
+        if (it.get("name") or "").lower() == name.lower() and not it.get("private"):
+            out.append({"owner": it["owner"]["login"], "repo": it["name"], "pushed_at": it.get("pushed_at"), "fork": it.get("fork"),
+                        "default_branch": it.get("default_branch") or "master", "stars": it.get("stargazers_count")})
+    return out
+
+
+def snapshot_ok(dest, must_have):
+    files = set(os.listdir(dest))
+    return all(any(f.startswith(m) for f in files) for m in must_have)
+
+
 def clone_repo(owner, repo, work, branch="master"):
     """Obtain a public repo snapshot WITHOUT git credentials.
 
@@ -159,30 +190,71 @@ def main():
             rec.update(extra)
         manifest["files"].append(rec)
 
-    # ---- Sackmann repos
-    repos = [] if a.only == "tennisdata" else [("JeffSackmann", "tennis_atp", None), ("JeffSackmann", "tennis_wta", None)]
-    if not a.skip_mcp:
-        repos.append(("JeffSackmann", "tennis_MatchChartingProject",
-                      lambda fn: fn.endswith(("-matches.csv", "-stats-Overview.csv", "-stats-ServeBasics.csv", "-stats-ReturnOutcomes.csv", "-stats-KeyPointsServe.csv", "-stats-KeyPointsReturn.csv"))))
-    for owner, repo, keep in repos:
+    # ---- Sackmann-format match repositories: upstream first, then live forks (discovered), then known clones
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    groups = [] if a.only == "tennisdata" else [
+        ("tennis_atp", ["atp_matches_2024", "atp_players", "atp_rankings_current", "atp_matches_qual_chall_2024", "atp_matches_futures_2024"], None,
+         [("JeffSackmann", "tennis_atp"), ("stakah", "tennis_atp"), ("beta2k", "tennis_atp")]),
+        ("tennis_wta", ["wta_matches_2024", "wta_players", "wta_rankings_current", "wta_matches_qual_itf_2024"], None,
+         [("JeffSackmann", "tennis_wta")]),
+    ]
+    if not a.skip_mcp and a.only != "tennisdata":
+        groups.append(("tennis_MatchChartingProject", ["charting-m-matches"],
+                       lambda fn: fn.endswith(("-matches.csv", "-stats-Overview.csv", "-stats-ServeBasics.csv", "-stats-ReturnOutcomes.csv", "-stats-KeyPointsServe.csv", "-stats-KeyPointsReturn.csv")),
+                       [("JeffSackmann", "tennis_MatchChartingProject")]))
+    for name, must_have, keep, known in groups:
+        cands = list(known)
+        for c in github_search_candidates(name, token):
+            pair = (c["owner"], c["repo"])
+            if pair not in cands:
+                cands.append(pair)
+        manifest.setdefault("candidates", {})[name] = [f"{o}/{r}" for o, r in cands]
+        got = False
+        errors = []
+        for owner, repo in cands[:12]:
+            try:
+                dest, sha, date = clone_repo(owner, repo, work)
+                if not snapshot_ok(dest, must_have):
+                    errors.append(f"{owner}/{repo}: missing expected files {must_have}")
+                    shutil.rmtree(dest, ignore_errors=True)
+                    continue
+                n = 0
+                for fn in sorted(os.listdir(dest)):
+                    pth = os.path.join(dest, fn)
+                    if not os.path.isfile(pth) or not fn.endswith((".csv", ".txt", ".md")):
+                        continue
+                    if keep and not keep(fn) and not fn.endswith((".md", ".txt")):
+                        continue
+                    add_file(name, fn, pth, f"sackmann/{name}/{fn}.gz")
+                    n += 1
+                manifest["sources"][name] = {"url": f"https://github.com/{owner}/{repo}", "owner": owner, "commit": sha, "commit_date": date,
+                                             "licence": "CC BY-NC-SA 4.0 (per upstream README)", "retrieved_at": datetime.now(timezone.utc).isoformat(), "files": n,
+                                             "authority": "UPSTREAM" if owner == "JeffSackmann" else "FORK_OR_CLONE",
+                                             "note": "" if owner == "JeffSackmann" else "upstream JeffSackmann repo unavailable (404) on retrieval date; data from a public fork/clone -- verify freshness via max season file"}
+                print(f"{name}: {n} files from {owner}/{repo} @ {sha[:16]}", flush=True)
+                got = True
+                break
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"{owner}/{repo}: {str(e)[:160]}")
+        if not got:
+            manifest["failures"].append({"source": name, "error": " | ".join(errors)[:1500]})
+            print(f"FAILED {name}: {errors}", flush=True)
+
+    # ---- TML-Database (Tennismylife): independently maintained ATP match database 1967-2026, Sackmann-like schema
+    if a.only != "tennisdata":
         try:
-            dest, sha, date = clone_repo(owner, repo, work)
-            manifest["sources"][repo] = {"url": f"https://github.com/{owner}/{repo}", "commit": sha, "commit_date": date,
-                                         "licence": "CC BY-NC-SA 4.0 (per repo README)", "retrieved_at": datetime.now(timezone.utc).isoformat()}
+            dest, sha, date = clone_repo("Tennismylife", "TML-Database", work)
             n = 0
             for fn in sorted(os.listdir(dest)):
-                p = os.path.join(dest, fn)
-                if not os.path.isfile(p) or not fn.endswith((".csv", ".txt", ".md")):
-                    continue
-                if keep and not keep(fn) and not fn.endswith((".md", ".txt")):
-                    continue
-                add_file(repo, fn, p, f"sackmann/{repo}/{fn}.gz")
-                n += 1
-            manifest["sources"][repo]["files"] = n
-            print(f"{repo}: {n} files @ {sha[:10]}", flush=True)
+                pth = os.path.join(dest, fn)
+                if os.path.isfile(pth) and fn.endswith((".csv", ".md", ".txt")):
+                    add_file("tml_database", fn, pth, f"tml/{fn}.gz"); n += 1
+            manifest["sources"]["tml_database"] = {"url": "https://github.com/Tennismylife/TML-Database", "commit": sha, "commit_date": date,
+                                                   "licence": "CC BY-NC-SA (per repo README; verify)", "retrieved_at": datetime.now(timezone.utc).isoformat(), "files": n,
+                                                   "authority": "SECONDARY", "note": "ATP-only community database; use to cross-check / extend Sackmann coverage"}
+            print(f"tml_database: {n} files", flush=True)
         except Exception as e:  # noqa: BLE001
-            manifest["failures"].append({"source": repo, "error": str(e)[:300]})
-            print(f"FAILED {repo}: {e}", flush=True)
+            manifest["failures"].append({"source": "tml_database", "error": str(e)[:300]})
 
     # ---- tennis-data.co.uk (results + bookmaker odds)
     y0, y1 = [int(x) for x in a.tennis_data_years.split("-")]
