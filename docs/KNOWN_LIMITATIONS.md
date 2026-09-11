@@ -187,3 +187,13 @@
     the last ledger snapshot. A row that does not reproduce the ledger to 1e-9 is `REPRODUCTION_MISMATCH` and is
     excluded from the autopsy, so a library or data drift between the pricer and the collector shows up as
     missing evidence, never as wrong evidence.
+47. **Shadow v2 has zero prospective evidence** (docs/SHADOW_V2.md §9). Every v2 engine (period, joint, season, the
+    three player arms, margin buckets) writes PROJECTABLE_NOT_YET_VALIDATED records only; the first record that counts
+    is the first one main writes after merge. Historically, no hybrid player blend beat the Kalshi ladder and the
+    period engine cannot be compared to a market at all (203 archived period contracts).
+48. **The period engine under-predicts key-number mass** (|1H margin| = 3: 0.088 predicted vs 0.124 observed); the
+    candidate that matches key numbers mis-centres. Chosen by a preregistered rule; both facts are recorded.
+49. **Season projections use approximate tie-breakers and consensus centres only where published**; conference and
+    Super Bowl winners, race-to-N, first-touchdown team, total touchdowns and team statistics stay RESEARCH_REQUIRED.
+50. **Route participation is not in free data**, so the autopsy's ROUTE_PARTICIPATION_MISS is INSUFFICIENT_DATA by
+    construction until a route source exists.

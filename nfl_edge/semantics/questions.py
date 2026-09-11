@@ -208,7 +208,7 @@ def _half_full_question(sem: MarketSemantics, m: dict) -> Question:
     r1, r2 = (cs or {}).get("1st Half Result"), (cs or {}).get("Fulltime Result")
     if not r1 or not r2:
         return Question(COMPOSITE, PERIOD, None, "1H", semantic_confidence=UNKNOWN, notes=("half/full legs not on this record",))
-    teams = {sem.away_kalshi: sem.away_team, sem.home_kalshi: sem.home_team}
+    teams = {k: v for k, v in ((sem.away_kalshi, sem.away_team), (sem.home_kalshi, sem.home_team)) if k}
     title_names = {}
     # the custom strike names cities ("Denver wins 1st Half"); the ticker suffix carries the codes (DENKC, TIEKC)
     suffix = sem.ticker[len(sem.event_ticker) + 1:]

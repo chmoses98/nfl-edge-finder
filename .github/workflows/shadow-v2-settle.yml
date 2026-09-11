@@ -1,0 +1,58 @@
+name: Shadow v2 settlement & scorecard
+
+# Settles every frozen shadow-v2 projection of every proven-FINAL game from nflverse (finals + postgame tables,
+# play-by-play quarter scores for period markets), appends ONE write-once settlement batch per game to
+# data/shadow/v2/settlements on `market-data`, diagnoses the DATA arm (autopsy v2) and rebuilds the universal
+# scorecard from the whole corpus. The projections are read and never written. Games not yet proven final are
+# deferred, never guessed. docs/SHADOW_V2.md.
+#
+# SHADOW / RESEARCH ONLY. INERT UNTIL MERGED (schedule from the default branch only; job guarded).
+
+on:
+  schedule:
+    - cron: '49 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: shadow-v2-settle
+  cancel-in-progress: false
+
+jobs:
+  settle:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -q numpy pandas polars scipy pyarrow
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Fetch results (schedule, player statistics, snap counts, play-by-play, identities) and market-data
+        run: |
+          python3 scripts/data/nflverse_download.py --only schedules,stats_player,snap_counts,pbp,players,ff_playerids --seasons 2025-2026 2>&1 | tail -4
+          python3 nfl_edge/data/ids.py 2>&1 | tail -3
+          git fetch --depth=1 origin market-data
+          rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+      - name: Settle every ready game, diagnose, rebuild the scorecard
+        id: settle
+        run: |
+          python3 scripts/shadow_v2/settle_v2.py --market-data /tmp/md --out data/shadow/v2 --target-season 2026 \
+            --github-output "$GITHUB_OUTPUT" 2>&1 | tail -40
+      - name: Publish the settlement batches, autopsies and scorecard
+        if: steps.settle.outputs.status == 'WROTE'
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
+            --message "shadow v2 settlements ${{ steps.settle.outputs.batch_id }} (${{ steps.settle.outputs.written }} records)"

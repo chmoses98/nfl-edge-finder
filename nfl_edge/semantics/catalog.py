@@ -167,9 +167,10 @@ _add(_e("PLAYER_H2H", "FULL", JOINT, None, LIKELY, "player A stat > player B sta
 
 # ---------------------------------------------------------------- SEASON engine
 _add(_e("SEASON_WINS", "SEASON", SEASON, "season_wins", LIKELY, "regular-season wins >= K", "no push", "a tie is not a win (LIKELY)", "NA",
-        SHADOW, SETTLE_PLANNED, _SCHED + " (season aggregate)", "settle-2.0.0", "rules_primary 'wins at least K games in the regular season'",
-        reason="schedule Monte Carlo; tie treatment not pinned by the rules text"))
-_add(_e("SEASON_WINS_EXACT", "SEASON", SEASON, "season_wins", LIKELY, "regular-season wins == K", "n/a", "LIKELY", "NA", SHADOW, SETTLE_PLANNED, _SCHED, "settle-2.0.0", "titles"))
+        SHADOW, SETTLE_SUPPORTED, _SCHED + " (season aggregate; settles only once every regular-season game of the team is FINAL)", "settle-2.0.0",
+        "rules_primary 'wins at least K games in the regular season'", reason="schedule Monte Carlo; tie treatment not pinned by the rules text"))
+_add(_e("SEASON_WINS_EXACT", "SEASON", SEASON, "season_wins", LIKELY, "regular-season wins == K", "n/a", "LIKELY", "NA", SHADOW, SETTLE_SUPPORTED,
+        _SCHED + " (season aggregate; settles only once every regular-season game of the team is FINAL)", "settle-2.0.0", "titles"))
 _add(_e("TEAM_WINS_BY_WEEK", "SEASON", SEASON, "wins_through_week", LIKELY, "wins through week W >= K", "no push", "LIKELY", "NA", SHADOW, SETTLE_PLANNED, _SCHED, "settle-2.0.0", "titles"))
 _add(_e("MAKE_PLAYOFFS", "SEASON", SEASON, "playoffs", LIKELY, "team is one of the 14 qualifiers", "n/a", "NFL tie-breakers (approximated)", "NA",
         SHADOW, SETTLE_PLANNED, "final standings (nflverse schedule) with approximate tie-breakers", "settle-2.0.0", "rules_primary",
