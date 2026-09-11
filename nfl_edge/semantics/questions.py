@@ -40,6 +40,7 @@ from dataclasses import dataclass, field, asdict
 
 from nfl_edge.kalshi.classifier import KALSHI_TEAM_CODES, KALSHI_TO_NFLVERSE, MarketSemantics, classify
 
+SEMANTICS_VERSION = "semantics-1.0.0"
 PROVEN, LIKELY, AMBIGUOUS, UNKNOWN = "PROVEN", "LIKELY", "AMBIGUOUS", "UNKNOWN"
 THRESHOLD, RANGE, EVENT, COMPOSITE = "THRESHOLD", "RANGE", "EVENT", "COMPOSITE"
 

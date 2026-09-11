@@ -46,6 +46,7 @@ def main():
     ap.add_argument("--ledger-observations", default="", help="incumbent ledger file for the before/after comparison")
     ap.add_argument("--out", default=os.path.join(ROOT, "research", "board_v2"))
     ap.add_argument("--now", default="")
+    ap.add_argument("--retain", default="", help="also write the board rows WITH the latest capture prices as <retain>/<discovery>.board.jsonl.gz (Part 18: unsupported markets never vanish)")
     ap.add_argument("--assume-provisional-capture", action="store_true",
                     help="ARCHITECTURE view: count provisional series as captured at their safe tier (what capture v2 will do). "
                          "Default is the AS-IS view: only the reviewed registry and the actual capture confirmations count.")
@@ -109,6 +110,24 @@ def main():
                   "pct_of_board_with_explicit_state_in_ledger": round(100.0 * len(board_tickers & led_tickers) / max(1, len(board_tickers)), 2)}
     os.makedirs(a.out, exist_ok=True)
     run = disc["run_id"] + ("" if not a.assume_provisional_capture else ".architecture")
+    if a.retain:
+        from nfl_edge.shadow_v2.capture_io import fnum, load_latest_quotes
+        quotes, run_ts, ages, confirmed, man = load_latest_quotes(cap_root)
+        os.makedirs(a.retain, exist_ok=True)
+        rp = os.path.join(a.retain, f"{run}.board.jsonl.gz")
+        if os.path.exists(rp):
+            print(f"board retention already written (append-only): {rp}")
+        else:
+            with gzip.GzipFile(rp, "wb", mtime=0) as raw:
+                for r in board["rows"]:
+                    q = quotes.get(r["ticker"]) or {}
+                    row = {**r, "retained_at": now.isoformat(), "capture_run": (run_ts.strftime("%Y%m%dT%H%M%SZ") if run_ts else None),
+                           "price_observed_at": q.get("observed_at"), "yes_bid": fnum(q.get("yes_bid_dollars")), "yes_ask": fnum(q.get("yes_ask_dollars")),
+                           "no_bid": fnum(q.get("no_bid_dollars")), "no_ask": fnum(q.get("no_ask_dollars")), "volume": fnum(q.get("volume_fp")),
+                           "open_interest": fnum(q.get("open_interest_fp")), "liquidity": fnum(q.get("liquidity_dollars")),
+                           "series_confirmed": (q.get("series_ticker") in confirmed) if q else None, "quoted": bool(q)}
+                    raw.write((json.dumps(row, separators=(",", ":"), sort_keys=True, default=str) + "\n").encode())
+            print(f"board retention: {len(board['rows'])} rows -> {rp}")
     slim = {k: v for k, v in board.items() if k != "rows"}
     json.dump({**slim, "rows": board["rows"]}, open(os.path.join(a.out, f"{run}.board.json"), "w"), default=str)
     open(os.path.join(a.out, f"{run}.BOARD.md"), "w").write(A.render_board(board) + "\n")

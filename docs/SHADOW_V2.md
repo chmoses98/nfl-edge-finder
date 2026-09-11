@@ -173,7 +173,62 @@ see the run summary under `data/shadow/v2/runs/<snapshot>.SUMMARY.md` (runtime, 
 API calls — v2 reads captures only). The first run per season builds the period-score silver table from
 play-by-play (2012-2025, 264 MB of parquet already downloaded by the shadow cycle) and caches it.
 
-## 9. Limitations (also in KNOWN_LIMITATIONS.md)
+## 9. First-week instrumentation: close, CLV, context, lineage, research record
+
+### 9.1 Canonical close (`nfl_edge/evaluation/close.py`, rule close-2.0.0)
+The capture is change-suppressed, so a close has two instants: the last pre-kickoff **price change** row and the
+last pre-kickoff capture run that fetched the series **completely** with the ticker still open (its manifest
+`observed_at` = `confirmed_at`). `close_age_seconds` = kickoff − confirmed_at. Tiers: EXCELLENT ≤ 20 min, GOOD
+≤ 90 min, STALE ≤ 24 h, MISSING beyond. Every close record carries ticker, source run, price run, both instants,
+minutes before kickoff, yes/no bid/ask, mid, width, volume, OI, liquidity, capture completeness, market quality,
+`close_id` and the rule version. Refused (CLV_CLOSE_MISSING, reason named): no pre-kickoff row, kickoff moved after
+the projection, non-open status at the last row, confirmation older than 24 h, capture stamped at or after
+kickoff. One-sided books are kept as CLOSE_ONE_SIDED with the missing side unpriced. Post-kickoff, settled, live,
+synthetic and neighbouring-rung prices never become a close.
+
+### 9.2 CLV (`nfl_edge/evaluation/clv.py`, clv-2.0.0)
+**Sign convention (the only one): POSITIVE CLV = the market subsequently moved toward the side the frozen model
+would have bought.** The side is decided only from horizon information (model contract value vs horizon mid;
+|difference| ≤ 1e-9 is NO_VIEW). Concepts kept separately: A/B raw YES/NO mid moves, C/D executable ask moves, E
+model-to-close (model cv − close mid; was the model ahead of the eventual consensus), F entry-to-close on the
+model's side (close mid of that side − horizon ask of that side), G fee-aware (entry ask, entry fee through the
+committed schedule applied once, break-even, close executable price and mid). `clv_mid_toward_model` is the
+research quantity; `clv_exec_toward_model` and `clv_net_of_fee` are the economic ones. **CLV is not profit**:
+positive CLV is an intermediate signal; proven positive EV needs calibration, execution, fees, liquidity, sample
+and prospective validation. No model is promoted on a week of CLV.
+
+### 9.3 Frozen context, market state, lineage (`nfl_edge/shadow_v2/context.py`, schema projection-2.1.0)
+Every record carries compact inline blocks plus ids into a write-once **sidecar** per snapshot
+(`<snapshot>.contexts.json.gz`): `player_context` (availability with sources and staleness, injury report and
+practice status with the file vintage, depth-chart rank and team QB1 at the latest chart at or before the
+snapshot, teammates listed / out, snap / target / carry share EWMAs, team pass / rush volume, sample size and
+shrink, weather from the latest context capture at or before the snapshot, UNKNOWN + reason otherwise; route
+participation and red-zone usage are UNKNOWN by construction), `game_context` (centres and source, implied points,
+QB state from schedule and depth chart, rest differential, division game, roof / surface / stadium, weather,
+availability summary, market and data freshness), `market_state` (price-change run, snapshot run, series
+confirmation instant and completeness, last trade time from the tape or UNKNOWN, ladder rungs / widths /
+identification / raw violations), `lineage` (capture and discovery runs, identity-map sha, nflverse retrieval
+timestamps and shas per table, engine / semantics / catalog / schema versions, bundle sha, period-bank
+fingerprint), `flags` (has_probability, semantics_proven, identity_resolved, settlement_supported,
+historically_validated, prospectively_validated=False, execution_supported=False, betting_authorized=False) and
+`horizon_quality` (ON_TIME ≤ 10 min from target, LATE_ACCEPTABLE ≤ 45 min, LATE_DEGRADED later, MISSED; target /
+observation / generation timestamps; snapshot_reused). A late T-24h is never pooled with a clean one.
+
+### 9.4 Research record, export, scorecard v3, weekly report (`nfl_edge/evaluation/research_record.py`, `scorecard_v3.py`)
+`scripts/shadow_v2/pair_closes_v2.py` writes write-once close (`closes_v2`) and CLV (`clv_v2`) batches per game;
+`research_export_v2.py` rebuilds one row per frozen projection joined by `record_id` to horizon market, close, CLV,
+settlement, context and autopsy (jsonl.gz + parquet, derived and rebuildable); `weekly_report_v2.py` writes the
+weekly report and the coverage health gate (board capture, projection, horizons, settlement, close pairing, CLV,
+player context, autopsy, unsupported retention). Scorecard v3 scores model vs market@horizon vs market@close vs
+outcome (the four questions of Part 8 kept apart), CLV blocks, executable P&L (ask, fee once), per horizon /
+engine / arm / family / stat / position / probability band / price band / disagreement band (0-0.5 / 0.5-1 / 1-2 /
+2-3 / 3-5 / 5-10 / >10 pp) / width / liquidity / availability / close quality / horizon quality. Every block is
+labelled DESCRIPTIVE or HYPOTHESIS_GENERATING; PREREGISTERED_TEST and CONFIRMATORY only exist through the
+registry. `research/hypothesis_registry/v2/` is append-only with GENERATED → PREREGISTERED → TESTING → SUPPORTED /
+NOT_SUPPORTED / INCONCLUSIVE → RETIRED; a hypothesis cannot be tested on the window that generated it (enforced).
+Unsupported markets are retained per discovery run with their prices (`data/shadow/v2/board/`).
+
+## 10. Limitations (also in KNOWN_LIMITATIONS.md)
 
 1. Every v2 family is shadow: zero prospective evidence exists before merge; the first record that counts is the
    first written by main after merge.
@@ -190,3 +245,9 @@ play-by-play (2012-2025, 264 MB of parquet already downloaded by the shadow cycl
    RESEARCH_REQUIRED (no scoring-sequence or drive model); the season-seed grammar is AMBIGUOUS.
 7. ROUTE_PARTICIPATION_MISS cannot fire: routes are not in free data.
 8. `market_confirmed` follows the capture manifest; a series not fetched completely in the run is STALE_MARKET.
+9. The close's `confirmed_at` relies on `state.last_seen` (the last run a ticker was seen open) and the manifest's
+   per-series instants; per-run open sets are not stored, so a ticker delisted between two complete runs is dated to
+   the last run it was seen, not to the delisting.
+10. Weather, Sleeper and ESPN context exist only where the context-capture workflow ran on market-data; locally they
+    are UNKNOWN and the health gate says so. Route participation and red-zone usage are UNKNOWN everywhere.
+11. CLV has no historical validation of its own here; the first prospective week is its first evidence.

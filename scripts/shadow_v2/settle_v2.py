@@ -26,7 +26,7 @@ sys.path.insert(0, ROOT)
 
 from nfl_edge.engines.player import autopsy_v2 as AU                                     # noqa: E402
 from nfl_edge.evaluation import scorecard_v2 as SC                                       # noqa: E402
-from nfl_edge.projection.store import read_projections                                   # noqa: E402
+from nfl_edge.projection.store import read_projections, read_sidecars                    # noqa: E402
 from nfl_edge.settlement import settle_v2 as S2                                          # noqa: E402
 from nfl_edge.settlement.nflverse_results import build_result_book                       # noqa: E402
 from nfl_edge.settlement.period_results import PeriodBook                                # noqa: E402
@@ -56,6 +56,7 @@ def main(argv=None):
     now = datetime.fromisoformat(a.now.replace("Z", "+00:00")) if a.now else datetime.now(timezone.utc)
     roots = a.projections or [os.path.join(a.market_data, "data", "shadow", "v2", "projections")]
     rows = read_projections(roots)
+    sidecars = read_sidecars(roots)
     if a.game:
         rows = [r for r in rows if r.get("game_id") in set(a.game)]
     log(f"projections: {len(rows)} records from {roots}")
@@ -116,7 +117,9 @@ def main(argv=None):
                 if key not in latest or (r.get("minutes_to_kickoff") or 1e9) < (latest[key].get("minutes_to_kickoff") or 1e9):
                     latest[key] = r
         for r in latest.values():
-            d = AU.diagnose({**r, "team": (r.get("feature_lineage") or {}).get("team")}, book, now=now)
+            sc = sidecars.get(r.get("snapshot_id")) or {}
+            full_ctx = (sc.get("player_contexts") or {}).get((r.get("player_context") or {}).get("player_context_id"))
+            d = AU.diagnose({**r, "team": (r.get("feature_lineage") or {}).get("team")}, book, now=now, context=full_ctx)
             au_rows.append({"prediction_id": r["record_id"], "evaluation_version": AU.AUTOPSY_VERSION, "evaluated_at": now.isoformat(), **d})
         if au_rows and not a.dry_run:
             plan = au_corpus.plan(au_rows, gid)

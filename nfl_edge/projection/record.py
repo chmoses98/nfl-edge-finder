@@ -22,7 +22,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
-SCHEMA_VERSION = "projection-2.0.0"
+SCHEMA_VERSION = "projection-2.1.0"
 PROSPECTIVE_FROZEN = "PROSPECTIVE_FROZEN"
 HISTORICAL_RESEARCH = "HISTORICAL_RESEARCH"
 VOLATILE_FIELDS = ("generated_at",)
@@ -129,6 +129,13 @@ class ProjectionRecord:
     projection_lineage: dict = field(default_factory=dict)
     feature_lineage: dict = field(default_factory=dict)
     distribution_summary: dict = field(default_factory=dict)
+    # ---- point-in-time context and lineage (schema 2.1.0; every block says UNKNOWN + reason when a source is absent)
+    player_context: dict = field(default_factory=dict)
+    game_context: dict = field(default_factory=dict)
+    market_state: dict = field(default_factory=dict)
+    lineage: dict = field(default_factory=dict)
+    flags: dict = field(default_factory=dict)             # has_probability, semantics_proven, ... betting_authorized (always False)
+    horizon_quality: dict = field(default_factory=dict)   # ON_TIME / LATE_ACCEPTABLE / LATE_DEGRADED / MISSED / CYCLE + timestamps
     # ---- research-only comparisons (never "edge")
     model_market_disagreement_mid: float | None = None   # contract_value - mid  (probability benchmarking)
     yes_ask_disagreement: float | None = None            # contract_value - yes_ask (economics side, pre-fee)

@@ -60,6 +60,13 @@ jobs:
       - name: Verify before anything is published
         run: |
           python3 scripts/shadow_v2/verify_projections.py --root data/shadow/v2/projections --require-rows
+      # Board retention (Part 18): every NFL contract of the latest discovery with its terminal state, reason and the
+      # capture's prices, so the opportunity set we were blind to is preserved. Append-only per discovery run.
+      - name: Retain the full board with prices
+        continue-on-error: true
+        run: |
+          python3 scripts/shadow_v2/board_accounting.py --market-data /tmp/md --projections data/shadow/v2/projections \
+            --out data/shadow/v2/board_reports --retain data/shadow/v2/board 2>&1 | tail -5
       - name: Publish the immutable projection records and the run summary
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \

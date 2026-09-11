@@ -23,6 +23,7 @@ from nfl_edge.semantics.questions import (
 )
 
 # model support states
+CATALOG_VERSION = "catalog-1.0.0"
 PRICED = "PRICED"                       # validated engine; automatic pricing (incumbent game families)
 SHADOW = "SHADOW"                       # research engine; projections written as shadow-only
 RESEARCH_REQUIRED = "RESEARCH_REQUIRED"

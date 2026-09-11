@@ -91,14 +91,26 @@ def test_qb_environment_miss_when_a_different_passer_threw_the_attempts():
 
 def test_efficiency_miss_when_opportunity_landed_but_yards_did_not():
     d = A.diagnose(rec(mu=60.0, muo=8.0), _book_with(w_targets=8, w_yards=15))
-    assert d["classification"] == A.EFFICIENCY_MISS
+    assert d["classification"] == A.YARDS_PER_TARGET_MISS, "receiving yards: the efficiency miss is named by its mechanism"
+    # with a frozen catch-rate projection, a catch-rate collapse is named before yards per target
+    ctx = {"player_ewma": {"ewma_receptions": 6.0, "ewma_targets": 8.0}}
+    p, sn = wr("w1", 8, 15, 51); p["stats"]["receptions"] = 1.0
+    d = A.diagnose(rec(mu=60.0, muo=8.0), book([p, qb("q1", 34)[0]], [sn, qb("q1", 34)[1], {"player_id": "ol", "team": "H", "offense_snaps": 60.0, "defense_snaps": 0.0, "st_snaps": 0.0}]), context=ctx)
+    assert d["classification"] == A.CATCH_RATE_MISS and d["projected"]["catch_rate"] == 0.75
 
 
 def test_tail_shape_miss_only_beyond_the_models_own_band():
     d = A.diagnose(rec(), _book_with(w_targets=9, w_yards=200))
-    assert d["classification"] in (A.TAIL_SHAPE_MISS, A.EFFICIENCY_MISS)
-    d = A.diagnose(rec(mu=60.0, muo=8.0), _book_with(w_targets=8, w_yards=150))     # eff ratio 18.75/7.5 = 2.5 -> efficiency
-    assert d["classification"] == A.EFFICIENCY_MISS
+    assert d["classification"] in (A.TAIL_SHAPE_MISS, A.YARDS_PER_TARGET_MISS)
+    d = A.diagnose(rec(mu=60.0, muo=8.0), _book_with(w_targets=8, w_yards=150))     # eff ratio 18.75/7.5 = 2.5 -> yards per target
+    assert d["classification"] == A.YARDS_PER_TARGET_MISS
+    # every component in range but the market was much closer to the payout than the model: MODEL_LOCATION_MISS
+    r = rec(mu=60.0, muo=8.0, k=50); r["mid"] = 0.15; r["contract_value"] = 0.80
+    d = A.diagnose(r, _book_with(w_targets=8, w_yards=48))    # z = (48-58)/29.7 = -0.34, efficiency 6.0 vs 7.5 in range: NO_LARGE_MISS (location needs a large miss)
+    assert d["classification"] == A.NO_LARGE_MISS
+    r = rec(mu=60.0, muo=8.0, k=50, q={"p025": 30, "p05": 40, "p25": 50, "p50": 58, "p75": 66, "p95": 80, "p975": 90}); r["mid"] = 0.15; r["contract_value"] = 0.80
+    d = A.diagnose(r, _book_with(w_targets=8, w_yards=40))    # z = (40-58)/11.9 = -1.5 large; 40 inside [30, 90]; efficiency 5.0 vs 7.5 inside 1.5x
+    assert d["classification"] == A.MODEL_LOCATION_MISS
 
 
 def test_insufficient_data_when_the_record_carries_no_decomposition():

@@ -197,3 +197,10 @@
     Super Bowl winners, race-to-N, first-touchdown team, total touchdowns and team statistics stay RESEARCH_REQUIRED.
 50. **Route participation is not in free data**, so the autopsy's ROUTE_PARTICIPATION_MISS is INSUFFICIENT_DATA by
     construction until a route source exists.
+51. **CLV is not profit.** Shadow v2's CLV (docs/SHADOW_V2.md §9.2) is an intermediate signal with one pinned sign
+    convention; it is computed on the model's side from the horizon ask to the canonical close and never from a
+    midpoint as if executable. No model is promoted on CLV.
+52. **The canonical close dates confirmation to the last run a ticker was seen open**, not to the exchange's own
+    close, and quality tiers cut on that age; a STALE close is reported and segmentable, never pooled with EXCELLENT.
+53. **Point-in-time context is as good as the sources on disk at generation time:** weather / Sleeper / ESPN only
+    where context captures exist; route participation and red-zone usage are UNKNOWN by construction.

@@ -32,25 +32,36 @@ from datetime import datetime, timezone
 from nfl_edge.settlement.results import ResultBook
 from nfl_edge.shadow.player_autopsy import IQR_FLOOR, LOG_RATIO_LARGE, TEAM_VOLUME_LOG_RATIO, Z_LARGE, _percentile, team_volume
 
-AUTOPSY_VERSION = "autopsy-2.0.0"
+AUTOPSY_VERSION = "autopsy-3.0.0"
 SHARE_ABS_LARGE = 0.10               # absolute share miss (targets/carries/snaps) that counts as "off"
 SHARE_LOG_LARGE = math.log(1.5)
 TAIL_LO, TAIL_HI = "p025", "p975"
 
+# v3 categories (Part 13). The v2 names are kept as aliases of the same strings where the meaning is unchanged.
 AVAILABILITY_MISS = "AVAILABILITY_MISS"
-SNAP_SHARE_MISS = "SNAP_SHARE_MISS"
-ROUTE_PARTICIPATION_MISS = "ROUTE_PARTICIPATION_MISS"
+ROLE_MISS = "ROLE_MISS"                          # depth-chart role at kickoff differed from the projected one (rank moved >= 2 or position group changed)
+SNAP_MISS = "SNAP_MISS"                          # played, offensive snap share outside range
+ROUTE_MISS = "ROUTE_MISS"                        # route share outside range (needs route data; INSUFFICIENT today)
 TARGET_SHARE_MISS = "TARGET_SHARE_MISS"
 CARRY_SHARE_MISS = "CARRY_SHARE_MISS"
 TEAM_VOLUME_MISS = "TEAM_VOLUME_MISS"
 QB_ENVIRONMENT_MISS = "QB_ENVIRONMENT_MISS"
-EFFICIENCY_MISS = "EFFICIENCY_MISS"
+CATCH_RATE_MISS = "CATCH_RATE_MISS"              # receptions per target outside range (receiving statistics)
+YARDS_PER_TARGET_MISS = "YARDS_PER_TARGET_MISS"
+YARDS_PER_CARRY_MISS = "YARDS_PER_CARRY_MISS"
+YARDS_PER_ATTEMPT_MISS = "YARDS_PER_ATTEMPT_MISS"
+TD_VARIANCE = "TD_VARIANCE"                      # touchdown statistic: opportunity landed, the touchdown count did not (a rare-event outcome)
 TAIL_SHAPE_MISS = "TAIL_SHAPE_MISS"
-UNEXPLAINED_VARIANCE = "UNEXPLAINED_VARIANCE"
+MODEL_LOCATION_MISS = "MODEL_LOCATION_MISS"      # every component in range but the model's centre was wrong AND the market's was closer
+NORMAL_VARIANCE = "NORMAL_VARIANCE"              # inside the model's band; no component off
 NO_LARGE_MISS = "NO_LARGE_MISS"
 INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
-CLASSES = (AVAILABILITY_MISS, SNAP_SHARE_MISS, ROUTE_PARTICIPATION_MISS, TARGET_SHARE_MISS, CARRY_SHARE_MISS, TEAM_VOLUME_MISS,
-           QB_ENVIRONMENT_MISS, EFFICIENCY_MISS, TAIL_SHAPE_MISS, UNEXPLAINED_VARIANCE, NO_LARGE_MISS, INSUFFICIENT_DATA)
+SNAP_SHARE_MISS, ROUTE_PARTICIPATION_MISS, EFFICIENCY_MISS, UNEXPLAINED_VARIANCE = SNAP_MISS, ROUTE_MISS, "EFFICIENCY_MISS", NORMAL_VARIANCE
+CLASSES = (AVAILABILITY_MISS, ROLE_MISS, SNAP_MISS, ROUTE_MISS, TARGET_SHARE_MISS, CARRY_SHARE_MISS, TEAM_VOLUME_MISS, QB_ENVIRONMENT_MISS, CATCH_RATE_MISS,
+           YARDS_PER_TARGET_MISS, YARDS_PER_CARRY_MISS, YARDS_PER_ATTEMPT_MISS, TD_VARIANCE, TAIL_SHAPE_MISS, MODEL_LOCATION_MISS, NORMAL_VARIANCE, NO_LARGE_MISS, INSUFFICIENT_DATA)
+EFFICIENCY_LABEL = {"receiving_yards": YARDS_PER_TARGET_MISS, "receptions": CATCH_RATE_MISS, "rushing_yards": YARDS_PER_CARRY_MISS, "passing_yards": YARDS_PER_ATTEMPT_MISS,
+                    "completions": CATCH_RATE_MISS, "carries": TEAM_VOLUME_MISS, "attempts": TEAM_VOLUME_MISS, "touchdowns": TD_VARIANCE, "passing_tds": TD_VARIANCE,
+                    "interceptions": TD_VARIANCE, "rush_rec_yards": YARDS_PER_TARGET_MISS, "qb_rushing_yards": YARDS_PER_CARRY_MISS}
 
 OPPORTUNITY_OF = {"passing_yards": "attempts", "completions": "attempts", "passing_tds": "attempts", "interceptions": "attempts",
                   "attempts": "attempts", "rushing_yards": "carries", "carries": "carries", "receiving_yards": "targets",
@@ -93,11 +104,16 @@ def _team_offense_snaps(book: ResultBook, game_id: str, team: str) -> float | No
     return float(max(vals)) if vals else None
 
 
-def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None) -> dict:
-    """One settled v2 PLAYER projection record (DATA arm) -> one autopsy record."""
+def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None, context: dict | None = None) -> dict:
+    """One settled v2 PLAYER projection record (DATA arm) -> one autopsy record. `context` is the full frozen player
+    context from the snapshot sidecar (projected catch rate, depth-chart rank, market mid) when available."""
     now = now or datetime.now(timezone.utc)
     gid, pid, stat, team = rec.get("game_id"), rec.get("subject_id"), rec.get("stat_family"), rec.get("team") or rec.get("subject_team")
     ds, fl = rec.get("distribution_summary") or {}, rec.get("feature_lineage") or {}
+    ctx = context or {}
+    pe = ctx.get("player_ewma") or {}
+    proj_catch = (pe.get("ewma_receptions") / pe["ewma_targets"]) if (pe.get("ewma_targets") and pe.get("ewma_receptions") is not None) else None
+    proj_rank = (ctx.get("depth_chart") or {}).get("rank")
     out = {"record_id": rec.get("record_id"), "autopsy_version": AUTOPSY_VERSION, "evaluated_at": now.isoformat(), "snapshot_id": rec.get("snapshot_id"),
            "game_id": gid, "player_id": pid, "player_name": rec.get("subject_name"), "team": team, "stat": stat, "model_arm": rec.get("model_arm"),
            "ticker": rec.get("ticker"), "threshold": rec.get("threshold"), "horizon_label": rec.get("horizon_label"),
@@ -106,7 +122,9 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None) -> dic
                          "qb_id": fl.get("projected_qb_id"), "opportunity": _f(ds.get("mu_opp")), "stat_mean": _f(ds.get("mu")),
                          "efficiency": (None if not ds.get("mu_opp") else _f(ds.get("mu")) / _f(ds.get("mu_opp"))), "quantiles": ds.get("quantiles")},
            "actual": {}, "components": {}, "robust_z": None, "percentile": None, "large_miss": None,
-           "classification": INSUFFICIENT_DATA, "evidence": []}
+           "classification": INSUFFICIENT_DATA, "evidence": [], "market_mid": rec.get("mid"), "threshold_payout": None}
+    out["projected"].update(catch_rate=proj_catch, depth_chart_rank=proj_rank, receptions=pe.get("ewma_receptions"), targets=pe.get("ewma_targets"),
+                            carries=pe.get("ewma_carries"), yards=pe.get(f"ewma_{stat}") if stat else None)
     pj = out["projected"]
     pr = book.player(gid, pid) if gid and pid else None
     if pj["opportunity"] is None and pj["stat_mean"] is None:
@@ -124,7 +142,17 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None) -> dic
         actual = 0.0
     a = out["actual"]
     a.update({"played": pr.played, "stat": actual, "snaps": pr.offense_snaps, "targets": pr.stats.get("targets"), "carries": pr.stats.get("carries"),
-              "attempts": pr.stats.get("attempts")})
+              "attempts": pr.stats.get("attempts"), "receptions": pr.stats.get("receptions"), "receiving_yards": pr.stats.get("receiving_yards"),
+              "rushing_yards": pr.stats.get("rushing_yards"), "touchdowns": pr.stat_value("touchdowns"), "routes": pr.stats.get("routes")})
+    if a.get("targets") and a.get("receptions") is not None:
+        a["catch_rate"] = float(a["receptions"]) / float(a["targets"])
+    if a.get("targets") and a.get("receiving_yards") is not None:
+        a["yards_per_target"] = float(a["receiving_yards"]) / float(a["targets"])
+    if a.get("carries") and a.get("rushing_yards") is not None:
+        a["yards_per_carry"] = float(a["rushing_yards"]) / float(a["carries"])
+    thr = _f(rec.get("threshold"))
+    if thr is not None and actual is not None:
+        out["threshold_payout"] = 1.0 if actual >= thr else 0.0
     # 1. availability
     if pr.played is False:
         out["classification"] = AVAILABILITY_MISS if (pj["p_plays"] is None or pj["p_plays"] >= 0.5) else NO_LARGE_MISS
@@ -147,6 +175,9 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None) -> dic
     if pj["snap_share"] is not None and pr.offense_snaps is not None and team_snaps:
         a["snap_share"] = pr.offense_snaps / team_snaps
         comps["snap_share"] = _off(a["snap_share"], pj["snap_share"], abs_tol=SHARE_ABS_LARGE)
+    # 2b. role: the depth-chart rank the projection saw vs the rank at the latest chart the result book knows (if any)
+    if proj_rank is not None and getattr(pr, "depth_rank", None) is not None:
+        comps["role"] = (abs(int(pr.depth_rank) - int(proj_rank)) >= 2, int(pr.depth_rank) - int(proj_rank))
     # 3. route participation: only when both sides exist
     if pj["route_share"] is not None and pr.stats.get("routes") is not None and team_actual:
         a["route_share"] = float(pr.stats["routes"]) / team_actual
@@ -180,10 +211,12 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None) -> dic
         a["efficiency"] = actual / a["opportunity"]
         comps["efficiency"] = (abs(math.log((a["efficiency"] + 1e-6) / (pj["efficiency"] + 1e-6))) > LOG_RATIO_LARGE,
                                math.log((a["efficiency"] + 1e-6) / (pj["efficiency"] + 1e-6)))
+    if proj_catch and a.get("catch_rate") is not None and stat in ("receiving_yards", "receptions", "rush_rec_yards"):
+        comps["catch_rate"] = (abs(a["catch_rate"] - proj_catch) > 0.20, a["catch_rate"] - proj_catch)
     # ---- classification: first component off in causal order
-    order = [("snap_share", SNAP_SHARE_MISS), ("route_share", ROUTE_PARTICIPATION_MISS), ("qb_environment", QB_ENVIRONMENT_MISS),
+    order = [("role", ROLE_MISS), ("snap_share", SNAP_MISS), ("route_share", ROUTE_MISS), ("qb_environment", QB_ENVIRONMENT_MISS),
              ("team_volume", TEAM_VOLUME_MISS), ("target_share", TARGET_SHARE_MISS), ("carry_share", CARRY_SHARE_MISS),
-             ("opportunity", None), ("efficiency", EFFICIENCY_MISS)]
+             ("opportunity", None), ("catch_rate", CATCH_RATE_MISS), ("efficiency", EFFICIENCY_LABEL.get(stat, YARDS_PER_TARGET_MISS))]
     if not out["large_miss"] and not any(v and v[0] for v in comps.values()):
         out["classification"] = NO_LARGE_MISS if z is not None else INSUFFICIENT_DATA
         if z is None:
@@ -208,12 +241,17 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None) -> dic
             return out
     # nothing off but a large miss: tail vs unexplained
     lo, hi = _f(q.get(TAIL_LO)), _f(q.get(TAIL_HI))
+    mid = _f(rec.get("mid")); cv = _f(rec.get("contract_value")); y = out["threshold_payout"]
+    market_closer = (mid is not None and cv is not None and y is not None and abs(mid - y) < abs(cv - y) - 0.10)
     if actual is not None and lo is not None and hi is not None and (actual < lo or actual > hi):
         out["classification"] = TAIL_SHAPE_MISS
         out["evidence"].append(f"components within range; actual {actual:g} outside the model's [{lo:g}, {hi:g}] band")
+    elif market_closer:
+        out["classification"] = MODEL_LOCATION_MISS
+        out["evidence"].append(f"components within range; the market ({mid:.2f}) was closer to the payout than the model ({cv:.2f}) on this rung")
     else:
-        out["classification"] = UNEXPLAINED_VARIANCE
-        out["evidence"].append("components within range; the outcome sits inside the model's tail band but far from the median")
+        out["classification"] = NORMAL_VARIANCE
+        out["evidence"].append("components within range; the outcome sits inside the model's band but far from the median")
     return out
 
 
