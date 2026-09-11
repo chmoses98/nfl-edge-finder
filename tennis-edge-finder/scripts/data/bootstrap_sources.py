@@ -53,19 +53,79 @@ def count_rows(path):
     return max(n - 1, 0)
 
 
-def fetch(url, timeout=60):
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36",
+    "Accept": "*/*", "Accept-Language": "en-GB,en;q=0.9", "Referer": "http://www.tennis-data.co.uk/alldata.php",
+}
+
+
+def fetch(url, timeout=60, headers=None):
+    req = urllib.request.Request(url, headers=headers or {"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read(), r.status
 
 
-def clone_repo(owner, repo, work):
+def fetch_retry(url, attempts=3, headers=None, timeout=60):
+    import time as _t
+    last = None
+    for i in range(attempts):
+        try:
+            return fetch(url, timeout=timeout, headers=headers)
+        except Exception as e:  # noqa: BLE001
+            last = e
+            _t.sleep(2 * (i + 1))
+    raise last
+
+
+def clone_repo(owner, repo, work, branch="master"):
+    """Obtain a public repo snapshot WITHOUT git credentials.
+
+    Primary: the codeload zip archive over plain HTTPS (no auth header can leak in). Fallback: git clone
+    with terminal prompts disabled and the credential helper cleared, run from a directory OUTSIDE the
+    checked-out project so the Actions token stored in the project's repo-local git config cannot be
+    attached to a request for someone else's repository (that produced
+    'could not read Username for https://github.com' on the first run).
+    """
+    import zipfile
     dest = os.path.join(work, repo)
     if os.path.exists(dest):
         shutil.rmtree(dest)
-    subprocess.run(["git", "clone", "--depth", "1", f"https://github.com/{owner}/{repo}.git", dest], check=True)
-    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=dest, capture_output=True, text=True, check=True).stdout.strip()
-    date = subprocess.run(["git", "log", "-1", "--format=%cI"], cwd=dest, capture_output=True, text=True, check=True).stdout.strip()
+    last = None
+    for br in (branch, "main"):
+        url = f"https://codeload.github.com/{owner}/{repo}/zip/refs/heads/{br}"
+        for attempt in range(3):
+            try:
+                data, status = fetch(url, timeout=300)
+                if status != 200 or len(data) < 1000:
+                    raise RuntimeError(f"status {status} bytes {len(data)}")
+                zpath = os.path.join(work, f"{repo}.zip")
+                with open(zpath, "wb") as f:
+                    f.write(data)
+                with zipfile.ZipFile(zpath) as z:
+                    top = z.namelist()[0].split("/")[0]
+                    z.extractall(work)
+                os.replace(os.path.join(work, top), dest)
+                os.remove(zpath)
+                sha = f"zip:{br}:{hashlib.sha256(data).hexdigest()[:16]}"
+                # the zip archive carries no commit metadata; record the retrieval time instead
+                return dest, sha, datetime.now(timezone.utc).isoformat()
+            except Exception as e:  # noqa: BLE001
+                last = e
+                import time as _t
+                _t.sleep(3 * (attempt + 1))
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    outside = os.path.join(os.environ.get("RUNNER_TEMP", "/tmp"), "tef_clone")
+    os.makedirs(outside, exist_ok=True)
+    tmp = os.path.join(outside, repo)
+    if os.path.exists(tmp):
+        shutil.rmtree(tmp)
+    r = subprocess.run(["git", "-c", "credential.helper=", "clone", "--depth", "1", f"https://github.com/{owner}/{repo}.git", tmp],
+                       cwd=outside, env=env, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"zip failed ({last}); git clone failed: {r.stderr[-300:]}")
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp, capture_output=True, text=True, check=True).stdout.strip()
+    date = subprocess.run(["git", "log", "-1", "--format=%cI"], cwd=tmp, capture_output=True, text=True, check=True).stdout.strip()
+    shutil.move(tmp, dest)
     return dest, sha, date
 
 
@@ -130,10 +190,10 @@ def main():
     for tour, suffix in (("atp", ""), ("wta", "w")):
         for y in range(y0, y1 + 1):
             got = False
-            for ext in ("xlsx", "xls"):
-                url = f"http://www.tennis-data.co.uk/{y}{suffix}/{y}.{ext}"
+            for scheme, ext in (("https", "xlsx"), ("https", "xls"), ("http", "xlsx"), ("http", "xls")):
+                url = f"{scheme}://www.tennis-data.co.uk/{y}{suffix}/{y}.{ext}"
                 try:
-                    data, status = fetch(url)
+                    data, status = fetch_retry(url, attempts=2, headers=BROWSER_HEADERS)
                     if status != 200 or len(data) < 2000:
                         continue
                     local = os.path.join(work, f"td_{tour}_{y}.{ext}")
@@ -155,6 +215,29 @@ def main():
             add_file("tennis_data_co_uk", name, local, f"tennis_data/{name}.gz")
         except Exception as e:  # noqa: BLE001
             manifest["failures"].append({"source": "tennis_data_co_uk", "file": name, "error": str(e)[:200]})
+
+    # ---- tennis-data mirrors on GitHub (lower authority: third-party copies). Only used to fill years the
+    # primary site did not serve; provenance is recorded per file so the registry can rank them.
+    if td["files"] < (y1 - y0 + 1):
+        import re as _re
+        for owner, repo in (("0xsimulacra", "MLT"), ("gmalbert", "tennis-predictions")):
+            try:
+                dest, sha, date = clone_repo(owner, repo, work)
+                n = 0
+                for root, _dirs, files in os.walk(dest):
+                    for fn in files:
+                        m = _re.search(r"(20\d\d)", fn)
+                        if not m or not fn.lower().endswith((".xlsx", ".xls", ".csv")):
+                            continue
+                        rel = os.path.relpath(os.path.join(root, fn), dest)
+                        add_file(f"mirror:{owner}/{repo}", rel, os.path.join(root, fn), f"tennis_data_mirrors/{owner}__{repo}/{rel}.gz",
+                                 {"year_guess": int(m.group(1)), "authority": "MIRROR"})
+                        n += 1
+                manifest["sources"][f"mirror:{owner}/{repo}"] = {"url": f"https://github.com/{owner}/{repo}", "commit": sha, "commit_date": date,
+                                                                  "files": n, "authority": "MIRROR", "note": "third-party copy of tennis-data.co.uk files; verify against primary when reachable"}
+                print(f"mirror {owner}/{repo}: {n} files", flush=True)
+            except Exception as e:  # noqa: BLE001
+                manifest["failures"].append({"source": f"mirror:{owner}/{repo}", "error": str(e)[:300]})
 
     manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
     manifest["total_bytes_gz"] = sum(f["bytes_gz"] for f in manifest["files"])

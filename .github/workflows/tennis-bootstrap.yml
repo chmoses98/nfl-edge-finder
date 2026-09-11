@@ -39,6 +39,7 @@ jobs:
         id: acquire
         continue-on-error: true
         run: |
+          if grep -q "jobs=kalshi" tennis-edge-finder/.bootstrap-trigger 2>/dev/null; then echo "trigger requests kalshi only; skipping sources"; exit 0; fi
           EXTRA=""
           if [ "${{ github.event.inputs.skip_mcp }}" = "true" ]; then EXTRA="--skip-mcp"; fi
           python3 tennis-edge-finder/scripts/data/bootstrap_sources.py --out tennis-edge-finder/data/sources $EXTRA
@@ -67,6 +68,7 @@ jobs:
         env:
           TENNIS_PUBLISH: "1"
         run: |
+          if grep -q "jobs=sources" tennis-edge-finder/.bootstrap-trigger 2>/dev/null; then echo "trigger requests sources only; skipping kalshi"; exit 0; fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           python3 tennis-edge-finder/scripts/kalshi/discover_tennis.py --budget-minutes "${{ github.event.inputs.budget_minutes || '200' }}"

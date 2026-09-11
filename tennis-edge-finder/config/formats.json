@@ -1,0 +1,31 @@
+{
+  "_doc": "Scoring-format registry. First matching rule wins. Dated entries; never edit history, add a new rule with year bounds. Sources: ITF Rules of Tennis; Grand Slam Board announcement (Mar 2022) adopting the 10-point final-set tiebreak at 6-6 at all four majors from 2022; Wimbledon 12-12 tiebreak 2019-2021; Australian Open 10-point at 6-6 2019-2021; Davis Cup 2019 reform to best-of-3 with tiebreaks; ATP/WTA doubles no-ad + match tiebreak since 2006 (ATP) / 2007 (WTA); slam men's doubles best-of-3 with final-set 10-pt tiebreak from 2022 (Wimbledon men's doubles moved from bo5 to bo3 in 2023 -- treated as bo3 from 2023, bo5 2022).",
+  "rules": [
+    {"name": "slam_mixed_doubles", "discipline": "mixed", "level": "GRAND_SLAM", "format": {"best_of": 3, "tiebreak_at": 6, "tiebreak_to": 7, "final_set": "MATCH_TB10", "no_ad": true}},
+    {"name": "wimbledon_men_doubles_bo5_2022", "tour": "ATP", "discipline": "doubles", "level": "GRAND_SLAM", "competition": "WIMBLEDON", "year_from": 2022, "year_to": 2022, "format": {"best_of": 5, "final_set": "TB10_AT_6"}},
+    {"name": "wimbledon_men_doubles_bo5_pre2022", "tour": "ATP", "discipline": "doubles", "level": "GRAND_SLAM", "competition": "WIMBLEDON", "year_from": 0, "year_to": 2021, "format": {"best_of": 5, "final_set": "ADVANTAGE"}},
+    {"name": "slam_doubles_2022", "discipline": "doubles", "level": "GRAND_SLAM", "year_from": 2022, "format": {"best_of": 3, "final_set": "TB10_AT_6", "no_ad": false}},
+    {"name": "slam_doubles_pre2022", "discipline": "doubles", "level": "GRAND_SLAM", "year_to": 2021, "format": {"best_of": 3, "final_set": "ADVANTAGE", "no_ad": false}},
+    {"name": "tour_doubles_noad_matchtb", "discipline": "doubles", "year_from": 2007, "format": {"best_of": 3, "final_set": "MATCH_TB10", "no_ad": true}},
+    {"name": "tour_doubles_pre2007", "discipline": "doubles", "year_to": 2006, "format": {"best_of": 3, "final_set": "TB7_AT_6", "no_ad": false}},
+
+    {"name": "slam_men_2022_tb10", "tour": "ATP", "discipline": "singles", "level": "GRAND_SLAM", "year_from": 2022, "format": {"best_of": 5, "final_set": "TB10_AT_6"}},
+    {"name": "slam_women_2022_tb10", "tour": "WTA", "discipline": "singles", "level": "GRAND_SLAM", "year_from": 2022, "format": {"best_of": 3, "final_set": "TB10_AT_6"}},
+    {"name": "ao_men_2019_2021", "tour": "ATP", "discipline": "singles", "level": "GRAND_SLAM", "competition": "AUSTRALIAN_OPEN", "year_from": 2019, "year_to": 2021, "format": {"best_of": 5, "final_set": "TB10_AT_6"}},
+    {"name": "ao_women_2019_2021", "tour": "WTA", "discipline": "singles", "level": "GRAND_SLAM", "competition": "AUSTRALIAN_OPEN", "year_from": 2019, "year_to": 2021, "format": {"best_of": 3, "final_set": "TB10_AT_6"}},
+    {"name": "wim_men_2019_2021", "tour": "ATP", "discipline": "singles", "level": "GRAND_SLAM", "competition": "WIMBLEDON", "year_from": 2019, "year_to": 2021, "format": {"best_of": 5, "final_set": "TB7_AT_12"}},
+    {"name": "wim_women_2019_2021", "tour": "WTA", "discipline": "singles", "level": "GRAND_SLAM", "competition": "WIMBLEDON", "year_from": 2019, "year_to": 2021, "format": {"best_of": 3, "final_set": "TB7_AT_12"}},
+    {"name": "uso_men", "tour": "ATP", "discipline": "singles", "level": "GRAND_SLAM", "competition": "US_OPEN", "year_from": 1970, "year_to": 2021, "format": {"best_of": 5, "final_set": "TB7_AT_6"}},
+    {"name": "uso_women", "tour": "WTA", "discipline": "singles", "level": "GRAND_SLAM", "competition": "US_OPEN", "year_from": 1970, "year_to": 2021, "format": {"best_of": 3, "final_set": "TB7_AT_6"}},
+    {"name": "slam_men_advantage", "tour": "ATP", "discipline": "singles", "level": "GRAND_SLAM", "year_to": 2021, "format": {"best_of": 5, "final_set": "ADVANTAGE"}},
+    {"name": "slam_women_advantage", "tour": "WTA", "discipline": "singles", "level": "GRAND_SLAM", "year_to": 2021, "format": {"best_of": 3, "final_set": "ADVANTAGE"}},
+
+    {"name": "davis_cup_bo5_advantage", "tour": "ATP", "discipline": "singles", "level": "TEAM", "competition": "DAVIS_CUP", "year_to": 2018, "format": {"best_of": 5, "final_set": "ADVANTAGE"}},
+    {"name": "team_events_bo3", "discipline": "singles", "level": "TEAM", "format": {"best_of": 3, "final_set": "TB7_AT_6"}},
+    {"name": "olympics_men_final_bo5_pre2016", "tour": "ATP", "discipline": "singles", "level": "OLYMPICS", "year_to": 2012, "format": {"best_of": 3, "final_set": "ADVANTAGE"}},
+    {"name": "olympics_bo3", "discipline": "singles", "level": "OLYMPICS", "format": {"best_of": 3, "final_set": "TB7_AT_6"}},
+    {"name": "tour_finals_bo3", "discipline": "singles", "level": "TOUR_FINALS", "format": {"best_of": 3, "final_set": "TB7_AT_6"}},
+    {"name": "masters_final_bo5_pre2007", "tour": "ATP", "discipline": "singles", "level": "MASTERS_1000", "year_to": 2006, "format": {"best_of": 3, "final_set": "TB7_AT_6"}},
+    {"name": "tour_singles_bo3", "discipline": "singles", "format": {"best_of": 3, "final_set": "TB7_AT_6"}}
+  ]
+}
