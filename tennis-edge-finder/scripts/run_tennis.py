@@ -273,8 +273,26 @@ def write_report(out, path):
         L.append(f"| {k} | {v} |")
     L += ["", f"Consistency violations: {len(out['consistency_violations'])}", ""]
     rows = [r for r in out["projections"] if r["ev"]["ev_after_fees"] is not None]
+    def actionable(r):
+        mq = r["market_quote"]
+        try:
+            liq = float(mq.get("liquidity") or 0)
+        except (TypeError, ValueError):
+            liq = 0.0
+        two_sided = mq.get("yes_bid") is not None and mq.get("yes_ask") is not None
+        spread = (mq["yes_ask"] - mq["yes_bid"]) if two_sided else 1.0
+        return two_sided and spread <= 0.10 and liq > 0 and r["quality"]["grade"] in ("A", "B")
+    act = [r for r in rows if actionable(r)]; act.sort(key=lambda r: -(r["ev"]["ev_after_fees"] or -1))
     rows.sort(key=lambda r: -(r["ev"]["ev_after_fees"] or -1))
-    L += ["## Largest model-vs-quote disagreements (hypothetical; quotes may be stale or illiquid)", "",
+    L += ["## Actionability-filtered opportunities (two-sided quote, spread <= 10c, liquidity > 0, quality A/B)", "",
+          f"{len(act)} of {len(rows)} priced markets pass the actionability filter. HYPOTHETICAL: no model has beaten the market benchmark; treat as research candidates, not bets.", "",
+          "| match | market | side | price | fair | raw edge | EV after fees | bet up to | quality | why / risk |", "|---|---|---|---|---|---|---|---|---|---|"]
+    for r in act[:25]:
+        why = f"Elo {r['inputs']['elo_a']:.0f} vs {r['inputs']['elo_b']:.0f} ({r['surface'] or 'surface?'}); Elo p={r['models']['ELO']:.2f}, SR p={r['models']['STRUCTURAL']:.2f}, ens={r['models']['ENSEMBLE']:.2f}" if r["models"].get("STRUCTURAL") is not None else f"DP from ensemble point probs pa={r['inputs']['pa']:.3f} pb={r['inputs']['pb']:.3f}"
+        risk = f"quote {r['market_quote']['source']} @ {r['market_quote']['quote_ts'][:16]}; liq {r['market_quote']['liquidity']}; grade {r['quality']['grade']}"
+        fair = r['models']['ELO_DP_FAIR'] if r['ev']['best_side'] == 'YES' else 1 - r['models']['ELO_DP_FAIR']
+        L.append(f"| {r['player_a']} vs {r['player_b']} ({r['competition']} {r['round']}) | {r['family']} {r['ticker']} | {r['ev']['best_side']} | {r['ev']['price']:.2f} | {fair:.3f} | {r['ev']['raw_edge']:+.3f} | {r['ev']['ev_after_fees']:+.3f} | {r['ev']['bet_up_to']:.2f} | {r['quality']['grade']} | {why} / {risk} |")
+    L += ["", "## All priced markets by raw disagreement (unfiltered; most are illiquid or stale quotes -> PASS)", "",
           "| match | market | side | price | fair | raw edge | EV after fees | bet up to | quality | why / risk |", "|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows[:40]:
         why = f"Elo {r['inputs']['elo_a']:.0f} vs {r['inputs']['elo_b']:.0f} ({r['surface'] or 'surface?'}); Elo p={r['models']['ELO']:.2f}, SR p={r['models']['STRUCTURAL']:.2f}, ens={r['models']['ENSEMBLE']:.2f}" if r["models"].get("STRUCTURAL") is not None else f"DP from ensemble point probs pa={r['inputs']['pa']:.3f} pb={r['inputs']['pb']:.3f}"

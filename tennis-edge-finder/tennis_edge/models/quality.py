@@ -33,15 +33,16 @@ def _sat(x: float, k: float) -> float:
 
 
 def data_quality(q: QualityInputs) -> dict:
-    exp = _sat(min(q.n_matches_a, q.n_matches_b), 20.0)
-    sr = _sat(min(q.serve_points_a, q.serve_points_b), 1000.0)
+    exp = _sat(min(q.n_matches_a, q.n_matches_b), 40.0)
+    sr = _sat(min(q.serve_points_a, q.serve_points_b), 1500.0)
     days = max([d for d in (q.days_since_last_a, q.days_since_last_b) if d is not None] or [365.0])
     rec = 1.0 if days <= 90 else math.exp(-(days - 90) / 180.0)
     lvl = min(max(q.level_familiarity, 0.0), 1.0)
     idc = min(max(q.identity_confidence, 0.0), 1.0)
     fmt = 1.0 if q.format_known else 0.0
     # geometric blend; serve/return evidence is a soft pillar (Elo-only projections are still usable)
-    score = fmt * idc * (exp ** 0.35) * ((0.4 + 0.6 * sr) ** 0.5) * (rec ** 0.5) * ((0.5 + 0.5 * lvl) ** 0.5)
+    # serve/return evidence is a strong pillar: without it a projection is Elo-only and capped near grade B
+    score = fmt * idc * (exp ** 0.35) * ((0.3 + 0.7 * sr) ** 0.7) * (rec ** 0.5) * ((0.5 + 0.5 * lvl) ** 0.5)
     grade = "A" if score >= 0.8 else "B" if score >= 0.6 else "C" if score >= 0.4 else "D" if score > 0.2 else "F"
     return {"data_quality_score": round(score, 4), "grade": grade,
             "pillars": {"experience": round(exp, 3), "serve_return_evidence": round(sr, 3), "recency": round(rec, 3),

@@ -149,9 +149,11 @@ def main():
 
     # ---- 4. global trade tape since cursor, filtered to tennis
     min_ts = state["trades_cursor_ts"] or (t_now - 3600)
-    trades, ok, info = c.trades(min_ts=min_ts, max_ts=t_now, limit=1000, max_pages=40)
+    trades, ok, info = c.trades(min_ts=min_ts, max_ts=t_now, limit=1000, max_pages=250)
     if not ok:
-        manifest["incomplete"].append({"stage": "trades", "info": info})
+        # the global tape can exceed the page budget on busy days; the pass is then incomplete for trades and the
+        # cursor is NOT advanced past what was actually scanned, so nothing is silently skipped
+        manifest["incomplete"].append({"stage": "trades", "info": info, "scanned": len(trades)})
     prefixes = tuple(s + "-" for s in ALL_SERIES)
     n_t = 0
     for tr in trades:
@@ -159,6 +161,10 @@ def main():
             w("trades", tr); n_t += 1
     if ok:
         state["trades_cursor_ts"] = t_now
+    elif trades:
+        seen = [ts(tr.get("created_time")) for tr in trades if tr.get("created_time")]
+        if seen:
+            state["trades_cursor_ts"] = min(seen)   # resume from the oldest scanned trade (tape is newest-first)
     manifest["counts"]["trades_tennis"] = n_t; manifest["counts"]["trades_global_scanned"] = len(trades)
 
     # ---- 5. hourly: settlements + candles for newly settled match-scope markets
