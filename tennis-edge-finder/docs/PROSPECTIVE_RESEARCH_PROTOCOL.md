@@ -19,3 +19,10 @@
    is a separate, human decision after that.
 6. Multiple testing: subgroup claims require n >= 300 per subgroup, holdout confirmation, and the
    hypothesis must have been registered in `research/hypothesis_registry.md` before the evaluation window.
+
+## Automation
+`scripts/ops/settle_ledger.py` joins ledger rows with the captured settlement stream and candle histories,
+records ExchangeTruth / provisional SportsTruth (exchange result until a results feed exists), the canonical
+close (candle bid/ask before min(scheduled, close − 7 h)) and CLV, appends to data/research/settlements/ and
+rewrites SCORECARD.md (scores shown only from 30 gradeable rows). `.github/workflows/tennis-run.yml` runs
+build → states → run_tennis → settle → health on the runner and publishes data/research to `tennis-data`.

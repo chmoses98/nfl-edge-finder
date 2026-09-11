@@ -19,8 +19,8 @@ def rank_baseline(m: pd.DataFrame) -> np.ndarray:
     """P(winner) from log-rank difference with a fixed, non-fitted slope (documented naive baseline)."""
     wr = pd.to_numeric(m["winner_rank"], errors="coerce").astype(float).fillna(1500).clip(lower=1)
     lr = pd.to_numeric(m["loser_rank"], errors="coerce").astype(float).fillna(1500).clip(lower=1)
-    x = np.log(lr) - np.log(wr)          # >0 when winner better ranked
-    return 1 / (1 + np.exp(-0.9 * x))
+    x = np.log(lr.to_numpy()) - np.log(wr.to_numpy())          # >0 when winner better ranked
+    return np.nan_to_num(1 / (1 + np.exp(-0.9 * x)), nan=0.5)
 
 
 def main():

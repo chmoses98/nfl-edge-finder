@@ -1,0 +1,55 @@
+name: RUN TENNIS (projections + settlement)
+
+# Rebuilds the canonical table from the latest source snapshots, refits rating states, prices every open
+# projectable Kalshi tennis market, appends to the immutable ledger, settles what has settled, and publishes
+# data/research (ledger, projections, settlements, health) to the `tennis-data` branch.
+# Research only: no order surface exists in this repository.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/tennis-edge-finder-nr4scu']
+    paths: ['tennis-edge-finder/.run-trigger']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tennis-run
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: python3 -m pip install --quiet numpy pandas scipy scikit-learn pyarrow openpyxl xlrd
+      - name: Pull snapshots, capture and existing ledger from tennis-data
+        run: |
+          git fetch --depth=1 origin tennis-data
+          git archive origin/tennis-data tennis-edge-finder/data | tar -x
+          ls tennis-edge-finder/data
+      - name: Build canonical table and rating states
+        run: |
+          cd tennis-edge-finder
+          PYTHONPATH=. python3 tennis_edge/data/build.py | tail -5
+          PYTHONPATH=. python3 -m tennis_edge.models.state --tour ATP
+          PYTHONPATH=. python3 -m tennis_edge.models.state --tour WTA
+      - name: Project, settle, health
+        run: |
+          cd tennis-edge-finder
+          PYTHONPATH=. python3 scripts/run_tennis.py | tail -20
+          PYTHONPATH=. python3 scripts/ops/settle_ledger.py | tail -10
+          PYTHONPATH=. python3 -c "from tennis_edge.health.gates import run_all; import json; json.dump([g.to_dict() for g in run_all()], open('data/research/health_latest.json','w'), indent=1, default=str)"
+          cat data/research/health_latest.json | python3 -c "import json,sys; [print(g['gate'], g['status']) for g in json.load(sys.stdin)]"
+      - name: Publish research outputs
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/research --message "tennis run $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/processed --message "tennis processed artifacts $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || true
