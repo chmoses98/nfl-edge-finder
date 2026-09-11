@@ -22,8 +22,8 @@ edge. Real-money authority stays OFF.**
    (the primary site returned 503 to every request), Match Charting Project stat files, the full Kalshi
    series catalogue (13,971 series), 143 tennis series with 61,592 live + 103,962 archived markets,
    15,894 markets' hourly candles and 13.1 M trade rows, 286 contract-terms PDFs.
-3. **Historical coverage.** 1,617,116 clean singles matches 1990-2026 (ATP 949k incl. 519k ITF and 282k
-   Challenger; WTA 660k incl. 461k ITF, 48k WTA-125); 21,379 rows quarantined with reasons; 142,820
+3. **Historical coverage.** 1,624,759 clean singles matches 1990-2026 (ATP 953k incl. 519k ITF and 282k
+   Challenger; WTA 671k incl. 468k ITF, 48k WTA-125); 13,729 rows quarantined with reasons; 142,827
    cross-source duplicates dropped. Serve stats on 61-81 % of tour/Challenger rows, 5 % of ITF.
 4. **Kalshi universe discovered.** 143 tennis-tagged series covering ATP/WTA/Challenger/ITF men & women,
    singles and doubles, mixed, team events, exhibitions, match winner, set winner, exact score, game
@@ -82,13 +82,13 @@ retiring player NO; ITF → $0.50 on no ball; derivative markets settle what is 
 ## DATA QUALITY REPORT
 | item | value |
 |---|---|
-| clean rows / quarantined | 1,617,116 / 21,379 (IMPOSSIBLE_SCORE 11,910; DUPLICATE_MATCH_KEY 8,964; MISSING_PLAYER_ID 490; SELF_MATCH 15) |
-| largest quarantine pocket | WTA qual/ITF: match tiebreaks written "10-7" as a set (being recovered by the parser patch in progress) |
-| outcome types | COMPLETED 1,560,202; RETIRED 49,036; WALKOVER 7,149; DEFAULT 411; UNKNOWN 289; UNFINISHED 29 |
+| clean rows / quarantined | 1,624,759 / 13,729 (DUPLICATE_MATCH_KEY 8,964; IMPOSSIBLE_SCORE 4,260; MISSING_PLAYER_ID 490; SELF_MATCH 15) |
+| largest quarantine pocket (fixed) | WTA qual/ITF wrote match tiebreaks as a bare "10-7" set; parser now accepts it, recovering 7,454 rows |
+| outcome types | COMPLETED 1,567,845; RETIRED 49,036; WALKOVER 7,149; DEFAULT 411; UNKNOWN 289; UNFINISHED 29 |
 | surface missing | 0.06 % |
 | serve stats present | Masters 81 %, 500/250 78 %, slams 63 %, Challenger 61 %, WTA-125 17 %, ITF 5 % |
-| cross-source duplicates dropped | 142,820 (Sackmann preferred over TML) |
-| id systems | Sackmann 1,520,076 rows (production); TML 97,040 (separate id universe, not merged) |
+| cross-source duplicates dropped | 142,827 (Sackmann preferred over TML) |
+| id systems | Sackmann 1,527,723 rows (production); TML 97,036 (separate id universe, not merged) |
 | freshness | ATP ends 2026-06-01, WTA 2026-04-27 (TENNIS-14 FAIL) |
 | tennis-data ↔ canonical link | 14,195 MATCHED / 593 AMBIGUOUS / 373 UNMATCHED (ATP 2020-26) |
 
@@ -188,7 +188,7 @@ feed, Kalshi fee schedule not byte-verified, contract PDFs unparsed.
 3. First-ball adapter (any live-score feed reachable from the runner) — until then treat all closes as
    schedule-based and never score ITF/Challenger rows as strict pregame.
 4. Daily Sackmann-fork + TML refresh with automatic rebuild and rating refit; alert on staleness > 8 days.
-5. Recover the WTA ITF "10-7" match-tiebreak scores (parser patch in progress) and rerun WTA studies.
+5. Re-run the WTA studies on the recovered ITF rows (parser fixed; refit in progress at hand-off) and add Shin vig removal to the headline tables.
 6. Price derivative markets against settled Kalshi histories (the 60-min candles exist for 6,900 totals /
    5,700 spreads / 9,700 exact-score markets) — H-T08.
 7. Fix name recovery for derivative-only events and the doubles "Surname-only" names (19 + 111 markets).
