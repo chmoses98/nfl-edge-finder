@@ -1,0 +1,81 @@
+name: Tennis Kalshi Capture Conductor
+
+# Continuous prospective capture of the Kalshi tennis universe (quotes, books, global trade tape,
+# settlements, candles). One runner loops a capture pass every INTERVAL seconds for MINUTES minutes,
+# publishing to the orphan `tennis-data` branch after every pass, then DISPATCHES ITS OWN SUCCESSOR
+# (GitHub only runs `schedule` crons from the default branch, and this project lives on a feature
+# branch). The chain is stopped by disabling this workflow in the Actions UI.
+# Read-only public GETs; no secrets beyond GITHUB_TOKEN (contents+actions write for publish/chain).
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'how long this conductor loops'
+        required: false
+        default: '340'
+      interval:
+        description: 'seconds between capture passes'
+        required: false
+        default: '600'
+      chain:
+        description: 'dispatch a successor run when finished (true/false)'
+        required: false
+        default: 'true'
+  push:
+    branches: ['claude/tennis-edge-finder-nr4scu']
+    paths: ['tennis-edge-finder/.capture-trigger']
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: tennis-capture-conductor
+  cancel-in-progress: false
+
+jobs:
+  conduct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Loop capture + publish
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          MINUTES="${{ github.event.inputs.minutes || '340' }}"
+          INTERVAL="${{ github.event.inputs.interval || '600' }}"
+          END=$(( $(date +%s) + MINUTES * 60 ))
+          PASS=0
+          while [ $(date +%s) -lt $END ]; do
+            T0=$(date +%s)
+            git fetch --depth=1 origin tennis-data || true
+            mkdir -p tennis-edge-finder/data/kalshi/capture
+            git show origin/tennis-data:tennis-edge-finder/data/kalshi/capture/state.json > tennis-edge-finder/data/kalshi/capture/state.json 2>/dev/null || echo '{}' > tennis-edge-finder/data/kalshi/capture/state.json
+            python3 tennis-edge-finder/scripts/kalshi/capture_tennis.py || echo "::warning::capture pass $PASS returned non-zero (partial)"
+            # daily taxonomy refresh (catalogue + events + markets + historical, no price history)
+            LAST_DISC=$(git ls-tree --name-only origin/tennis-data tennis-edge-finder/data/kalshi/discovery/ 2>/dev/null | sort | tail -1 | grep -oE '[0-9]{8}T' | tr -d T || echo 0)
+            if [ "$(date -u +%Y%m%d)" != "$LAST_DISC" ] && [ $PASS -eq 0 ]; then
+              python3 tennis-edge-finder/scripts/kalshi/discover_tennis.py --skip-phase2 || echo "::warning::daily discovery incomplete"
+              python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/kalshi/discovery --message "kalshi tennis daily discovery $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || true
+              rm -rf tennis-edge-finder/data/kalshi/discovery
+            fi
+            python3 tennis-edge-finder/scripts/ci/publish_branch.py --branch tennis-data --src tennis-edge-finder/data/kalshi/capture --message "kalshi tennis capture $(date -u +'%Y-%m-%dT%H:%M:%SZ') (conductor pass $PASS)" || echo "::warning::publish failed on pass $PASS"
+            rm -rf tennis-edge-finder/data/kalshi/capture/2*
+            PASS=$((PASS+1))
+            ELAPSED=$(( $(date +%s) - T0 ))
+            SLEEP=$(( INTERVAL - ELAPSED )); [ $SLEEP -gt 0 ] && sleep $SLEEP
+          done
+          echo "conductor finished after $PASS passes"
+      - name: Dispatch successor
+        if: always() && (github.event.inputs.chain == 'true' || github.event_name == 'push')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -sS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/tennis-capture.yml/dispatches" \
+            -d '{"ref":"${{ github.ref_name }}","inputs":{"minutes":"340","interval":"600","chain":"true"}}' -w "\nHTTP %{http_code}\n"
