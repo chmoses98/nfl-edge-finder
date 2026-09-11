@@ -13,7 +13,12 @@ Real-money authority OFF. No model has shown edge against bookmaker prices; see 
   and writes an append-only, hash-chained prediction ledger with the market quote beside every projection.
 * Benchmarks against Pinnacle closing-style prices, fits walk-forward hybrids, reports disagreement buckets.
 
-## Run
+## Run (automated)
+`.github/workflows/tennis-run.yml` (push `tennis-edge-finder/.run-trigger` or dispatch) rebuilds, refits, prices,
+settles and publishes to the `tennis-data` branch; `tennis-capture.yml` captures markets every 10 minutes in a
+self-dispatching chain; `tennis-bootstrap.yml` refreshes source snapshots and the Kalshi discovery.
+
+## Run (local)
 ```
 pip install -e . && python -m pytest -q tests
 git fetch origin tennis-data && git archive origin/tennis-data tennis-edge-finder/data | tar -x   # snapshots

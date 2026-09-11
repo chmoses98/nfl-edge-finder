@@ -160,8 +160,11 @@ excluded events 65 (19 name-recovery, doubles players unmapped), unmapped player
 liquidity > 0, grade A/B, SCHEDULED start basis, > 15 min to start). Report:
 data/research/projections/REPORT_20260911T135922Z.md. Ledger: hash-chained rows across the day's runs; 4 rows already
 settled through scripts/ops/settle_ledger.py (close basis SCHEDULED_MINUS_MARGIN; scorecard withheld below 30
-gradeable rows). The `RUN TENNIS` workflow reproduces this on the runner and publishes data/research to the
-`tennis-data` branch.
+gradeable rows). The `RUN TENNIS` workflow (`.github/workflows/tennis-run.yml`) reproduced the whole chain on the runner at
+14:01 UTC (build 3.5 min → states → run_tennis → settle → health) and published data/research (ledger,
+projections, settlements, health) plus rating states to the `tennis-data` branch; the 103 MB matches.parquet is
+not published (GitHub limit) and is rebuilt from the snapshots in 25 s. The branch ledger is the canonical
+prospective record from now on.
 
 ## TEST STATUS
 215 tests pass (`python -m pytest -q tests`): scoring engine vs closed forms and Monte Carlo, format registry,
