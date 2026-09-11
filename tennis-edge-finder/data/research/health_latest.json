@@ -1,0 +1,177 @@
+[
+ {
+  "gate": "TENNIS-1",
+  "name": "kalshi_tennis_discovery",
+  "status": "PASS",
+  "detail": {
+   "run": "20260911T063759Z",
+   "age_hours": 7.4,
+   "complete": true,
+   "failures": 0,
+   "series_tennis": 143
+  }
+ },
+ {
+  "gate": "TENNIS-2",
+  "name": "taxonomy_normalization",
+  "status": "PASS",
+  "detail": {
+   "unknown_series": [],
+   "live_markets": 61592,
+   "unparsed": 1,
+   "parse_rate": 0.99998
+  }
+ },
+ {
+  "gate": "TENNIS-3",
+  "name": "active_market_mapping",
+  "status": "PASS",
+  "detail": {
+   "active": 533,
+   "unparsed": [],
+   "unsupported": 129
+  }
+ },
+ {
+  "gate": "TENNIS-4",
+  "name": "active_market_projection",
+  "status": "FAIL",
+  "detail": {
+   "projectable_open_pregame": 183,
+   "projected": 114,
+   "not_projected": 69,
+   "missing_sample": [
+    "KXATPGSPREAD-26SEP11ZVEKHA-ZVE9: could not recover both competitors' full names from the even",
+    "KXATPGSPREAD-26SEP11ZVEKHA-ZVE6: could not recover both competitors' full names from the even",
+    "KXATPGSPREAD-26SEP11ZVEKHA-ZVE3: could not recover both competitors' full names from the even",
+    "KXATPGSPREAD-26SEP11TIASHE-SHE8: could not recover both competitors' full names from the even",
+    "KXATPGSPREAD-26SEP11TIASHE-SHE5: could not recover both competitors' full names from the even",
+    "KXATPGSPREAD-26SEP11TIASHE-SHE2: could not recover both competitors' full names from the even",
+    "KXITFMATCH-26SEP11LAGVAL-VAL: Eduardo Lage: UNMAPPED (no exact full-name match)",
+    "KXITFMATCH-26SEP11LAGVAL-LAG: Eduardo Lage: UNMAPPED (no exact full-name match)",
+    "KXITFMATCH-26SEP11GARPAG-PAG: Victor Pagotto: UNMAPPED (no exact full-name match)",
+    "KXITFMATCH-26SEP11GARPAG-GAR: Victor Pagotto: UNMAPPED (no exact full-name match)"
+   ],
+   "excluded_by_policy": {
+    "past_nominal_start": 43,
+    "unsupported_family": 118,
+    "tournament_scope_not_priced_tonight": 11,
+    "closed_since_discovery": 178
+   },
+   "projection_run": "20260911T140052Z"
+  }
+ },
+ {
+  "gate": "TENNIS-5",
+  "name": "market_capture_freshness",
+  "status": "FAIL",
+  "detail": {
+   "run": "20260911T134355Z",
+   "age_min": 15.3,
+   "incomplete": [
+    {
+     "stage": "trades",
+     "info": {
+      "pages": 250,
+      "error": null,
+      "truncated_by_max_pages": true
+     },
+     "scanned": 250000
+    }
+   ]
+  }
+ },
+ {
+  "gate": "TENNIS-6",
+  "name": "no_post_start_leakage",
+  "status": "PASS",
+  "detail": {
+   "violations": [],
+   "n": 236,
+   "start_unknown_used_schedule": 236
+  }
+ },
+ {
+  "gate": "TENNIS-7",
+  "name": "player_identity_integrity",
+  "status": "PASS",
+  "detail": {
+   "ambiguous": 0,
+   "ambiguous_used": 0,
+   "MATCHED": 114
+  }
+ },
+ {
+  "gate": "TENNIS-8",
+  "name": "sports_truth_health",
+  "status": "UNKNOWN",
+  "detail": {
+   "reason": "no settled predictions yet"
+  }
+ },
+ {
+  "gate": "TENNIS-9",
+  "name": "exchange_settlement_health",
+  "status": "UNKNOWN",
+  "detail": {
+   "reason": "no settled predictions yet",
+   "rules_id_changes": []
+  }
+ },
+ {
+  "gate": "TENNIS-10",
+  "name": "clv_close_coverage",
+  "status": "UNKNOWN",
+  "detail": {
+   "reason": "no settled predictions yet"
+  }
+ },
+ {
+  "gate": "TENNIS-11",
+  "name": "probability_consistency",
+  "status": "PASS",
+  "detail": {
+   "violations": [],
+   "n": 0
+  }
+ },
+ {
+  "gate": "TENNIS-12",
+  "name": "append_only_ledger",
+  "status": "PASS",
+  "detail": {
+   "violations": []
+  }
+ },
+ {
+  "gate": "TENNIS-13",
+  "name": "reproducible_artifacts",
+  "status": "PASS",
+  "detail": {
+   "hash_match": true,
+   "built_at": "2026-09-11T13:57:20.824318+00:00",
+   "rows": 1624759
+  }
+ },
+ {
+  "gate": "TENNIS-14",
+  "name": "data_source_freshness",
+  "status": "FAIL",
+  "detail": {
+   "run": "20260911T071045Z",
+   "snapshot_age_days": 0.28,
+   "max_season_files": [
+    2026,
+    2026
+   ],
+   "ratings_as_of": {
+    "ATP": "2026-06-01",
+    "WTA": "2026-04-27"
+   },
+   "ratings_stale_days": {
+    "ATP": 102,
+    "WTA": 137
+   }
+  }
+ }
+]
