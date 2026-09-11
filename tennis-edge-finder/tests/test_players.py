@@ -39,8 +39,8 @@ def test_registry_columns_and_bad_rows_dropped(registry):
     assert r["dob"] == date(1981, 8, 8) and r["ioc"] == "SUI" and r["height"] == 185
     assert r["wikidata_id"] == "Q1426"
     assert registry.set_index("player_id").loc["100013", "last_first_initial"] == "o connell c"
-    assert registry.set_index("player_id").loc[100014, "name_norm"] == "felix auger aliassime"
-    assert registry.set_index("player_id").loc[100012, "dob"] is None
+    assert registry.set_index("player_id").loc["100014", "name_norm"] == "felix auger aliassime"
+    assert registry.set_index("player_id").loc["100012", "dob"] is None
     assert pd.isna(registry.set_index("player_id").loc["100007", "wikidata_id"])
 
 

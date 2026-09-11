@@ -72,8 +72,9 @@ def build(min_year: int = 1990, write: bool = True) -> dict:
         base = os.path.join(run, f"sackmann/tennis_{tour.lower()}")
         for kind_pat in kinds:
             kind = "main" if kind_pat.endswith("matches_{y}") else ("qual_chall" if "qual_chall" in kind_pat else "futures" if "futures" in kind_pat else "qual_itf")
-            paths = [p for p in glob.glob(os.path.join(base, kind_pat.replace("{y}", "*") + ".csv.gz"))
-                     if (mm := re.search(r"(\d{4})\.csv\.gz$", p)) and int(mm.group(1)) >= min_year]
+            pat = re.compile("^" + re.escape(kind_pat).replace(r"\{y\}", r"(\d{4})") + r"\.csv\.gz$")
+            paths = [p for p in glob.glob(os.path.join(base, "*.csv.gz"))
+                     if (mm := pat.match(os.path.basename(p))) and int(mm.group(1)) >= min_year]
             seen = set()
             c, q, counts = _load_group(paths, tour, kind, "sackmann", f"sackmann_{tour}_{kind}", seen)
             clean_all += c; q_all += q
