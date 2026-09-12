@@ -356,3 +356,91 @@ is 0% known, because only 275 of 6,419 player rows are on a published report at 
 Transitions between horizons are **derived** from the frozen records, never captured separately, so they cannot
 contradict what was observed. Direction is ranked by severity, both raw states are kept on every event, and a
 source going quiet is `EVIDENCE_LOST` rather than a downgrade.
+
+---
+
+## 11. The point-in-time contract (remediation of the pre-week audit)
+
+The pre-week institutional audit found that the no-hindsight rule had been implemented per source and had
+diverged: four unbounded loaders sat next to four correct ones, sometimes in the same file. It also found that
+the headline claim "zero probability records without a settlement path" was false. Both are fixed here.
+
+### 11.1 One rule, one place (`nfl_edge/shadow_v2/pit.py`)
+
+    source_observed_or_retrieved_at <= projection.data_cutoff
+
+`pick_at_or_before` replaces every `sorted(glob(...))[-1]`. A `VintageLedger` records the vintage of every
+time-sensitive source a run consumed and is frozen onto each record's lineage, so a record carries what is
+needed to re-check its own compliance after the files have been rebuilt in place.
+
+Three outcomes, and only one is a breach:
+
+| | |
+|---|---|
+| no evidence at or before the cutoff | `UNKNOWN` with a reason. Normal and common. Never an error. |
+| **skew** — a source later than the snapshot but before kickoff | recorded as the record's `information_frontier`. Unavoidable in normal operation: the job downloads nflverse after the capture run it prices. Measured on a real run: 2,234 s. |
+| **outcome leak** — a source at or after the kickoff it predicts | refused, per game. The records lose their probability and are relabelled; a later game's records are untouched. |
+
+A source dated after the run's own wall clock fails the whole run.
+
+### 11.2 What was actually leaking
+
+* **Availability** took the newest Sleeper/ESPN file with no cutoff, and that value reaches the priced contract
+  value through `p_plays` on all three player arms.
+* **Target-season silver** was read unbounded: results, **closing** spread and total lines, and finalised QB ids.
+  Closing lines are now blanked for every target-season game — the consensus fallback refuses rather than
+  borrowing a number that did not exist at the snapshot. Measured cost, reported plainly: probability-carrying
+  records fall from 18,226 to 16,160. That is hindsight being removed, not coverage being lost.
+* **Quotes** bounded files but never rows, and nothing at all on the default path.
+* **Books** bounded by run id while the docstring claimed `observed_at`. Both axes are now enforced, and a book
+  observed at or after its game's kickoff is rejected — which also defends against the measured corpus defect
+  where 646 of 677,253 rows in `books.jsonl` were fetched post-kickoff.
+
+### 11.3 Settlement reachability is measured, not asserted (`nfl_edge/settlement/reachability.py`)
+
+`flags.settlement_supported` previously reflected the family **catalog**, so editing the catalog flipped it on
+1,336 season records the settlement driver dropped before dispatch. Reachability is now a property of the
+record: a branch exists **and** the record carries the keys that branch needs. One function serves the
+projection flags, the settlement driver and the coverage matrix.
+
+Season records now carry a season, derived from the Kalshi two-digit year cross-checked against the contract's
+own expiration — Kalshi's `-27` is the season *ending* in 2027, i.e. nflverse 2026 — and refusing if the two
+disagree. Measured on the real board: **16,114 of 16,160 dispatchable (99.72%)**, the remaining 46 being
+`PLAYER_STAT` rows with an unresolved subject id, each carrying `MISSING_SETTLEMENT_KEYS`. Season rows with no
+kickoff receive `CLOSE_NOT_APPLICABLE_SEASON` rather than disappearing from close pairing, and no fake kickoff
+is invented to make game logic apply.
+
+### 11.4 Depth is an independent stream (`.github/workflows/shadow-v2-depth.yml`)
+
+Depth was a step inside the horizon job. A 20–30 minute sweep on a 15-minute cron with a 60-minute timeout and
+`cancel-in-progress: false` queues the next firing behind it, and a horizon whose kickoff passes while queued is
+`MISSED` and never reconstructed — so collecting depth put the evidence that already works at risk. It now has
+its own workflow, concurrency group and `cancel-in-progress: true`, at a rate below the incumbent capture's.
+
+Every row carries the target horizon **and** the actual observation as separate facts: `observed_at`,
+`kickoff_utc`, `minutes_to_kickoff` recomputed from that observation, `horizon_delta_min` and
+`horizon_quality`. A ladder is entered only if the whole ladder can finish before its own kickoff; a response
+arriving at or after kickoff is rejected rather than written as pregame.
+
+**One sweep is not "T-30" for every contract, and the system no longer claims it is.** Rehearsed at T-30 for the
+largest real cluster (8 games kicking together, 4,896 probability-carrying contracts): 27.2 minutes at 3 req/s,
+so observations span roughly T-30 to T-3 with 328 of 328 ladders whole and zero post-kickoff rows accepted.
+Because research pairing selects the latest observation at or before each projection's cutoff and strictly
+before kickoff, the target label is not load-bearing — the pairing age is, and it is recorded.
+
+### 11.5 Injury-report maturity, and honest absence
+
+A player absent from the parquet is not the same fact as a player absent from a complete report. The per-week
+row and team counts are now measured and frozen, and the states are `LISTED` / `NOT_LISTED_AT_THIS_VINTAGE` /
+`REPORT_NOT_AVAILABLE` / `SOURCE_UNAVAILABLE`. At the replay vintage week 1 of 2026 held 139 rows against a 2025
+mean of 275.8 per week — half a typical week. nflverse rebuilds the file in place, so those counts are captured
+now or they are unrecoverable.
+
+### 11.6 Research queryability
+
+The cross-check now joins by `prediction_id` carried from the row itself (it was reattached by positional `zip`
+after a filtered loop) and its verdict is exported, so a researcher can exclude a family the exchange
+contradicted. Availability events get a content-addressed identity and a join key that matches every sibling
+row. Autopsy runs once per eligible DATA-arm prediction at every horizon with the denominator stated on the
+row. `range_lo` / `range_hi`, distribution quantiles, `subject_kalshi_id`, evaluation versions, injury maturity,
+inactive state and the point-in-time frontier are all exported.

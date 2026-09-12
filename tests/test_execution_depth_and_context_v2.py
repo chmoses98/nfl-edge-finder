@@ -265,3 +265,63 @@ def test_depth_coverage_is_reported_by_disagreement_band_so_selection_bias_is_vi
     assert d["by_disagreement_band"]["0-0.5pp"]["captured_pct"] == 100.0
     assert d["by_disagreement_band"][">10pp"]["captured_pct"] == 0.0
     assert d["not_captured_reasons"] == {"DROPPED_BY_BUDGET": 1}
+
+
+# ------------------------------------------------------ the execution export, on a row that is genuinely filled
+def _export_module():
+    import importlib.util
+    p = os.path.join(ROOT, "scripts", "shadow_v2", "research_export_v2.py")
+    spec = importlib.util.spec_from_file_location("research_export_v2", p)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def _priced_projection():
+    """A projection with a real quote and a real book frozen on it -- the case the export claims to serve."""
+    t = XD.execution_table(book([("0.6000", "40.00"), ("0.5500", "500.00")]), "YES", fair=0.62, as_of=AS_OF)
+    assert t["state"] == XD.DEPTH_CAPTURED, "the fixture itself must be a captured book, not a refusal"
+    return {"record_id": "R-EXEC-1", "snapshot_id": "20260913T153500Z", "ticker": "T", "model_arm": "DATA",
+            "market_family": "PLAYER_STAT", "stat_family": "receiving_yards", "game_id": "2026_02_AAA_BBB",
+            "horizon_label": "T-90m", "kickoff_utc": KICK, "observed_at": BOOK_TS,
+            "yes_bid": 0.38, "yes_ask": 0.40, "no_bid": 0.60, "no_ask": 0.62, "mid": 0.39,
+            "quote_width": 0.02, "contract_value": 0.62, "p_yes": 0.62,
+            "depth": XD.record_block(t)}
+
+
+def test_the_exported_execution_row_carries_the_prices_it_claims_to_carry():
+    """The export read `mid` / `yes_ask` / `no_ask`; the research row names them `h_mid` / `h_yes_ask` / `h_no_ask`.
+
+    Every price column in the execution table was therefore null for every row ever exported, and no test caught
+    it because the fixtures had no captured book -- a row with no depth exits early and never reaches the
+    prices. This exercises a row that is genuinely filled end to end.
+    """
+    m = _export_module()
+    from nfl_edge.evaluation import research_record as RR
+    proj = _priced_projection()
+    row = RR.research_row(proj, close=None, clv=None, settlement=None, autopsy=None, sidecar=None)
+    tbl = m.execution_research([row])
+    assert tbl["n"] == 1 and tbl["n_with_depth"] == 1
+    r = tbl["rows"][0]
+    assert r["mid"] == 0.39 and r["yes_ask"] == 0.40 and r["no_ask"] == 0.62, "the price columns must not be null"
+    assert r["contract_value"] == 0.62 and r["side"] == "YES"
+    assert r["top_size"] == 40.0 and r["contracts_available"] == 540.0
+    assert r["vwap_1"] is not None and r["vwap_10"] is not None and r["vwap_50"] is not None
+    assert r["slippage_1_to_50"] > 0, "a 50-contract walk past a 40-contract top level must cost more than one"
+    assert r["fill_state_50"] == "FILLED" and r["depth_state"] == XD.DEPTH_CAPTURED
+    assert tbl["top_of_book_size"]["median"] == 40.0
+    assert tbl["slippage_1_to_50"]["median"] == r["slippage_1_to_50"]
+
+
+def test_a_row_without_a_book_still_appears_in_the_export_and_carries_no_invented_size():
+    m = _export_module()
+    from nfl_edge.evaluation import research_record as RR
+    proj = {**_priced_projection(), "record_id": "R-EXEC-2",
+            "depth": XD.record_block(XD.execution_table(None, "YES", not_captured_reason="DROPPED_BY_BUDGET"))}
+    row = RR.research_row(proj, close=None, clv=None, settlement=None, autopsy=None, sidecar=None)
+    tbl = m.execution_research([row])
+    r = tbl["rows"][0]
+    assert tbl["n"] == 1 and tbl["n_with_depth"] == 0
+    assert r["depth_state"] == XD.DEPTH_NOT_CAPTURED and r["depth_reason"] == "DROPPED_BY_BUDGET"
+    assert r["top_size"] is None and r["contracts_available"] is None
+    assert r["mid"] == 0.39, "the quote is still known even when the ladder is not"

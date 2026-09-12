@@ -27,7 +27,8 @@ sys.path.insert(0, ROOT)
 from nfl_edge.engines.player import autopsy_v2 as AU                                     # noqa: E402
 from nfl_edge.evaluation import scorecard_v2 as SC                                       # noqa: E402
 from nfl_edge.projection.store import read_projections, read_sidecars                    # noqa: E402
-from nfl_edge.settlement import crosscheck as XC                                         # noqa: E402
+from nfl_edge.settlement import crosscheck as XC
+from nfl_edge.settlement import reachability as RE                                         # noqa: E402
 from nfl_edge.settlement import season_settlement as SS                                  # noqa: E402
 from nfl_edge.settlement import settle_v2 as S2                                          # noqa: E402
 from nfl_edge.settlement.nflverse_results import build_result_book                       # noqa: E402
@@ -77,10 +78,27 @@ def main(argv=None):
     corpus = ST.EvaluationCorpus(os.path.join(a.out, "settlements"), read_roots=[os.path.join(a.market_data, "data", "shadow", "v2", "settlements")], suffix=SUFFIX)
     au_corpus = ST.EvaluationCorpus(os.path.join(a.out, "autopsy"), read_roots=[os.path.join(a.market_data, "data", "shadow", "v2", "autopsy")], suffix=AUTOPSY_SUFFIX)
     batch = ST.batch_id(now)
-    by_game = {}
+    # EVERY probability-carrying record is accounted for. The previous driver bucketed by `game_id` and any
+    # record without one -- all 1,336 season records -- vanished before `settle_projection()` was ever called,
+    # while `flags.settlement_supported` said they were settleable. Records are now partitioned into
+    # game-scoped, season-scoped and an explicitly unreachable remainder; nothing falls out.
+    by_game, season_rows, unreachable = {}, [], []
     for r in rows:
-        if r.get("game_id"):
+        if r.get("p_yes") is None:
+            continue
+        rr = RE.reachability(r)
+        if rr["state"] != RE.DISPATCHABLE:
+            unreachable.append({**{k: r.get(k) for k in ("record_id", "ticker", "market_family", "model_arm")},
+                                "reachability": rr})
+        elif rr["scope"] == RE.SEASON:
+            season_rows.append(r)
+        elif r.get("game_id"):
             by_game.setdefault(r["game_id"], []).append(r)
+        else:
+            unreachable.append({**{k: r.get(k) for k in ("record_id", "ticker", "market_family", "model_arm")},
+                                "reachability": {**rr, "state": RE.MISSING_KEYS, "missing": ["game_id"]}})
+    log(f"dispatch: {sum(len(v) for v in by_game.values())} game-scoped over {len(by_game)} games, "
+        f"{len(season_rows)} season-scoped, {len(unreachable)} unreachable (explicit, never dropped)")
     ready, deferred, written, settled_rows = [], {}, 0, []
     # One SeasonLedger per season, built once: wins-through-week, division winners and playoff qualification all
     # read the same season's games, and rebuilding it per record would be quadratic in the board.
@@ -115,25 +133,62 @@ def main(argv=None):
             man = corpus.write_batch(gid, out_rows, evaluation_version=S2.SETTLE_VERSION, batch=batch, plan=plan)
             written += man.get("written", 0)
         # autopsy v2 on the DATA arm's latest pregame record per (player, stat, ticker)
+        # ONE AUTOPSY PER ELIGIBLE PREDICTION, keyed by prediction_id. The previous version diagnosed only the
+        # single latest-pregame DATA record per (player, stat, threshold) -- about one row in twelve -- while
+        # summaries reported percentages as if they covered every player projection. The denominator is now the
+        # eligible set itself and is stated with the result. MARKET_PLAYER_DIST is deliberately excluded: a
+        # causal diagnosis of a ladder-implied price would be manufactured, not measured.
         au_rows = []
-        latest = {}
-        for r in by_game[gid]:
-            if r.get("model_arm") == "DATA_PLAYER_DIST" and r.get("p_yes") is not None:
-                key = (r.get("subject_id"), r.get("stat_family"), r.get("threshold"))
-                if key not in latest or (r.get("minutes_to_kickoff") or 1e9) < (latest[key].get("minutes_to_kickoff") or 1e9):
-                    latest[key] = r
-        for r in latest.values():
-            sc = sidecars.get(r.get("snapshot_id")) or {}
-            full_ctx = (sc.get("player_contexts") or {}).get((r.get("player_context") or {}).get("player_context_id"))
+        eligible = [r for r in by_game[gid]
+                    if r.get("model_arm") == "DATA_PLAYER_DIST" and r.get("p_yes") is not None]
+        for r in eligible:
+            side_car = sidecars.get(r.get("snapshot_id")) or {}
+            full_ctx = (side_car.get("player_contexts") or {}).get((r.get("player_context") or {}).get("player_context_id"))
             d = AU.diagnose({**r, "team": (r.get("feature_lineage") or {}).get("team")}, book, now=now, context=full_ctx)
-            au_rows.append({"prediction_id": r["record_id"], "evaluation_version": AU.AUTOPSY_VERSION, "evaluated_at": now.isoformat(), **d})
+            au_rows.append({"prediction_id": r["record_id"], "evaluation_version": AU.AUTOPSY_VERSION,
+                            "evaluated_at": now.isoformat(), "model_arm": r.get("model_arm"),
+                            "horizon_label": r.get("horizon_label"), "snapshot_id": r.get("snapshot_id"),
+                            "autopsy_denominator": "one per eligible DATA_PLAYER_DIST prediction (every horizon)",
+                            **d})
         if au_rows and not a.dry_run:
             plan = au_corpus.plan(au_rows, gid)
             if plan["conflicts"]:
                 raise ST.EvaluationConflict(plan["conflicts"])
             au_corpus.write_batch(gid, au_rows, evaluation_version=AU.AUTOPSY_VERSION, batch=batch, plan=plan)
+    # ---- SEASON-SCOPED records: dispatched through the same settlement engine, bucketed by season instead of
+    # by game. They settle late (a division needs a complete postseason bracket) but they are examined every
+    # run and every outcome is written, so none can silently disappear.
+    if season_rows:
+        by_season = {}
+        for r in season_rows:
+            by_season.setdefault(int(r["season"]), []).append(r)
+        for season, rws in sorted(by_season.items()):
+            out_rows = []
+            for r in rws:
+                s = S2.settle_projection(r, book, None, season_ledger=season_ledgers)
+                out_rows.append({"prediction_id": r["record_id"], "evaluation_version": S2.SETTLE_VERSION,
+                                 "evaluated_at": now.isoformat(),
+                                 **{k: r.get(k) for k in ("record_id", "snapshot_id", "ticker", "model_arm", "engine",
+                                                          "market_family", "period", "stat_family", "game_id", "season",
+                                                          "week", "subject_id", "subject_name", "horizon_label",
+                                                          "semantic_confidence", "identity_confidence", "evidence_class",
+                                                          "support_state", "p_yes", "contract_value", "mid", "yes_bid",
+                                                          "yes_ask", "no_ask", "quote_width", "liquidity", "volume",
+                                                          "series_ticker")},
+                                 "settlement_scope": RE.SEASON, **s.to_dict()})
+            settled_rows.extend(out_rows)
+            key = f"SEASON_{season}"
+            plan = corpus.plan(out_rows, key)
+            log(f"  {key}: {len(out_rows)} rows -> new {len(plan['new'])}, unchanged {len(plan['noop'])}, conflicts {len(plan['conflicts'])}")
+            if plan["conflicts"]:
+                raise ST.EvaluationConflict(plan["conflicts"])
+            if not a.dry_run:
+                man = corpus.write_batch(key, out_rows, evaluation_version=S2.SETTLE_VERSION, batch=batch, plan=plan)
+                written += man.get("written", 0)
+
     # scorecard from the WHOLE corpus (published + staged)
     all_rows = [row for (row, _) in corpus.load().values()]
+    scorecard = SC.build_scorecard(all_rows)
     # EXCHANGE CROSS-CHECK. Read only from what the pipeline already captured (daily discovery's settled bucket
     # and the historical backfill), so it costs no API calls. The derived football settlement is never replaced
     # by the exchange value: this is a check on our reading of the contract, and a disagreement is a hard
@@ -152,21 +207,25 @@ def main(argv=None):
         xc_corpus = ST.EvaluationCorpus(os.path.join(a.out, "crosscheck"),
                                         read_roots=[os.path.join(a.market_data, "data", "shadow", "v2", "crosscheck")],
                                         suffix=CROSSCHECK_SUFFIX)
+        game_of = {(r.get("prediction_id") or r.get("record_id")): (r.get("game_id") or "SEASON") for r in all_rows}
         by_g = {}
-        for r, row in zip(all_rows, xrows):
-            by_g.setdefault(r.get("game_id") or "SEASON", []).append({**row, "prediction_id": r.get("prediction_id") or r.get("record_id")})
+        for row in xrows:                      # joined by id: crosscheck_rows carries prediction_id itself
+            by_g.setdefault(game_of.get(row.get("prediction_id"), "SEASON"), []).append(row)
         for gid, rws in by_g.items():
             plan = xc_corpus.plan(rws, gid)
             if plan["conflicts"]:
                 raise ST.EvaluationConflict(plan["conflicts"])
             xc_corpus.write_batch(gid, rws, evaluation_version=XC.CROSSCHECK_VERSION, batch=batch, plan=plan)
-        json.dump(sc, open(os.path.join(sc_dir, "scorecard_v2.json"), "w"), indent=1, default=str)
-        open(os.path.join(sc_dir, "SCORECARD_V2.md"), "w").write(SC.render(sc))
+        json.dump(scorecard, open(os.path.join(sc_dir, "scorecard_v2.json"), "w"), indent=1, default=str)
+        open(os.path.join(sc_dir, "SCORECARD_V2.md"), "w").write(SC.render(scorecard))
         au_all = [row for (row, _) in au_corpus.load().values()]
         json.dump(AU.summarize(au_all), open(os.path.join(sc_dir, "autopsy_v2_summary.json"), "w"), indent=1, default=str)
     summary = {"batch_id": batch, "settle_version": S2.SETTLE_VERSION, "games_ready": ready, "games_deferred": deferred, "written": written,
                "by_status": dict(Counter(r["settlement_status"] for r in settled_rows)), "corpus_rows": len(all_rows), "dry_run": a.dry_run,
                "season_settle_version": SS.SEASON_SETTLE_VERSION,
+               "dispatch": {"game_scoped": sum(len(v) for v in by_game.values()), "season_scoped": len(season_rows),
+                            "unreachable": len(unreachable), "unreachable_detail": unreachable[:50],
+                            "silently_dropped": 0},
                "exchange_crosscheck": {k: xsum[k] for k in ("n", "by_agreement", "comparable", "agreement_rate",
                                                             "n_disagreements", "families_with_disagreement")},
                "exchange_sources": xres.summary()}

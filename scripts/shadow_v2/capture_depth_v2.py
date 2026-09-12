@@ -53,12 +53,13 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 from nfl_edge.kalshi.client import KalshiClient                                            # noqa: E402
+from nfl_edge.shadow_v2 import pit
 from nfl_edge.shadow_v2.capture_io import load_latest_quotes                               # noqa: E402
 
 DEPTH_CAPTURE_VERSION = "depth-capture-1.0.0"
@@ -67,14 +68,39 @@ SKIP_BUDGET = "DROPPED_BY_BUDGET"
 SKIP_WINDOW = "OUTSIDE_BOOK_WINDOW"
 SKIP_TIER = "SERIES_TIER_NOT_FULL"
 SKIP_FAILED = "FETCH_FAILED"
+SKIP_NO_TIME = "INSUFFICIENT_TIME_BEFORE_KICKOFF"
+SKIP_POST_KICKOFF = "RESPONSE_AFTER_KICKOFF"
+# never start a request within this many seconds of kickoff
+KICKOFF_SAFETY_S = 60.0
+# the instant each horizon aims at, in minutes before kickoff. The TARGET and the ACTUAL
+# observation are separate facts and both are written on every row.
+HORIZON_TARGET_MIN = {"T-24h": 1440.0, "T-6h": 360.0, "T-90m": 90.0, "T-30m": 30.0}
+
+
+def horizon_quality_of(actual_min, target_min):
+    """How close this observation actually landed to the horizon it was aiming at."""
+    if actual_min is None:
+        return "NO_KICKOFF"
+    if target_min is None:
+        return "UNTARGETED"
+    d = target_min - actual_min          # positive = later than the target
+    if abs(d) <= 10.0:
+        return "ON_TIME"
+    if d > 0:
+        return "LATE_ACCEPTABLE" if d <= 45.0 else "LATE_DEGRADED"
+    return "EARLY"
 
 
 def log(m):
     print(m, flush=True)
 
 
+_NOW_OVERRIDE = None
+
+
 def now_utc():
-    return datetime.now(timezone.utc)
+    """The wall clock, or the rehearsal instant. Only --now (offline planning) ever overrides it."""
+    return _NOW_OVERRIDE or datetime.now(timezone.utc)
 
 
 def priority(row) -> tuple:
@@ -94,11 +120,10 @@ def candidates(quotes: dict, priced: set, *, window_min: float) -> tuple[list, l
     for t, q in quotes.items():
         if priced and t not in priced:
             continue
-        mtk = q.get("minutes_to_kickoff")
-        try:
-            mtk = float(mtk) if mtk is not None else None
-        except (TypeError, ValueError):
-            mtk = None
+        # recomputed from the kickoff and the CURRENT instant: the snapshot's own minutes_to_kickoff is as old
+        # as the snapshot, and using it would size the window against a market observation rather than now.
+        ko = pit.as_utc(q.get("kickoff_utc"))
+        mtk = ((ko - now_utc()).total_seconds() / 60.0) if ko else None
         row = {"ticker": t, "event_ticker": q.get("event_ticker"), "series_ticker": q.get("series_ticker"),
                "game_id": q.get("game_id"), "kickoff_utc": q.get("kickoff_utc"), "minutes_to_kickoff": mtk,
                "volume": float(q.get("volume_fp") or 0) if q.get("volume_fp") not in (None, "") else 0.0}
@@ -125,7 +150,14 @@ def main(argv=None):
     ap.add_argument("--horizon-label", default=None)
     ap.add_argument("--priced-from", default=None, help="a projections jsonl.gz to restrict to priced tickers")
     ap.add_argument("--dry-run", action="store_true", help="plan and report capacity without fetching anything")
+    ap.add_argument("--now", default="", help="rehearsal only: stand at this instant when judging the window and "
+                                              "the kickoff safety rule, so a Sunday cluster can be measured offline")
     a = ap.parse_args(argv)
+    global _NOW_OVERRIDE
+    if a.now:
+        _NOW_OVERRIDE = pit.as_utc(a.now)
+        if not a.dry_run:
+            raise SystemExit("--now is a rehearsal device and may only be used with --dry-run")
     t0 = time.time()
     run_id = now_utc().strftime("%Y%m%dT%H%M%SZ")
     capture_root = os.path.join(a.market_data, "data", "kalshi", "capture")
@@ -195,22 +227,61 @@ def main(argv=None):
         print(json.dumps({k: v for k, v in manifest.items() if k != "series"}, default=str))
         return 0
     c = KalshiClient(rps=a.rps)
-    captured = failed = 0
+    captured = failed = crossed = 0
     out_p = os.path.join(day, f"{run_id}.depth.jsonl.gz")
+    # LADDER-LEVEL KICKOFF SAFETY. A ladder is entered only if, at this moment and this rate, the WHOLE ladder
+    # can finish before its game starts. A ladder that cannot is skipped entirely with a reason rather than
+    # half-fetched across kickoff, because a distribution with a post-kickoff hole in it is worse than none.
+    by_ladder = {}
+    for r in planned:
+        by_ladder.setdefault(ladder_key(r), []).append(r)
     with gzip.open(out_p, "wt") as fh:
-        for r in planned:
-            body, err = c.try_get(f"markets/{r['ticker']}/orderbook", {"depth": BOOK_DEPTH})
-            if err or body is None:
-                failed += 1
-                skip.append({**r, "reason": SKIP_FAILED, "error": str(err)[:120]})
+        for k, rows_in in by_ladder.items():
+            ko = pit.as_utc(rows_in[0].get("kickoff_utc"))
+            need_s = len(rows_in) / max(a.rps, 0.1)
+            if ko is not None and (now_utc() + timedelta(seconds=need_s + KICKOFF_SAFETY_S)) >= ko:
+                for r in rows_in:
+                    skip.append({**r, "reason": SKIP_NO_TIME,
+                                 "detail": f"{len(rows_in)} contracts need ~{need_s:.0f}s and kickoff is "
+                                           f"{(ko - now_utc()).total_seconds():.0f}s away"})
                 continue
-            fh.write(json.dumps({"run_id": run_id, "observed_at": now_utc().isoformat(), "ticker": r["ticker"],
-                                 "series_ticker": r.get("series_ticker"), "event_ticker": r.get("event_ticker"),
-                                 "game_id": r.get("game_id"), "minutes_to_kickoff": r.get("minutes_to_kickoff"),
-                                 "horizon_label": a.horizon_label, "orderbook_fp": (body or {}).get("orderbook_fp"),
-                                 "error": None}, separators=(",", ":")) + "\n")
-            captured += 1
-    manifest.update(captured=captured, failed=failed, finished_at=now_utc().isoformat(),
+            for r in rows_in:
+                obs = now_utc()
+                # per-request guard: never send a request that could return after kickoff
+                if ko is not None and obs >= ko - timedelta(seconds=KICKOFF_SAFETY_S):
+                    skip.append({**r, "reason": SKIP_NO_TIME, "detail": "kickoff reached mid-ladder"})
+                    continue
+                body, err = c.try_get(f"markets/{r['ticker']}/orderbook", {"depth": BOOK_DEPTH})
+                got = now_utc()
+                if err or body is None:
+                    failed += 1
+                    skip.append({**r, "reason": SKIP_FAILED, "error": str(err)[:120]})
+                    continue
+                # THE RESPONSE IS DATED WHEN IT ARRIVED, and a response that arrived at or after kickoff is not
+                # pregame evidence whatever the job was aiming at. It is recorded as post-kickoff and excluded.
+                if ko is not None and got >= ko:
+                    crossed += 1
+                    skip.append({**r, "reason": SKIP_POST_KICKOFF,
+                                 "detail": f"response observed {(got - ko).total_seconds():.0f}s after kickoff"})
+                    continue
+                mtk = ((ko - got).total_seconds() / 60.0) if ko is not None else None
+                target = HORIZON_TARGET_MIN.get(a.horizon_label)
+                fh.write(json.dumps({
+                    "depth_capture_version": DEPTH_CAPTURE_VERSION, "run_id": run_id,
+                    "observed_at": got.isoformat(), "ticker": r["ticker"],
+                    "series_ticker": r.get("series_ticker"), "event_ticker": r.get("event_ticker"),
+                    "game_id": r.get("game_id"), "kickoff_utc": (ko.isoformat() if ko else None),
+                    # recomputed from THIS observation, never inherited from the quote snapshot
+                    "minutes_to_kickoff": (round(mtk, 3) if mtk is not None else None),
+                    "target_horizon": a.horizon_label, "target_horizon_min": target,
+                    "horizon_delta_min": (round(mtk - target, 3) if (mtk is not None and target is not None) else None),
+                    "horizon_quality": horizon_quality_of(mtk, target),
+                    "ladder_event_ticker": k[0], "ladder_series_ticker": k[1],
+                    "ladder_size": len(rows_in), "ladder_complete": True,
+                    "orderbook_fp": (body or {}).get("orderbook_fp"), "error": None},
+                    separators=(",", ":")) + "\n")
+                captured += 1
+    manifest.update(captured=captured, failed=failed, post_kickoff_rejected=crossed, finished_at=now_utc().isoformat(),
                     seconds=round(time.time() - t0, 1), skipped_by_reason=_counts(skip),
                     client_stats=c.stats.to_dict(), depth_file=os.path.basename(out_p),
                     coverage_of_candidates=round(captured / max(len(keep), 1), 4))

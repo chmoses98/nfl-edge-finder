@@ -139,6 +139,10 @@ class ProjectionRecord:
     # Executable depth on the model's own side at this horizon, or DEPTH_NOT_CAPTURED with the named reason
     # (schema 2.2.0). Absence of a depth record must never be readable as a thin or absent market.
     depth: dict = field(default_factory=dict)
+    # Whether this record can actually reach a settlement branch, measured on the record's own keys rather than
+    # on the family catalog (nfl_edge/settlement/reachability.py). DISPATCHABLE / MISSING_SETTLEMENT_KEYS /
+    # NO_SETTLEMENT_BRANCH / NO_PROBABILITY, with the missing key named.
+    settlement_reachability: dict = field(default_factory=dict)
     # ---- research-only comparisons (never "edge")
     model_market_disagreement_mid: float | None = None   # contract_value - mid  (probability benchmarking)
     yes_ask_disagreement: float | None = None            # contract_value - yes_ask (economics side, pre-fee)

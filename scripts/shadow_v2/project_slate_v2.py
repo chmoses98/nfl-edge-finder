@@ -52,10 +52,10 @@ from nfl_edge.projection.store import DIRNAME, ProjectionConflict, ProjectionSto
 from nfl_edge.features import opportunity                                                  # noqa: E402
 from nfl_edge.research import player_distributions as pdist                                # noqa: E402
 from nfl_edge.semantics import catalog as CAT, questions as Q                              # noqa: E402
-from nfl_edge.settlement import semantics as sem_mod                                       # noqa: E402
+from nfl_edge.settlement import reachability as RE, semantics as sem_mod                                       # noqa: E402
 from nfl_edge.settlement.availability import UNKNOWN, AvailabilityBook, rates_for          # noqa: E402
 from nfl_edge.shadow.prospective import build_prospective_rows, upcoming_from_markets      # noqa: E402
-from nfl_edge.shadow_v2 import context as CX                                              # noqa: E402
+from nfl_edge.shadow_v2 import context as CX, inactives as IN, pit                                              # noqa: E402
 from nfl_edge.shadow_v2.capture_io import (discovery_markets_by_ticker, fnum, latest_discovery_dir,  # noqa: E402
                                            load_books, load_latest_quotes, static_market)
 
@@ -149,19 +149,40 @@ def main(argv=None):
     if not quotes:
         log("no capture quotes found"); return 2
     snapshot_id = run_ts.strftime("%Y%m%dT%H%M%SZ")
-    books = load_books(capture_root, snapshot_id=snapshot_id)
-    book_tiers = {s: (v or {}).get("tier") for s, v in (man.get("series") or {}).items()}
-    ddir = a.discovery_dir or latest_discovery_dir(a.market_data)
-    disc_markets = discovery_markets_by_ticker(ddir) if ddir else {}
-    log(f"snapshot {snapshot_id}: {len(quotes)} tickers, {len(books)} books, discovery {os.path.basename(ddir) if ddir else 'none'} ({len(disc_markets)} markets)")
-
-    ctx = CX.ContextSources(ROOT, a.market_data, a.target_season, run_ts, log=log)
-    reused = snapshot_reused([a.out, os.path.join(a.market_data, "data")], snapshot_id)
-    log(f"context: depth chart vintage {(ctx.depth or {}).get('vintage')}, injuries {'yes' if ctx.injuries else 'no'}, weather games {len(ctx.weather)}, trade-tape tickers {len(ctx.last_trade)}, snapshot reused {reused}")
-    games = pl.read_parquet(os.path.join(ROOT, "data/silver/games.parquet"))
-    sched = games.filter(pl.col("season") == a.target_season)
+    # THE POINT-IN-TIME CONTRACT for this run. Every time-sensitive source records the vintage it was read at;
+    # anything later than run_ts fails the run before a single PROSPECTIVE_FROZEN record is written.
+    ledger = pit.VintageLedger(run_ts, label=snapshot_id)
+    ledger.record("capture_quotes", run_ts, kind="capture", path=snapshot_id, n_tickers=len(quotes))
+    # kickoff per ticker, so a book observed after its own game started can never be read as pregame depth
+    games_all = pl.read_parquet(os.path.join(ROOT, "data/silver/games.parquet"))
+    sched = games_all.filter(pl.col("season") == a.target_season)
     gidx = sched.to_pandas().set_index("game_id")
     kick = {gid: kickoff_utc(str(r["gameday"]), str(r["gametime"])) for gid, r in gidx.iterrows()}
+    ko_by_ticker = {t: _dt(q["kickoff_utc"]) for t, q in quotes.items() if q.get("kickoff_utc")}
+    books = load_books(capture_root, cutoff=run_ts, kickoffs=ko_by_ticker)
+    ledger.record("capture_books", run_ts, kind="capture", n_tickers=len(books),
+                  guard="row observed_at <= cutoff AND strictly before kickoff")
+    book_tiers = {s: (v or {}).get("tier") for s, v in (man.get("series") or {}).items()}
+    ddir = a.discovery_dir or latest_discovery_dir(a.market_data, cutoff=run_ts)
+    disc_markets = discovery_markets_by_ticker(ddir) if ddir else {}
+    if ddir:
+        ledger.record("discovery", pit.as_utc(os.path.basename(ddir.rstrip("/"))), kind="capture", path=os.path.basename(ddir))
+    else:
+        ledger.record_absent("discovery", f"no discovery run at or before {snapshot_id}")
+    log(f"snapshot {snapshot_id}: {len(quotes)} tickers, {len(books)} books, discovery {os.path.basename(ddir) if ddir else 'none'} ({len(disc_markets)} markets)")
+
+    ctx = CX.ContextSources(ROOT, a.market_data, a.target_season, run_ts, log=log, ledger=ledger)
+    # OFFICIAL INACTIVES, bounded twice: the observation must be at or before this cutoff (so a T-90 run cannot
+    # see a list published afterwards) and strictly before its own kickoff (so nothing post-game is frozen as
+    # pregame). Absence still yields UNKNOWN; ACTIVE is never inferred.
+    ctx.inactives = load_inactives(a.market_data, run_ts, kick, ledger)
+    reused = snapshot_reused([a.out, os.path.join(a.market_data, "data")], snapshot_id)
+    log(f"context: depth chart vintage {(ctx.depth or {}).get('vintage')}, injuries {'yes' if ctx.injuries else 'no'}, weather games {len(ctx.weather)}, trade-tape tickers {len(ctx.last_trade)}, snapshot reused {reused}")
+    # TARGET-SEASON SILVER. games.parquet is rebuilt in place and carries post-hoc fields (result, closing
+    # spread_line / total_line, finalized qb ids). Nothing in it is safe to read for the target season unless
+    # it was knowable at the cutoff, so the frame is masked here once rather than guarded at four call sites.
+    sched, gidx, silver_note = mask_target_season(sched, gidx, run_ts, kick, ledger)
+    log(f"target-season silver masked at cutoff: {silver_note}")
 
     # ---- semantics for every quoted contract
     sems, qs = {}, {}
@@ -179,8 +200,10 @@ def main(argv=None):
     log(f"questions: {Counter(q.engine for q in qs.values())}; confidence {Counter(q.semantic_confidence for q in qs.values())}")
 
     # ---- game + period environments
-    hist_games = games.filter((pl.col("game_type") == "REG") & pl.col("result").is_not_null() & pl.col("spread_line").is_not_null()
-                              & (pl.col("season") >= 2016) & (pl.col("season") < a.target_season)).to_pandas()
+    # strictly prior seasons only, so the unmasked frame is safe here by construction (the mask exists for the
+    # TARGET season, whose post-hoc fields are the ones that were not knowable at the cutoff)
+    hist_games = games_all.filter((pl.col("game_type") == "REG") & pl.col("result").is_not_null() & pl.col("spread_line").is_not_null()
+                                  & (pl.col("season") >= 2016) & (pl.col("season") < a.target_season)).to_pandas()
     hist_games["mres"] = hist_games.result - hist_games.spread_line
     hist_games["tres"] = hist_games.total - hist_games.total_line
     bank = ResidualBank(hist_games.mres, hist_games.tres, hist_games.season, ref_season=a.target_season, spread_lines=hist_games.spread_line,
@@ -230,7 +253,7 @@ def main(argv=None):
     # ---- player engine (three arms)
     player = None
     if not a.skip_player:
-        player = build_player_arms(a, quotes, qs, sched, gidx, run_ts, now)
+        player = build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger)
 
     lineage = ctx.lineage_block(snapshot_id=snapshot_id, discovery_run=(os.path.basename(ddir) if ddir else None),
                                 engine_versions={"game": GE.ENGINE_VERSION, "period": PE.ENGINE_VERSION, "joint": JE.ENGINE_VERSION, "season": SE.ENGINE_VERSION,
@@ -244,6 +267,20 @@ def main(argv=None):
                                         f"data/raw/nflverse/rosters/roster_{a.target_season}.parquet"])
     game_ctx_cache, player_ctx_cache = {}, {}
     lineage_id = context_id(lineage)
+    # The compliance claim travels with the record: a compact per-source vintage list, so a reader can re-check
+    # point-in-time compliance long after the underlying files have been rebuilt in place.
+    _mv = ledger.max_vintage()
+    _sk = ledger.skews()
+    pit_block = {"pit_version": pit.PIT_VERSION, "data_cutoff": run_ts.isoformat(),
+                 # the projection's real information frontier, and how far it sits past the market snapshot.
+                 # Skew is normal (the job downloads nflverse after the capture run it prices); the breach the
+                 # record must never carry is a source dated at or after its own kickoff, which is refused.
+                 "information_frontier": _mv.isoformat() if _mv else None,
+                 "max_skew_seconds": (_sk[0]["skew_seconds"] if _sk else 0.0),
+                 "max_skew_source": (_sk[0]["name"] if _sk else None),
+                 "vintages": {u.name: u.vintage for u in ledger.uses},
+                 "absent": sorted(u.name for u in ledger.uses if u.vintage is None and not u.static),
+                 "outcome_leak_refused": False}
     store_root = os.path.join(a.out, DIRNAME)
     quoted_by_game = defaultdict(list)
     for t, q in quotes.items():
@@ -272,7 +309,8 @@ def main(argv=None):
                     question=qq.to_dict(), threshold=qq.k, range_lo=qq.lo, range_hi=qq.hi, operator=qq.op,
                     yes_semantics=(entry.yes_rule if entry else None), semantic_confidence=qq.semantic_confidence,
                     settlement_rule_version=(entry.settlement_rule_version if entry else None), game_id=gid,
-                    season=(int(gidx.loc[gid]["season"]) if gid in gidx.index else None), week=(int(gidx.loc[gid]["week"]) if gid in gidx.index else None),
+                    season=(int(gidx.loc[gid]["season"]) if gid in gidx.index else season_of_contract(q, qq)),
+                    week=(int(gidx.loc[gid]["week"]) if gid in gidx.index else None),
                     home_team=(gidx.loc[gid]["home_team"] if gid in gidx.index else None), away_team=(gidx.loc[gid]["away_team"] if gid in gidx.index else None),
                     subject_kind=qq.subject_kind, subject_id=qq.subject, subject_kalshi_id=q.get("player_kalshi_id"), subject_name=q.get("player_name"),
                     observed_at=q.get("observed_at"), generated_at=gen_iso, kickoff_utc=(ko.isoformat() if ko else None),
@@ -307,7 +345,8 @@ def main(argv=None):
             base["game_context"] = CX.compact_game_context(full, gc_id)
         base["lineage"] = {"lineage_id": lineage_id, "capture_run": snapshot_id, "discovery_run": lineage.get("discovery_run"), "identity_map_sha256": (lineage.get("identity_map") or {}).get("sha256"),
                            "engine_versions": lineage.get("engine_versions"), "bundle_sha": lineage.get("bundle_sha"), "period_bank_fingerprint": lineage.get("period_bank_fingerprint"),
-                           "depth_chart_vintage": lineage.get("depth_chart_vintage"), "injury_report_retrieved_at": lineage.get("injury_report_retrieved_at"), "sidecar": os.path.basename(sidecar_path(store_root, snapshot_id))}
+                           "depth_chart_vintage": lineage.get("depth_chart_vintage"), "injury_report_retrieved_at": lineage.get("injury_report_retrieved_at"), "sidecar": os.path.basename(sidecar_path(store_root, snapshot_id)),
+                           "point_in_time": pit_block}
         base["horizon_quality"] = QU.horizon_quality(base.get("horizon_label"), base.get("horizon_target_min"), base.get("kickoff_utc"), q.get("observed_at"), gen_iso, snapshot_reused=reused)
         book_row, book_why = books.get(t), None
         if book_row is None:
@@ -385,6 +424,52 @@ def main(argv=None):
     audit = CE.audit_board(coherence_rows, {t: qq for t, qq in qs.items()}, fee_sched, run_ts)
     log(f"coherence: {audit['n_groups']} groups, {audit['by_kind']}, incoherence >2c {audit['n_abs_incoherence_gt_2c']}, executable {audit['n_executable_opportunities']}")
 
+    # ---- THE POINT-IN-TIME INVARIANTS, applied at the granularity each one belongs to.
+    #
+    # A source dated after THIS RUN is impossible and fails the whole run. A source dated at or after a game's
+    # KICKOFF cannot be used to predict that game, so every record for that game is refused its probability --
+    # per game, because a source dated after the 1pm kickoff says nothing about the 4pm game. Skew short of
+    # kickoff is normal operation and is recorded, not refused.
+    # `--now` is a replay device (the instant the projection CLAIMS); the wall clock is what could physically
+    # have been read. A source dated after the wall clock is a broken clock or a bug, and fails the run.
+    ledger.assert_not_from_the_future(datetime.now(timezone.utc), what="any projection record")
+    # SETTLEMENT REACHABILITY, measured on the record. `flags.settlement_supported` previously reflected the
+    # family CATALOG, so editing the catalog flipped it on 1,336 season records the driver never looked at.
+    # It is now the dispatchability of this record, and the record carries the state and the missing key.
+    for r in (board_rows + [r for rs in arm_rows.values() for r in rs]):
+        rr = RE.reachability(r)
+        r["settlement_reachability"] = {k: rr[k] for k in ("state", "scope", "reason", "missing")}
+        if isinstance(r.get("flags"), dict):
+            r["flags"]["settlement_supported"] = rr["state"] == RE.DISPATCHABLE
+        if rr["state"] == RE.DISPATCHABLE and r.get("season") is None and rr.get("season") is not None:
+            r["season"] = rr["season"]
+        r["content_hash"] = R.content_hash({k: v for k, v in r.items() if k != "content_hash"})
+    reach = RE.summarize(board_rows + [r for rs in arm_rows.values() for r in rs])
+    log(f"settlement reachability: {reach['dispatchable']}/{reach['probability_carrying']} dispatchable "
+        f"({reach['dispatchable_pct']}%); not dispatchable {reach['not_dispatchable']}; missing {reach['missing_keys']}")
+    all_now = board_rows + [r for rs in arm_rows.values() for r in rs]
+    leaked_games, n_refused = {}, 0
+    for gid, ko in kick.items():
+        leak = ledger.outcome_leak(ko)
+        if leak:
+            leaked_games[gid] = leak
+    if leaked_games:
+        for r in all_now:
+            if r.get("game_id") in leaked_games and r.get("evidence_class") == R.PROSPECTIVE_FROZEN:
+                leak = leaked_games[r["game_id"]]
+                names = ", ".join(sorted({d["name"] for d in leak}))
+                r.update(support_state=R.DEGRADED_INPUT, p_yes=None, contract_value=None,
+                         support_reason=f"point-in-time refusal: {names} dated at or after this game's kickoff "
+                                        f"({max(d['after_kickoff_seconds'] for d in leak):.0f}s past); a source that "
+                                        f"post-dates the game cannot be used to predict it",
+                         evidence_class=R.HISTORICAL_RESEARCH)
+                r["content_hash"] = R.content_hash({k: v for k, v in r.items() if k != "content_hash"})
+                n_refused += 1
+        log(f"::warning::point-in-time: {len(leaked_games)} game(s) have a source dated at or after kickoff; "
+            f"{n_refused} record(s) refused their probability and relabelled HISTORICAL_RESEARCH")
+    pit_summary = {**ledger.summary(), "games_with_outcome_leak": len(leaked_games), "records_refused": n_refused}
+    log(f"point-in-time: {json.dumps(pit_summary, default=str)}")
+
     # ---- write (append-only; conflict = fail closed)
     store = ProjectionStore(store_root)
     written = {}
@@ -429,6 +514,111 @@ def main(argv=None):
     open(os.path.join(sd, f"{snapshot_id}.SUMMARY.md"), "w").write(render_summary(summ))
     log(f"done in {perf['seconds']:.0f}s, rss {perf['max_rss_mb']:.0f} MB, {len(all_rows)} records")
     return 0
+
+
+def season_of_contract(q: dict, qq) -> int | None:
+    """The nflverse season a game-less (season-scoped) contract is about.
+
+    A season market has no scheduled game, so the game index cannot supply its season -- which is exactly why
+    1,336 of them carried `season=None` and were undispatchable. The contract states it twice: the two-digit
+    year in the event ticker and its own expiration. Both are handed to the reachability authority, which
+    refuses if they disagree rather than picking one.
+    """
+    if getattr(qq, "period", None) != "SEASON" and getattr(qq, "engine", None) != Q.SEASON:
+        return None
+    season, _why = RE.season_of({"ticker": q.get("ticker"), "event_ticker": q.get("event_ticker"),
+                                 "expected_expiration_time": q.get("expected_expiration_time"),
+                                 "close_time": q.get("close_time")})
+    return season
+
+
+def load_inactives(market_data: str, cutoff, kick: dict, ledger):
+    """Official inactive observations that this cutoff could legitimately have seen.
+
+    Two bounds, both necessary. `observed_at <= cutoff` stops a T-90m projection from seeing a list published
+    afterwards. `observed_at < kickoff` stops anything post-game being frozen as pregame knowledge -- the
+    collector already refuses to emit rows for a post-kickoff observation, and this is the reader-side twin of
+    that rule. A game with no qualifying observation stays UNKNOWN; absence never becomes ACTIVE.
+    """
+    root = os.path.join(market_data, "data", "shadow", "v2", "inactives")
+    if not os.path.isdir(root):
+        ledger.record_absent("official_inactives", "no inactives capture directory", kind="context")
+        return None
+    files = pit.files_at_or_before(os.path.join(root, "*", "*.inactives.json"), cutoff)
+    if not files:
+        ledger.record_absent("official_inactives", f"no inactives capture at or before {cutoff}", kind="context")
+        return None
+    recs, newest = [], None
+    for f in files:
+        try:
+            blob = json.load(open(f))
+        except (OSError, ValueError):
+            continue
+        for g in (blob.get("games") or []):
+            obs, ko = pit.as_utc(g.get("observed_at")), pit.as_utc(kick.get(g.get("game_id")) or g.get("kickoff_utc"))
+            if obs is None or pit.as_utc(cutoff) is not None and obs > pit.as_utc(cutoff):
+                continue
+            if ko is not None and obs >= ko:
+                continue                                   # post-kickoff: never pregame evidence
+            recs.append(g)
+            newest = obs if newest is None or obs > newest else newest
+    if not recs:
+        ledger.record_absent("official_inactives", "no pregame inactives observation at or before the cutoff", kind="context")
+        return None
+    ledger.record("official_inactives", newest, kind="context", n_games=len(recs))
+    return IN.InactivesBook(recs)
+
+
+def mask_target_season(sched, gidx, cutoff, kick, ledger):
+    """Blank every target-season field whose value was not knowable at the cutoff.
+
+    `data/silver/games.parquet` is rebuilt in place from the nflverse schedule and carries fields that change
+    after the fact. Four consumers read them and none was bounded:
+
+        result / home_score / away_score   the season engine's "has this game been played" test
+        spread_line / total_line           the consensus fallback when no Kalshi-implied line is identified --
+                                           and these are CLOSING lines, not the line at the snapshot
+        home_qb_id / away_qb_id            filled in during the week and finalised after the game
+        gameday / gametime                 the kickoff itself can move
+
+    A game whose kickoff is after the cutoff has not been played, so its outcome fields are blanked outright.
+    The closing lines are blanked for EVERY target-season game regardless of kickoff, because a closing line is
+    never a point-in-time quantity: the engine falls back to it only when no implied line exists, and a wrong
+    fallback that looks right is worse than a refusal. QB ids are kept only for games already kicked off, where
+    the listing was knowable, and blanked otherwise.
+
+    Masking rather than refusing keeps a game the cutoff genuinely knew about usable; nothing is invented.
+    """
+    import numpy as _np
+    cut = pit.as_utc(cutoff)
+    g = gidx.copy()
+    played, unplayed = [], []
+    for gid in g.index:
+        ko = pit.as_utc(kick.get(gid))
+        (played if (ko is not None and ko <= cut) else unplayed).append(gid)
+    blanked = {}
+    for col in ("result", "home_score", "away_score", "total", "overtime"):
+        if col in g.columns and unplayed:
+            g.loc[unplayed, col] = _np.nan
+            blanked[col] = len(unplayed)
+    for col in ("spread_line", "total_line", "away_moneyline", "home_moneyline"):
+        if col in g.columns:
+            g[col] = _np.nan                      # closing lines are never point-in-time
+            blanked[col] = len(g)
+    for col in ("home_qb_id", "away_qb_id", "home_qb_name", "away_qb_name"):
+        if col in g.columns and unplayed:
+            g.loc[unplayed, col] = None
+            blanked[col] = len(unplayed)
+    ledger.record("silver_games_target_season", cutoff, kind="derived",
+                  masked_columns=sorted(blanked), n_played_at_cutoff=len(played), n_future=len(unplayed))
+    note = (f"{len(played)} game(s) already kicked off, {len(unplayed)} future; blanked "
+            f"{', '.join(sorted(blanked)) or 'nothing'}")
+    try:
+        import polars as _pl
+        sched2 = _pl.from_pandas(g.reset_index())
+    except Exception:                              # noqa: BLE001 -- the pandas index is the authority downstream
+        sched2 = sched
+    return sched2, g, note
 
 
 def depth_block(cv, base, book_row, book_why, q, fee_sched, as_of) -> dict:
@@ -597,7 +787,7 @@ class PlayerArms:
         return {"p_yes": p_ev, "contract_value": cv.contract_value}, lineage, feat, s
 
 
-def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now) -> PlayerArms:
+def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger) -> PlayerArms:
     P = PlayerArms()
     pmap = pl.read_parquet(os.path.join(ROOT, "data/silver/kalshi_player_map.parquet"))
     for r in pmap.iter_rows(named=True):
@@ -617,14 +807,22 @@ def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now) -> PlayerArms:
     P.avail = AvailabilityBook(run_ts, max_staleness_minutes=600.0)
     xw_path = os.path.join(ROOT, "data/silver/player_crosswalk.parquet")
     if os.path.isdir(ctx_root) and os.path.exists(xw_path):
-        import glob as _g
         xw = pl.read_parquet(xw_path)
         sl = {str(s): g for s, g in zip(xw["sleeper_id"].to_list(), xw["gsis_id"].to_list()) if s}
         es = {str(s): g for s, g in zip(xw["espn_id"].to_list(), xw["gsis_id"].to_list()) if s}
-        for pat, loader, m in ((f"{ctx_root}/*/*.sleeper.json", P.avail.load_sleeper, sl), (f"{ctx_root}/*/*.espn_injuries.json", P.avail.load_espn, es)):
-            fs = sorted(_g.glob(pat))
-            if fs:
-                loader(fs[-1], m); P.availability_sources.append(os.path.basename(fs[-1]))
+        # POINT IN TIME. This previously took sorted(glob(...))[-1] -- the newest file on disk, with no cutoff
+        # at all -- and the value reaches the PRICED NUMBER through p_plays, not merely the context block. The
+        # context captures are content-addressed (a run writes no payload when nothing changed), so the newest
+        # file at or before the cutoff is the evidence that was actually available then.
+        for name, pat, loader, m in (("availability_sleeper", f"{ctx_root}/*/*.sleeper.json", P.avail.load_sleeper, sl),
+                                     ("availability_espn", f"{ctx_root}/*/*.espn_injuries.json", P.avail.load_espn, es)):
+            f, v = pit.newest_file_at_or_before(pat, run_ts)
+            if f:
+                loader(f, m)
+                P.availability_sources.append(os.path.basename(f))
+                ledger.record(name, v, kind="context", path=os.path.basename(f))
+            else:
+                ledger.record_absent(name, f"no context capture at or before {run_ts.isoformat()}", kind="context")
     P.avail.finalize()
     # market ladders per (player, game, stat)
     ladders = defaultdict(list)

@@ -28,6 +28,7 @@ Version: depth-research-1.0.0.
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 
 from nfl_edge.execution import depth as D
@@ -203,7 +204,8 @@ def record_block(table: dict) -> dict:
         return {"state": DEPTH_NOT_CAPTURED, "why": (table or {}).get("reason_code") or "NO_BOOK_IN_WINDOW"}
     lad = table.get("ladder") or {}
     rows = {r["size"]: r for r in (table.get("rows") or [])}
-    out = {"state": table.get("state"), "run": table.get("book_run_id"), "age_min": table.get("book_age_minutes"),
+    out = {"state": table.get("state"), "side": table.get("side"), "run": table.get("book_run_id"),
+           "age_min": table.get("book_age_minutes"),
            "levels": lad.get("levels"), "top_size": lad.get("top_size"), "avail": lad.get("contracts_available")}
     for n in (1, 10, 50):
         r = rows.get(n)
@@ -214,6 +216,94 @@ def record_block(table: dict) -> dict:
     if table.get("size_to_exhaust_edge") is not None:
         out["edge_size"] = table["size_to_exhaust_edge"]
     return out
+
+
+# ---------------------------------------------------------------------------------------------- pairing
+DEPTH_PAIR_VERSION = "depth-pair-1.0.0"
+
+
+class DepthIndex:
+    """Full-book observations from the dedicated depth sweep, indexed per ticker and ordered by observation.
+
+    The sweep runs on its own cadence, so its rows are not aligned to any projection. Pairing is therefore a
+    SELECTION, made under two rules that cannot be relaxed:
+
+        observed_at <= projection.data_cutoff    a book observed after the projection was frozen describes a
+                                                 market the projection could not have traded against. It may be
+                                                 kept for market-path research, but it can never describe that
+                                                 projection's entry executability.
+        observed_at <  kickoff                   nothing observed after the game started is pregame evidence.
+
+    The latest observation satisfying both is chosen, and its exact age and horizon quality travel with it. The
+    frozen projection record is never mutated: pairing happens in the research export, which is derived and
+    rebuildable, so a change of pairing rule can never rewrite what was observed.
+    """
+
+    def __init__(self, roots=()):
+        import glob as _glob
+        import gzip as _gzip
+        import json as _json
+        self.by_ticker: dict = {}
+        self.n_rows = 0
+        for root in roots:
+            for p in sorted(_glob.glob(os.path.join(root, "*", "*.depth.jsonl.gz"))):
+                try:
+                    with _gzip.open(p, "rt") as fh:
+                        for line in fh:
+                            r = _json.loads(line)
+                            t = r.get("ticker")
+                            if not t or not r.get("orderbook_fp"):
+                                continue
+                            self.by_ticker.setdefault(t, []).append(r)
+                            self.n_rows += 1
+                except (OSError, ValueError):
+                    continue
+        for t in self.by_ticker:
+            self.by_ticker[t].sort(key=lambda r: str(r.get("observed_at") or ""))
+
+    def pair(self, ticker: str, *, cutoff, kickoff=None) -> tuple[dict | None, str]:
+        """The latest full book this projection could legitimately have seen, or (None, reason)."""
+        rows = self.by_ticker.get(ticker)
+        if not rows:
+            return None, "no full-book observation for this ticker"
+        cut, ko = _dt(cutoff), _dt(kickoff)
+        best = None
+        for r in rows:
+            v = _dt(r.get("observed_at"))
+            if v is None:
+                continue
+            if cut is not None and v > cut:
+                continue                                   # after the projection was frozen: never entry evidence
+            if ko is not None and v >= ko:
+                continue                                   # after kickoff: never pregame
+            if best is None or v > _dt(best["observed_at"]):
+                best = r
+        if best is None:
+            later = sum(1 for r in rows if _dt(r.get("observed_at")) and cut and _dt(r["observed_at"]) > cut)
+            return None, (f"all {len(rows)} observation(s) fall after this projection's cutoff"
+                          if later == len(rows) else "no observation at or before the cutoff and before kickoff")
+        return best, "paired"
+
+
+def pair_and_walk(index: "DepthIndex", rec: dict, *, fair=None, schedule=None, as_of=None, sizes=SIZES) -> dict:
+    """Pair a frozen projection with the newest book it could have seen, then walk that book. Derived, not frozen."""
+    cutoff = (((rec.get("lineage") or {}).get("point_in_time") or {}).get("data_cutoff")
+              or rec.get("data_cutoff") or rec.get("observed_at"))
+    row, why = index.pair(rec.get("ticker"), cutoff=cutoff, kickoff=rec.get("kickoff_utc"))
+    if row is None:
+        return {"state": DEPTH_NOT_CAPTURED, "reason": why, "reason_code": "NO_QUALIFYING_FULL_BOOK",
+                "depth_pair_version": DEPTH_PAIR_VERSION}
+    side = (rec.get("depth") or {}).get("side") or "YES"
+    t = execution_table(row, side, fair=fair, schedule=schedule, series_ticker=rec.get("series_ticker"),
+                        as_of=cutoff, sizes=sizes)
+    age = None
+    a, b = _dt(cutoff), _dt(row.get("observed_at"))
+    if a and b:
+        age = round((a - b).total_seconds() / 60.0, 3)
+    return {**t, "depth_pair_version": DEPTH_PAIR_VERSION, "paired_observed_at": row.get("observed_at"),
+            "paired_age_min": age, "paired_minutes_to_kickoff": row.get("minutes_to_kickoff"),
+            "paired_target_horizon": row.get("target_horizon"), "paired_horizon_quality": row.get("horizon_quality"),
+            "paired_ladder_complete": row.get("ladder_complete"), "paired_run_id": row.get("run_id")}
 
 
 # ---------------------------------------------------------------------------------------------- CLV after depth

@@ -13,31 +13,54 @@ import os
 from datetime import datetime
 
 from nfl_edge.board.drift import load_discovery
+from nfl_edge.shadow_v2 import pit
 
 
-def latest_discovery_dir(market_data: str) -> str | None:
-    ds = sorted(d for d in glob.glob(os.path.join(market_data, "data", "kalshi", "discovery", "*")) if os.path.isfile(os.path.join(d, "summary.json")))
-    return ds[-1] if ds else None
+def latest_discovery_dir(market_data: str, *, cutoff=None) -> str | None:
+    """The newest discovery run at or before the cutoff.
+
+    Discovery supplies strike_type / custom_strike / rules text to the semantics engine, so a discovery run
+    taken AFTER the snapshot can resolve a question the snapshot itself could not -- flipping support_state on
+    a record that is supposed to describe an earlier instant. Mostly static data, but "mostly" is not a cutoff.
+    """
+    ds = [d for d in glob.glob(os.path.join(market_data, "data", "kalshi", "discovery", "*"))
+          if os.path.isfile(os.path.join(d, "summary.json"))]
+    if cutoff is None:
+        return sorted(ds)[-1] if ds else None
+    best, _v = pit.pick_at_or_before(ds, cutoff, vintage=lambda d: pit.as_utc(os.path.basename(d.rstrip("/"))))
+    return best
 
 
 def load_latest_quotes(capture_root: str, *, snapshot_id: str | None = None):
-    """Latest quote row per ticker up to (and including) the chosen manifest; series confirmed complete in that run."""
-    files = sorted(glob.glob(os.path.join(capture_root, "*", "*.quotes.jsonl")))
+    """Latest quote row per ticker at or before the chosen snapshot; series confirmed complete in that run.
+
+    Bounded on BOTH axes, because either one alone leaks. A capture run's id is its START and the snapshot is
+    a run's FINISH, so a run whose id sorts before the snapshot can still be writing rows after it: file-level
+    bounding admits those rows. And a run in flight has written its quote file but not yet its manifest, so on
+    an unbounded path `reversed(files)` prefers exactly the file whose rows post-date the cutoff the record
+    then declares. Rows are therefore filtered by their own `observed_at`, and a row without one is refused.
+    """
     mans = sorted(glob.glob(os.path.join(capture_root, "*", "*.manifest.json")))
-    if not files or not mans:
+    if not mans:
         return {}, None, {}, set(), None
     if snapshot_id:
-        mans = [m for m in mans if os.path.basename(m).startswith(snapshot_id)]
-        if not mans:
+        picked = [m for m in mans if os.path.basename(m).startswith(snapshot_id)]
+        if not picked:
             raise FileNotFoundError(f"no capture manifest for snapshot {snapshot_id}")
-        files = [f for f in files if os.path.basename(f)[:16] <= snapshot_id]
-    man = json.load(open(mans[-1]))
+        man = json.load(open(picked[-1]))
+    else:
+        man = json.load(open(mans[-1]))
     run_ts = datetime.fromisoformat(man["finished_at"])
+    cutoff = pit.as_utc(run_ts)
     confirmed = {s for s, v in (man.get("series") or {}).items() if isinstance(v, dict) and v.get("complete")}
+    # files whose run id is at or before the cutoff; then every row re-checked on its own instant
+    files = pit.files_at_or_before(os.path.join(capture_root, "*", "*.quotes.jsonl"), cutoff)
     quotes = {}
     for f in reversed(files):
         for line in open(f):
             r = json.loads(line)
+            if not pit.row_at_or_before(r, cutoff):
+                continue
             t = r["ticker"]
             if t not in quotes:
                 quotes[t] = r
@@ -45,24 +68,36 @@ def load_latest_quotes(capture_root: str, *, snapshot_id: str | None = None):
     return quotes, run_ts, ages, confirmed, man
 
 
-def load_books(capture_root: str, *, snapshot_id: str | None = None) -> dict:
-    """Latest order book per ticker AT OR BEFORE the snapshot.
+def load_books(capture_root: str, *, snapshot_id: str | None = None, cutoff=None, kickoffs: dict | None = None) -> dict:
+    """Latest order book per ticker at or before the cutoff, and strictly before its game's kickoff.
 
-    The cutoff is not decoration. A horizon record is a claim about what was knowable at that instant, and a
-    book file written after it is exactly the kind of evidence a frozen projection must never see. Files are
-    bounded by the run id in their name and rows by their own `observed_at`, so a run that straddles the
-    snapshot cannot leak its later rows either.
+    Two separate guards, because they defend against two different things.
+
+    The CUTOFF guard keeps a book observed after the projection instant out of a frozen record. It is applied
+    to the row's own `observed_at`, not to the file name -- the previous version claimed row-level bounding in
+    its docstring and implemented run-id bounding in its body, which is the narrower check: a run's id is its
+    start, so a straddling run passed both filters and contributed rows observed after the snapshot.
+
+    The KICKOFF guard defends against a defect in the corpus itself. The incumbent capture decides `pregame`
+    when it builds its candidate list and fetches books minutes later, so `books.jsonl` provably contains rows
+    observed after kickoff -- 646 of 677,253 measured, worst 3.9 minutes past. Trusting the filename inherits
+    that; checking the row does not. `kickoffs` maps ticker -> kickoff instant; tickers absent from it are
+    subject only to the cutoff.
     """
-    books = {}
-    cutoff = None
-    for f in sorted(glob.glob(os.path.join(capture_root, "*", "*.books.jsonl"))):
-        if snapshot_id and os.path.basename(f)[:16] > snapshot_id:
-            continue
+    cut = pit.as_utc(cutoff) or pit.as_utc(snapshot_id)
+    books, best = {}, {}
+    for f in pit.files_at_or_before(os.path.join(capture_root, "*", "*.books.jsonl"), cut):
         for line in open(f):
             r = json.loads(line)
-            if snapshot_id and (r.get("run_id") or "") > snapshot_id:
+            if not pit.row_at_or_before(r, cut):
                 continue
-            books[r["ticker"]] = r
+            ko = (kickoffs or {}).get(r.get("ticker"))
+            if ko is not None and not pit.strictly_before_kickoff(r, ko):
+                continue                                   # observed at or after kickoff: never pregame depth
+            v = pit.as_utc(r.get("observed_at"))
+            t = r["ticker"]
+            if t not in best or v > best[t]:
+                best[t], books[t] = v, r
     return books
 
 

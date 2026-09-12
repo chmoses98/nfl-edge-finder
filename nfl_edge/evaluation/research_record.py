@@ -65,7 +65,8 @@ def family_group(r: dict) -> str:
             "BOTH_TEAMS_SCORE_N": "both_teams_score"}.get(fam, f"other_{fam}".lower())
 
 
-def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement: dict | None, autopsy: dict | None, sidecar: dict | None) -> dict:
+def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement: dict | None, autopsy: dict | None,
+                 sidecar: dict | None, crosscheck: dict | None = None, depth_pair: dict | None = None) -> dict:
     pc, gc, ms, hq, fl, dp = (proj.get(k) or {} for k in ("player_context", "game_context", "market_state", "horizon_quality", "flags", "depth"))
     h_mid = proj.get("mid")
     cv = proj.get("contract_value")
@@ -104,6 +105,29 @@ def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement
            **{f"ctx_{k}": v for k, v in pc.items() if k != "player_context_id"}, "player_context_id": pc.get("player_context_id"),
            **{f"game_{k}": v for k, v in gc.items() if k != "game_context_id"}, "game_context_id": gc.get("game_context_id"),
            "context_in_sidecar": bool(full_pc or full_gc),
+           # ---- queryability the audit found missing: a researcher must be able to exclude a family the
+           # exchange contradicted, read a RANGE contract's bounds, and trace a settled row back to its Kalshi id
+           "crosscheck_agreement": (crosscheck or {}).get("agreement"),
+           "crosscheck_hard_warning": bool((crosscheck or {}).get("hard_warning")),
+           "crosscheck_exchange_result": (crosscheck or {}).get("exchange_result"),
+           "crosscheck_exchange_payout": (crosscheck or {}).get("exchange_payout"),
+           "crosscheck_reason": (crosscheck or {}).get("reason"),
+           "range_lo": proj.get("range_lo"), "range_hi": proj.get("range_hi"),
+           "subject_kalshi_id": proj.get("subject_kalshi_id"),
+           "dist_p25": (proj.get("distribution_summary") or {}).get("p25"),
+           "dist_p50": (proj.get("distribution_summary") or {}).get("p50"),
+           "dist_p75": (proj.get("distribution_summary") or {}).get("p75"),
+           "settlement_reachability": (proj.get("settlement_reachability") or {}).get("state"),
+           "settlement_reachability_reason": (proj.get("settlement_reachability") or {}).get("reason"),
+           "injury_report_maturity": pc.get("injury_report_maturity"),
+           "injury_report_rows_for_week": pc.get("injury_report_rows_for_week"),
+           "official_inactive_state": pc.get("official_inactive_state"),
+           "official_inactive_observed_at": pc.get("official_inactive_observed_at"),
+           "evaluation_version_close": (close or {}).get("evaluation_version"),
+           "evaluation_version_settlement": (settlement or {}).get("evaluation_version"),
+           "evaluation_version_autopsy": (autopsy or {}).get("evaluation_version"),
+           "pit_data_cutoff": ((proj.get("lineage") or {}).get("point_in_time") or {}).get("data_cutoff"),
+           "pit_information_frontier": ((proj.get("lineage") or {}).get("point_in_time") or {}).get("information_frontier"),
            # executable depth at this horizon: the state and the reason travel together, so an unobserved book
            # can never be read as a thin market. Canonical CLV above is untouched by any of this.
            "depth": dp, "depth_state": dp.get("state", "DEPTH_NOT_CAPTURED"), "depth_reason": dp.get("why"),
@@ -112,6 +136,20 @@ def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement
            "exec_vwap_1": dp.get("vwap1"), "exec_vwap_10": dp.get("vwap10"), "exec_vwap_50": dp.get("vwap50"),
            "exec_slippage_1_to_50": (None if dp.get("vwap1") is None or dp.get("vwap50") is None else round(dp["vwap50"] - dp["vwap1"], 6)),
            "exec_size_to_exhaust_edge": dp.get("edge_size"),
+           # the DEDICATED depth sweep, paired to this record in the export rather than frozen onto it. The
+           # sweep runs on its own cadence, so the pairing is a selection under `observed_at <= data_cutoff` and
+           # `observed_at < kickoff`; the target horizon it was aiming at and the observation it actually made
+           # are separate columns, because a single sweep of a clustered slate cannot be at one horizon.
+           "depth_pair_version": (depth_pair or {}).get("depth_pair_version"),
+           "depth_pair_state": (depth_pair or {}).get("state"),
+           "depth_pair_reason": (depth_pair or {}).get("reason"),
+           "depth_pair_observed_at": (depth_pair or {}).get("paired_observed_at"),
+           "depth_pair_age_min": (depth_pair or {}).get("paired_age_min"),
+           "depth_pair_minutes_to_kickoff": (depth_pair or {}).get("paired_minutes_to_kickoff"),
+           "depth_pair_target_horizon": (depth_pair or {}).get("paired_target_horizon"),
+           "depth_pair_horizon_quality": (depth_pair or {}).get("paired_horizon_quality"),
+           "depth_pair_ladder_complete": (depth_pair or {}).get("paired_ladder_complete"),
+           "depth_pair_run_id": (depth_pair or {}).get("paired_run_id"),
            # close + clv
            "close_status": (close or {}).get("close_status", "CLV_CLOSE_MISSING" if close is None else None), "close_reason": (close or {}).get("close_reason"),
            "close_quality": (close or {}).get("close_quality", "MISSING"), "close_id": (close or {}).get("close_id"), "close_age_seconds": (close or {}).get("close_age_seconds"),

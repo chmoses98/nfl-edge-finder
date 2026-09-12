@@ -22,8 +22,18 @@ import json
 import os
 from datetime import datetime, timezone
 
+from nfl_edge.shadow_v2 import pit
+
 UNKNOWN = "UNKNOWN"
-CONTEXT_VERSION = "context-1.1.0"       # 1.1.0: real route participation and red-zone opportunity replace two UNKNOWNs
+CONTEXT_VERSION = "context-1.2.0"       # 1.2.0: injury-report maturity, official inactives, point-in-time ledger
+# injury-report states. Absence from a half-filed report is not a clean bill of health, so it has its own state.
+NOT_LISTED_AT_VINTAGE = "NOT_LISTED_AT_THIS_VINTAGE"
+REPORT_NOT_AVAILABLE = "REPORT_NOT_AVAILABLE"
+SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
+MATURE, PARTIAL, EMPTY = "MATURE", "PARTIAL", "EMPTY"
+# 2025 mean rows per week over the full season file; used only to express how filed a week looks, never to gate.
+TYPICAL_INJURY_ROWS_PER_WEEK = 275.8
+MATURE_ROWS, MATURE_TEAMS = 200, 24
 ROUTE_SOURCE = "nflverse pbp_participation (offense_players per play, 2016-2025) via research/opportunity/player_usage.parquet; point-in-time EWMA over strictly prior games"
 ROUTE_MISSING = "no prior game with participation coverage for this player (rookie, or a season the participation release does not cover)"
 RZ_SOURCE = "nflverse play-by-play yardline_100 <= 20 (red zone), <= 5 (goal line) opportunity shares; point-in-time EWMA over strictly prior games"
@@ -52,15 +62,17 @@ def _sha(path, n=16):
 
 
 class ContextSources:
-    def __init__(self, root: str, market_data: str, season: int, as_of: datetime, log=print):
+    def __init__(self, root: str, market_data: str, season: int, as_of: datetime, log=print, ledger=None):
         self.root, self.market_data, self.season, self.as_of = root, market_data, season, as_of
         self.log = log
+        self.ledger = ledger or pit.VintageLedger(as_of, label="context")
         self.manifest = self._nflverse_manifest()
         self.injuries = self._injuries()
         self.depth = self._depth_charts()
         self.weather = self._weather()
         self.last_trade = self._last_trades()
         self.player_map = self._player_map_meta()
+        self.inactives = None            # wired by the caller when a pregame inactives capture exists
 
     # ------------------------------------------------------------------ loaders
     def _nflverse_manifest(self) -> dict:
@@ -80,19 +92,52 @@ class ContextSources:
         return m or {"retrieved_at": UNKNOWN, "sha256": UNKNOWN, "reason": "not in the nflverse download manifest"}
 
     def _injuries(self):
-        p = os.path.join(self.root, "data", "raw", "nflverse", "injuries", f"injuries_{self.season}.parquet")
+        """The injury report AND its maturity at this cutoff.
+
+        A player absent from the file is NOT the same fact as a player absent from a complete report, and the
+        previous version could not tell them apart: it returned NOT_LISTED for both. Measured on the real file,
+        `injuries_2026.parquet` held 139 rows for week 1 against a 2025 mean of 275.8 rows/week -- about half a
+        typical week, i.e. an early-week vintage in which most designations had not yet been filed. Calling
+        every absent player "not listed" silently converts an unpublished report into a clean bill of health.
+
+        So the per-week MATURITY is measured and frozen: how many rows and teams the week actually carried at
+        this vintage, and how that compares with a full week. nflverse rebuilds this file in place, so the
+        counts are captured now or they are unrecoverable later.
+
+        The file itself carries no per-row timestamp for 2026 (nflverse dropped `date_modified`), so the only
+        defensible vintage is the download manifest's `retrieved_at`, which the ledger checks against the cutoff.
+        """
+        rel = os.path.join("data", "raw", "nflverse", "injuries", f"injuries_{self.season}.parquet")
+        p = os.path.join(self.root, rel)
         if not os.path.exists(p):
+            self.ledger.record_absent("injuries", f"no injuries_{self.season}.parquet on disk", kind="nflverse")
             return None
+        meta = self.source_meta(rel)
         try:
             import polars as pl
             d = pl.read_parquet(p)
-            by = {}
+            by, weeks = {}, {}
             for r in d.iter_rows(named=True):
-                by[(r.get("gsis_id"), int(r.get("week") or 0))] = {"report_status": r.get("report_status"), "practice_status": r.get("practice_status"),
-                                                                    "report_injury": r.get("report_primary_injury"), "practice_injury": r.get("practice_primary_injury"), "team": r.get("team")}
-            return {"rows": by, "path": os.path.relpath(p, self.root), "meta": self.source_meta(os.path.relpath(p, self.root))}
+                wk = int(r.get("week") or 0)
+                by[(r.get("gsis_id"), wk)] = {"report_status": r.get("report_status"), "practice_status": r.get("practice_status"),
+                                              "report_injury": r.get("report_primary_injury"), "practice_injury": r.get("practice_primary_injury"),
+                                              "team": r.get("team")}
+                w = weeks.setdefault(wk, {"rows": 0, "teams": set()})
+                w["rows"] += 1
+                if r.get("team"):
+                    w["teams"].add(r.get("team"))
+            maturity = {wk: {"rows": v["rows"], "teams": len(v["teams"]),
+                             "rows_vs_typical_week": round(v["rows"] / TYPICAL_INJURY_ROWS_PER_WEEK, 3),
+                             "maturity": (MATURE if v["rows"] >= MATURE_ROWS and len(v["teams"]) >= MATURE_TEAMS
+                                          else (PARTIAL if v["rows"] > 0 else EMPTY))}
+                        for wk, v in sorted(weeks.items())}
+            self.ledger.record("injuries", meta.get("retrieved_at"), kind="nflverse", path=rel,
+                               sha256=meta.get("sha256"), weeks=sorted(weeks), n_rows=len(by))
+            return {"rows": by, "path": rel, "meta": meta, "maturity": maturity,
+                    "weeks_present": sorted(weeks)}
         except Exception as e:  # noqa: BLE001
             self.log(f"injuries unavailable: {e}")
+            self.ledger.record_absent("injuries", f"unreadable: {e}", kind="nflverse")
             return None
 
     def _depth_charts(self):
@@ -104,6 +149,7 @@ class ContextSources:
             d = pl.read_parquet(p).select("dt", "team", "gsis_id", "pos_abb", "pos_rank", "player_name")
             vintages = sorted(v for v in d["dt"].unique().to_list() if v and _dt(v) <= self.as_of)
             if not vintages:
+                self.ledger.record_absent("depth_charts", "no depth chart at or before the snapshot instant", kind="nflverse")
                 return {"vintage": None, "reason": "no depth chart at or before the snapshot instant", "path": os.path.relpath(p, self.root)}
             latest = vintages[-1]
             sub = d.filter(pl.col("dt") == latest)
@@ -113,6 +159,7 @@ class ContextSources:
                 by_team.setdefault(r["team"], []).append((r["gsis_id"], r["pos_abb"], r["pos_rank"]))
                 if r["pos_abb"] == "QB" and r["pos_rank"] == 1:
                     qb1[r["team"]] = r["gsis_id"]
+            self.ledger.record("depth_charts", latest, kind="nflverse", path=os.path.relpath(p, self.root))
             return {"vintage": latest, "rank": rank, "qb1": qb1, "by_team": by_team, "path": os.path.relpath(p, self.root), "meta": self.source_meta(os.path.relpath(p, self.root))}
         except Exception as e:  # noqa: BLE001
             self.log(f"depth charts unavailable: {e}")
@@ -139,6 +186,11 @@ class ContextSources:
                 gid = r.get("game_id")
                 if gid:
                     out[gid] = {"run_id": run, "row": r}          # later runs (still <= as_of) overwrite earlier ones
+        newest = max((v["run_id"] for v in out.values()), default=None)
+        if newest:
+            self.ledger.record("weather", newest, kind="context", n_games=len(out))
+        else:
+            self.ledger.record_absent("weather", "no weather capture at or before the snapshot instant", kind="context")
         return out
 
     def _last_trades(self):
@@ -191,15 +243,40 @@ class ContextSources:
         return out
 
     def injury_block(self, gsis: str | None, week: int | None) -> dict:
+        """LISTED / NOT_LISTED_AT_THIS_VINTAGE / REPORT_NOT_AVAILABLE / SOURCE_UNAVAILABLE, with maturity.
+
+        The three absence states are different facts and must never collapse into one:
+          REPORT_NOT_AVAILABLE          the week has no rows at this vintage -- we know nothing about anyone
+          NOT_LISTED_AT_THIS_VINTAGE    the week has rows and this player is not among them -- weak evidence,
+                                        and how weak is exactly what `report_maturity` says
+          SOURCE_UNAVAILABLE            no file at all
+        """
         if not gsis:
             return {"state": UNKNOWN, "reason": "no player id"}
         if self.injuries is None:
-            return {"state": UNKNOWN, "reason": "injury report file absent"}
-        r = self.injuries["rows"].get((gsis, int(week or 0)))
+            return {"state": SOURCE_UNAVAILABLE, "reason": "injury report file absent"}
+        wk = int(week or 0)
         meta = self.injuries["meta"]
-        if r is None:
-            return {"state": "NOT_LISTED", "report_status": None, "practice_status": None, "source_retrieved_at": meta.get("retrieved_at"), "source_sha256": meta.get("sha256")}
-        return {"state": "LISTED", **r, "source_retrieved_at": meta.get("retrieved_at"), "source_sha256": meta.get("sha256")}
+        mat = (self.injuries.get("maturity") or {}).get(wk)
+        base = {"source_retrieved_at": meta.get("retrieved_at"), "source_sha256": meta.get("sha256"),
+                "report_week": wk, "report_maturity": (mat or {}).get("maturity", EMPTY),
+                "report_rows_for_week": (mat or {}).get("rows", 0), "report_teams_for_week": (mat or {}).get("teams", 0),
+                "report_rows_vs_typical_week": (mat or {}).get("rows_vs_typical_week", 0.0)}
+        r = self.injuries["rows"].get((gsis, wk))
+        if r is not None:
+            return {"state": "LISTED", **r, **base}
+        if not mat or mat["rows"] == 0:
+            return {"state": REPORT_NOT_AVAILABLE, "report_status": None, "practice_status": None,
+                    "reason": f"no injury-report rows for week {wk} at this vintage: absence is not information", **base}
+        return {"state": NOT_LISTED_AT_VINTAGE, "report_status": None, "practice_status": None,
+                "reason": f"week {wk} carried {mat['rows']} rows across {mat['teams']} teams at this vintage "
+                          f"({mat['rows_vs_typical_week']:.0%} of a typical week); this player was not among them", **base}
+
+    def inactive_block(self, gsis: str | None, game_id: str | None, *, espn_id=None, player_name=None) -> dict:
+        """The official gameday inactive list, or an explicit unknown. ACTIVE is never inferred from absence."""
+        if self.inactives is None:
+            return {"official_inactive_state": UNKNOWN, "reason": "no pregame inactives capture at or before this cutoff"}
+        return self.inactives.state(game_id, espn_id=espn_id, player_name=player_name)
 
     def depth_block(self, gsis: str | None, team: str | None) -> dict:
         if self.depth is None:
@@ -242,7 +319,7 @@ def player_context(src: ContextSources, *, gsis, team, week, game_id, kickoff, f
         v = fr.get(k)
         return None if v is None or (isinstance(v, float) and v != v) else v
     return {"context_version": CONTEXT_VERSION, "position": position or g("position") or UNKNOWN, "team": team,
-            "availability": av, "injury_report": inj, "depth_chart": dep,
+            "availability": av, "injury_report": inj, "official_inactive": src.inactive_block(gsis, game_id), "depth_chart": dep,
             "qb_identity": {"schedule_listed": g("_schedule_qb"), "depth_chart_qb1": dep.get("team_qb1"), "qb_changed_recent": g("qb_changed_recent")},
             "teammates": src.teammate_block(team, week, gsis),
             # Route participation and red-zone opportunity are REAL, not proxies: nflverse pbp_participation
@@ -313,9 +390,14 @@ def market_state(*, quote: dict, ladder: dict | None, last_trade_at: str | None,
 # ------------------------------------------------------------------ compact inline views (the full block lives in the snapshot sidecar)
 def compact_player_context(full: dict, cid: str) -> dict:
     inj, dep, av, w, use, tv, smp, qb = (full.get(k) or {} for k in ("injury_report", "depth_chart", "availability", "weather", "usage_estimates", "team_volume_estimates", "sample", "qb_identity"))
+    oi = full.get("official_inactive") or {}
     return {"player_context_id": cid, "position": full.get("position"), "team": full.get("team"),
             "availability_state": av.get("state"), "p_plays": av.get("p_plays"), "availability_sources": sorted((av.get("sources") or {}).keys()),
             "injury_state": inj.get("state"), "report_status": inj.get("report_status"), "practice_status": inj.get("practice_status"),
+            "injury_report_maturity": inj.get("report_maturity"), "injury_report_rows_for_week": inj.get("report_rows_for_week"),
+            "injury_report_retrieved_at": inj.get("source_retrieved_at"),
+            "official_inactive_state": oi.get("official_inactive_state"), "official_inactive_source": oi.get("source"),
+            "official_inactive_observed_at": oi.get("observed_at"), "official_inactive_confidence": oi.get("confidence"),
             "depth_chart_rank": dep.get("rank"), "depth_chart_vintage": dep.get("vintage"),
             "qb_schedule": qb.get("schedule_listed"), "qb_depth_chart": qb.get("depth_chart_qb1"), "qb_changed_recent": qb.get("qb_changed_recent"),
             "teammates_out_or_doubtful": (full.get("teammates") or {}).get("n_out_or_doubtful"),

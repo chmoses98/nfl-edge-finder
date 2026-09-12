@@ -25,7 +25,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 from nfl_edge.evaluation import clv as CV, close as CL, openset as OS                    # noqa: E402
-from nfl_edge.execution.fees import load_fee_schedule                                   # noqa: E402
+from nfl_edge.execution.fees import load_fee_schedule
+from nfl_edge.settlement import reachability as RE                                   # noqa: E402
 from nfl_edge.projection.store import read_projections                                  # noqa: E402
 from nfl_edge.shadow import evaluation_store as ST                                      # noqa: E402
 
@@ -66,10 +67,16 @@ def main(argv=None):
     close_corpus = ST.EvaluationCorpus(os.path.join(a.out, "closes"), read_roots=[os.path.join(a.market_data, "data", "shadow", "v2", "closes")], suffix=CLOSE_SUFFIX)
     clv_corpus = ST.EvaluationCorpus(os.path.join(a.out, "clv"), read_roots=[os.path.join(a.market_data, "data", "shadow", "v2", "clv")], suffix=CLV_SUFFIX)
     batch = ST.batch_id(now)
-    by_game = {}
+    # A season market has no kickoff, so the game-style close ("the last complete observation before kickoff")
+    # is not merely missing for it -- it is not a meaningful question. Those rows get an explicit
+    # CLOSE_NOT_APPLICABLE_SEASON record rather than being dropped, so a researcher can tell "no close exists"
+    # from "this row silently left the pipeline". No fake kickoff is invented to make game logic apply.
+    by_game, not_applicable = {}, []
     for r in rows:
         if r.get("game_id") and r.get("kickoff_utc"):
             by_game.setdefault(r["game_id"], []).append(r)
+        elif RE.scope_of(r.get("market_family"), r.get("engine")) == RE.SEASON:
+            not_applicable.append(r)
     runs = CL.CaptureRuns(capture_root)
     # One open-set ledger, shared across games: it answers "was this exact contract open at this run", which is
     # what separates a close that stands on a delisting from one standing on a failed fetch. Captures written
@@ -112,6 +119,23 @@ def main(argv=None):
                 summary[key] += man.get("written", 0)
         summary["games_paired"].append({"game_id": gid, "records": len(recs), "closes": len(close_rows), "clv": len(clv_rows), "capture_files_read": idx.stats.get("files_read")})
         log(f"  {gid}: {len(recs)} records, closes {dict(Counter(c['close_status'] for c in close_rows))}")
+    # write the explicit not-applicable closes so season rows stay in the corpus
+    if not_applicable and not a.dry_run:
+        na_rows = [{"prediction_id": r["record_id"], "evaluation_version": CL.CLOSE_RULE_VERSION,
+                    "evaluated_at": now.isoformat(), "record_id": r["record_id"], "snapshot_id": r.get("snapshot_id"),
+                    "model_arm": r.get("model_arm"), "horizon_label": r.get("horizon_label"), "ticker": r.get("ticker"),
+                    "game_id": None, "close_rule_version": CL.CLOSE_RULE_VERSION,
+                    "close_status": "CLOSE_NOT_APPLICABLE_SEASON", "close_quality": "NOT_APPLICABLE",
+                    "close_reason": "a season market has no kickoff; the game-style canonical close is not a "
+                                    "meaningful question for it and no kickoff is invented to pretend otherwise",
+                    "flags": ["SEASON_SCOPED"]} for r in not_applicable]
+        plan = close_corpus.plan(na_rows, "SEASON")
+        if plan["conflicts"]:
+            raise ST.EvaluationConflict(plan["conflicts"])
+        man = close_corpus.write_batch("SEASON", na_rows, evaluation_version=CL.CLOSE_RULE_VERSION, batch=batch, plan=plan)
+        summary["written_closes"] += man.get("written", 0)
+        summary["close_status"]["CLOSE_NOT_APPLICABLE_SEASON"] = len(na_rows)
+    summary["season_rows_not_applicable"] = len(not_applicable)
     summary.update(close_status=dict(summary["close_status"]), close_quality=dict(summary["close_quality"]), clv_status=dict(summary["clv_status"]), batch_id=batch,
                    sign_convention=CV.SIGN_CONVENTION, perf={"seconds": time.time() - t0, "max_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0}, dry_run=a.dry_run)
     log(json.dumps({k: v for k, v in summary.items() if k != "games_paired"}, indent=1, default=str))

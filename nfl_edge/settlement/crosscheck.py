@@ -175,15 +175,27 @@ def crosscheck_one(ticker: str, derived_settled_yes, derived_status: str, exchan
 
 
 def crosscheck_rows(settlement_rows, results: ExchangeResults) -> list:
-    """One cross-check per settled/refused row. Never mutates the settlement rows it is given."""
+    """One cross-check per settlement row, carrying its prediction id. Never mutates the rows it is given.
+
+    The id is attached HERE, from the row itself. It was previously reattached by the caller with a positional
+    `zip` after this function had `continue`d past tickerless rows -- so a single skipped row shifted every
+    later prediction id onto the wrong cross-check. A row without a ticker now yields a cross-check that says
+    so, keeping the output the same length as the input and the join by id rather than by position.
+    """
     out = []
     for r in settlement_rows:
+        pid = r.get("prediction_id") or r.get("record_id")
         t = r.get("ticker")
         if not t:
+            out.append({"crosscheck_version": CROSSCHECK_VERSION, "prediction_id": pid, "record_id": pid,
+                        "ticker": None, "market_family": r.get("market_family"), "agreement": NOT_COMPARABLE,
+                        "reason": "settlement row carries no ticker to match an exchange record against",
+                        "hard_warning": False})
             continue
-        out.append(crosscheck_one(t, r.get("settled_yes"), r.get("settlement_status") or "UNKNOWN", results.get(t),
-                                  derived_kind=r.get("settlement_kind"), market_family=r.get("market_family"),
-                                  derived_reason=r.get("settlement_reason")))
+        row = crosscheck_one(t, r.get("settled_yes"), r.get("settlement_status") or "UNKNOWN", results.get(t),
+                             derived_kind=r.get("settlement_kind"), market_family=r.get("market_family"),
+                             derived_reason=r.get("settlement_reason"))
+        out.append({**row, "prediction_id": pid, "record_id": pid})
     return out
 
 

@@ -32,16 +32,34 @@ def log(*a):
     print(*a, flush=True)
 
 
+def _median(vals):
+    vals = sorted(v for v in vals if v is not None)
+    return None if not vals else vals[len(vals) // 2]
+
+
 def corpus_index(root_local: str, root_md: str, suffix: str) -> dict:
     c = ST.EvaluationCorpus(root_local, read_roots=[root_md], suffix=suffix)
     return {pid: row for (pid, _ver), (row, _f) in c.load().items()}
 
 
-def build_rows(projections: list, sidecars: dict, closes: dict, clvs: dict, settlements: dict, autopsies: dict) -> list:
+def build_rows(projections: list, sidecars: dict, closes: dict, clvs: dict, settlements: dict, autopsies: dict,
+               crosschecks: dict | None = None, depth_index: "XD.DepthIndex | None" = None) -> list:
+    """One research row per frozen projection.
+
+    The dedicated depth sweep is joined HERE and nowhere else. Its rows are not aligned to any projection -- the
+    sweep has its own cadence -- so the join is a selection under the two rules in `DepthIndex.pair`, and it
+    happens in the derived export so that a frozen projection record is never mutated by evidence that arrived
+    after it was written. A record with no qualifying observation keeps a named reason, not a silent null.
+    """
     out = []
     for p in projections:
         rid = p["record_id"]
-        out.append(RR.research_row(p, close=closes.get(rid), clv=clvs.get(rid), settlement=settlements.get(rid), autopsy=autopsies.get(rid), sidecar=sidecars.get(p.get("snapshot_id"))))
+        pair = None
+        if depth_index is not None and depth_index.n_rows:
+            pair = XD.pair_and_walk(depth_index, p, fair=p.get("contract_value"))
+        out.append(RR.research_row(p, close=closes.get(rid), clv=clvs.get(rid), settlement=settlements.get(rid),
+                                   autopsy=autopsies.get(rid), sidecar=sidecars.get(p.get("snapshot_id")),
+                                   crosscheck=(crosschecks or {}).get(rid), depth_pair=pair))
     out.sort(key=lambda r: (r.get("game_id") or "", r.get("snapshot_id") or "", r.get("ticker") or "", r.get("model_arm") or ""))
     return out
 
@@ -60,8 +78,8 @@ def execution_research(rows) -> dict:
         st = d.get("state")
         base = {"record_id": r.get("record_id"), "ticker": r.get("ticker"), "model_arm": r.get("model_arm"),
                 "market_family": r.get("market_family"), "game_id": r.get("game_id"), "horizon_label": r.get("horizon_label"),
-                "side": d.get("side"), "contract_value": r.get("contract_value"), "mid": r.get("mid"),
-                "yes_ask": r.get("yes_ask"), "no_ask": r.get("no_ask"), "depth_state": st or "DEPTH_NOT_CAPTURED",
+                "side": d.get("side"), "contract_value": r.get("contract_value"), "mid": r.get("h_mid"),
+                "yes_ask": r.get("h_yes_ask"), "no_ask": r.get("h_no_ask"), "depth_state": st or "DEPTH_NOT_CAPTURED",
                 "depth_reason": d.get("why"), "disagreement_band": r.get("disagreement_band")}
         if st not in ("DEPTH_CAPTURED", "DEPTH_STALE"):
             out.append({**base, "top_size": None, "contracts_available": None})
@@ -100,6 +118,8 @@ def main(argv=None):
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--week", type=int, default=0, help="0 = every week present")
     ap.add_argument("--label", default="")
+    ap.add_argument("--depth-root", action="append", default=[],
+                    help="dedicated depth-sweep roots (repeatable); default: <market-data>/data/shadow/v2/depth")
     a = ap.parse_args(argv)
     t0 = time.time()
     md = os.path.join(a.market_data, "data", "shadow", "v2")
@@ -112,7 +132,10 @@ def main(argv=None):
     clvs = corpus_index(os.path.join(a.staging, "clv"), os.path.join(md, "clv"), "clv_v2")
     settlements = corpus_index(os.path.join(a.staging, "settlements"), os.path.join(md, "settlements"), "settlements_v2")
     autopsies = corpus_index(os.path.join(a.staging, "autopsy"), os.path.join(md, "autopsy"), "autopsy_v2")
-    rows = build_rows(projections, sidecars, closes, clvs, settlements, autopsies)
+    crosschecks = corpus_index(os.path.join(a.staging, "crosscheck"), os.path.join(md, "crosscheck"), "crosscheck_v2")
+    depth_index = XD.DepthIndex(a.depth_root or [os.path.join(md, "depth"), os.path.join(a.staging, "depth")])
+    log(f"dedicated depth sweep: {depth_index.n_rows} observation(s) over {len(depth_index.by_ticker)} ticker(s)")
+    rows = build_rows(projections, sidecars, closes, clvs, settlements, autopsies, crosschecks, depth_index)
     label = a.label or (f"{a.season}_wk{a.week:02d}" if a.week else f"{a.season}_all")
     os.makedirs(a.out, exist_ok=True)
     jl = os.path.join(a.out, f"{label}.research.jsonl.gz")
@@ -156,6 +179,11 @@ def main(argv=None):
            "close_paired": sum(1 for r in rows if r.get("close_status") in ("CLOSE_OK", "CLOSE_ONE_SIDED")),
            "clv_ok": sum(1 for r in rows if r.get("clv_status") == "CLV_OK"), "settled": sum(1 for r in rows if r.get("settled_yes") is not None),
            "autopsied": sum(1 for r in rows if r.get("autopsy_classification")), "by_evidence_class": dict(Counter(r.get("evidence_class") for r in rows)),
+           "dedicated_depth": {"observations": depth_index.n_rows, "tickers": len(depth_index.by_ticker),
+                               "rows_paired": sum(1 for r in rows if r.get("depth_pair_state") not in (None, "DEPTH_NOT_CAPTURED")),
+                               "pair_reasons": dict(Counter(r.get("depth_pair_reason") for r in rows if r.get("depth_pair_state") == "DEPTH_NOT_CAPTURED")),
+                               "horizon_quality": dict(Counter(r.get("depth_pair_horizon_quality") for r in rows if r.get("depth_pair_horizon_quality"))),
+                               "pair_age_minutes_median": _median([r.get("depth_pair_age_min") for r in rows])},
            "hypothesis_candidates": len(cands), "perf": {"seconds": time.time() - t0, "max_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0},
            "files": {"jsonl": jl, "parquet": pq}}
     json.dump(cov, open(os.path.join(a.out, f"{label}.export_summary.json"), "w"), indent=1, default=str)

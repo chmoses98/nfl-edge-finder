@@ -247,3 +247,52 @@
     no-op rerun assertion compares a directory digest, so the likely cause is shared state between test modules
     rather than a corpus defect. Untriaged, and a flaky gate is a live risk once the first week's settle job
     depends on CI.
+
+---
+
+### Corrections and additions after the pre-week institutional audit
+
+62. **Item 54's "100% of the 7,723 in-window contracts in about 32 minutes" was a capacity figure, not a
+    horizon-coverage figure, and it was read as the latter.** Rehearsed at the real T−30 instant for the largest
+    cluster (8 games kicking together), a safe sweep of 4,896 probability-carrying contracts takes 27.2 minutes
+    at 3 req/s. The sweep therefore observes the first ladder near T−30 and the last near T−3. Every ladder was
+    whole (328 of 328) and zero post-kickoff rows were accepted, but no single sweep is "T−30" for the whole
+    board and the system no longer labels it that way: each row records its own `observed_at`,
+    `minutes_to_kickoff`, `horizon_delta_min` and `horizon_quality`, and research pairs by timestamp.
+
+63. **Removing closing-line hindsight from the target season costs coverage, and the number is stated rather
+    than absorbed.** Probability-carrying records fall from 18,226 to 16,160 (−11.3%) once the target season's
+    results, closing spread/total and finalised QB identities are blanked. Markets that priced only because a
+    closing line leaked backwards now correctly produce no probability.
+
+64. **Settlement reachability replaces the withdrawn claim "zero probability records without a settlement
+    path".** That figure came from `flags.settlement_supported`, which reflected the family catalog rather than
+    whether a record could reach a settlement branch; 1,336 season records were flagged supported and dropped by
+    the driver before dispatch. Measured on the record's own keys: **16,114 of 16,160 dispatchable (99.72%)**.
+    The 46 that are not are `PLAYER_STAT` rows with an unresolved subject id, each labelled
+    `MISSING_SETTLEMENT_KEYS` and counted, not dropped.
+
+65. **Skew between a projection's cutoff and its evidence is normal, and is now reported rather than hidden.**
+    The job downloads nflverse after the capture run it prices, so the record's information frontier is later
+    than its `data_cutoff` — measured at 2,234 s on the replay. This is recorded per source. Only a source dated
+    at or after the *kickoff it predicts* is refused (per game), and only a source dated after the run's own wall
+    clock fails the run.
+
+66. **Item 58 is superseded in part.** Absence from the injury parquet is no longer reported as a single
+    `NOT_LISTED` state. The four states are `LISTED` / `NOT_LISTED_AT_THIS_VINTAGE` / `REPORT_NOT_AVAILABLE` /
+    `SOURCE_UNAVAILABLE`, and each record carries the week's row and team counts against the 2025 mean of 275.8
+    rows/week. At the replay vintage week 1 of 2026 held 139 rows — 50.4% of a typical week, i.e. `PARTIAL`.
+    Injury-conditional research must condition on maturity, not merely on status.
+
+67. **Item 61's flake now has a root cause, and it is deliberately not fixed here.**
+    `scripts/shadow/settle_games.py` writes `_run.{batch_id}.summary.json` unconditionally with a
+    second-resolution batch id, so two runs straddling a second boundary leave two files and the tree digest the
+    no-op assertion compares differs. The frequency is roughly 1 in 8 under random ordering. The file is on the
+    incumbent Sunday path, which this round is forbidden to alter, so the defect is reported rather than
+    patched. It is a test-harness artefact of a real (benign) non-determinism in the run-summary filename, not a
+    corpus defect.
+
+68. **The depth stream has still never run prospectively.** It is now isolated in its own workflow with its own
+    concurrency group so it cannot delay or starve the incumbent capture, the three-arm horizons or postgame
+    settlement, and it writes nothing into `market-data`. All of that is proven by rehearsal and by reading the
+    workflow graph, not by a production firing.

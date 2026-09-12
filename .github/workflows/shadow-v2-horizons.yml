@@ -88,31 +88,10 @@ jobs:
           for h in "${IDS[@]}"; do
             python3 scripts/shadow_v2/project_slate_v2.py --market-data /tmp/md --out data --target-season 2026 --horizon-id "$h" 2>&1 | tail -20
           done
-      # ORDER-BOOK DEPTH at the horizon, for the contracts the projector just priced. A separate job from the
-      # 10-minutely capture on purpose: that one is capacity-bound (10,591 book candidates against a 2,500 cap,
-      # leaving 16.4% of probability-carrying contracts with a book), and depth is only needed at the horizons.
-      # The priority is kickoff proximity then whole ladders then traded -- never our own disagreement, which
-      # would select the depth sample by the quantity under study. Budget 8000 covers the whole in-window board
-      # in ~32 minutes; failure here never costs the run its projections.
-      - name: Capture order-book depth at the horizon
-        continue-on-error: true
-        env:
-          HORIZON_IDS: ${{ needs.gate.outputs.horizon_ids }}
-        run: |
-          python3 scripts/shadow_v2/capture_depth_v2.py --market-data /tmp/md --out data/shadow/v2 \
-            --budget 8000 --horizon-label "${HORIZON_IDS%%,*}" \
-            --priced-from "data/shadow/v2/projections/*/*.projections.jsonl.gz" 2>&1 | tail -8
-      # OFFICIAL INACTIVES for anything inside the publication window. Research only: this can only ever add a
-      # confirmed-inactive player and can never declare anyone active, so an outage writes nothing.
-      - name: Freeze the official inactive list for games about to kick off
-        continue-on-error: true
-        run: |
-          python3 scripts/shadow_v2/capture_inactives_v2.py --out data/shadow/v2 \
-            --schedule /tmp/md/data/kalshi/capture/schedule_cache.csv --season 2026 --window-min 150 2>&1 | tail -10
       - name: Verify before anything is published
         run: |
           python3 scripts/shadow_v2/verify_projections.py --root data/shadow/v2/projections --require-rows
-      - name: Publish the projections, depth, inactives and the horizon markers
+      - name: Publish the projections and the horizon markers
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
             --message "shadow v2 horizon projections (${{ needs.gate.outputs.horizon_ids }})"

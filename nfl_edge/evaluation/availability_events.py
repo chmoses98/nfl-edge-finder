@@ -25,6 +25,8 @@ Version: availability-events-1.0.0.
 """
 from __future__ import annotations
 
+import hashlib
+
 AVAILABILITY_EVENTS_VERSION = "availability-events-1.0.0"
 
 # Ordered by how much the state threatens participation. UNKNOWN is deliberately outside the ladder.
@@ -91,6 +93,15 @@ def transitions(records) -> list:
     return out
 
 
+def _event_id(pid, gid, prev, cur) -> str:
+    """Content-addressed: the same player, game and pair of context snapshots always yields the same id."""
+    key = "|".join(str(x) for x in (pid, gid, prev.get("horizon_label"), cur.get("horizon_label"),
+                                    prev.get("observed_at"), cur.get("observed_at"),
+                                    (prev.get("player_context") or {}).get("player_context_id"),
+                                    (cur.get("player_context") or {}).get("player_context_id")))
+    return hashlib.sha1(key.encode()).hexdigest()[:20]
+
+
 def _pair(pid, gid, prev, cur) -> dict | None:
     p, c = prev.get("player_context") or {}, cur.get("player_context") or {}
     d = direction(p.get("availability_state"), c.get("availability_state"))
@@ -115,7 +126,15 @@ def _pair(pid, gid, prev, cur) -> dict | None:
     return {"availability_events_version": AVAILABILITY_EVENTS_VERSION, "player_id": pid, "game_id": gid,
             "from_horizon": prev.get("horizon_label"), "to_horizon": cur.get("horizon_label"),
             "from_observed_at": prev.get("observed_at"), "to_observed_at": cur.get("observed_at"),
-            "from_record_id": prev.get("record_id"), "to_record_id": cur.get("record_id"),
+            # DETERMINISTIC IDENTITY. A transition is a player-game-context event, not a property of whichever
+            # ticker happened to sort first: the previous version keyed it to an arbitrary (ticker, arm) record,
+            # so joining events back to research rows labelled one row and left its siblings blank. The event id
+            # is the content-addressed identity of the player, game and the two context snapshots it spans, and
+            # the join back to projections is on (player_id, game_id, horizon) which matches every sibling row.
+            "event_id": _event_id(pid, gid, prev, cur),
+            "from_snapshot_id": prev.get("snapshot_id"), "to_snapshot_id": cur.get("snapshot_id"),
+            "from_player_context_id": p.get("player_context_id"), "to_player_context_id": c.get("player_context_id"),
+            "join_key": f"{pid}|{gid}|{prev.get('horizon_label')}|{cur.get('horizon_label')}",
             "minutes_to_kickoff_from": prev.get("minutes_to_kickoff"), "minutes_to_kickoff_to": cur.get("minutes_to_kickoff"),
             # raw states are kept on both sides: the derivation never replaces what was frozen
             "availability_from": p.get("availability_state"), "availability_to": c.get("availability_state"),

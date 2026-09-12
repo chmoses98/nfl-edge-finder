@@ -57,7 +57,7 @@
    "before": "PARTIAL",
    "evidence_before": "catalog says SUPPORTED / PLANNED / UNSUPPORTED; TEAM_WINS_BY_WEEK, MAKE_PLAYOFFS, DIVISION_WINNER carry probabilities with PLANNED settlement and no automatic matrix",
    "after": "COMPLETE",
-   "evidence_after": "season settlement implemented (nfl_edge/settlement/season_settlement.py, season-settle-1.0.0) and routed from settle_v2: TEAM_WINS_BY_WEEK settles from the team's own games through week W, early once the achievable win interval makes the comparison constant, and refuses when the two tie readings disagree; DIVISION_WINNER and MAKE_PLAYOFFS are read off the postseason bracket (seeds 1-4 are the division winners) with a W-L-T contradiction check, never from a reconstructed tie-break. Catalog now marks all three SUPPORTED. 22 tests, mostly on the refusals."
+   "evidence_after": "measured on dispatchability, not on the catalog: all 1,336 SEASON records now carry a derived season (the Kalshi two-digit year cross-checked against the contract's own expiration, refusing if they disagree) and all 1,336 reach the season settlement branch. Replay: SEASON_2025 728 rows, SEASON_2026 608 rows dispatched, 0 silently dropped."
   },
   {
    "id": "R08",
@@ -256,8 +256,8 @@
    "requirement": "order-book depth preserved at the horizons",
    "before": "MISSING",
    "evidence_before": "v2 recorded only has_book as a boolean; the full ladder in nfl_edge/execution/depth.py was wired to the v1 path only",
-   "after": "PARTIAL",
-   "evidence_after": "every record now carries a depth block or a named reason for its absence, and scripts/shadow_v2/capture_depth_v2.py captures depth at horizons with a ladder-whole budget. Measured on the live board only 16.4% of probability-carrying contracts had a book, because the 10-minutely capture is capacity-bound; the horizon job at budget 8000 covers 100% of the 7,723 in-window contracts in ~32 minutes but has not yet run prospectively"
+   "after": "COMPLETE",
+   "evidence_after": "depth is now an INDEPENDENT evidence stream (.github/workflows/shadow-v2-depth.yml, own concurrency group, cancel-in-progress, 40-minute timeout) and is off the horizon freeze's critical path. Per-row honest timing: observed_at, kickoff_utc, minutes_to_kickoff recomputed from that observation, target horizon and actual horizon quality are separate fields. A ladder is entered only if the whole ladder can finish before its own kickoff; a response arriving at or after kickoff is rejected, never written as pregame. Research pairing (nfl_edge/evaluation/execution_depth.DepthIndex) selects the latest observation at or before the projection's cutoff AND strictly before kickoff, so the target label is no longer load-bearing -- the pairing age is. 100% T-30 coverage of a clustered Sunday is NOT claimed: see the rehearsal."
   },
   {
    "id": "R33",
@@ -346,6 +346,86 @@
    "evidence_before": "bid/ask/mid/width/volume/open interest/fees were present; depth, top-level size and size-adjusted execution were not",
    "after": "COMPLETE",
    "evidence_after": "the research row carries the quote, the book shape, the size-adjusted walk and the reason when depth is absent, with prediction research and execution research kept in separate blocks"
+  },
+  {
+   "id": "R44",
+   "requirement": "point-in-time source contract, centralised and enforced",
+   "before": "MISSING",
+   "evidence_before": "the rule was implemented per source and diverged: four unbounded loaders next to four correct ones",
+   "after": "COMPLETE",
+   "evidence_after": "nfl_edge/shadow_v2/pit.py is the single authority: pick_at_or_before replaces every sorted(glob())[-1], a VintageLedger records every source's vintage and is frozen onto each record's lineage, and three invariants apply at the granularity each belongs to -- a source after the wall clock fails the run, a source at or after a game's kickoff refuses that game's records, and skew short of kickoff is recorded as the record's information_frontier. 19 adversarial tests plant future files that would change the answer."
+  },
+  {
+   "id": "R45",
+   "requirement": "availability hindsight leak",
+   "before": "MISSING",
+   "evidence_before": "project_slate_v2 took sorted(glob(...))[-1] for Sleeper/ESPN with no cutoff, feeding p_plays into the priced contract value on all three player arms",
+   "after": "COMPLETE",
+   "evidence_after": "bounded by pit.newest_file_at_or_before against the snapshot; recorded in the ledger; tested with a future availability file present on disk."
+  },
+  {
+   "id": "R46",
+   "requirement": "target-season silver hindsight",
+   "before": "MISSING",
+   "evidence_before": "results, closing spread/total lines and finalised QB ids were read unbounded for the target season",
+   "after": "COMPLETE",
+   "evidence_after": "mask_target_season blanks outcome fields for every game not yet kicked off, blanks closing lines for ALL target-season games (a closing line is never point-in-time, so the consensus fallback refuses rather than using it), and blanks QB ids for future games. Measured cost, reported honestly: probability-carrying records fall from 18,226 to 16,160 because games with no Kalshi-implied line no longer borrow a closing line. That is the hindsight being removed, not coverage being lost."
+  },
+  {
+   "id": "R47",
+   "requirement": "quote and book loaders bounded on both axes",
+   "before": "PARTIAL",
+   "evidence_before": "quotes filtered files never rows and nothing at all on the default path; the book loader's docstring claimed row-level bounding it did not implement",
+   "after": "COMPLETE",
+   "evidence_after": "both bounded by run id AND by each row's own observed_at; a row without an instant is refused; books additionally reject any row observed at or after its game's kickoff, which defends against the measured corpus defect (646 of 677,253 pregame book rows were fetched post-kickoff)."
+  },
+  {
+   "id": "R48",
+   "requirement": "no probability record silently leaves the evaluation loop",
+   "before": "MISSING",
+   "evidence_before": "the settle driver bucketed by game_id and dropped every season record before dispatch",
+   "after": "COMPLETE",
+   "evidence_after": "the driver partitions into game-scoped, season-scoped and an explicitly unreachable remainder and reports silently_dropped: 0; season rows with no kickoff receive CLOSE_NOT_APPLICABLE_SEASON (1,628 on the replay) rather than vanishing from close pairing, and no fake kickoff is invented."
+  },
+  {
+   "id": "R49",
+   "requirement": "injury-report maturity frozen",
+   "before": "MISSING",
+   "evidence_before": "every player absent from the parquet was recorded NOT_LISTED, conflating an unpublished report with a clean bill of health; the coverage audit then counted those as NOT_APPLICABLE",
+   "after": "COMPLETE",
+   "evidence_after": "per-week rows and teams are measured and frozen with the vintage, and the states are honest: LISTED / NOT_LISTED_AT_THIS_VINTAGE / REPORT_NOT_AVAILABLE / SOURCE_UNAVAILABLE, each carrying report maturity. nflverse rebuilds the file in place, so the counts are captured now or lost."
+  },
+  {
+   "id": "R50",
+   "requirement": "official inactives wired to the frozen context",
+   "before": "MISSING",
+   "evidence_before": "InactivesBook existed but was instantiated nowhere, so official_inactive_state was structurally always null",
+   "after": "COMPLETE",
+   "evidence_after": "loaded per run bounded twice (observation at or before the cutoff AND strictly before kickoff) and exposed on the compact player context; ACTIVE is still never inferred from absence."
+  },
+  {
+   "id": "R51",
+   "requirement": "cross-check joins the row it invalidates",
+   "before": "MISSING",
+   "evidence_before": "joined on ticker with prediction_id reattached by positional zip after a filtered loop, and no crosscheck column reached the research table",
+   "after": "COMPLETE",
+   "evidence_after": "crosscheck_rows carries prediction_id from the row itself and returns one row per input; the research table exports crosscheck_agreement, hard_warning, exchange result/payout and reason so a disagreeing family can be excluded directly."
+  },
+  {
+   "id": "R52",
+   "requirement": "execution export and autopsy denominator",
+   "before": "MISSING",
+   "evidence_before": "execution_research read mid/yes_ask/no_ask which do not exist on a research row; autopsy covered ~1 row in 12 while summaries implied full coverage",
+   "after": "COMPLETE",
+   "evidence_after": "the export reads h_mid/h_yes_ask/h_no_ask; one autopsy per eligible DATA_PLAYER_DIST prediction at every horizon, keyed by prediction_id, with the denominator stated on every row. MARKET_PLAYER_DIST is deliberately excluded: a causal diagnosis of a ladder-implied price would be manufactured."
+  },
+  {
+   "id": "R53",
+   "requirement": "availability-event identity",
+   "before": "MISSING",
+   "evidence_before": "events were keyed to an arbitrary (ticker, arm) record, so joining back labelled one row and left siblings blank",
+   "after": "COMPLETE",
+   "evidence_after": "content-addressed event_id over player, game and both context snapshots, plus a join_key on (player, game, horizon pair) that matches every sibling row."
   }
  ],
  "instrumentation_commits": [
@@ -396,11 +476,12 @@
    "bytes": 411441
   }
  },
- "matrix_version": "readiness-2.0.0",
+ "matrix_version": "readiness-3.0.0",
  "round_2_head_before": "7abaa65630966b40a6bb103c3cf63f0377c7bb5b",
  "completeness_rule": "A dimension is COMPLETE when the system captures the value wherever it is genuinely available, preserves UNKNOWN explicitly with a reason wherever it is not, and makes absence impossible to mistake for healthy data. A field that is often UNKNOWN can therefore be COMPLETE; a field that is usually present but silently empty when its source fails cannot be.",
  "summary_after": {
-  "COMPLETE": 42,
-  "PARTIAL": 1
- }
+  "COMPLETE": 53
+ },
+ "round_3_head_before": "a2591699b43a58da3c4820e889386c2be2b13918",
+ "correction_notice": "The round-2 claim 'zero probability records without a settlement path' was FALSE and is withdrawn. It was computed from flags.settlement_supported, which reflected the family CATALOG rather than whether a record could reach a settlement branch; editing the catalog flipped the flag on 1,336 season records that the settlement driver dropped before dispatch. Settlement coverage is now measured by nfl_edge/settlement/reachability.py on the record's own keys, and the measured figure on the real board is 16,114 of 16,160 probability-carrying records dispatchable (99.72%); the remaining 46 are PLAYER_STAT rows with an unresolved subject_id and carry an explicit MISSING_SETTLEMENT_KEYS state."
 }
