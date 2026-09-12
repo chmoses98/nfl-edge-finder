@@ -36,6 +36,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      # SHADOW v2: the capture state (for the CAPTURE_GAP section of the drift report) and the existing provisional
+      # list (append-only merge) come from market-data; both are optional inputs.
+      - name: Restore capture state and provisional series list
+        run: |
+          git fetch --depth=1 origin market-data || true
+          mkdir -p data/kalshi/capture
+          git show origin/market-data:data/kalshi/capture/state.json > data/kalshi/capture/state.json 2>/dev/null || rm -f data/kalshi/capture/state.json
+          git show origin/market-data:data/kalshi/capture/provisional_series.json > data/kalshi/capture/provisional_series.json 2>/dev/null || rm -f data/kalshi/capture/provisional_series.json
       - name: Discover
         id: discover
         continue-on-error: true
@@ -46,6 +54,13 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           python3 scripts/ci/publish_market_data.py --src data/kalshi/discovery --message "kalshi discovery $(date -u +'%Y-%m-%dT%H:%M:%SZ') (${{ github.event_name }})"
+      # The provisional list closes the discovery -> capture loop: published only when discovery wrote it, and the
+      # restored state.json is removed first so a stale copy of the capture state is never re-published.
+      - name: Publish the provisional series list
+        if: hashFiles('data/kalshi/capture/provisional_series.json') != ''
+        run: |
+          rm -f data/kalshi/capture/state.json
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/capture --message "provisional series $(date -u +'%Y-%m-%dT%H:%M:%SZ') (discovery)"
       - name: Fail if discovery was incomplete
         if: steps.discover.outcome != 'success'
         run: |

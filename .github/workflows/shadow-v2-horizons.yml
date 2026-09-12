@@ -1,0 +1,107 @@
+name: Shadow v2 decision horizons
+
+# Freezes the full-board shadow-v2 projections at T-24h, T-6h, T-90m and T-30m before every kickoff cluster,
+# on top of the 2-hourly cycle. A cheap stdlib gate (schedule + the append-only marker names on market-data)
+# answers "nothing due" in seconds; a projection job runs only when a horizon is owed. A horizon whose kickoff
+# has passed is MISSED and is never reconstructed (docs/SHADOW_V2.md).
+#
+# SHADOW / RESEARCH ONLY. INERT UNTIL MERGED (schedule from the default branch only; job guarded).
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: shadow-v2-horizons
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      should_run: ${{ steps.gate.outputs.should_run }}
+      season: ${{ steps.gate.outputs.season }}
+      horizon_ids: ${{ steps.gate.outputs.horizon_ids }}
+      reason: ${{ steps.gate.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: List the captured v2 horizon markers on market-data
+        run: |
+          mkdir -p /tmp/hz
+          git fetch --depth=1 --filter=blob:none origin market-data || true
+          git ls-tree --name-only origin/market-data data/shadow/v2/horizons/ 2>/dev/null \
+            | xargs -r -n1 basename > /tmp/hz/markers.txt || true
+          echo "captured markers: $(wc -l < /tmp/hz/markers.txt)"
+      - name: Which v2 horizons are due?
+        id: gate
+        run: |
+          python3 scripts/shadow_v2/horizon_gate_v2.py --markers /tmp/hz/markers.txt \
+            --allow-download --github-output "$GITHUB_OUTPUT"
+
+  project:
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -q numpy pandas polars scipy pyarrow
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Fetch bronze inputs (nflverse) and market-data
+        run: |
+          python3 scripts/data/nflverse_download.py --only pbp,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,ff_playerids --seasons 2012-2026 2>&1 | tail -3
+          python3 nfl_edge/data/silver.py 2012 2025 2>&1 | tail -2
+          python3 nfl_edge/data/ids.py 2>&1 | tail -3
+          git fetch --depth=1 origin market-data
+          rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+      - name: Rebuild Kalshi player map from the latest discovery
+        run: |
+          D=$(ls -d /tmp/md/data/kalshi/discovery/*/ | tail -1)
+          python3 scripts/kalshi/build_player_map.py --discovery-dir "$D" --season 2026 2>&1 | tail -6
+      # One projection run per due horizon id: the records carry the horizon label and lateness, and the marker
+      # is written (append-only) only after the store accepted the rows.
+      - name: Project the board at the due horizons
+        env:
+          HORIZON_IDS: ${{ needs.gate.outputs.horizon_ids }}
+        run: |
+          IFS=',' read -ra IDS <<< "$HORIZON_IDS"
+          for h in "${IDS[@]}"; do
+            python3 scripts/shadow_v2/project_slate_v2.py --market-data /tmp/md --out data --target-season 2026 --horizon-id "$h" 2>&1 | tail -20
+          done
+      - name: Verify before anything is published
+        run: |
+          python3 scripts/shadow_v2/verify_projections.py --root data/shadow/v2/projections --require-rows
+      # VINTAGE PERSISTENCE. nflverse rebuilds the injury report in place and data/raw/ is git-ignored, so the
+      # immutable vintage this run downloaded exists only on this ephemeral runner until it is published.
+      # ONE shared helper does this for every v2 data run -- see scripts/shadow_v2/publish_vintages.py for why
+      # it is a command rather than a copied block. It is fail-soft by design and reports JSON, so a failed
+      # publish can never cost the run its projections.
+      - name: Publish the immutable nflverse vintages
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 scripts/shadow_v2/publish_vintages.py --market-data /tmp/md --seasons 2026,2025
+      - name: Publish the projections and the horizon markers
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
+            --message "shadow v2 horizon projections (${{ needs.gate.outputs.horizon_ids }})"

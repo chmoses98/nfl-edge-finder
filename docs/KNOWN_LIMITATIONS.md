@@ -187,3 +187,191 @@
     the last ledger snapshot. A row that does not reproduce the ledger to 1e-9 is `REPRODUCTION_MISMATCH` and is
     excluded from the autopsy, so a library or data drift between the pricer and the collector shows up as
     missing evidence, never as wrong evidence.
+47. **Shadow v2 has zero prospective evidence** (docs/SHADOW_V2.md §9). Every v2 engine (period, joint, season, the
+    three player arms, margin buckets) writes PROJECTABLE_NOT_YET_VALIDATED records only; the first record that counts
+    is the first one main writes after merge. Historically, no hybrid player blend beat the Kalshi ladder and the
+    period engine cannot be compared to a market at all (203 archived period contracts).
+48. **The period engine under-predicts key-number mass** (|1H margin| = 3: 0.088 predicted vs 0.124 observed); the
+    candidate that matches key numbers mis-centres. Chosen by a preregistered rule; both facts are recorded.
+49. **Season projections use approximate tie-breakers and consensus centres only where published**; conference and
+    Super Bowl winners, race-to-N, first-touchdown team, total touchdowns and team statistics stay RESEARCH_REQUIRED.
+50. **Route participation is not in free data**, so the autopsy's ROUTE_PARTICIPATION_MISS is INSUFFICIENT_DATA by
+    construction until a route source exists.
+51. **CLV is not profit.** Shadow v2's CLV (docs/SHADOW_V2.md §9.2) is an intermediate signal with one pinned sign
+    convention; it is computed on the model's side from the horizon ask to the canonical close and never from a
+    midpoint as if executable. No model is promoted on CLV.
+52. **The canonical close dates confirmation to the last run a ticker was seen open**, not to the exchange's own
+    close, and quality tiers cut on that age; a STALE close is reported and segmentable, never pooled with EXCELLENT.
+53. **Point-in-time context is as good as the sources on disk at generation time:** weather / Sleeper / ESPN only
+    where context captures exist. (The clause that once stood here — that route participation and red-zone usage
+    are UNKNOWN by construction — was wrong about this repo and is superseded by item 59: both come from
+    nflverse participation and play-by-play and are now frozen on 95.3% of player rows.)
+
+54. **Order-book depth reaches only 16.4% of probability-carrying contracts under the current capture.** The
+    10-minutely capture is capacity-bound (10,591 book candidates against a 2,500 cap). Kalshi publishes no
+    historical order books, so a book not fetched at the horizon is gone permanently. The horizon depth job
+    (`scripts/shadow_v2/capture_depth_v2.py`, budget 8000) covers 100% of the 7,723 in-window contracts in about
+    32 minutes, but it is inert until PR #9 is merged and has never run prospectively. This is the one
+    first-week gap that is genuinely irretrievable rather than merely inconvenient.
+
+55. **Depth coverage today has a selection gradient.** Measured on the live board, 25.3% of contracts in the
+    0–0.5pp disagreement band have a captured book against 8.8% above 10pp, because large disagreements
+    concentrate in illiquid player markets that lose the incumbent capture's traded-first book priority. Any
+    depth-conditional result computed on the current sample is unrepresentative. The horizon job's priority does
+    not use the model's own view, and coverage is reported by band so the gradient stays measurable.
+
+56. **Per-run open-set evidence only exists from the first capture run after merge.** Earlier runs cannot be
+    reconstructed and are reported as `UNKNOWN` presence rather than guessed. Closes over those runs behave
+    exactly as they did before.
+
+57. **The official inactive list has not been shown to arrive reliably.** The collector is built so a failure
+    yields zero rows rather than a false "everyone is playing", but the source itself is still unproven across
+    game days; the first week may legitimately record no confirmed inactives.
+
+58. **`injury_report_status` is 0% known at the current snapshot** because only 275 of 6,419 player rows are on
+    a published injury report — the week's report had not been published into the nflverse vintage. This is
+    correct behaviour (`NOT_LISTED`), not a parse failure, but it means injury-conditional research has a much
+    smaller sample than the 95.6% "injury state known" headline suggests.
+
+59. **Route participation and red-zone features stop at the 2025 season.** The committed usage cache covers
+    2016–2025; 2026 games enter it only once nflverse publishes participation for them. Point-in-time features
+    for early 2026 therefore rest on prior-season history, which is correct but staler than it will later be.
+
+60. **Season settlement cannot be exercised until a season ends.** The wins-through-week branch settles during
+    the season, but the division and playoff branches need a structurally complete postseason bracket, so both
+    are proven only by tests until January.
+
+61. **`tests/test_postgame_pipeline.py::test_a_rerun_with_identical_evidence_writes_nothing` is order-dependent
+    and fails roughly one run in twenty.** Reproduced on `7abaa65` with this round's changes stashed, so it
+    predates the round and is not caused by it; it passes in isolation and under a fixed collection order. The
+    no-op rerun assertion compares a directory digest, so the likely cause is shared state between test modules
+    rather than a corpus defect. Untriaged, and a flaky gate is a live risk once the first week's settle job
+    depends on CI.
+
+---
+
+### Corrections and additions after the pre-week institutional audit
+
+62. **Item 54's "100% of the 7,723 in-window contracts in about 32 minutes" was a capacity figure, not a
+    horizon-coverage figure, and it was read as the latter.** Rehearsed at the real T−30 instant for the largest
+    cluster (8 games kicking together), a safe sweep of 4,896 probability-carrying contracts takes 27.2 minutes
+    at 3 req/s. The sweep therefore observes the first ladder near T−30 and the last near T−3. Every ladder was
+    whole (328 of 328) and zero post-kickoff rows were accepted, but no single sweep is "T−30" for the whole
+    board and the system no longer labels it that way: each row records its own `observed_at`,
+    `minutes_to_kickoff`, `horizon_delta_min` and `horizon_quality`, and research pairs by timestamp.
+
+63. **Removing closing-line hindsight from the target season costs coverage, and the number is stated rather
+    than absorbed.** Probability-carrying records fall from 18,226 to 16,160 (−11.3%) once the target season's
+    results, closing spread/total and finalised QB identities are blanked. Markets that priced only because a
+    closing line leaked backwards now correctly produce no probability.
+
+64. **Settlement reachability replaces the withdrawn claim "zero probability records without a settlement
+    path".** That figure came from `flags.settlement_supported`, which reflected the family catalog rather than
+    whether a record could reach a settlement branch; 1,336 season records were flagged supported and dropped by
+    the driver before dispatch. Measured on the record's own keys: **16,114 of 16,160 dispatchable (99.72%)**.
+    The 46 that are not are `PLAYER_STAT` rows with an unresolved subject id, each labelled
+    `MISSING_SETTLEMENT_KEYS` and counted, not dropped.
+
+65. **Skew between a projection's cutoff and its evidence is normal, and is now reported rather than hidden.**
+    The job downloads nflverse after the capture run it prices, so the record's information frontier is later
+    than its `data_cutoff` — measured at 2,234 s on the replay. This is recorded per source. Only a source dated
+    at or after the *kickoff it predicts* is refused (per game), and only a source dated after the run's own wall
+    clock fails the run.
+
+66. **Item 58 is superseded in part.** Absence from the injury parquet is no longer reported as a single
+    `NOT_LISTED` state. The four states are `LISTED` / `NOT_LISTED_AT_THIS_VINTAGE` / `REPORT_NOT_AVAILABLE` /
+    `SOURCE_UNAVAILABLE`, and each record carries the week's row and team counts against the 2025 mean of 275.8
+    rows/week. At the replay vintage week 1 of 2026 held 139 rows — 50.4% of a typical week, i.e. `PARTIAL`.
+    Injury-conditional research must condition on maturity, not merely on status.
+
+67. **Item 61's flake now has a root cause, and it is deliberately not fixed here.**
+    `scripts/shadow/settle_games.py` writes `_run.{batch_id}.summary.json` unconditionally with a
+    second-resolution batch id, so two runs straddling a second boundary leave two files and the tree digest the
+    no-op assertion compares differs. The frequency is roughly 1 in 8 under random ordering. The file is on the
+    incumbent Sunday path, which this round is forbidden to alter, so the defect is reported rather than
+    patched. It is a test-harness artefact of a real (benign) non-determinism in the run-summary filename, not a
+    corpus defect.
+
+68. **The depth stream has still never run prospectively.** It is now isolated in its own workflow with its own
+    concurrency group so it cannot delay or starve the incumbent capture, the three-arm horizons or postgame
+    settlement, and it writes nothing into `market-data`. All of that is proven by rehearsal and by reading the
+    workflow graph, not by a production firing.
+
+---
+
+### Corrections after the independent pre-week re-audit
+
+69. **The claim that PR #9 left every incumbent file untouched was FALSE and is withdrawn.** The branch modifies
+    `scripts/kalshi/capture.py` (+73/−6) and `scripts/kalshi/discover.py` (+35). `capture.py` runs the live
+    Sunday experiment, and `kalshi-capture.yml` is dispatch-driven with no branch condition, so the changes
+    would have taken effect on the first dispatch after merge — including a replacement of main's
+    closest-kickoff order-book ordering with a four-tier priority, which under the 2,500-book cap changes which
+    books the running experiment captures. All behavioural v2 changes are now behind `--v2-capture` /
+    `NFL_EDGE_V2_CAPTURE`, default off, and pinned by `tests/test_capture_isolation.py`. The accurate statement
+    is: **the incumbent files are modified; the incumbent BEHAVIOUR is unchanged unless the switch is thrown.**
+
+70. **The injury report was the one time-sensitive source read with no bound, and the breach was real.**
+    Refiling `injuries_<season>.parquet` in place — which is what nflverse does — changed the frozen context of
+    an already-made projection at an unchanged cutoff: `NOT_LISTED_AT_THIS_VINTAGE` became `LISTED / Doubtful /
+    DNP`. It is now snapshotted content-addressed at download and read only through the vintage store. The
+    limitation that remains: **vintages exist only from the first run after this change.** For any earlier
+    cutoff the report as it stood is unrecoverable, and the state is `SOURCE_UNAVAILABLE` rather than a silent
+    read of today's fuller file.
+
+71. **Refusing the post-cutoff injury read removed the skew rather than labelling it, and the honest cost is
+    that injury context is empty on a first run.** Before: 100% of records `ASYNC_MODEL_NEWER_THAN_MARKET` at
+    2,234 s, from one source — an injury file retrieved at 01:42 and read by a projection cut at 01:05. After:
+    that read is refused, the information frontier equals the market cutoff, and **all 32,856 records are
+    `SYNCHRONIZED` with skew 0.0 s**. The price is byte-for-byte unaffected (injuries never fed it), but
+    `injury_state` is `SOURCE_UNAVAILABLE` on all 18,408 player rows of that replay, because the only vintage in
+    existence post-dates the cutoff.
+
+    This is a first-run artefact, not a steady state: once vintages accumulate and are published, a run at 01:05
+    finds the *previous* run's vintage (retrieved the evening before) and uses it, which is exactly the
+    point-in-time answer. But it does mean the first prospective runs will carry less injury context than later
+    ones, and a replay of any cutoff before the first published vintage will carry none.
+
+    A scheduling change — downloading nflverse *before* the capture run being priced — would close the gap
+    sooner. It is a change to the v2 horizon job's step order and is deliberately out of scope for this round.
+
+72. **The 46 unsettleable `PLAYER_STAT` rows are labelled, not quarantined.** They carry a probability and a
+    disagreement, enter `n_with_probability` and every segment denominator, and are excluded only by a
+    researcher who filters on `settlement_reachability`. They produce no Brier (no settlement) and no CLV on the
+    measured replay. `settlement_reachability` is now a scorecard segment so the exposure is at least visible.
+    Full quarantine was judged out of scope for a merge-blocking round.
+
+73. **`gameday` / `gametime` are named in `mask_target_season`'s docstring as mutable but are not blanked.** A
+    moved kickoff re-dates an old projection's horizon and close window. Real, small, and not addressed here.
+
+### Corrections after the second independent pre-merge audit (H1 / H2 / H3)
+
+74. **Resolved — a vintage could acquire a newer retrieval time (H1).** `read_index` deduplicated by content
+    hash first-root-wins with the local root first, and `ensure_snapshot` consulted only the local index, so a
+    runner re-downloading an unchanged injury file re-registered those bytes under today's instant and shadowed
+    the published row. The vintage moved forward past cutoffs it legitimately preceded; a projection entitled to
+    the newer vintage got an older one, or `SOURCE_UNAVAILABLE`. Now one canonical row per content hash across
+    every root, carrying the earliest instant ever recorded, with `retrieved_at_history` for audit, and
+    `ensure_snapshot` consulting all roots. `tests/test_injury_vintage_multiroot.py`.
+
+75. **Resolved — injury vintages were published by one workflow only (H2).** `shadow-v2-project.yml` downloaded
+    and discarded them every two hours; only `shadow-v2-horizons.yml` published. Wednesday/Thursday/Friday
+    practice-report states were therefore lost every week. Both v2 data runs now call the shared
+    `scripts/shadow_v2/publish_vintages.py`; indexes are sharded per run so concurrent publishers cannot
+    overwrite each other.
+
+76. **Resolved — the hypothesis miner sized candidates by rows, not outcomes (H3).** A 40-row slice with 4
+    graded outcomes was promoted as `sample_size: 40, game_count: 40, uncertainty: 0.0`. Thresholds, sample
+    size, game count and uncertainty now come from the paired settled set and its game clusters; degenerate and
+    missing standard errors are refused rather than published.
+
+77. **Still open — the incumbent data jobs discard their injury vintages.** `run-nfl.yml` and
+    `shadow-price.yml` download `injuries` and do not publish snapshots. They are not v2 data runs and were
+    deliberately left alone in a merge-blocking round; the versions they see between v2 runs remain
+    unrecoverable.
+
+78. **Still open — items 63-73 above are unchanged by this round.** In particular: season-market clustering
+    treats each season contract as its own cluster (understating correlation), the miner still emits
+    near-duplicate candidates from all-`None` segments, `gameday`/`gametime` remain unmasked, `InactivesBook`
+    remains last-wins, and the 46 unsettleable rows remain labelled rather than quarantined. They were re-checked
+    and re-confirmed as out of scope for these three blockers.
+

@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.kalshi.client import KalshiClient  # noqa: E402
+from nfl_edge.board import drift as DRIFT, provisional as PROV  # noqa: E402
 
 NFL_TICKER_RE = re.compile(r"^KX(NFL|SB|SUPERBOWL|AFC|NFC|MVP|OPOY|DPOY|OROY|DROY|PROBOWL|NFLDRAFT|HEISMAN)", re.I)
 NFL_TITLE_RE = re.compile(r"\b(NFL|Super Bowl|AFC|NFC|Pro Bowl|Lombardi|NFL Draft)\b", re.I)
@@ -58,9 +59,34 @@ def classify_series(s):
     return ev
 
 
+def write_drift_and_provisional(discovery_dir: str, capture_dir: str) -> dict:
+    """drift.json next to the discovery run; provisional_series.json in the capture dir (append-only merge)."""
+    disc = DRIFT.load_discovery(discovery_dir)
+    registry = json.load(open(os.path.join(ROOT, "config", "kalshi_nfl_series.json")))["series"]
+    state_path = os.path.join(capture_dir, "state.json")
+    capture_state = json.load(open(state_path)) if os.path.exists(state_path) else None
+    first_seen = DRIFT.first_seen_index(os.path.dirname(discovery_dir.rstrip("/")))
+    now = datetime.now(timezone.utc)
+    rep = DRIFT.drift_report(disc, registry, capture_state=capture_state, first_seen=first_seen, now=now)
+    dump(os.path.join(discovery_dir, "drift.json"), rep)
+    with open(os.path.join(discovery_dir, "DRIFT.md"), "w") as f:
+        f.write(DRIFT.render_drift(rep) + "\n")
+    series_by = {s["ticker"]: s for s in disc["series_nfl"]}
+    recs = [PROV.provisional_record(series_by[r["series"]], r["open_markets"], first_seen=r["first_seen_run"], now=now)
+            for r in rep["NEW_SERIES"] if r["series"] in series_by]
+    prov_path = os.path.join(capture_dir, PROV.PROVISIONAL_FILE)
+    merged = PROV.merge_provisional(PROV.load_provisional(prov_path), recs, registry, now=now)
+    os.makedirs(capture_dir, exist_ok=True)
+    with open(prov_path, "w") as f:
+        json.dump(merged, f, indent=1, default=str)
+    return {"totals": rep["totals"], "provisional_series": merged["n_provisional"], "provisional_file": prov_path}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=None)
+    ap.add_argument("--capture-dir", default=os.path.join(ROOT, "data", "kalshi", "capture"),
+                    help="where provisional_series.json is written (published with the capture state)")
     ap.add_argument("--rps", type=float, default=4.0)
     ap.add_argument("--max-series", type=int, default=0, help="debug cap")
     ap.add_argument("--statuses", default=",".join(STATUSES))
@@ -180,6 +206,15 @@ def main():
     summary["client_stats"] = c.stats.to_dict()
     summary["finished_at"] = datetime.now(timezone.utc).isoformat()
     dump(os.path.join(out, "summary.json"), summary)
+    # ---- SHADOW v2: close the discovery -> registry loop -------------------------------------------------
+    # Every NFL-candidate series absent from the reviewed registry gets a PROVISIONAL record at a safe capture
+    # tier, written where capture.py reads it. Fail-soft: a drift failure never fails a discovery that succeeded.
+    try:
+        summary["drift"] = write_drift_and_provisional(out, a.capture_dir)
+    except Exception as e:  # noqa: BLE001
+        summary["drift"] = {"error": f"{type(e).__name__}: {e}"}
+        dump(os.path.join(out, "summary.json"), summary)
+        print(f"::warning::drift/provisional step failed: {e}", flush=True)
     print(json.dumps({k: v for k, v in summary.items() if k not in ("per_series",)}, indent=1, default=str))
     return 0 if summary["complete"] else 2
 
