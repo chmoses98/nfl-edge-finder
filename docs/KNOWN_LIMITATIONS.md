@@ -342,3 +342,36 @@
 
 73. **`gameday` / `gametime` are named in `mask_target_season`'s docstring as mutable but are not blanked.** A
     moved kickoff re-dates an old projection's horizon and close window. Real, small, and not addressed here.
+
+### Corrections after the second independent pre-merge audit (H1 / H2 / H3)
+
+74. **Resolved — a vintage could acquire a newer retrieval time (H1).** `read_index` deduplicated by content
+    hash first-root-wins with the local root first, and `ensure_snapshot` consulted only the local index, so a
+    runner re-downloading an unchanged injury file re-registered those bytes under today's instant and shadowed
+    the published row. The vintage moved forward past cutoffs it legitimately preceded; a projection entitled to
+    the newer vintage got an older one, or `SOURCE_UNAVAILABLE`. Now one canonical row per content hash across
+    every root, carrying the earliest instant ever recorded, with `retrieved_at_history` for audit, and
+    `ensure_snapshot` consulting all roots. `tests/test_injury_vintage_multiroot.py`.
+
+75. **Resolved — injury vintages were published by one workflow only (H2).** `shadow-v2-project.yml` downloaded
+    and discarded them every two hours; only `shadow-v2-horizons.yml` published. Wednesday/Thursday/Friday
+    practice-report states were therefore lost every week. Both v2 data runs now call the shared
+    `scripts/shadow_v2/publish_vintages.py`; indexes are sharded per run so concurrent publishers cannot
+    overwrite each other.
+
+76. **Resolved — the hypothesis miner sized candidates by rows, not outcomes (H3).** A 40-row slice with 4
+    graded outcomes was promoted as `sample_size: 40, game_count: 40, uncertainty: 0.0`. Thresholds, sample
+    size, game count and uncertainty now come from the paired settled set and its game clusters; degenerate and
+    missing standard errors are refused rather than published.
+
+77. **Still open — the incumbent data jobs discard their injury vintages.** `run-nfl.yml` and
+    `shadow-price.yml` download `injuries` and do not publish snapshots. They are not v2 data runs and were
+    deliberately left alone in a merge-blocking round; the versions they see between v2 runs remain
+    unrecoverable.
+
+78. **Still open — items 63-73 above are unchanged by this round.** In particular: season-market clustering
+    treats each season contract as its own cluster (understating correlation), the miner still emits
+    near-duplicate candidates from all-`None` segments, `gameday`/`gametime` remain unmasked, `InactivesBook`
+    remains last-wins, and the 46 unsettleable rows remain labelled rather than quarantined. They were re-checked
+    and re-confirmed as out of scope for these three blockers.
+

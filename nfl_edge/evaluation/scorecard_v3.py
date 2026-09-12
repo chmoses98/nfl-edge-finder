@@ -84,21 +84,33 @@ def _resolution(pairs):
 
 
 def outcome_block(rows: list) -> dict:
-    """Model, horizon market and close market against the OUTCOME (settled rows only)."""
-    m, h, c, dmh, dmc, cl = [], [], [], [], [], []
+    """Model, horizon market and close market against the OUTCOME (settled rows only).
+
+    EVERY COUNT HERE IS AN OUTCOME COUNT. A row reaches this block only by carrying BOTH a settled outcome and
+    a model probability, so `n`, `model_n`, `market_n`, `model_minus_market_n`, `settled_game_count` and
+    `clusters` all describe evidence that can actually be scored. They are published explicitly because the
+    hypothesis miner used to threshold and report on the SEGMENT's row count instead -- which counts rows that
+    never settled, and let a slice with four graded outcomes be promoted as though it had forty.
+    """
+    m, mg, h, c, dmh, dmc = [], [], [], [], [], []
     for r in rows:
         y, cv = _f(r.get("settled_yes")), _f(r.get("contract_value"))
         if y is None or cv is None:
             continue
-        m.append((cv, y)); g = r.get("game_id") or r.get("ticker")
+        g = r.get("game_id") or r.get("ticker")
+        m.append((cv, y)); mg.append(g)
         hm, cm = _f(r.get("h_mid")), _f(r.get("c_mid"))
         if hm is not None:
             h.append((hm, y)); dmh.append(((cv - y) ** 2 - (hm - y) ** 2, g))
         if cm is not None:
             c.append((cm, y)); dmc.append(((cv - y) ** 2 - (cm - y) ** 2, g))
     if not m:
-        return {"n": 0, "evidence_type": DESCRIPTIVE}
+        return {"n": 0, "model_n": 0, "market_n": 0, "model_minus_market_n": 0, "settled_game_count": 0,
+                "clusters": 0, "evidence_type": DESCRIPTIVE}
     out = {"evidence_type": DESCRIPTIVE, "n": len(m), "n_games": len({r.get("game_id") for r in rows if _f(r.get("settled_yes")) is not None}), "base_rate": _mean([y for _, y in m]),
+           # explicit outcome denominators -- never the segment's row count
+           "model_n": len(m), "settled_game_count": len(set(mg)), "market_n": len(h),
+           "model_minus_market_n": len(dmh), "model_minus_close_n": len(dmc), "clusters": 0,
            "brier_model": _mean([(p - y) ** 2 for p, y in m]), "log_loss_model": _mean([_logloss(p, y) for p, y in m]), "calibration": _calibration(m),
            "resolution": _resolution(m), "sharpness": _mean([abs(p - 0.5) for p, _ in m])}
     if h:
@@ -138,7 +150,18 @@ def executable_block(rows: list) -> dict:
 
 
 def metric_block(rows: list) -> dict:
-    return {"n": len(rows), "n_games": len({r.get("game_id") for r in rows}), "outcome": outcome_block(rows), "clv": clv_block(rows), "executable": executable_block(rows),
+    """Descriptive counts and the scored blocks, with the two denominators kept apart BY NAME.
+
+    `n` / `n_games` / `segment_rows_total` count every row in the slice, settled or not -- they describe
+    coverage. `outcome_n` / `settled_game_count` / `market_n` / `model_n` count only rows that carry gradable
+    outcome evidence. Anything inferential -- a threshold, an effect, an uncertainty, a promotion -- must use
+    the outcome family. Unsettleable probability rows are real research records and belong in the coverage
+    counts; they may never pad an evidence count.
+    """
+    o = outcome_block(rows)
+    return {"n": len(rows), "n_games": len({r.get("game_id") for r in rows}), "outcome": o, "clv": clv_block(rows), "executable": executable_block(rows),
+            "segment_rows_total": len(rows), "outcome_n": o.get("n", 0), "settled_game_count": o.get("settled_game_count", 0),
+            "market_n": o.get("market_n", 0), "model_n": o.get("model_n", 0),
             "mean_width": _mean([_f(r["h_width"]) for r in rows if r.get("h_width") is not None]), "mean_liquidity": _mean([_f(r["h_liquidity"]) for r in rows if r.get("h_liquidity") is not None])}
 
 

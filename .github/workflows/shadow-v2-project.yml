@@ -67,6 +67,16 @@ jobs:
         run: |
           python3 scripts/shadow_v2/board_accounting.py --market-data /tmp/md --projections data/shadow/v2/projections \
             --out data/shadow/v2/board_reports --retain data/shadow/v2/board 2>&1 | tail -5
+      # VINTAGE PERSISTENCE. nflverse rebuilds the injury report in place and data/raw/ is git-ignored, so the
+      # immutable vintage this run downloaded exists only on this ephemeral runner until it is published.
+      # ONE shared helper does this for every v2 data run -- see scripts/shadow_v2/publish_vintages.py for why
+      # it is a command rather than a copied block. It is fail-soft by design and reports JSON, so a failed
+      # publish can never cost the run its projections.
+      - name: Publish the immutable nflverse vintages
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 scripts/shadow_v2/publish_vintages.py --market-data /tmp/md --seasons 2026,2025
       - name: Publish the immutable projection records and the run summary
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \

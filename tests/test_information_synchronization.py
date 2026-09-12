@@ -56,11 +56,20 @@ def test_a_stale_quote_is_not_by_itself_asynchronous():
 
 
 # ------------------------------------------------------------------------- the scorecard keeps them apart
-def _row(i, state, injury, cv=0.6, mid=0.5, settled=1.0):
-    """The scorecard recomputes Brier from the frozen prices, so an effect is expressed as cv vs mid."""
+def _row(i, state, injury, cv=0.6, mid=0.5, settled=1.0, spread=0.0):
+    """The scorecard recomputes Brier from the frozen prices, so an effect is expressed as cv vs mid.
+
+    `spread` alternates the model price by +/- that amount, giving the slice REAL VARIANCE. A fixture where
+    every row carries identical prices and the same outcome has a paired-difference variance of exactly zero,
+    so its clustered standard error is zero and no z is computable -- and the miner now refuses such a slice
+    rather than publish an implied infinite significance (hypothesis_registry_v2.SE_FLOOR). A test that needs
+    a slice to BE mined therefore has to vary the way real evidence varies; the alternating sign keeps the
+    mean effect where the test put it.
+    """
+    eff_cv = min(max(cv + (spread if i % 2 == 0 else -spread), 0.02), 0.98)
     return {"evidence_class": "PROSPECTIVE_FROZEN", "synchronization_state": state,
             "information_skew_seconds": (2234.0 if state == pit.ASYNC_MODEL_NEWER else 0.0),
-            "contract_value": cv, "h_mid": mid, "settled_yes": settled, "game_id": f"G{i % 4}",
+            "contract_value": eff_cv, "h_mid": mid, "settled_yes": settled, "game_id": f"G{i % 4}",
             "ctx_injury_state": injury, "model_arm": "DATA_PLAYER_DIST", "family_group": "player_rec_yards",
             "record_id": f"R{i}"}
 
@@ -100,7 +109,7 @@ def test_a_later_injury_snapshot_cannot_create_a_synchronized_doubtful_hypothesi
 
 def test_the_same_slice_IS_mined_when_the_rows_are_synchronized():
     """The gate must block asynchrony, not block hypothesis generation."""
-    rows = [_row(i, pit.SYNCHRONIZED, "LISTED", cv=0.95) for i in range(40)]
+    rows = [_row(i, pit.SYNCHRONIZED, "LISTED", cv=0.95, spread=0.02) for i in range(40)]
     cands = HR.candidates_from_scorecard(S3.build(rows, min_segment_n=5), season=2026, week=1, min_n=5)
     assert cands, "synchronized evidence must still generate candidates"
     assert all(c["synchronization_basis"] == pit.SYNCHRONIZED for c in cands)
@@ -111,10 +120,16 @@ def test_mixing_cannot_smuggle_asynchronous_rows_into_a_candidate():
     """20 synchronized rows with no effect, 200 asynchronous with a huge one: the candidate must see only the 20."""
     # synchronized: the model agrees with the market exactly, so its slice has no effect at all.
     # asynchronous: the model is far better, because it read the designation the quote had not priced.
-    rows = [_row(i, pit.SYNCHRONIZED, "LISTED", cv=0.5, mid=0.5) for i in range(20)] + \
+    rows = [_row(i, pit.SYNCHRONIZED, "LISTED", cv=0.5, mid=0.5, spread=0.02) for i in range(20)] + \
            [_row(i, pit.ASYNC_MODEL_NEWER, "LISTED", cv=0.99, mid=0.5) for i in range(20, 220)]
-    cands = HR.candidates_from_scorecard(S3.build(rows, min_segment_n=5), season=2026, week=1, min_n=5)
+    sc = S3.build(rows, min_segment_n=5)
+    cands = HR.candidates_from_scorecard(sc, season=2026, week=1, min_n=5)
     inj = [c for c in cands if c["market_family"] == "ctx_injury_state"]
     assert inj, "the synchronized slice should still be reported"
     assert inj[0]["sample_size"] == 20, "the candidate pooled asynchronous rows into its sample"
-    assert abs(inj[0]["effect_size"]) < 1e-6, "the effect came from the asynchronous rows"
+    # the synchronized rows price the market exactly; `spread` only gives the slice variance, so the mean
+    # effect stays at the noise floor while the asynchronous slice carries an effect two orders larger.
+    assert abs(inj[0]["effect_size"]) < 0.005, "the effect came from the asynchronous rows"
+    async_eff = sc["by_synchronization"]["PROSPECTIVE_FROZEN"][pit.ASYNC_MODEL_NEWER]["overall"]["outcome"]["model_minus_market_brier"]
+    assert abs(async_eff) > 0.2, "the asynchronous rows must really carry the big fake effect"
+    assert all(abs(c["effect_size"]) < 0.005 for c in cands), "no candidate may carry the asynchronous effect"

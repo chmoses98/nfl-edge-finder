@@ -504,7 +504,8 @@ vintage at or before the cutoff and **never the mutable file**; when no vintage 
 all is refused for the same reason.
 
 Snapshots are taken at download time and published to the evidence branch, because `data/raw/` is git-ignored
-and a CI runner is ephemeral.
+and a CI runner is ephemeral. **Both of those sentences were only half true until section 13 below**; read it
+before relying on this one.
 
 ### 12.4 The incumbent capture is behind a default-off switch
 
@@ -521,3 +522,97 @@ same series, requests the same books in the same order, and writes the same quot
 Two things stay outside the switch, having been shown to change nothing the incumbent does: the open-set delta
 (written after every request, to its own file, never fatal) and the `books_dropped_by_cap` count (a count of
 the candidate list, which it does not reorder).
+
+---
+
+## 13. What the second independent audit found, and what changed (H1 / H2 / H3)
+
+A genuinely independent pre-merge audit returned **B — REMEDIATION REQUIRED** with exactly three blockers. All
+three were in the wiring around mechanisms that were themselves correct, which is why the existing tests passed
+over them. Everything else the audit checked — point-in-time bounds, async quarantine, settlement enumeration,
+depth pairing, inactives semantics, incumbent isolation — it reproduced as sound.
+
+### 13.1 H1 — a vintage could move FORWARD in time
+
+`read_index` deduplicated vintages by content hash **first-root-wins, local root first**, and `ensure_snapshot`
+checked for "have I seen these bytes" against the **local index only**. On an ephemeral runner the local index
+starts empty, so a run that re-downloaded an *unchanged* injury file found no match, registered those bytes
+again under today's retrieval time, and that fresh row then shadowed the published one.
+
+The vintage's observation instant therefore moved forward, past cutoffs it legitimately preceded. Reproduced:
+with V1 (10 Sep) and V2 (11 Sep) both published and today's bytes equal to V2's, a projection at a 12 Sep cutoff
+— entitled to V2 — got `SOURCE_UNAVAILABLE`, because every registered vintage now appeared to post-date it.
+
+Fixed structurally, not defensively:
+
+* `read_index` merges across every root into **one canonical row per content hash**, carrying the **earliest**
+  retrieval instant ever recorded for those bytes — the instant that content is *known* to have existed.
+  Evidence cannot move forward in time. Every instant ever seen is kept in `retrieved_at_history`, so the merge
+  is auditable rather than asserted. An undated row can never displace a dated one.
+* `ensure_snapshot` takes `extra_roots` and consults **all** of them, so content already published is
+  recognised, returned as it stands, and neither copied nor re-dated. `resolve_injuries` threads the caller's
+  roots through.
+* Selection is unchanged in intent and now correct in fact: the **latest** vintage with `retrieved_at <=`
+  cutoff, never the mutable file, and `SOURCE_UNAVAILABLE` with a reason when none qualifies.
+
+`tests/test_injury_vintage_multiroot.py` models both production roots. The existing freeze tests all used a
+single root, which is exactly why the defect survived them.
+
+### 13.2 H2 — only one workflow made vintages durable
+
+`shadow-v2-project.yml` runs every two hours, downloads the same mutable injury file, snapshotted it — and
+discarded it with the runner. Only `shadow-v2-horizons.yml` published. Horizons fire at T-24h / T-6h / T-90m /
+T-30m before a kickoff cluster, so the **Wednesday, Thursday and Friday practice-report states were captured
+and permanently lost every week**.
+
+One shared command now owns this: `scripts/shadow_v2/publish_vintages.py`, called by both v2 data runs. It
+re-runs `ensure_snapshot` with `--market-data` as an extra root (idempotent, and after H1 it cannot re-date
+anything), shards the index, and publishes. It is **fail-soft by default and exits 0** even when publishing
+fails, so a failed publish can never cost a run its projections; `--strict` inverts that.
+
+Published indexes are **sharded per run** (`index.<run_id>.jsonl`). `publish_market_data.py` publishes by
+copying the source tree over a checkout of the branch, and on a rebase conflict it resets to the fresh tip and
+re-copies — which silently overwrites a peer's append-only `index.jsonl`. Sharding follows the publisher's own
+documented conflict policy: no run writes a path another run writes, so no line can be lost. Readers glob
+`index*.jsonl`, so the old single-file layout still reads.
+
+Incumbent workflows (`run-nfl.yml`, `shadow-price.yml`) also download injuries and still discard their
+snapshots. That is deliberate and unchanged: they are not v2 data runs, and giving them v2 publishing
+behaviour would alter incumbent jobs for no first-week benefit. Recorded as a limitation, not fixed here.
+
+### 13.3 H3 — a mined hypothesis counted rows, not outcomes
+
+`candidates_from_scorecard` applied `min_n` to the **slice's total row count** and reported that same number as
+`sample_size`, with the slice's distinct-game count as `game_count`. Both include probability-bearing rows that
+never settled and never can. Reproduced: a slice of **40 rows carrying 4 graded outcomes** cleared a threshold
+of 30 and was written out as `sample_size: 40, game_count: 40, uncertainty: 0.0`.
+
+For a programme hunting one- to two-point edges over a sharp market, that is manufactured evidence.
+
+The two denominators are now separate **by name**, and only one of them can qualify anything:
+
+| counts every row in the slice | counts gradable outcome evidence |
+|---|---|
+| `n`, `n_games`, `segment_rows_total` | `outcome_n`, `model_n`, `market_n`, `model_minus_market_n`, `settled_game_count`, `clusters` |
+| coverage | thresholds, effects, uncertainty, promotion |
+
+* eligibility and `sample_size` use `model_minus_market_n` — the paired set the effect is actually computed from
+* `game_count` uses `clusters` — independent games, not rows, so ten contracts on one game are one observation
+* both denominators travel on every candidate, so the gap can never be invisible again
+* a candidate needs a **usable** uncertainty: fewer than two clusters yields no standard error, and a clustered
+  SE at or below `SE_FLOOR` means every paired difference was identical — degenerate, not precise. Both are
+  refused rather than published with an implied infinite z
+* slices that fail any of these are written to `<candidates>.refused.json` with the reason, because why a slice
+  did *not* qualify is evidence too
+
+### 13.4 Capture isolation is now pinned on the REAL path
+
+The audit noted that `tests/test_capture_isolation.py` pins `plan_book_requests`, which `main()` never calls —
+a parallel implementation, not the production path. `tests/test_capture_isolation_integration.py` now runs the
+**actual `main()`** of both this branch and the merge-base against one deterministic board behind a recording
+client and a frozen clock, comparing the full API request sequence, every quote row byte-for-byte, the carried
+state, every output file and the exit code. Only additive manifest keys and the open-set file may differ.
+
+No capture code was refactored for it. Mutating `main()`'s inline sort leaves the old unit test green and fails
+the new one, which is the whole point.
+

@@ -33,6 +33,7 @@ Two rules keep this honest:
 """
 from __future__ import annotations
 
+import glob as _glob
 import hashlib
 import json
 import os
@@ -42,6 +43,15 @@ from datetime import datetime, timezone
 VINTAGE_VERSION = "vintage-snapshots-1.0.0"
 VINTAGE_DIRNAME = "_vintages"
 INDEX_FILE = "index.jsonl"
+# Published indexes are SHARDED PER RUN (`index.<run_id>.jsonl`) and read back as a set.
+#
+# `publish_market_data.py` publishes by copying the source tree over a checkout of the branch, so two runs
+# publishing the same path race: the second copy overwrites the first, and on a rebase conflict the publisher
+# resets to the fresh tip and re-copies -- overwriting again. For an APPEND-ONLY index that silently loses the
+# other run's lines, and a vintage whose index line is gone is invisible even though its bytes are still there.
+# Sharding follows the publisher's own documented conflict policy ("publishers write NEW files per run so
+# rebases never touch the same path"): no run ever writes a path another run writes, so nothing can be lost.
+INDEX_GLOB = "index*.jsonl"
 
 
 def _utc(v):
@@ -68,21 +78,15 @@ def vintage_dir(root: str, release: str, stem: str) -> str:
     return os.path.join(root, "data", "raw", "nflverse", VINTAGE_DIRNAME, release, stem)
 
 
-def read_index(root: str, release: str, stem: str, *, extra_roots=()) -> list:
-    """Every registered vintage, across the local tree and any published stores handed in.
-
-    `data/raw/` is git-ignored and a CI runner is ephemeral, so the local store holds only what THIS run
-    downloaded. The durable copy lives in the published evidence branch, and both are read: a vintage is
-    identified by content, so the same version appearing in both places is one vintage, not two.
-    """
-    out, seen = [], set()
-    for r in (root, *extra_roots):
-        if not r:
+def _index_rows(root: str, release: str, stem: str) -> list:
+    """The raw index lines of ONE root -- the live `index.jsonl` plus every published per-run shard."""
+    out = []
+    for p in sorted(_glob.glob(os.path.join(vintage_dir(root, release, stem), INDEX_GLOB))):
+        try:
+            fh = open(p)
+        except OSError:
             continue
-        p = os.path.join(vintage_dir(r, release, stem), INDEX_FILE)
-        if not os.path.exists(p):
-            continue
-        with open(p) as fh:
+        with fh:
             for line in fh:
                 line = line.strip()
                 if not line:
@@ -91,13 +95,97 @@ def read_index(root: str, release: str, stem: str, *, extra_roots=()) -> list:
                     row = json.loads(line)
                 except ValueError:
                     continue
-                key = row.get("sha256")
-                if key and key in seen:
-                    continue
-                if key:
-                    seen.add(key)
-                out.append({**row, "_root": r})
+                out.append({**row, "_root": root})
     return out
+
+
+def shard_indexes(root: str, run_id: str) -> list:
+    """Rename every live `index.jsonl` under `root` to a per-run shard, so publishing cannot clobber a peer.
+
+    Returns the shard paths. Idempotent in effect: a run with nothing new to register has no `index.jsonl` to
+    rename and produces no shard.
+    """
+    moved = []
+    base = os.path.join(root, "data", "raw", "nflverse", VINTAGE_DIRNAME)
+    for p in sorted(_glob.glob(os.path.join(base, "*", "*", INDEX_FILE))):
+        dest = os.path.join(os.path.dirname(p), f"index.{run_id}.jsonl")
+        if os.path.exists(dest):                      # same run twice: fold in rather than lose either
+            with open(dest, "a") as out, open(p) as src:
+                out.write(src.read())
+            os.remove(p)
+        else:
+            os.replace(p, dest)
+        moved.append(dest)
+    return moved
+
+
+def _root_holding(row: dict) -> str | None:
+    """A root that actually has this vintage's bytes on disk, so a caller can open it."""
+    sp = row.get("snapshot_path")
+    roots = row.get("_roots") or ([row.get("_root")] if row.get("_root") else [])
+    for r in roots:
+        if r and sp and os.path.exists(os.path.join(r, sp)):
+            return r
+    return roots[0] if roots else None
+
+
+def read_index(root: str, release: str, stem: str, *, extra_roots=()) -> list:
+    """Every registered vintage across every root, as ONE CANONICAL ROW PER CONTENT HASH.
+
+    `data/raw/` is git-ignored and a CI runner is ephemeral, so the local store holds only what THIS run
+    downloaded while the durable history lives in the published evidence branch. Both are read, and a vintage
+    is identified by CONTENT -- so the same bytes appearing in two roots, or twice in one root (which an
+    ephemeral runner produces every time it re-downloads an unchanged file), are ONE vintage, not two.
+
+    THE MERGE RULE IS EARLIEST-OBSERVATION-WINS, AND IT IS LOAD-BEARING.
+
+    The previous rule was first-root-wins, with the local root read first. A runner that re-downloaded an
+    unchanged injury file therefore stamped TODAY'S retrieval time onto bytes that had been published days
+    earlier, and that row shadowed the published one. The vintage moved FORWARD in time, past cutoffs it
+    legitimately preceded, so `pick_vintage` returned an older vintage -- or none at all -- for a projection
+    that was entitled to the newer one. Re-seeing bytes is not the arrival of information: the earliest
+    recorded retrieval is when that content is KNOWN to have existed, and it is the only honest observation
+    time for it. Every retrieval instant ever recorded is kept in `retrieved_at_history` so the merge is
+    auditable rather than merely asserted.
+
+    A row whose `retrieved_at` cannot be parsed never displaces one that has a real instant; an undated row
+    can only ever be the canonical row when no dated row exists for that content.
+    """
+    rows = []
+    for r in (root, *extra_roots):
+        if not r:
+            continue
+        rows.extend(_index_rows(r, release, stem))
+    by_sha: dict = {}
+    order: list = []
+    for row in rows:
+        key = row.get("sha256")
+        if not key:
+            order.append(row)                       # unidentifiable content: kept, never merged
+            continue
+        cur = by_sha.get(key)
+        if cur is None:
+            cur = {k: v for k, v in row.items() if k != "_root"}
+            cur["_roots"] = []
+            cur["retrieved_at_history"] = []
+            by_sha[key] = cur
+            order.append(cur)
+        if row.get("_root") not in cur["_roots"]:
+            cur["_roots"].append(row.get("_root"))
+        if row.get("retrieved_at") and row["retrieved_at"] not in cur["retrieved_at_history"]:
+            cur["retrieved_at_history"].append(row["retrieved_at"])
+        seen, held = _utc(row.get("retrieved_at")), _utc(cur.get("retrieved_at"))
+        if seen is not None and (held is None or seen < held):
+            keep = {"_roots": cur["_roots"], "retrieved_at_history": cur["retrieved_at_history"]}
+            cur.clear()
+            cur.update({k: v for k, v in row.items() if k != "_root"})
+            cur.update(keep)
+            cur["retrieved_at"] = seen.isoformat()
+    for row in order:
+        if "retrieved_at_history" in row:
+            row["retrieved_at_history"] = sorted(row["retrieved_at_history"])
+        row["_root"] = _root_holding(row)
+    return order
 
 
 def describe_injuries(path: str) -> dict:
@@ -128,12 +216,17 @@ def describe_injuries(path: str) -> dict:
 
 
 def ensure_snapshot(root: str, rel_path: str, *, retrieved_at, source_url=None, season=None,
-                    describe=describe_injuries) -> dict | None:
-    """Register the bytes currently at `rel_path` as an immutable vintage. Idempotent on content.
+                    describe=describe_injuries, extra_roots=()) -> dict | None:
+    """Register the bytes currently at `rel_path` as an immutable vintage. Idempotent on CONTENT.
 
-    Returns the index row, or None when the file does not exist. A file whose sha256 is already indexed is not
-    copied again and its ORIGINAL `retrieved_at` is kept -- re-downloading identical bytes does not create a
-    newer vintage, because no new information arrived.
+    Returns the canonical index row, or None when the file does not exist.
+
+    `extra_roots` is not optional in production, it is the correctness requirement. The check for "have I
+    already seen these bytes" is made against EVERY configured root, because on an ephemeral runner the local
+    store is empty and the answer lives in the published store. Consulting only the local index made this
+    function register a fresh row -- with a fresh retrieval time -- for content that had been published days
+    before, which is precisely how a vintage acquired a fake newer observation instant. Content already
+    registered anywhere is returned as it stands and is neither copied nor re-dated.
     """
     src = os.path.join(root, rel_path)
     if not os.path.exists(src):
@@ -142,7 +235,7 @@ def ensure_snapshot(root: str, rel_path: str, *, retrieved_at, source_url=None, 
     stem = os.path.splitext(os.path.basename(rel_path))[0]
     digest = sha256_of(src)
     vdir = vintage_dir(root, release, stem)
-    for row in read_index(root, release, stem):
+    for row in read_index(root, release, stem, extra_roots=extra_roots):
         if row.get("sha256") == digest:
             return row
     os.makedirs(vdir, exist_ok=True)
@@ -204,7 +297,8 @@ def resolve_injuries(root: str, season: int, frontier, *, manifest: dict | None 
     stem = f"injuries_{season}"
     if adopt and os.path.exists(os.path.join(root, rel)):
         meta = (manifest or {}).get(rel) or {}
-        ensure_snapshot(root, rel, retrieved_at=meta.get("retrieved_at"), source_url=meta.get("url"), season=season)
+        ensure_snapshot(root, rel, retrieved_at=meta.get("retrieved_at"), source_url=meta.get("url"),
+                        season=season, extra_roots=extra_roots)
     row, why = pick_vintage(root, "injuries", stem, frontier, extra_roots=extra_roots)
     if row is None:
         return None, None, why
