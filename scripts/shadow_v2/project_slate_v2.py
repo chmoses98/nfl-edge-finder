@@ -278,7 +278,10 @@ def main(argv=None):
                  "information_frontier": _mv.isoformat() if _mv else None,
                  "max_skew_seconds": (_sk[0]["skew_seconds"] if _sk else 0.0),
                  "max_skew_source": (_sk[0]["name"] if _sk else None),
-                 "vintages": {u.name: u.vintage for u in ledger.uses},
+                 "vintages": {u.name: u.vintage for u in ledger.uses if not u.static},
+                 # a source with no vintage is one of two very different things, and the record says which:
+                 # DECLARED STATIC with a stated reason, or genuinely ABSENT at the cutoff.
+                 "static": {u.name: u.static_reason for u in ledger.uses if u.static},
                  "absent": sorted(u.name for u in ledger.uses if u.vintage is None and not u.static),
                  "outcome_leak_refused": False}
     store_root = os.path.join(a.out, DIRNAME)
@@ -789,7 +792,13 @@ class PlayerArms:
 
 def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger) -> PlayerArms:
     P = PlayerArms()
-    pmap = pl.read_parquet(os.path.join(ROOT, "data/silver/kalshi_player_map.parquet"))
+    # The identity registries are committed repository artefacts, not captures: they are versioned by the
+    # commit that produced them and do not move under a run. The audit's point stands anyway -- their shas were
+    # recorded but the "safe without a vintage" claim was never STATED -- so each one declares itself static
+    # with its reason and its path, and the claim travels on the record where it can be disputed.
+    _pmap_path = os.path.join(ROOT, "data/silver/kalshi_player_map.parquet")
+    ledger.record_static("kalshi_player_map", "committed identity registry, versioned by commit, not by run", path=_pmap_path)
+    pmap = pl.read_parquet(_pmap_path)
     for r in pmap.iter_rows(named=True):
         st = r.get("status")
         if st == "NOT_A_PLAYER":
@@ -799,7 +808,9 @@ def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger) -> Player
         elif r.get("gsis_id") and st in ("RESOLVED_TEAM_UNCONFIRMED", "RESOLVED_JERSEY_MISMATCH"):
             P.identity[r["kalshi_player_id"]] = (r["gsis_id"], "RESOLVED_UNCONFIRMED")
     player_map = {k: v[0] for k, v in P.identity.items() if v[0]}
-    players_tbl = pl.read_parquet(os.path.join(ROOT, "data/raw/nflverse/players/players.parquet")).select("gsis_id", "position")
+    _players_path = os.path.join(ROOT, "data/raw/nflverse/players/players.parquet")
+    ledger.record_static("nflverse_players_table", "career roster registry; positions are not point-in-time facts about a slate", path=_players_path)
+    players_tbl = pl.read_parquet(_players_path).select("gsis_id", "position")
     positions = dict(zip(players_tbl["gsis_id"].to_list(), players_tbl["position"].to_list()))
     P.positions = positions
     # availability from context captures when present (none locally -> UNKNOWN, recorded as such)
@@ -807,6 +818,7 @@ def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger) -> Player
     P.avail = AvailabilityBook(run_ts, max_staleness_minutes=600.0)
     xw_path = os.path.join(ROOT, "data/silver/player_crosswalk.parquet")
     if os.path.isdir(ctx_root) and os.path.exists(xw_path):
+        ledger.record_static("player_crosswalk", "committed sleeper/espn -> gsis crosswalk, versioned by commit", path=xw_path)
         xw = pl.read_parquet(xw_path)
         sl = {str(s): g for s, g in zip(xw["sleeper_id"].to_list(), xw["gsis_id"].to_list()) if s}
         es = {str(s): g for s, g in zip(xw["espn_id"].to_list(), xw["gsis_id"].to_list()) if s}

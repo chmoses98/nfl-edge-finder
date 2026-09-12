@@ -38,8 +38,21 @@ def _median(vals):
 
 
 def corpus_index(root_local: str, root_md: str, suffix: str) -> dict:
+    """One evaluation per prediction, chosen deterministically when a prediction has more than one.
+
+    The corpus is keyed by (prediction_id, evaluation_version) precisely because a prediction can be evaluated
+    again under a newer rule, and both readings are kept. Indexing by prediction alone let dict insertion order
+    decide which one the research table showed -- so a rebuild could silently change a published row without a
+    single byte of evidence changing. The highest evaluation_version wins, and the choice is recorded on the row
+    (`evaluation_version_*`) so a reader can see which reading they are looking at.
+    """
     c = ST.EvaluationCorpus(root_local, read_roots=[root_md], suffix=suffix)
-    return {pid: row for (pid, _ver), (row, _f) in c.load().items()}
+    out: dict = {}
+    for (pid, ver), (row, _f) in c.load().items():
+        cur = out.get(pid)
+        if cur is None or str(ver) > str(cur[0]):
+            out[pid] = (ver, row)
+    return {pid: row for pid, (_ver, row) in out.items()}
 
 
 def build_rows(projections: list, sidecars: dict, closes: dict, clvs: dict, settlements: dict, autopsies: dict,
