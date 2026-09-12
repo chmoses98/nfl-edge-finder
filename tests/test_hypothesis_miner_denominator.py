@@ -12,6 +12,8 @@ its evidence by 10x and claims zero uncertainty is not a weak result, it is a fa
 
 The cases below are the audit's, reproduced as regressions.
 """
+import json
+import math
 import random
 
 import pytest
@@ -170,3 +172,75 @@ def test_no_candidate_is_ever_emitted_with_a_zero_or_missing_uncertainty():
     for c in mine(rows):
         assert c["uncertainty"] is not None and c["uncertainty"] >= HR.SE_FLOOR
         assert c["sample_size"] >= MIN_N and c["game_count"] >= 2
+
+
+# ============================================================ V2: inference statistics must be FINITE
+#
+# The uncertainty guard was a threshold comparison, `se is None or se < SE_FLOOR`. Every ordering comparison
+# against NaN is False, so `nan < SE_FLOOR` did NOT reject a non-finite standard error, and a candidate was
+# published carrying `effect_size: nan, uncertainty: nan` -- junk that reads to a human as a result. Finiteness
+# is now asserted explicitly on both the effect and its standard error, because comparisons will not do it.
+
+def _scorecard(*, eff, se, clusters=8, n_eff=40, rows_total=40):
+    """The minimal scorecard shape the miner consumes, so exact statistics can be injected."""
+    outcome = {"n": n_eff, "model_n": n_eff, "market_n": n_eff, "model_minus_market_n": n_eff,
+               "settled_game_count": clusters, "clusters": clusters,
+               "model_minus_market_brier": eff, "model_minus_market_se": se}
+    slice_ = {"outcome": outcome, "clv": {"mean_clv_mid": 0.01},
+              "segment_rows_total": rows_total, "n": rows_total, "n_games": clusters}
+    return {"by_synchronization": {"PROSPECTIVE_FROZEN": {"SYNCHRONIZED": {
+        "candidate_slices_considered": 1, "segments": {"market_family": {"FAM": slice_}}}}}}
+
+
+NON_FINITE = [("SE is NaN", 0.02, float("nan")), ("SE is +inf", 0.02, float("inf")),
+              ("SE is -inf", 0.02, float("-inf")), ("effect is NaN", float("nan"), 0.005),
+              ("effect is +inf", float("inf"), 0.005), ("effect is -inf", float("-inf"), 0.005),
+              ("both NaN", float("nan"), float("nan")), ("SE is exactly 0", 0.02, 0.0),
+              ("SE is None", 0.02, None), ("effect is None", None, 0.005)]
+
+
+@pytest.mark.parametrize("label,eff,se", NON_FINITE, ids=[x[0] for x in NON_FINITE])
+def test_no_candidate_survives_a_non_finite_or_degenerate_statistic(label, eff, se):
+    got = HR.candidates_from_scorecard(_scorecard(eff=eff, se=se), season=2026, week=1, min_n=MIN_N)
+    assert got == [], f"{label}: a candidate was published from an unusable statistic"
+
+
+def test_a_legitimate_finite_statistic_above_the_floor_is_still_mined():
+    """The guard must reject junk, not inference."""
+    got = HR.candidates_from_scorecard(_scorecard(eff=-0.02, se=0.004), season=2026, week=1, min_n=MIN_N)
+    assert len(got) == 1
+    assert got[0]["sample_size"] == 40 and got[0]["game_count"] == 8
+    assert got[0]["uncertainty"] == 0.004 and got[0]["effect_size"] == -0.02
+
+
+def test_a_tiny_but_genuinely_finite_standard_error_is_not_swept_up_by_the_finiteness_check():
+    got = HR.candidates_from_scorecard(_scorecard(eff=-0.02, se=1e-9), season=2026, week=1, min_n=MIN_N)
+    assert len(got) == 1 and got[0]["uncertainty"] == 1e-9
+
+
+def test_the_refusal_record_names_the_non_finite_reason(tmp_path):
+    out = tmp_path / "cands.json"
+    HR.candidates_from_scorecard(_scorecard(eff=0.02, se=float("nan")), season=2026, week=1,
+                                 min_n=MIN_N, path_out=str(out))
+    refused = json.load(open(str(out).replace(".json", ".refused.json")))
+    assert any(r["reason"] == "UNCERTAINTY_NOT_FINITE" for r in refused), refused
+
+
+def test_end_to_end_a_nan_market_price_cannot_produce_a_nan_candidate():
+    """The same defect reached through real rows, not an injected scorecard."""
+    rng = random.Random(31)
+    rows = [row(i, family="NF", settled=True, model_edge=0.30, rng=rng) for i in range(40)]
+    rows[0]["h_mid"] = float("nan")
+    o = slice_of(rows, "NF")["outcome"]
+    assert not math.isfinite(o["model_minus_market_se"]), "fixture must really produce a non-finite SE"
+    assert for_family(mine(rows), "NF") == [], "a nan-statistic candidate was published"
+
+
+def test_every_candidate_from_a_mixed_board_carries_finite_statistics():
+    rng = random.Random(32)
+    rows = ([row(i, family="OK", settled=True, model_edge=0.30, rng=rng) for i in range(60)]
+            + [row(i + 400, family="NF2", settled=True, model_edge=0.30, rng=rng) for i in range(40)])
+    rows[60]["h_mid"] = float("nan")
+    for c in mine(rows):
+        assert math.isfinite(c["effect_size"]) and math.isfinite(c["uncertainty"])
+        assert c["uncertainty"] >= HR.SE_FLOOR

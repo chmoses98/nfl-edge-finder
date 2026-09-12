@@ -119,14 +119,61 @@ def shard_indexes(root: str, run_id: str) -> list:
     return moved
 
 
-def _root_holding(row: dict) -> str | None:
-    """A root that actually has this vintage's bytes on disk, so a caller can open it."""
-    sp = row.get("snapshot_path")
-    roots = row.get("_roots") or ([row.get("_root")] if row.get("_root") else [])
-    for r in roots:
-        if r and sp and os.path.exists(os.path.join(r, sp)):
-            return r
-    return roots[0] if roots else None
+def _canonical_location(rows: list) -> dict | None:
+    """Where this content can actually be READ, chosen independently of WHEN it was observed.
+
+    Time and location are two different facts about a vintage and must be sourced separately. Building the
+    canonical record by copying the earliest-dated row wholesale conflated them: an index line carrying a
+    retrieval instant but no `snapshot_path` -- a truncated or hand-edited row -- became canonical purely by
+    being the oldest, and erased a perfectly good path recorded elsewhere for the SAME bytes. The caller then
+    raised `KeyError: 'snapshot_path'` instead of reporting an absence.
+
+    So the path comes from whichever row of this content points at bytes that are present on disk, and the
+    choice is deterministic -- sorted, not enumeration-dependent -- so two roots holding the same vintage
+    resolve identically whatever order the roots were passed in. A row whose path is recorded but whose bytes
+    are missing is kept only as a last resort, so the caller can say the content is gone rather than guess.
+    """
+    present, named = [], []
+    for row in rows:
+        sp, r = row.get("snapshot_path"), row.get("_root")
+        if not sp or not isinstance(sp, str):
+            continue
+        entry = (sp, str(r or ""), row)
+        named.append(entry)
+        if r and os.path.exists(os.path.join(r, sp)):
+            present.append(entry)
+    pool = present or named
+    if not pool:
+        return None
+    pool.sort(key=lambda t: (t[0], t[1]))
+    sp, r, row = pool[0]
+    return {"snapshot_path": sp, "_root": (r or None), "row": row, "bytes_present": bool(present)}
+
+
+def _canonical_row(sha: str, rows: list) -> dict:
+    """One record per content hash: earliest legitimate time, a readable location, the whole provenance.
+
+    Each field is taken from the source that is actually authoritative for it, never wholesale from one row.
+    """
+    times = sorted(t for t in (_utc(r.get("retrieved_at")) for r in rows) if t is not None)
+    loc = _canonical_location(rows)
+    # descriptive metadata (census, season, source_url) comes from the row whose bytes we would actually
+    # open, so a reader's description matches the file it will read; the earliest row fills any gap.
+    src = loc["row"] if loc else (min(rows, key=lambda r: (_utc(r.get("retrieved_at")) is None,
+                                                           _utc(r.get("retrieved_at")) or _utc("1970-01-01T00:00:00+00:00"))))
+    out = {k: v for k, v in src.items() if k != "_root"}
+    for row in rows:                                   # never lose a field the chosen row happens to lack
+        for k, v in row.items():
+            if k != "_root" and out.get(k) is None and v is not None:
+                out[k] = v
+    out["sha256"] = sha
+    out["retrieved_at"] = times[0].isoformat() if times else None
+    out["retrieved_at_history"] = sorted({r["retrieved_at"] for r in rows if r.get("retrieved_at")})
+    out["_roots"] = list(dict.fromkeys(r.get("_root") for r in rows))
+    out["snapshot_path"] = loc["snapshot_path"] if loc else None
+    out["snapshot_bytes_present"] = bool(loc and loc["bytes_present"])
+    out["_root"] = (loc["_root"] if loc else None) or (out["_roots"][0] if out["_roots"] else None)
+    return out
 
 
 def read_index(root: str, release: str, stem: str, *, extra_roots=()) -> list:
@@ -156,36 +203,25 @@ def read_index(root: str, release: str, stem: str, *, extra_roots=()) -> list:
         if not r:
             continue
         rows.extend(_index_rows(r, release, stem))
-    by_sha: dict = {}
+    grouped: dict = {}
     order: list = []
     for row in rows:
         key = row.get("sha256")
         if not key:
-            order.append(row)                       # unidentifiable content: kept, never merged
+            order.append(("raw", row))              # unidentifiable content: kept, never merged
             continue
-        cur = by_sha.get(key)
-        if cur is None:
-            cur = {k: v for k, v in row.items() if k != "_root"}
-            cur["_roots"] = []
-            cur["retrieved_at_history"] = []
-            by_sha[key] = cur
-            order.append(cur)
-        if row.get("_root") not in cur["_roots"]:
-            cur["_roots"].append(row.get("_root"))
-        if row.get("retrieved_at") and row["retrieved_at"] not in cur["retrieved_at_history"]:
-            cur["retrieved_at_history"].append(row["retrieved_at"])
-        seen, held = _utc(row.get("retrieved_at")), _utc(cur.get("retrieved_at"))
-        if seen is not None and (held is None or seen < held):
-            keep = {"_roots": cur["_roots"], "retrieved_at_history": cur["retrieved_at_history"]}
-            cur.clear()
-            cur.update({k: v for k, v in row.items() if k != "_root"})
-            cur.update(keep)
-            cur["retrieved_at"] = seen.isoformat()
-    for row in order:
-        if "retrieved_at_history" in row:
-            row["retrieved_at_history"] = sorted(row["retrieved_at_history"])
-        row["_root"] = _root_holding(row)
-    return order
+        if key not in grouped:
+            grouped[key] = []
+            order.append(("sha", key))
+        grouped[key].append(row)
+    out = []
+    for kind, item in order:
+        if kind == "raw":
+            out.append({**item, "_roots": [item.get("_root")],
+                        "retrieved_at_history": ([item["retrieved_at"]] if item.get("retrieved_at") else [])})
+        else:
+            out.append(_canonical_row(item, grouped[item]))
+    return out
 
 
 def describe_injuries(path: str) -> dict:
@@ -302,4 +338,11 @@ def resolve_injuries(root: str, season: int, frontier, *, manifest: dict | None 
     row, why = pick_vintage(root, "injuries", stem, frontier, extra_roots=extra_roots)
     if row is None:
         return None, None, why
-    return os.path.join(row.get("_root") or root, row["snapshot_path"]), row, why
+    # A qualifying vintage with no readable location is an ABSENCE, not a crash and not a licence to read
+    # the mutable file. Reported, so the caller records SOURCE_UNAVAILABLE with the reason.
+    sp = row.get("snapshot_path")
+    if not sp:
+        return None, None, (f"the newest vintage at or before this cutoff (retrieved "
+                            f"{row.get('retrieved_at')}) has no usable snapshot path recorded, so its "
+                            f"content cannot be read; the mutable file is NOT a substitute")
+    return os.path.join(row.get("_root") or root, sp), row, why

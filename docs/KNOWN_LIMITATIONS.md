@@ -375,3 +375,21 @@
     remains last-wins, and the 46 unsettleable rows remain labelled rather than quarantined. They were re-checked
     and re-confirmed as out of scope for these three blockers.
 
+
+### Corrections after the final self-verification (V1 / V2)
+
+79. **Resolved — the canonical vintage record conflated WHEN with WHERE (V1).** `read_index` built the
+    canonical row for a content hash by copying the earliest-dated row wholesale, so an index line carrying a
+    retrieval instant but no `snapshot_path` became canonical purely by being oldest, erased a valid path
+    recorded for the same bytes, and `resolve_injuries` raised `KeyError: 'snapshot_path'`. Time and location
+    are now sourced separately: `retrieved_at` is the earliest legitimate instant for that hash, the path comes
+    from whichever row points at bytes that exist (chosen deterministically, not by root enumeration order),
+    and provenance is kept in `retrieved_at_history`. A hash with no usable path reports SOURCE_UNAVAILABLE
+    with a reason instead of raising, and still never falls back to the mutable parquet.
+    `tests/test_injury_vintage_multiroot.py` (V1 cases 1-5).
+
+80. **Resolved — non-finite hypothesis statistics passed the uncertainty guard (V2).** The guard was a
+    threshold comparison, and every ordering comparison against NaN is False, so `nan < SE_FLOOR` did not
+    reject a non-finite standard error: a candidate was published with `effect_size: nan, uncertainty: nan`.
+    Finiteness is now asserted explicitly on both the effect and its standard error. Legitimate tiny-but-finite
+    standard errors are unaffected. `tests/test_hypothesis_miner_denominator.py`.

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from datetime import datetime, timezone
 
@@ -34,6 +35,18 @@ class RegistryError(ValueError):
 
 def _line_hash(obj: dict) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()[:16]
+
+
+def _finite(x) -> bool:
+    """A number inference can actually be done with: not None, not NaN, not +/-inf.
+
+    Checked explicitly because comparisons do not do it for you -- every ordering comparison against NaN is
+    False, so `nan < SE_FLOOR` does not reject NaN and `nan > 0` does not either.
+    """
+    try:
+        return x is not None and math.isfinite(float(x))
+    except (TypeError, ValueError):
+        return False
 
 
 def _windows_overlap(a: dict, b: dict) -> bool:
@@ -121,6 +134,11 @@ def candidates_from_scorecard(sc: dict, *, season: int, week: int, min_n: int = 
     A candidate also needs a usable uncertainty. Fewer than two clusters yields no standard error at all, and
     a standard error at or below `SE_FLOOR` means every paired difference in the slice was identical -- a
     degenerate estimate, not a precise one. Both are refused rather than published with an implied infinite z.
+
+    EVERY STATISTIC USED FOR INFERENCE MUST BE FINITE, and that is checked explicitly rather than left to a
+    threshold comparison. `float('nan') < SE_FLOOR` is False, so a non-finite standard error sailed through
+    the floor check and published a candidate whose effect and uncertainty were both `nan` -- junk that reads
+    to a human as a result. NaN and +/-inf are refused on both the effect and its standard error.
     """
     cands, refused = [], []
     # SYNCHRONIZED ROWS ONLY. A mined slice is a claim that the model knew something the market did not; if the
@@ -145,14 +163,24 @@ def candidates_from_scorecard(sc: dict, *, season: int, week: int, min_n: int = 
                                     "outcome_n": n_eff, "segment_rows_total": rows_total, "min_n": min_n})
                     continue
                 eff = o.get("model_minus_market_brier")
-                if eff is None:
+                if not _finite(eff):
+                    refused.append({"slice": f"{seg}={val}", "reason": "EFFECT_NOT_FINITE",
+                                    "outcome_n": n_eff, "effect": repr(eff),
+                                    "detail": "the effect estimate is missing or non-finite; nothing can be "
+                                              "inferred from it"})
                     continue
                 se, clusters = o.get("model_minus_market_se"), o.get("clusters") or 0
                 if clusters < 2:
                     refused.append({"slice": f"{seg}={val}", "reason": "TOO_FEW_INDEPENDENT_GAMES",
                                     "outcome_n": n_eff, "clusters": clusters})
                     continue
-                if se is None or se < SE_FLOOR:
+                if not _finite(se):
+                    refused.append({"slice": f"{seg}={val}", "reason": "UNCERTAINTY_NOT_FINITE",
+                                    "outcome_n": n_eff, "clusters": clusters, "se": repr(se),
+                                    "detail": "the standard error is missing or non-finite; a threshold "
+                                              "comparison alone would not have rejected it"})
+                    continue
+                if se < SE_FLOOR:
                     refused.append({"slice": f"{seg}={val}", "reason": "NO_USABLE_UNCERTAINTY",
                                     "outcome_n": n_eff, "clusters": clusters, "se": se,
                                     "detail": "every paired difference in the slice was identical: a degenerate "

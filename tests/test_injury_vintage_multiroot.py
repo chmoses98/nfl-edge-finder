@@ -21,6 +21,7 @@ H2  Only `shadow-v2-horizons.yml` published the vintage store. `shadow-v2-projec
 These tests model both roots and the publish step between runs. Nothing here is a stub: real parquet bytes,
 real sha256 content addressing, the real `resolve_injuries` entry point the projector calls.
 """
+import json
 import os
 import shutil
 
@@ -282,3 +283,140 @@ def test_the_downloaders_own_call_shape_cannot_move_a_published_vintage_forward(
     assert row["retrieved_at"] == T2, (
         f"vintage moved forward to {row['retrieved_at']}: a projection at {BETWEEN_T2_T3} was entitled to V2")
     assert row.get("n_rows") == 2
+
+
+# ============================================================ V1: time and location are separate facts
+#
+# The canonical record used to be built by copying the EARLIEST-dated row wholesale. That conflated two
+# different facts: WHEN the content was first observed, and WHERE its bytes can be read. An index line
+# carrying a retrieval instant but no `snapshot_path` -- truncated, or hand-edited on the evidence branch --
+# therefore became canonical purely by being oldest, erased a perfectly good path recorded for the SAME bytes,
+# and `resolve_injuries` raised `KeyError: 'snapshot_path'` instead of reporting an absence.
+#
+# No writer in this repo emits such a row, so this is corruption-handling rather than a live path. It is still
+# a regression the remediation introduced, and a crash inside the projector is not an acceptable way to meet a
+# malformed input.
+
+def _seed_one_vintage(tmp_path, name, rows, at):
+    """One published vintage, returned with its real index row."""
+    stage = _root(tmp_path, f"stage_{name}")
+    _write(stage, rows)
+    row = VS.ensure_snapshot(stage, REL, retrieved_at=at, season=SEASON)
+    pub = _root(tmp_path, f"pub_{name}")
+    _publish(stage, pub, name)
+    return pub, row
+
+
+def _index_path(root, shard):
+    return os.path.join(VS.vintage_dir(root, "injuries", "injuries_2026"), shard)
+
+
+def test_v1_case1_an_earlier_row_without_a_path_does_not_erase_a_later_valid_one(tmp_path):
+    """CASE 1. Earliest time is kept; the READABLE path comes from the row that has one."""
+    pub, good = _seed_one_vintage(tmp_path, "c1", V2_ROWS, T2)
+    with open(_index_path(pub, "index.truncated.jsonl"), "w") as fh:      # same sha, EARLIER, no path
+        fh.write(json.dumps({"sha256": good["sha256"], "retrieved_at": T1}) + "\n")
+
+    rows = VS.read_index(pub, "injuries", "injuries_2026")
+    assert len(rows) == 1, "same content must stay one vintage"
+    assert rows[0]["retrieved_at"] == T1, "historical availability begins at the earliest legitimate instant"
+    assert rows[0]["snapshot_path"] == good["snapshot_path"], "the readable path must survive"
+    assert rows[0]["snapshot_bytes_present"] is True
+
+    local = _root(tmp_path, "c1_local")
+    path, vintage, why = VS.resolve_injuries(local, SEASON, "2026-09-30T00:00:00+00:00",
+                                             manifest={}, adopt=False, extra_roots=(pub,))
+    assert path is not None and os.path.exists(path), why
+    assert vintage["retrieved_at"] == T1
+    assert "00-VICTIM" in _ids(path), "the content itself must still be readable"
+
+
+def test_v1_case2_an_earlier_row_whose_bytes_are_gone_does_not_erase_a_present_one(tmp_path):
+    """CASE 2. A recorded-but-missing path loses to a path whose bytes are actually on disk."""
+    pub, good = _seed_one_vintage(tmp_path, "c2", V2_ROWS, T2)
+    with open(_index_path(pub, "index.stale.jsonl"), "w") as fh:
+        fh.write(json.dumps({"sha256": good["sha256"], "retrieved_at": T1,
+                             "snapshot_path": "data/raw/nflverse/_vintages/injuries/injuries_2026/gone.parquet"}) + "\n")
+    rows = VS.read_index(pub, "injuries", "injuries_2026")
+    assert rows[0]["retrieved_at"] == T1
+    assert rows[0]["snapshot_path"] == good["snapshot_path"], "the present bytes must win over a dangling path"
+    local = _root(tmp_path, "c2_local")
+    path, _v, why = VS.resolve_injuries(local, SEASON, "2026-09-30T00:00:00+00:00",
+                                        manifest={}, adopt=False, extra_roots=(pub,))
+    assert path is not None and os.path.exists(path), why
+
+
+def test_v1_case3_no_usable_path_at_all_fails_closed_without_raising(tmp_path):
+    """CASE 3. SOURCE_UNAVAILABLE, no exception, and never the mutable file."""
+    pub = _root(tmp_path, "c3_pub")
+    os.makedirs(VS.vintage_dir(pub, "injuries", "injuries_2026"), exist_ok=True)
+    with open(_index_path(pub, "index.jsonl"), "w") as fh:
+        fh.write(json.dumps({"sha256": "deadbeef", "retrieved_at": T1}) + "\n")
+
+    local = _root(tmp_path, "c3_local")
+    _write(local, V2_ROWS)                                   # a mutable file IS present and must be ignored
+    path, vintage, why = VS.resolve_injuries(local, SEASON, "2026-09-30T00:00:00+00:00",
+                                             manifest={}, adopt=False, extra_roots=(pub,))
+    assert path is None and vintage is None
+    assert "no usable snapshot path" in why and "NOT a substitute" in why
+    assert os.path.exists(os.path.join(local, REL)), "the mutable file was available and was refused"
+
+
+def test_v1_case3b_a_recorded_path_whose_bytes_vanished_still_never_raises(tmp_path):
+    """The other shape of 'no usable path': the row is well formed, the bytes are gone."""
+    pub, good = _seed_one_vintage(tmp_path, "c3b", V2_ROWS, T2)
+    os.remove(os.path.join(pub, good["snapshot_path"]))
+    local = _root(tmp_path, "c3b_local")
+    _write(local, V2_ROWS)
+    path, _v, _why = VS.resolve_injuries(local, SEASON, "2026-09-30T00:00:00+00:00",
+                                         manifest={}, adopt=False, extra_roots=(pub,))
+    assert path is None or not os.path.exists(path), "a vanished vintage must not resolve to readable content"
+    assert os.path.exists(os.path.join(local, REL)), "and must not be replaced by the mutable file"
+
+
+def test_v1_case4_two_valid_paths_in_two_roots_resolve_deterministically(tmp_path):
+    """CASE 4. The same vintage in two roots resolves identically whatever order the roots arrive in."""
+    p1, _ = _seed_one_vintage(tmp_path, "c4a", V2_ROWS, T2)
+    p2, _ = _seed_one_vintage(tmp_path, "c4b", V2_ROWS, T1)      # same bytes, different root, different time
+    local = _root(tmp_path, "c4_local")
+    forward = VS.read_index(local, "injuries", "injuries_2026", extra_roots=(p1, p2))
+    reverse = VS.read_index(local, "injuries", "injuries_2026", extra_roots=(p2, p1))
+    assert len(forward) == len(reverse) == 1
+    for k in ("sha256", "retrieved_at", "snapshot_path", "retrieved_at_history"):
+        assert forward[0][k] == reverse[0][k], f"{k} depends on root enumeration order"
+    assert forward[0]["retrieved_at"] == T1, "earliest across roots"
+    a = VS.resolve_injuries(local, SEASON, "2026-09-30T00:00:00+00:00", manifest={}, adopt=False, extra_roots=(p1, p2))
+    b = VS.resolve_injuries(local, SEASON, "2026-09-30T00:00:00+00:00", manifest={}, adopt=False, extra_roots=(p2, p1))
+    assert _ids(a[0]) == _ids(b[0]), "the resolved CONTENT must not depend on root order"
+
+
+def test_v1_case5_different_content_hashes_stay_distinct_vintages(tmp_path):
+    """CASE 5. Merging by content must not merge DIFFERENT content."""
+    pub = _root(tmp_path, "c5_pub")
+    for rows, at, run in ((V1_ROWS, T1, "a"), (V2_ROWS, T2, "b")):
+        stage = _root(tmp_path, f"c5_{run}")
+        _write(stage, rows)
+        VS.ensure_snapshot(stage, REL, retrieved_at=at, season=SEASON)
+        _publish(stage, pub, run)
+    rows = VS.read_index(pub, "injuries", "injuries_2026")
+    assert len(rows) == 2
+    assert len({r["sha256"] for r in rows}) == 2
+    assert sorted(r["retrieved_at"] for r in rows) == [T1, T2]
+
+
+def test_v1_the_proven_cutoff_behaviour_is_unchanged_by_the_robustness_fix(tmp_path):
+    """The H1 guarantee itself must survive: before T1 unavailable, T1-T2 -> V1, after T2 -> V2."""
+    pub = _root(tmp_path, "keep_pub")
+    for rows, at, run in ((V1_ROWS, T1, "a"), (V2_ROWS, T2, "b")):
+        stage = _root(tmp_path, f"keep_{run}")
+        _write(stage, rows)
+        VS.ensure_snapshot(stage, REL, retrieved_at=at, season=SEASON)
+        _publish(stage, pub, run)
+    local = _root(tmp_path, "keep_local")
+    _write(local, V2_ROWS)
+    VS.ensure_snapshot(local, REL, retrieved_at=T3, season=SEASON)        # republish identical bytes later
+    def at(cut):
+        return VS.resolve_injuries(local, SEASON, cut, manifest={REL: {"retrieved_at": T3}}, extra_roots=(pub,))
+    assert at(BEFORE_T1)[1] is None
+    assert at(BETWEEN_T1_T2)[1]["retrieved_at"] == T1 and "00-VICTIM" not in _ids(at(BETWEEN_T1_T2)[0])
+    assert at(BETWEEN_T2_T3)[1]["retrieved_at"] == T2 and "00-VICTIM" in _ids(at(BETWEEN_T2_T3)[0])
