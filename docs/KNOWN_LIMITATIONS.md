@@ -296,3 +296,49 @@
     concurrency group so it cannot delay or starve the incumbent capture, the three-arm horizons or postgame
     settlement, and it writes nothing into `market-data`. All of that is proven by rehearsal and by reading the
     workflow graph, not by a production firing.
+
+---
+
+### Corrections after the independent pre-week re-audit
+
+69. **The claim that PR #9 left every incumbent file untouched was FALSE and is withdrawn.** The branch modifies
+    `scripts/kalshi/capture.py` (+73/−6) and `scripts/kalshi/discover.py` (+35). `capture.py` runs the live
+    Sunday experiment, and `kalshi-capture.yml` is dispatch-driven with no branch condition, so the changes
+    would have taken effect on the first dispatch after merge — including a replacement of main's
+    closest-kickoff order-book ordering with a four-tier priority, which under the 2,500-book cap changes which
+    books the running experiment captures. All behavioural v2 changes are now behind `--v2-capture` /
+    `NFL_EDGE_V2_CAPTURE`, default off, and pinned by `tests/test_capture_isolation.py`. The accurate statement
+    is: **the incumbent files are modified; the incumbent BEHAVIOUR is unchanged unless the switch is thrown.**
+
+70. **The injury report was the one time-sensitive source read with no bound, and the breach was real.**
+    Refiling `injuries_<season>.parquet` in place — which is what nflverse does — changed the frozen context of
+    an already-made projection at an unchanged cutoff: `NOT_LISTED_AT_THIS_VINTAGE` became `LISTED / Doubtful /
+    DNP`. It is now snapshotted content-addressed at download and read only through the vintage store. The
+    limitation that remains: **vintages exist only from the first run after this change.** For any earlier
+    cutoff the report as it stood is unrecoverable, and the state is `SOURCE_UNAVAILABLE` rather than a silent
+    read of today's fuller file.
+
+71. **Refusing the post-cutoff injury read removed the skew rather than labelling it, and the honest cost is
+    that injury context is empty on a first run.** Before: 100% of records `ASYNC_MODEL_NEWER_THAN_MARKET` at
+    2,234 s, from one source — an injury file retrieved at 01:42 and read by a projection cut at 01:05. After:
+    that read is refused, the information frontier equals the market cutoff, and **all 32,856 records are
+    `SYNCHRONIZED` with skew 0.0 s**. The price is byte-for-byte unaffected (injuries never fed it), but
+    `injury_state` is `SOURCE_UNAVAILABLE` on all 18,408 player rows of that replay, because the only vintage in
+    existence post-dates the cutoff.
+
+    This is a first-run artefact, not a steady state: once vintages accumulate and are published, a run at 01:05
+    finds the *previous* run's vintage (retrieved the evening before) and uses it, which is exactly the
+    point-in-time answer. But it does mean the first prospective runs will carry less injury context than later
+    ones, and a replay of any cutoff before the first published vintage will carry none.
+
+    A scheduling change — downloading nflverse *before* the capture run being priced — would close the gap
+    sooner. It is a change to the v2 horizon job's step order and is deliberately out of scope for this round.
+
+72. **The 46 unsettleable `PLAYER_STAT` rows are labelled, not quarantined.** They carry a probability and a
+    disagreement, enter `n_with_probability` and every segment denominator, and are excluded only by a
+    researcher who filters on `settlement_reachability`. They produce no Brier (no settlement) and no CLV on the
+    measured replay. `settlement_reachability` is now a scorecard segment so the exposure is at least visible.
+    Full quarantine was judged out of scope for a merge-blocking round.
+
+73. **`gameday` / `gametime` are named in `mask_target_season`'s docstring as mutable but are not blanked.** A
+    moved kickoff re-dates an old projection's horizon and close window. Real, small, and not addressed here.

@@ -143,6 +143,9 @@ class ProjectionRecord:
     # on the family catalog (nfl_edge/settlement/reachability.py). DISPATCHABLE / MISSING_SETTLEMENT_KEYS /
     # NO_SETTLEMENT_BRANCH / NO_PROBABILITY, with the missing key named.
     settlement_reachability: dict = field(default_factory=dict)
+    # market/model timing: whether this row is a like-for-like comparison or the model read later
+    # information than the market it is scored against. Never only in lineage -- research filters on it.
+    information_sync: dict = field(default_factory=dict)
     # ---- research-only comparisons (never "edge")
     model_market_disagreement_mid: float | None = None   # contract_value - mid  (probability benchmarking)
     yes_ask_disagreement: float | None = None            # contract_value - yes_ask (economics side, pre-fee)

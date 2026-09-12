@@ -68,6 +68,7 @@ def family_group(r: dict) -> str:
 def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement: dict | None, autopsy: dict | None,
                  sidecar: dict | None, crosscheck: dict | None = None, depth_pair: dict | None = None) -> dict:
     pc, gc, ms, hq, fl, dp = (proj.get(k) or {} for k in ("player_context", "game_context", "market_state", "horizon_quality", "flags", "depth"))
+    sy = proj.get("information_sync") or {}
     h_mid = proj.get("mid")
     cv = proj.get("contract_value")
     dis_pp = (100.0 * (cv - h_mid)) if (cv is not None and h_mid is not None) else None
@@ -126,6 +127,16 @@ def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement
            "evaluation_version_close": (close or {}).get("evaluation_version"),
            "evaluation_version_settlement": (settlement or {}).get("evaluation_version"),
            "evaluation_version_autopsy": (autopsy or {}).get("evaluation_version"),
+           # MARKET/MODEL SYNCHRONIZATION -- first-class, filterable, and not only in lineage. A row whose model
+           # information runs later than the market it is scored against cannot carry a model-edge claim on its
+           # own, because "we read something the quote had not priced" explains the disagreement more cheaply.
+           "synchronization_state": sy.get("synchronization_state", "UNKNOWN_TIMING"),
+           "information_skew_seconds": sy.get("information_skew_seconds"),
+           "market_observed_at": sy.get("market_observed_at") or proj.get("observed_at"),
+           "market_observable_through": sy.get("market_observable_through"),
+           "model_information_frontier": sy.get("model_information_frontier"),
+           "generation_time": sy.get("generation_time") or proj.get("generated_at"),
+           "synchronization_reason": sy.get("synchronization_reason"),
            "pit_data_cutoff": ((proj.get("lineage") or {}).get("point_in_time") or {}).get("data_cutoff"),
            "pit_information_frontier": ((proj.get("lineage") or {}).get("point_in_time") or {}).get("information_frontier"),
            # executable depth at this horizon: the state and the reason travel together, so an unobserved book

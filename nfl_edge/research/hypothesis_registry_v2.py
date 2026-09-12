@@ -21,6 +21,7 @@ STATUSES = ("GENERATED", "PREREGISTERED", "TESTING", "SUPPORTED", "NOT_SUPPORTED
 ALLOWED = {"GENERATED": {"PREREGISTERED", "RETIRED"}, "PREREGISTERED": {"TESTING", "RETIRED"}, "TESTING": {"SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE", "RETIRED"},
            "SUPPORTED": {"RETIRED", "TESTING"}, "NOT_SUPPORTED": {"RETIRED", "TESTING"}, "INCONCLUSIVE": {"TESTING", "RETIRED"}, "RETIRED": set()}
 REGISTRY_VERSION = "hypotheses-2.0.0"
+SYNCHRONIZED = "SYNCHRONIZED"
 DEFAULT_PATH = os.path.join("research", "hypothesis_registry", "v2", "hypotheses.jsonl")
 
 
@@ -99,7 +100,14 @@ def candidates_from_scorecard(sc: dict, *, season: int, week: int, min_n: int = 
     """Turn the largest-|effect| HYPOTHESIS_GENERATING slices of a scorecard into candidate hypotheses (NOT registered
     automatically -- written to a candidates file a person promotes)."""
     cands = []
-    for cls, b in (sc.get("by_evidence_class") or {}).items():
+    # SYNCHRONIZED ROWS ONLY. A mined slice is a claim that the model knew something the market did not; if the
+    # rows behind it also let the model read LATER information than the quote it is scored against, the slice
+    # cannot distinguish the two, and "Doubtful players outperform the market" would mean nothing more than
+    # "we saw the designation first". The synchronized bucket is the only admissible basis, and when it is
+    # absent nothing is mined -- silence beats an uninterpretable candidate.
+    buckets = ((sc.get("by_synchronization") or {}).get("PROSPECTIVE_FROZEN") or {})
+    src = {"PROSPECTIVE_FROZEN": buckets[SYNCHRONIZED]} if SYNCHRONIZED in buckets else {}
+    for cls, b in src.items():
         if cls != "PROSPECTIVE_FROZEN":
             continue
         considered = b.get("candidate_slices_considered")
@@ -116,6 +124,7 @@ def candidates_from_scorecard(sc: dict, *, season: int, week: int, min_n: int = 
                               "evaluation_metric": "model_minus_market_brier (clustered)", "effect_size": eff, "uncertainty": o.get("model_minus_market_se"),
                               "sample_size": m["n"], "game_count": m["n_games"], "candidate_slices_considered": considered, "mean_clv_mid": c.get("mean_clv_mid"),
                               "generation_window": {"season": season, "week_lo": week, "week_hi": week}, "future_test_window": {"season": season, "week_lo": week + 1, "week_hi": 18},
+                              "synchronization_basis": SYNCHRONIZED,
                               "evidence_type": "HYPOTHESIS_GENERATING", "status": "CANDIDATE_NOT_REGISTERED"})
     cands.sort(key=lambda x: -abs(x["effect_size"] / (x["uncertainty"] or 1.0)) if x["uncertainty"] else 0)
     if path_out:

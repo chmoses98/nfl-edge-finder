@@ -444,3 +444,80 @@ contradicted. Availability events get a content-addressed identity and a join ke
 row. Autopsy runs once per eligible DATA-arm prediction at every horizon with the denominator stated on the
 row. `range_lo` / `range_hi`, distribution quantiles, `subject_kalshi_id`, evaluation versions, injury maturity,
 inactive state and the point-in-time frontier are all exported.
+
+---
+
+## 12. Three paths, three different guarantees (post-re-audit)
+
+The pre-week re-audit asked one question: *can a later piece of information create what looks like a small model
+edge against an earlier market price?* The answer has three parts, because the system has three paths and they
+are not equally protected.
+
+### 12.1 PRICE PATH — bounded, and proven bounded
+
+`contract_value` is computed from the market ladder at the cutoff, walk-forward features over strictly prior
+seasons, and **availability** (`p_plays`, `p_active_no_snap`). Availability is the only context source that
+reaches the priced number, and it is selected with `pit.newest_file_at_or_before(pattern, run_ts)` where
+`run_ts` is the capture cutoff.
+
+Proven adversarially: a Sleeper/ESPN capture landing at T2 (after the quote, before kickoff) is invisible to a
+projection cut at T1, while an unbounded loader takes it. **No later information can move a price.**
+
+### 12.2 RESEARCH PATH — skew is classified, and cannot masquerade as a synchronized edge
+
+The model's information frontier routinely runs later than the market cutoff it is scored against, because the
+job downloads nflverse after the capture run it prices — measured at **2,234 s** on the real board, on **100%**
+of records. That is operationally unavoidable and not a breach. It is also *not* a like-for-like comparison.
+
+Every record now carries, as a first-class block and not merely in lineage:
+
+| field | meaning |
+|---|---|
+| `market_observed_at` | when this ticker's price last changed |
+| `market_observable_through` | the capture cutoff — the last instant the market could have reacted |
+| `model_information_frontier` | the newest source the model consumed |
+| `generation_time` | when the projection was computed |
+| `information_skew_seconds` | frontier − cutoff |
+| `synchronization_state` | `SYNCHRONIZED` / `ASYNC_MODEL_NEWER_THAN_MARKET` / `UNKNOWN_TIMING` |
+
+The cutoff is the comparison point, not the last price change: a quote whose price had not moved for six hours
+was still observable and still tradeable right up to the cutoff. A stale quote is therefore not asynchronous.
+
+The state is wired into the research export, `SEGMENTS`, a dedicated `by_synchronization` partition of
+scorecard v3, the weekly report, and the hypothesis miner. **`candidates_from_scorecard` mines the
+`SYNCHRONIZED` bucket and nothing else.** Asynchronous rows are scored in full, in their own bucket, where they
+cannot be read as an edge — they remain a true record of what was believed and what was quoted.
+
+The claim this protects: *"Doubtful players outperform the market"* is mined only when the rows behind it had
+the designation available to the market too. Otherwise it says nothing beyond *"we read it first"*.
+
+### 12.3 INJURY PATH — snapshotted immutably, because the source rewrites itself
+
+`injuries_<season>.parquet` is rebuilt in place, and `date_modified` — present in 2024 — is **gone from 2025
+on**, so the file cannot be bounded from the inside. Re-running an old cutoff with a newer file on disk
+produced a different frozen context: `NOT_LISTED_AT_THIS_VINTAGE` became `LISTED / Doubtful / DNP`.
+
+`nfl_edge/shadow_v2/vintage_snapshots.py` keeps every distinct version, content-addressed, with `retrieved_at`,
+`source_url`, `season`, `sha256`, the immutable path, and the row/week/team census. The context reads the newest
+vintage at or before the cutoff and **never the mutable file**; when no vintage qualifies the state is
+`SOURCE_UNAVAILABLE` with the reason, not a silent read of today's fuller report. A file that cannot be dated at
+all is refused for the same reason.
+
+Snapshots are taken at download time and published to the evidence branch, because `data/raw/` is git-ignored
+and a CI runner is ephemeral.
+
+### 12.4 The incumbent capture is behind a default-off switch
+
+`scripts/kalshi/capture.py` runs the live Sunday experiment and `kalshi-capture.yml` carries no branch
+condition, so anything this branch changed there would have taken effect on the first dispatch after merge.
+An earlier version changed the order-book selection rule unconditionally — under the 2,500-book cap that
+changes *which* books the running experiment captures.
+
+All v2 capture behaviour is now behind `--v2-capture` / `NFL_EDGE_V2_CAPTURE`, **default off**: the provisional
+series universe, the v2 book priority, and the static-semantics quote fields. Unswitched, the script plans the
+same series, requests the same books in the same order, and writes the same quote fields as `main`.
+`tests/test_capture_isolation.py` pins the incumbent plan against main's rule directly.
+
+Two things stay outside the switch, having been shown to change nothing the incumbent does: the open-set delta
+(written after every request, to its own file, never fatal) and the `books_dropped_by_cap` count (a count of
+the candidate list, which it does not reorder).

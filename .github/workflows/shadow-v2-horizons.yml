@@ -91,6 +91,17 @@ jobs:
       - name: Verify before anything is published
         run: |
           python3 scripts/shadow_v2/verify_projections.py --root data/shadow/v2/projections --require-rows
+      # The injury report is rebuilt in place by nflverse and data/raw/ is git-ignored, so the immutable
+      # vintage this run downloaded exists only on this ephemeral runner until it is published. Without this
+      # step a later replay of today's cutoff has no vintage to read and correctly reports SOURCE_UNAVAILABLE.
+      - name: Publish the immutable nflverse vintages
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ -d data/raw/nflverse/_vintages ]; then
+            python3 scripts/ci/publish_market_data.py --src data/raw/nflverse/_vintages \
+              --message "nflverse immutable vintages (injury report snapshots)"
+          fi
       - name: Publish the projections and the horizon markers
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \

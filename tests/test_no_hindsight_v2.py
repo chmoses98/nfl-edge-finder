@@ -113,16 +113,40 @@ def test_later_player_stats_cannot_change_an_earlier_feature_vector():
 
 
 def test_later_injury_state_cannot_alter_an_earlier_context(tmp_path):
-    """Depth-chart and injury vintages are chosen at or before the snapshot instant, never after."""
+    """Depth-chart and injury vintages are chosen at or before the snapshot instant, never after.
+
+    The injury half is now stronger than a cutoff comparison. The file is rebuilt in place and has no per-row
+    timestamp, so the CONTENT at an old cutoff is only recoverable from an immutable snapshot; the context reads
+    the vintage store, and a file that cannot be placed in time is refused rather than read speculatively.
+    """
+    import json as _json
     import polars as pl
     root = tmp_path / "root"; (root / "data" / "raw" / "nflverse" / "depth_charts").mkdir(parents=True); (root / "data" / "raw" / "nflverse" / "injuries").mkdir(parents=True)
     pl.DataFrame({"dt": ["2026-09-10T12:00:00Z", "2026-09-13T12:00:00Z"], "team": ["H", "H"], "gsis_id": ["p1", "p1"], "pos_abb": ["WR", "WR"], "pos_rank": [1, 3], "player_name": ["P", "P"]}).write_parquet(root / "data/raw/nflverse/depth_charts/depth_charts_2026.parquet")
-    pl.DataFrame({"season": [2026], "week": [1], "team": ["H"], "gsis_id": ["p1"], "report_status": ["Out"], "practice_status": ["DNP"], "report_primary_injury": ["Knee"], "practice_primary_injury": ["Knee"]}).write_parquet(root / "data/raw/nflverse/injuries/injuries_2026.parquet")
+    inj_rel = os.path.join("data", "raw", "nflverse", "injuries", "injuries_2026.parquet")
+    pl.DataFrame({"season": [2026], "week": [1], "team": ["H"], "gsis_id": ["p1"], "report_status": ["Out"], "practice_status": ["DNP"], "report_primary_injury": ["Knee"], "practice_primary_injury": ["Knee"]}).write_parquet(root / inj_rel)
+    # the download manifest is what dates the bytes; without it the file cannot be placed in time at all
+    with open(root / "data" / "raw" / "nflverse" / "_manifest.jsonl", "w") as fh:
+        fh.write(_json.dumps({"path": inj_rel, "retrieved_at": "2026-09-10T18:00:00+00:00", "sha256": "a" * 64}) + "\n")
     early = CX.ContextSources(str(root), str(tmp_path / "md"), 2026, datetime(2026, 9, 11, tzinfo=timezone.utc), log=lambda *a: None)
     late = CX.ContextSources(str(root), str(tmp_path / "md"), 2026, datetime(2026, 9, 14, tzinfo=timezone.utc), log=lambda *a: None)
     assert early.depth_block("p1", "H")["rank"] == 1 and early.depth_block("p1", "H")["vintage"] == "2026-09-10T12:00:00Z"
     assert late.depth_block("p1", "H")["rank"] == 3
     assert early.injury_block("p1", 1)["state"] == "LISTED" and early.weather_block("g", KO)["state"] == "UNKNOWN"
+    # a cutoff BEFORE the only vintage was retrieved sees nothing, and does not fall back to the file on disk
+    before = CX.ContextSources(str(root), str(tmp_path / "md"), 2026, datetime(2026, 9, 10, 6, tzinfo=timezone.utc), log=lambda *a: None)
+    assert before.injury_block("p1", 1)["state"] == CX.SOURCE_UNAVAILABLE
+
+
+def test_an_injury_file_that_cannot_be_dated_is_refused_rather_than_read(tmp_path):
+    """No manifest row means no defensible retrieval time, and a file that cannot be placed in time is not
+    evidence about any particular instant. Reading it anyway is how hindsight gets in."""
+    import polars as pl
+    root = tmp_path / "root"; (root / "data" / "raw" / "nflverse" / "injuries").mkdir(parents=True)
+    pl.DataFrame({"season": [2026], "week": [1], "team": ["H"], "gsis_id": ["p1"], "report_status": ["Out"], "practice_status": ["DNP"], "report_primary_injury": ["Knee"], "practice_primary_injury": ["Knee"]}).write_parquet(root / "data/raw/nflverse/injuries/injuries_2026.parquet")
+    src = CX.ContextSources(str(root), str(tmp_path / "md"), 2026, datetime(2026, 9, 11, tzinfo=timezone.utc), log=lambda *a: None)
+    b = src.injury_block("p1", 1)
+    assert b["state"] == CX.SOURCE_UNAVAILABLE and b["report_status"] is None
 
 
 def test_sidecar_and_store_are_write_once_and_later_horizons_cannot_alter_earlier_records(tmp_path):

@@ -284,6 +284,10 @@ def main(argv=None):
                  "static": {u.name: u.static_reason for u in ledger.uses if u.static},
                  "absent": sorted(u.name for u in ledger.uses if u.vintage is None and not u.static),
                  "outcome_leak_refused": False}
+    # The same facts as a first-class record block, because research must be able to FILTER on them. Skew that
+    # lives only in lineage gets pooled by every downstream aggregate that does not know to look for it.
+    sync_block = pit.synchronization(market_observable_through=run_ts, model_information_frontier=_mv,
+                                     generated_at=now)
     store_root = os.path.join(a.out, DIRNAME)
     quoted_by_game = defaultdict(list)
     for t, q in quotes.items():
@@ -322,7 +326,10 @@ def main(argv=None):
                     volume=fnum(q.get("volume_fp")), open_interest=fnum(q.get("open_interest_fp")), liquidity=fnum(q.get("liquidity_dollars")),
                     market_confirmed=q.get("series_ticker") in confirmed,
                     market_quality={"minutes_since_price_change": ages.get(t), "has_book": t in books, "discovery_record": t in disc_markets},
-                    evidence_class=(R.PROSPECTIVE_FROZEN if gen_before else R.HISTORICAL_RESEARCH))
+                    evidence_class=(R.PROSPECTIVE_FROZEN if gen_before else R.HISTORICAL_RESEARCH),
+                    # per record, because the quote's own last-change instant differs per ticker even though
+                    # the cutoff and the frontier are run-level
+                    information_sync={**sync_block, "market_observed_at": q.get("observed_at")})
         if ko and pregame and horizon_id:
             try:
                 base.update(HZ.label_snapshot(obs, ko, horizon_id))

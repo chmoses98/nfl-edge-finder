@@ -20,7 +20,8 @@ SCORECARD_VERSION = "scorecard-3.0.0"
 DESCRIPTIVE, HYPOTHESIS_GENERATING, PREREGISTERED_TEST, CONFIRMATORY = "DESCRIPTIVE", "HYPOTHESIS_GENERATING", "PREREGISTERED_TEST", "CONFIRMATORY"
 SEGMENTS = ("horizon_label", "horizon_quality", "engine", "model_arm", "family_group", "market_family", "stat_family", "player_position", "probability_band",
             "price_band", "disagreement_band", "width_band", "liquidity_band", "ctx_availability_state", "ctx_injury_state", "close_quality", "ladder_identification",
-            "semantic_confidence", "support_state", "model_side")
+            "semantic_confidence", "support_state", "model_side", "synchronization_state", "settlement_reachability")
+SYNCHRONIZED = "SYNCHRONIZED"
 EPS = 1e-6
 
 
@@ -148,16 +149,49 @@ def segment(rows, key, min_n=5):
     return {k: {**metric_block(v), "evidence_type": HYPOTHESIS_GENERATING} for k, v in sorted(by.items()) if len(v) >= min_n}
 
 
+def _block(rs, min_segment_n):
+    with_p = [r for r in rs if r.get("contract_value") is not None]
+    return {"n_rows": len(rs), "n_with_probability": len(with_p), "overall": metric_block(with_p),
+            "segments": {k: segment(with_p, k, min_segment_n) for k in SEGMENTS},
+            "arm_by_family": _arm_by_family(with_p),
+            "candidate_slices_considered": sum(len(segment(with_p, k, 1)) for k in SEGMENTS)}
+
+
 def build(rows: list, *, min_segment_n: int = 5) -> dict:
+    """Scored twice over: by evidence class as before, and SEPARATELY by market/model synchronization.
+
+    The second split is not cosmetic. `by_evidence_class` pools a row whose model information ran later than the
+    market it is scored against with a row where both sides saw the same instant, and any model-edge number read
+    off that pool is uninterpretable: the cheaper explanation of the disagreement is the newer information. So
+    `by_synchronization` is the block an edge claim must be read from, and `synchronized_edge_basis` names the
+    one bucket that can support such a claim. Asynchronous rows are kept in full -- they are real evidence of
+    what was believed and what was quoted -- they are simply never pooled into the edge basis.
+    """
     by_cls = defaultdict(list)
     for r in rows:
         by_cls[r.get("evidence_class") or "UNKNOWN"].append(r)
-    out = {"version": SCORECARD_VERSION, "sign_convention": SIGN_CONVENTION, "n_rows": len(rows), "by_evidence_class": {}}
+    out = {"version": SCORECARD_VERSION, "sign_convention": SIGN_CONVENTION, "n_rows": len(rows),
+           "by_evidence_class": {}, "by_synchronization": {}}
     for cls, rs in by_cls.items():
-        with_p = [r for r in rs if r.get("contract_value") is not None]
-        out["by_evidence_class"][cls] = {"n_rows": len(rs), "n_with_probability": len(with_p), "overall": metric_block(with_p),
-                                         "segments": {k: segment(with_p, k, min_segment_n) for k in SEGMENTS},
-                                         "arm_by_family": _arm_by_family(with_p), "candidate_slices_considered": sum(len(segment(with_p, k, 1)) for k in SEGMENTS)}
+        out["by_evidence_class"][cls] = _block(rs, min_segment_n)
+    by_sync = defaultdict(list)
+    for r in rows:
+        by_sync[(r.get("evidence_class") or "UNKNOWN", r.get("synchronization_state") or "UNKNOWN_TIMING")].append(r)
+    for (cls, st), rs in by_sync.items():
+        out["by_synchronization"].setdefault(cls, {})[st] = _block(rs, min_segment_n)
+    counts = {st: sum(1 for r in rows if (r.get("synchronization_state") or "UNKNOWN_TIMING") == st)
+              for st in sorted({(r.get("synchronization_state") or "UNKNOWN_TIMING") for r in rows})}
+    skews = sorted(r["information_skew_seconds"] for r in rows if r.get("information_skew_seconds") is not None)
+    out["synchronization"] = {
+        "counts": counts,
+        "with_probability": {st: sum(1 for r in rows if (r.get("synchronization_state") or "UNKNOWN_TIMING") == st
+                                     and r.get("contract_value") is not None) for st in counts},
+        "skew_seconds": {"median": (skews[len(skews) // 2] if skews else None),
+                         "max": (skews[-1] if skews else None), "n": len(skews)},
+        "synchronized_edge_basis": "by_synchronization.PROSPECTIVE_FROZEN.SYNCHRONIZED",
+        "note": "model-edge, incremental-information, market-inefficiency and small-edge-profitability claims "
+                "may be read only from the synchronized bucket; asynchronous rows are reported beside it and "
+                "never pooled into it"}
     return out
 
 

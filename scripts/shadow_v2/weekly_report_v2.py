@@ -88,6 +88,21 @@ def render(sc: dict, h: dict, rows: list, label: str) -> str:
         counts = {kk: vv for kk, vv in v.items() if "pct" not in kk}
         L.append(f"| {k} | {json.dumps(counts, default=str)[:300]} | {json.dumps(pcts)} |")
     L += ["", "## Horizon health", "", f"records by horizon: {h['HORIZON_COMPLETENESS']['records_by_horizon']}; quality: {h['HORIZON_COMPLETENESS']['quality']}; markers: {h['HORIZON_COMPLETENESS']['markers']}", ""]
+    sy = sc.get("synchronization") or {}
+    if sy:
+        L += ["## Market/model synchronization", "",
+              "A row is SYNCHRONIZED when every model input was observable at or before the market cutoff it is "
+              "scored against. When it is not, a disagreement may be newer information rather than better "
+              "modelling, so the two are counted and scored separately and never pooled into an edge claim.", "",
+              f"counts: {json.dumps(sy.get('counts') or {}, default=str)}", "",
+              f"carrying a probability: {json.dumps(sy.get('with_probability') or {}, default=str)}", "",
+              f"skew seconds: median {sy.get('skew_seconds', {}).get('median')}, max {sy.get('skew_seconds', {}).get('max')}", "",
+              f"**Edge claims may be read only from `{sy.get('synchronized_edge_basis')}`.**", ""]
+        for st, b in sorted((sc.get("by_synchronization") or {}).get("PROSPECTIVE_FROZEN", {}).items()):
+            o = b["overall"]["outcome"]
+            L += [f"* `{st}`: {b['n_with_probability']} rows with a probability; settled {o.get('n', 0)}; "
+                  f"model-market {_f(o.get('model_minus_market_brier'))} ± {_f(o.get('model_minus_market_se'))}"]
+        L += [""]
     for cls, b in sc["by_evidence_class"].items():
         o, c = b["overall"]["outcome"], b["overall"]["clv"]
         L += [f"## {cls}: model vs market vs close (DESCRIPTIVE)", "", f"settled {o.get('n', 0)} rows / {o.get('n_games', 0)} games; Brier model {_f(o.get('brier_model'))}, market@horizon {_f(o.get('brier_market_horizon'))}, market@close {_f(o.get('brier_market_close'))}; "

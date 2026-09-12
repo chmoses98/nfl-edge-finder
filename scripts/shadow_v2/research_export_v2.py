@@ -197,6 +197,18 @@ def main(argv=None):
                                "pair_reasons": dict(Counter(r.get("depth_pair_reason") for r in rows if r.get("depth_pair_state") == "DEPTH_NOT_CAPTURED")),
                                "horizon_quality": dict(Counter(r.get("depth_pair_horizon_quality") for r in rows if r.get("depth_pair_horizon_quality"))),
                                "pair_age_minutes_median": _median([r.get("depth_pair_age_min") for r in rows])},
+           # synchronized vs asynchronous, reported separately and never as one number
+           "synchronization": {
+               "counts": dict(Counter(r.get("synchronization_state") or "UNKNOWN_TIMING" for r in rows)),
+               "with_probability": dict(Counter((r.get("synchronization_state") or "UNKNOWN_TIMING")
+                                                for r in rows if r.get("contract_value") is not None)),
+               "skew_seconds_median": _median([r.get("information_skew_seconds") for r in rows]),
+               "skew_seconds_max": max([r.get("information_skew_seconds") for r in rows
+                                        if r.get("information_skew_seconds") is not None] or [None],
+                                       default=None),
+               "excluded_from_synchronized_edge_research": sum(
+                   1 for r in rows if r.get("contract_value") is not None
+                   and (r.get("synchronization_state") or "UNKNOWN_TIMING") != "SYNCHRONIZED")},
            "hypothesis_candidates": len(cands), "perf": {"seconds": time.time() - t0, "max_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0},
            "files": {"jsonl": jl, "parquet": pq}}
     json.dump(cov, open(os.path.join(a.out, f"{label}.export_summary.json"), "w"), indent=1, default=str)

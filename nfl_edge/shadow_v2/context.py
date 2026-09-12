@@ -23,6 +23,7 @@ import os
 from datetime import datetime, timezone
 
 from nfl_edge.shadow_v2 import pit
+from nfl_edge.shadow_v2 import vintage_snapshots as VS
 
 UNKNOWN = "UNKNOWN"
 CONTEXT_VERSION = "context-1.2.0"       # 1.2.0: injury-report maturity, official inactives, point-in-time ledger
@@ -104,15 +105,30 @@ class ContextSources:
         this vintage, and how that compares with a full week. nflverse rebuilds this file in place, so the
         counts are captured now or they are unrecoverable later.
 
-        The file itself carries no per-row timestamp for 2026 (nflverse dropped `date_modified`), so the only
-        defensible vintage is the download manifest's `retrieved_at`, which the ledger checks against the cutoff.
+        The file itself carries no per-row timestamp for 2026 (nflverse dropped `date_modified`), so it cannot be
+        bounded from the inside. It is also REBUILT IN PLACE, which made this the one source where re-running an
+        old cutoff with a newer file on disk produced a different frozen context -- a player who was
+        NOT_LISTED_AT_THIS_VINTAGE came back LISTED/Doubtful. That is a point-in-time breach, and recording the
+        vintage did not prevent it, because what changed was the CONTENT.
+
+        So the mutable file is no longer read. `vintage_snapshots` keeps every distinct version of it, addressed
+        by content and stamped with the instant it was retrieved, and this selects the newest vintage at or
+        before the cutoff. When no vintage qualifies there is NO fallback to the current file: the report as it
+        stood then was never captured, and that is reported rather than filled in from today's rebuild.
         """
         rel = os.path.join("data", "raw", "nflverse", "injuries", f"injuries_{self.season}.parquet")
-        p = os.path.join(self.root, rel)
-        if not os.path.exists(p):
-            self.ledger.record_absent("injuries", f"no injuries_{self.season}.parquet on disk", kind="nflverse")
-            return None
-        meta = self.source_meta(rel)
+        # the published evidence branch is read too: `data/raw/` is git-ignored, so a CI runner's local store
+        # holds only this run's download while the durable history lives in market-data
+        p, vintage, why = VS.resolve_injuries(self.root, self.season, self.as_of, manifest=self.manifest,
+                                              extra_roots=(self.market_data,))
+        if p is None or not os.path.exists(p):
+            self.ledger.record_absent("injuries", why, kind="nflverse")
+            return {"rows": {}, "path": rel, "meta": {"retrieved_at": UNKNOWN, "sha256": UNKNOWN, "reason": why},
+                    "maturity": {}, "weeks_present": [], "vintage": None, "vintage_reason": why,
+                    "no_vintage_at_cutoff": True}
+        meta = {"retrieved_at": vintage.get("retrieved_at"), "sha256": vintage.get("sha256"),
+                "source_url": vintage.get("source_url"), "snapshot_path": vintage.get("snapshot_path"),
+                "vintage_version": vintage.get("vintage_version")}
         try:
             import polars as pl
             d = pl.read_parquet(p)
@@ -131,10 +147,12 @@ class ContextSources:
                              "maturity": (MATURE if v["rows"] >= MATURE_ROWS and len(v["teams"]) >= MATURE_TEAMS
                                           else (PARTIAL if v["rows"] > 0 else EMPTY))}
                         for wk, v in sorted(weeks.items())}
-            self.ledger.record("injuries", meta.get("retrieved_at"), kind="nflverse", path=rel,
-                               sha256=meta.get("sha256"), weeks=sorted(weeks), n_rows=len(by))
+            self.ledger.record("injuries", meta.get("retrieved_at"), kind="nflverse",
+                               path=vintage.get("snapshot_path"), sha256=meta.get("sha256"),
+                               weeks=sorted(weeks), n_rows=len(by), vintage_selected=why)
             return {"rows": by, "path": rel, "meta": meta, "maturity": maturity,
-                    "weeks_present": sorted(weeks)}
+                    "weeks_present": sorted(weeks), "vintage": vintage, "vintage_reason": why,
+                    "no_vintage_at_cutoff": False}
         except Exception as e:  # noqa: BLE001
             self.log(f"injuries unavailable: {e}")
             self.ledger.record_absent("injuries", f"unreadable: {e}", kind="nflverse")
@@ -255,6 +273,14 @@ class ContextSources:
             return {"state": UNKNOWN, "reason": "no player id"}
         if self.injuries is None:
             return {"state": SOURCE_UNAVAILABLE, "reason": "injury report file absent"}
+        if self.injuries.get("no_vintage_at_cutoff"):
+            # No immutable vintage was retrieved at or before this cutoff. The current mutable file may well
+            # contain this player, and reading it would be exactly the hindsight this state exists to refuse.
+            return {"state": SOURCE_UNAVAILABLE, "report_status": None, "practice_status": None,
+                    "reason": self.injuries.get("vintage_reason") or "no injury-report vintage at this cutoff",
+                    "report_week": int(week or 0), "report_maturity": EMPTY, "report_rows_for_week": 0,
+                    "report_teams_for_week": 0, "report_rows_vs_typical_week": 0.0,
+                    "source_retrieved_at": UNKNOWN, "source_sha256": UNKNOWN}
         wk = int(week or 0)
         meta = self.injuries["meta"]
         mat = (self.injuries.get("maturity") or {}).get(wk)
@@ -289,7 +315,7 @@ class ContextSources:
 
     def teammate_block(self, team: str | None, week: int | None, exclude: str | None) -> dict:
         """Skill-position teammates with an injury designation this week, from the same report vintage."""
-        if self.injuries is None or not team:
+        if self.injuries is None or not team or self.injuries.get("no_vintage_at_cutoff"):
             return {"state": UNKNOWN, "reason": "injury report absent or no team"}
         listed = []
         for (gsis, wk), r in self.injuries["rows"].items():

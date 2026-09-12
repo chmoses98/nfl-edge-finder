@@ -30,7 +30,19 @@ Design (see docs/KALSHI_CAPTURE.md):
   A failed series fetch is recorded in the manifest as PARTIAL; it is never an
   empty universe.
 
-SHADOW v2 additions (branch; inert on main until merged):
+SHADOW v2 additions -- ALL BEHIND `--v2-capture` / NFL_EDGE_V2_CAPTURE, DEFAULT OFF.
+
+  Without that switch this script plans and requests exactly what it planned and requested before shadow v2
+  existed: the same series universe, the same order books in the same order, the same quote fields. That is
+  deliberate and it is load-bearing. This file runs the live Sunday experiment, the workflow that dispatches it
+  carries no branch condition, and an earlier version of this branch changed book selection unconditionally --
+  which would have altered a running experiment the moment the branch merged. `tests/test_capture_isolation.py`
+  pins the incumbent plan against main's rule.
+
+  Two things stay OUTSIDE the switch because they demonstrably change nothing the incumbent does: the open-set
+  delta (written after every request is finished, to its own file, and never fatal) and `books_dropped_by_cap`
+  (a count of the candidate list, which it does not reorder).
+
   * The discovery -> registry loop is CLOSED. Series the daily discovery lists that the reviewed registry does
     not hold are read from data/kalshi/capture/provisional_series.json (written by discover.py, restored from
     market-data like state.json) and polled at their SAFE tier (LIGHT with open markets, else DAILY, never
@@ -121,12 +133,49 @@ def static_semantics(m, sem):
             "subject_team_kalshi_id": sem.team_kalshi_id}
 
 
+V2_ENV = "NFL_EDGE_V2_CAPTURE"
+
+
+def v2_capture_enabled(flag: bool = False) -> bool:
+    """Is v2 capture behaviour switched on? OFF unless something says otherwise, and nothing on main does.
+
+    THIS GATE IS THE ISOLATION BOUNDARY. Everything behind it changes what the incumbent Sunday capture DOES --
+    which series it polls, which order books it spends its budget on, what a quote row contains. A pre-week
+    audit found that shipping those changes unconditionally would have altered the running experiment the
+    moment this branch merged, silently and mid-season, because `kalshi-capture.yml` is dispatch-driven and
+    carries no branch condition. Additive instrumentation (the open-set delta, the manifest's capacity
+    counters) stays outside the gate: it is proven not to change any request, any ordering or any existing
+    field.
+    """
+    return bool(flag) or os.environ.get(V2_ENV, "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def book_priority(minutes_to_kick, volume, ticker):
-    """Deterministic order for the order-book budget. Lower sorts first."""
+    """v2 order for the order-book budget: near-and-traded first, then near, then traded. Lower sorts first."""
     traded = (volume or 0.0) > 0
     near = minutes_to_kick is not None and minutes_to_kick <= 360.0
     tier = 0 if (near and traded) else 1 if near else 2 if traded else 3
     return (tier, minutes_to_kick if minutes_to_kick is not None else 1e9, ticker)
+
+
+def book_sort_key(minutes_to_kick, volume, ticker, *, v2: bool):
+    """The sort key for one book candidate, under whichever regime is active.
+
+    The incumbent key reproduces main EXACTLY -- `book_candidates` there is a list of
+    `(minutes_to_kick, ticker, pregame)` sorted with the default tuple order -- so that an unswitched capture
+    requests the same books, in the same order, as it did before this branch existed.
+    """
+    return book_priority(minutes_to_kick, volume, ticker) if v2 else (minutes_to_kick, ticker)
+
+
+def plan_book_requests(candidates, max_books, *, v2: bool):
+    """(requested, dropped) for a list of (minutes_to_kick, volume, ticker, pregame). Pure; no I/O.
+
+    Extracted so the isolation test can compare incumbent planning against main's rule directly, on a fixture,
+    without a network or a registry.
+    """
+    keyed = sorted((book_sort_key(mtk, vol, tk, v2=v2), mtk, tk, pg) for mtk, vol, tk, pg in candidates)
+    return keyed[:max_books], keyed[max_books:]
 
 
 def main():
@@ -137,16 +186,22 @@ def main():
     ap.add_argument("--max-books", type=int, default=2500)
     ap.add_argument("--force-daily", action="store_true")
     ap.add_argument("--trigger-source", default=os.environ.get("TRIGGER_SOURCE", "unknown"))
+    ap.add_argument("--v2-capture", action="store_true",
+                    help=f"enable SHADOW v2 capture behaviour (provisional series, v2 book priority, static "
+                         f"semantics on quote rows). OFF by default; also settable with {V2_ENV}=1. The "
+                         f"incumbent experiment must never run with this on.")
     a = ap.parse_args()
+    v2 = v2_capture_enabled(a.v2_capture)
     t_start = now_utc(); run_id = t_start.strftime("%Y%m%dT%H%M%SZ")
     day_dir = os.path.join(OUT_ROOT, t_start.strftime("%Y-%m-%d")); os.makedirs(day_dir, exist_ok=True)
     state_path = os.path.join(OUT_ROOT, "state.json")
     state = json.load(open(state_path)) if os.path.exists(state_path) else {"fingerprints": {}, "trades_cursor_ts": None, "last_daily_run": None}
     state.setdefault("volume", {}); state.setdefault("trade_cursor", {})
     reg = json.load(open(REG_PATH))["series"]
-    # provisional series: discovered, not yet reviewed, captured at a safe tier so they cannot stay invisible
+    # provisional series: discovered, not yet reviewed, captured at a safe tier so they cannot stay invisible.
+    # v2 ONLY -- polling extra series spends the incumbent's API budget and changes its market selection.
     prov_path = os.path.join(OUT_ROOT, PROVISIONAL_FILE)
-    provisional = capturable_provisional(load_provisional(prov_path), reg)
+    provisional = capturable_provisional(load_provisional(prov_path), reg) if v2 else {}
     universe = {tk: dict(rec) for tk, rec in reg.items()}
     for tk, tier in provisional.items():
         universe[tk] = {"tier": "LIGHT" if tier == "FULL_MICROSTRUCTURE" else tier, "provisional": True}
@@ -154,7 +209,10 @@ def main():
     c = KalshiClient(rps=a.rps)
     manifest = {"run_id": run_id, "started_at": t_start.isoformat(), "trigger_source": a.trigger_source, "schedule_source": sched_src,
                 "series": {}, "partial": False, "errors": [], "provisional_series": sorted(provisional),
-                "provisional_file_present": os.path.exists(prov_path), "schema_version": "capture-1.1.0"}
+                "provisional_file_present": os.path.exists(prov_path),
+                # the incumbent schema is unchanged unless v2 is switched on, and the manifest says which ran
+                "schema_version": "capture-1.1.0" if v2 else "capture-1.0.0",
+                "v2_capture": v2, "capture_mode": "SHADOW_V2" if v2 else "INCUMBENT"}
     do_daily = a.force_daily or (state.get("last_daily_run") or "")[:10] != t_start.strftime("%Y-%m-%d")
     quotes_f = open(os.path.join(day_dir, f"{run_id}.quotes.jsonl"), "w")
     books_f = open(os.path.join(day_dir, f"{run_id}.books.jsonl"), "w")
@@ -200,7 +258,7 @@ def main():
                    "game_id": kick["game_id"] if kick else None, "kickoff_utc": kick["kickoff_utc"] if kick else None,
                    "minutes_to_kickoff": round(minutes_to_kick, 1) if minutes_to_kick is not None else None,
                    "pregame": (minutes_to_kick is None) or (minutes_to_kick > 0),
-                   "provisional": is_prov, **static_semantics(m, sem),
+                   **({"provisional": is_prov, **static_semantics(m, sem)} if v2 else {}),
                    "fingerprint": fp, "changed": state["fingerprints"].get(m["ticker"]) != fp,
                    **{k: m.get(k) for k in QUOTE_FIELDS}, "open_time": m.get("open_time"), "expected_expiration_time": m.get("expected_expiration_time")}
             if row["changed"]:
@@ -218,17 +276,22 @@ def main():
                 trade_candidates.append((-(vol - prev_vol), m["ticker"]))
             state["volume"][m["ticker"]] = vol
             if tier == "FULL_MICROSTRUCTURE" and minutes_to_kick is not None and minutes_to_kick <= a.book_window_hours * 60:
-                book_candidates.append((book_priority(minutes_to_kick, vol, m["ticker"]), minutes_to_kick, m["ticker"], row["pregame"]))
+                book_candidates.append((book_sort_key(minutes_to_kick, vol, m["ticker"], v2=v2),
+                                        minutes_to_kick, m["ticker"], row["pregame"]))
     # order books: deterministic priority (near kickoff and traded first), capped per run, cap observable
     book_candidates.sort()
-    tiers = {}
-    for pri, _mtk, _t, _pg in book_candidates:
-        tiers[pri[0]] = tiers.get(pri[0], 0) + 1
-    manifest["books_candidates_by_priority_tier"] = {str(k): v for k, v in sorted(tiers.items())}
+    # Capacity counters are pure observation: they read the candidate list and change neither its order nor
+    # its contents. The per-tier breakdown only has a meaning under the v2 priority, so it is only written then.
     manifest["books_dropped_by_cap"] = max(0, len(book_candidates) - a.max_books)
-    manifest["books_dropped_by_cap_by_tier"] = {}
-    for pri, _mtk, _t, _pg in book_candidates[a.max_books:]:
-        k = str(pri[0]); manifest["books_dropped_by_cap_by_tier"][k] = manifest["books_dropped_by_cap_by_tier"].get(k, 0) + 1
+    if v2:
+        tiers = {}
+        for pri, _mtk, _t, _pg in book_candidates:
+            tiers[pri[0]] = tiers.get(pri[0], 0) + 1
+        manifest["books_candidates_by_priority_tier"] = {str(k): v for k, v in sorted(tiers.items())}
+        manifest["books_dropped_by_cap_by_tier"] = {}
+        for pri, _mtk, _t, _pg in book_candidates[a.max_books:]:
+            k = str(pri[0])
+            manifest["books_dropped_by_cap_by_tier"][k] = manifest["books_dropped_by_cap_by_tier"].get(k, 0) + 1
     for _pri, minutes_to_kick, ticker, pregame in book_candidates[: a.max_books]:
         body, err = c.try_get(f"markets/{ticker}/orderbook", {"depth": 10})
         obs = {"run_id": run_id, "observed_at": now_utc().isoformat(), "ticker": ticker, "minutes_to_kickoff": round(minutes_to_kick, 1),

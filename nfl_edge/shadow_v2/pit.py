@@ -331,3 +331,54 @@ def strictly_before_kickoff(row: dict, kickoff, *, key: str = "observed_at") -> 
     if v is None or k is None:
         return False
     return v < k
+
+
+# ------------------------------------------------------------------------- market/model synchronization
+# A projection compares a MODEL number against a MARKET price. That comparison is only a like-for-like test of
+# modelling skill when both sides had the chance to see the same information. They frequently did not: the job
+# downloads nflverse AFTER the capture run it prices, so the model's information can run later than the last
+# instant the market was observable. Measured on the real board that gap was 2,234 s.
+#
+# Such a row is not worthless -- it is a perfectly good record of what was believed and what was quoted -- but
+# it cannot support a claim of MODEL EDGE, because the cheapest explanation of any disagreement is that the
+# model read something the quoted market had not yet had the chance to price. So the state is carried on the
+# record, exported, segmented and, where an edge claim is being made, separated.
+SYNCHRONIZED = "SYNCHRONIZED"
+ASYNC_MODEL_NEWER = "ASYNC_MODEL_NEWER_THAN_MARKET"
+UNKNOWN_TIMING = "UNKNOWN_TIMING"
+
+
+def synchronization(*, market_observable_through, model_information_frontier, generated_at=None,
+                    market_observed_at=None):
+    """Classify one projection's market/model timing. Strict: any positive skew is asynchronous.
+
+    `market_observable_through` is the capture cutoff, NOT the last price change. A quote whose price last moved
+    six hours ago was still observable -- and still tradeable -- right up to the cutoff, so the cutoff is the
+    instant against which the model's information frontier has to be judged. `market_observed_at` (the last
+    price change) is carried alongside because it answers a different question: how stale the quote itself was.
+
+    No tolerance band is applied. A caller who wants one has `information_skew_seconds` and can choose it
+    explicitly, where the choice is visible, rather than inheriting a threshold buried here.
+    """
+    cut, fro = as_utc(market_observable_through), as_utc(model_information_frontier)
+    out = {"market_observed_at": (as_utc(market_observed_at).isoformat() if as_utc(market_observed_at) else None),
+           "market_observable_through": cut.isoformat() if cut else None,
+           "model_information_frontier": fro.isoformat() if fro else None,
+           "generation_time": (as_utc(generated_at).isoformat() if as_utc(generated_at) else None),
+           "information_skew_seconds": None, "synchronization_state": UNKNOWN_TIMING,
+           "synchronization_reason": None}
+    if cut is None or fro is None:
+        out["synchronization_reason"] = ("no market cutoff on this record" if cut is None
+                                         else "no model information frontier on this record")
+        return out
+    skew = round((fro - cut).total_seconds(), 3)
+    out["information_skew_seconds"] = skew
+    if skew <= 0:
+        out["synchronization_state"] = SYNCHRONIZED
+        out["synchronization_reason"] = "every model input was observable at or before the market cutoff"
+    else:
+        out["synchronization_state"] = ASYNC_MODEL_NEWER
+        out["synchronization_reason"] = (f"the model's information runs {skew:.0f}s past the last instant the "
+                                         f"market was observable; a disagreement may be newer information "
+                                         f"rather than better modelling")
+    return out
