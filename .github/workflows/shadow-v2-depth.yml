@@ -1,0 +1,80 @@
+name: Shadow v2 order-book depth
+
+# A SEPARATE evidence stream, deliberately off the critical path of the horizon projection freeze.
+#
+# Depth was previously a step inside the horizon job. That was wrong twice over. The sweep takes 10-30 minutes
+# depending on the cluster, and the horizon job already does nflverse downloads plus a full-board projection
+# inside a 60-minute timeout on a 15-minute cron with cancel-in-progress disabled -- so a slow sweep queues the
+# next firing behind it, and a horizon whose kickoff passes while queued is MISSED and never reconstructed. The
+# quote and context freeze is the evidence that already works; it must not be put at risk to collect depth.
+#
+# It also could not delay the incumbent capture, three-arm horizons or postgame settlement, and still must not:
+# this job has its own concurrency group, its own modest request rate, and cancel-in-progress ON, so a sweep
+# that is still running when the next one is due is abandoned rather than allowed to pile up.
+#
+# Kickoff safety lives in the script, not here: a ladder is entered only if the whole ladder can finish before
+# its own game starts, and any response that nonetheless arrives at or after kickoff is rejected rather than
+# written as pregame evidence.
+#
+# SHADOW / RESEARCH ONLY. INERT UNTIL MERGED (schedule from the default branch only; job guarded).
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+    inputs:
+      budget:
+        description: 'maximum order-book requests this run'
+        default: '5000'
+      window_hours:
+        description: 'only games kicking off within this many hours'
+        default: '26'
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: shadow-v2-depth
+  cancel-in-progress: true
+
+jobs:
+  depth:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Fetch market-data
+        run: |
+          git fetch --depth=1 origin market-data
+          rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+      # The rate is deliberately below the incumbent capture's, which runs continuously at 4 req/s and must keep
+      # its headroom; this job is additive traffic on the same account.
+      - name: Sweep order-book depth for games approaching kickoff
+        run: |
+          python3 scripts/shadow_v2/capture_depth_v2.py \
+            --market-data /tmp/md --out data/shadow/v2 \
+            --budget "${{ github.event.inputs.budget || 5000 }}" \
+            --window-hours "${{ github.event.inputs.window_hours || 26 }}" \
+            --rps 3.0 \
+            --priced-from "/tmp/md/data/shadow/v2/projections/*/*.projections.jsonl.gz" 2>&1 | tail -12
+      - name: Freeze the official inactive list for games about to kick off
+        continue-on-error: true
+        run: |
+          python3 scripts/shadow_v2/capture_inactives_v2.py --out data/shadow/v2 \
+            --schedule /tmp/md/data/kalshi/capture/schedule_cache.csv --season 2026 --window-min 150 2>&1 | tail -10
+      - name: Publish the depth and inactives evidence
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
+            --message "shadow v2 order-book depth + inactives sweep"

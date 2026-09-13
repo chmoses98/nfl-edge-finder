@@ -30,6 +30,13 @@ experiment with zero history.
 | **P** production / real money | **NOT EARNED** | requires a real prospective sample showing positive CLV *and* calibration, on contracts that were actually executable |
 | **Q** last-mile operating standard | **NEW, done 2026-09-07** — RECOMMENDED fails closed on an incomplete decision record, an ask above its own ceiling, a stale decision-time price, unresolved player identity, unresolved availability, unknown transaction costs, or a portfolio limit. Fee engine rebuilt against the published formulas with the unknown maker multiplier kept explicit. Multi-fill P/L corrected. Pilot risk policy added. See `docs/DECISION_STANDARD.md` | operate it; the gates have never yet refused a real bet because there has never been one |
 
+## Shadow v2 (full board, on a branch pending post-Sunday review)
+
+`docs/SHADOW_V2.md`: every NFL contract accounted for, every defensible one projected from a coherent engine and
+frozen at the canonical horizons, settled from proven results and scored against the market. Shadow only. The
+historical evidence it carries is negative or absent for every new family (market wins the player props; the
+period engine has no market comparison); the value of the layer is the prospective record it will accumulate.
+
 ## The current experiment
 
 > Does **NFL DATA + MODEL + MARKET + CHATGPT HANDICAP** produce better decisions than **MODEL ALONE** or

@@ -14,8 +14,18 @@ import argparse, hashlib, json, os, sys, time, urllib.request, urllib.error
 from datetime import datetime, timezone
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, ROOT)
+
 OUT = os.path.join(ROOT, "data", "raw", "nflverse")
 BASE = "https://github.com/nflverse/nflverse-data/releases/download"
+# Releases rebuilt in place, where the version that was on disk at a past instant is otherwise unrecoverable.
+SNAPSHOT_RELEASES = ("injuries",)
+
+
+def _season_of(filename: str):
+    stem = os.path.splitext(filename)[0]
+    tail = stem.rsplit("_", 1)[-1]
+    return int(tail) if tail.isdigit() and len(tail) == 4 else None
 
 # release -> list of (filename pattern, seasons or None for single file)
 # Season ranges reflect what nflverse publishes (per nflreadr docs + observed 404s).
@@ -112,6 +122,21 @@ def main():
                 row["bytes"] = os.path.getsize(dest)
                 row["sha256"] = sha256(dest)
             row["seconds"] = round(time.time() - t0, 2)
+            # SNAPSHOT THE MUTABLE RELEASES. nflverse rebuilds injuries_<season>.parquet in place as
+            # designations are filed, and the file carries no per-row timestamp to bound it by (date_modified
+            # exists in 2024 and is gone from 2025 on). Without a copy taken now, re-running an old projection
+            # cutoff later reads today's fuller report and silently rewrites what the model "knew". The copy is
+            # content-addressed, so re-downloading identical bytes costs nothing and creates no new vintage.
+            # Imported inside the guard on purpose: this script is an entrypoint of three incumbent
+            # workflows, and snapshotting must never be able to cost them a download.
+            if release in SNAPSHOT_RELEASES and os.path.exists(dest):
+                try:
+                    from nfl_edge.shadow_v2 import vintage_snapshots as VS
+                    v = VS.ensure_snapshot(ROOT, rel, retrieved_at=row["retrieved_at"], source_url=url,
+                                           season=_season_of(fn))
+                    row["vintage_snapshot"] = (v or {}).get("snapshot_path")
+                except BaseException as exc:                               # noqa: BLE001
+                    row["vintage_snapshot_error"] = f"{type(exc).__name__}: {exc}"
             print(json.dumps(row), flush=True)
             with open(manifest_path, "a") as f:
                 f.write(json.dumps(row) + "\n")

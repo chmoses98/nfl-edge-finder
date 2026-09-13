@@ -40,6 +40,8 @@ jobs:
             mkdir -p data/kalshi/capture
             git show origin/market-data:data/kalshi/capture/state.json > data/kalshi/capture/state.json 2>/dev/null || echo '{"fingerprints":{},"trades_cursor_ts":null,"last_daily_run":null}' > data/kalshi/capture/state.json
             git show origin/market-data:data/kalshi/capture/schedule_cache.csv > data/kalshi/capture/schedule_cache.csv 2>/dev/null || true
+            # SHADOW v2: the provisional series list written by discovery; absent means "no provisional series", never an error
+            git show origin/market-data:data/kalshi/capture/provisional_series.json > data/kalshi/capture/provisional_series.json 2>/dev/null || rm -f data/kalshi/capture/provisional_series.json
           fi
       - name: Capture
         id: capture
