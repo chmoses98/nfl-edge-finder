@@ -404,8 +404,22 @@ def _one(original: dict, provisional: dict, ctx, report, outstanding, *,
 # at a glance. Deliberately not a `G_*` gate constant: see below.
 ISSUANCE = "issuance_temporal_authorization"
 
+# The two moments this check is made at. They are different questions with the same rule:
+#
+#   FORMATION  just before the approved payload is built and signed. Stops a dead approval from being
+#              assembled and signed at all.
+#   DELIVERY   immediately before the outbound Airtable request that makes the row visible. THIS is the
+#              binding one: an approval nobody can see has authorised nothing, so the moment that matters
+#              is the moment it becomes readable, not the moment it was computed.
+#
+# Formation alone is not enough, because a worker answering several rows holds the first row's approval in
+# memory while it fetches, stores and gates the rest -- an interval bounded only by how many rows are
+# pending. See `preflight_airtable.deliver`.
+STAGE_FORMATION = "formation"
+STAGE_DELIVERY = "delivery"
 
-def authorize_issuance(results: list, *, issued_at: datetime,
+
+def authorize_issuance(results: list, *, issued_at: datetime, stage: str = STAGE_FORMATION,
                        max_quote_age_minutes: float = Q.DEFAULT_MAX_QUOTE_AGE_MIN,
                        max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN) -> list:
     """The last thing before an approval is handed over: is it STILL authorised, right now?
@@ -453,7 +467,7 @@ def authorize_issuance(results: list, *, issued_at: datetime,
         if not r.may_be_shown_as_a_bet:
             continue
         rec = r.approved_record or {}
-        checks = {"issued_at": issued_at.isoformat()}
+        checks = {"issued_at": issued_at.isoformat(), "stage": stage}
         reason = None
 
         # 1. STILL PREGAME. Strictly before, exactly as the gate requires of the decision.

@@ -641,6 +641,7 @@ def test_request_to_verdict_is_measured_from_airtables_own_clock(tmp_path):
 class FakeAirtable:
     def __init__(self, rows):
         self.rows, self.written, self.request_count = rows, {}, 0
+        self.write_calls = 0                    # outbound PATCHes, so per-request behaviour is assertable
         self.evidence_root = None
 
     def list_by_status(self, status, sport=AB.SPORT_NFL):
@@ -649,6 +650,7 @@ class FakeAirtable:
 
     def write_fields(self, updates, **kw):
         self.request_count += 1
+        self.write_calls += 1
         for rid, fields in updates.items():
             self.written.setdefault(rid, {}).update(fields)
 
@@ -1106,10 +1108,11 @@ def _race_row(created_at, cand=None):
 def _run_with_clock(tmp_path, *, reads, client, cand=None, requested_at=None):
     """Drive one row with an explicit clock script.
 
-    The worker reads the clock exactly three times per row, in this order:
+    For a single-row run the worker reads the clock four times, in this order:
         1. the evidence run-id label (before the fetch; a label, never a decision)
         2. the DECISION instant   (after fetch + persist + read-back)
-        3. the ISSUANCE instant   (immediately before the payload is built and signed)
+        3. the FORMATION instant  (after the gates; withdraws a dead approval before anything is signed)
+        4. the DELIVERY instant   (one per outbound Airtable request -- THE BINDING ONE)
     """
     it = iter(reads)
     fake = FakeAirtable([_race_row(requested_at or (reads[1] - timedelta(minutes=5)), cand)])
@@ -1138,9 +1141,10 @@ def _assert_withdrawn(fake, *, contains):
 def test_1_KICKOFF_PASSES_BETWEEN_THE_DECISION_AND_THE_ISSUE(tmp_path):
     """decision_at = kickoff - 1s, issued_at = kickoff + 1s. The gates pass; the delivery must not."""
     from test_preflight import KICKOFF                                  # noqa: PLC0415
-    reads = [KICKOFF - timedelta(seconds=2),      # evidence label
-             KICKOFF - timedelta(seconds=1),      # decision  -- strictly pregame, the gate PASSES
-             KICKOFF + timedelta(seconds=1)]      # issue     -- no longer pregame
+    reads = [KICKOFF - timedelta(seconds=3),      # evidence label
+             KICKOFF - timedelta(seconds=2),      # decision   -- strictly pregame, the gate PASSES
+             KICKOFF - timedelta(seconds=1),      # formation  -- still pregame, still authorised
+             KICKOFF + timedelta(seconds=1)]      # DELIVERY   -- no longer pregame
     code, fake = _run_with_clock(
         tmp_path, reads=reads, client=FakeKalshiClient(retrieved_at=KICKOFF - timedelta(seconds=30)),
         requested_at=KICKOFF - timedelta(minutes=10))
@@ -1159,7 +1163,9 @@ def test_1_KICKOFF_PASSES_BETWEEN_THE_DECISION_AND_THE_ISSUE(tmp_path):
 def test_2_THE_QUOTE_GOES_STALE_BETWEEN_THE_DECISION_AND_THE_ISSUE(tmp_path):
     """Fresh at 14 minutes when the gates run, 16 minutes old by the time the answer is handed over."""
     t0 = DECISION
-    reads = [t0 + timedelta(minutes=14), t0 + timedelta(minutes=14), t0 + timedelta(minutes=16)]
+    reads = [t0 + timedelta(minutes=14), t0 + timedelta(minutes=14),
+             t0 + timedelta(minutes=14, seconds=30),     # formation: 14.5 min, still inside the window
+             t0 + timedelta(minutes=16)]                 # DELIVERY: 16 min, outside it
     code, fake = _run_with_clock(tmp_path, reads=reads, client=FakeKalshiClient(retrieved_at=t0),
                                  requested_at=t0 + timedelta(minutes=5))
     assert code == 0
@@ -1174,7 +1180,7 @@ def test_3_THE_BOOK_GOES_STALE_BETWEEN_THE_DECISION_AND_THE_ISSUE(tmp_path):
     """The book has its own clock: the quote can be seconds old while the depth is already over the line."""
     t0 = DECISION
     decision = t0 + timedelta(minutes=14)
-    reads = [decision, decision, t0 + timedelta(minutes=16)]
+    reads = [decision, decision, t0 + timedelta(minutes=14, seconds=30), t0 + timedelta(minutes=16)]
     client = FakeKalshiClient(retrieved_at=decision, book_retrieved_at=t0)
     code, fake = _run_with_clock(tmp_path, reads=reads, client=client,
                                  requested_at=t0 + timedelta(minutes=5))
@@ -1189,7 +1195,7 @@ def test_3_THE_BOOK_GOES_STALE_BETWEEN_THE_DECISION_AND_THE_ISSUE(tmp_path):
 def test_4_THE_NORMAL_FAST_PATH_IS_STILL_APPROVED(tmp_path):
     """The whole point of the check is that it costs a fast, correct run nothing."""
     t0 = DECISION + timedelta(minutes=2)
-    reads = [t0, t0 + timedelta(seconds=1), t0 + timedelta(seconds=3)]
+    reads = [t0, t0 + timedelta(seconds=1), t0 + timedelta(seconds=2), t0 + timedelta(seconds=3)]
     code, fake = _run_with_clock(tmp_path, reads=reads,
                                  client=FakeKalshiClient(retrieved_at=t0 - timedelta(seconds=1)))
     assert code == 0
@@ -1274,5 +1280,232 @@ def test_the_issuance_check_uses_the_same_thresholds_and_has_no_dial_of_its_own(
     assert sig.parameters["max_book_age_minutes"].default == \
         __import__("nfl_edge.execution.depth", fromlist=["x"]).DEFAULT_MAX_BOOK_AGE_MIN == 15.0
     src = open(os.path.join(ROOT, "scripts", "handicap", "preflight_airtable.py")).read()
-    assert "authorize_issuance(results, issued_at=issued_at)" in src, \
+    assert "max_quote_age" not in src and "max_book_age" not in src, \
         "the worker must not pass its own thresholds; it uses the same two numbers as the gates"
+    assert src.count("P.authorize_issuance(") == 2, \
+        "exactly two authorisation points: formation, and the binding one immediately before delivery"
+
+
+# ======================================================================================================
+# DELIVERY IS THE BINDING MOMENT
+#
+# Formation alone left an interval bounded by HOW MANY OTHER ROWS WERE PENDING. `run` used to queue every
+# answered row and call `client.write_fields(updates)` once, at the end -- so row A could clear issuance at
+# T-2s and then sit in memory while rows B and C each spent two live GETs, an evidence commit-and-push and
+# a ledger read, and A would appear in Airtable minutes later still stamped APPROVED.
+#
+# THE CONVENTION, stated once and used everywhere: the DELIVERY INSTANT is the moment immediately before
+# the outbound Airtable PATCH that carries the row. It is the `answered_at` of a delivered row, the
+# `issued_at` of its `issuance` block with `stage: delivery`, and what `deliver()` documents.
+# ======================================================================================================
+
+def _multi_row(rows_spec, requested_at):
+    """Several PREFLIGHT_REQUESTED rows, each with its own record id and candidate."""
+    return [{"id": rid, "createdTime": requested_at.isoformat(),
+             "fields": {AB.F_SPORT: AB.SPORT_NFL, AB.F_STATUS: AB.STATUS_PREFLIGHT_REQUESTED,
+                        AB.F_RUN_ID: "20260909T130000Z", AB.F_PAYLOAD: json.dumps([cand])}}
+            for rid, cand in rows_spec]
+
+
+def _run_rows(tmp_path, rows, *, reads, client):
+    it = iter(reads)
+    fake = FakeAirtable(rows)
+    store, root = evidence_dir(tmp_path)
+    fake.evidence_root = root
+    code = W.run(fake, ledger_root=ledger(tmp_path), signing_key=SIGNING_KEY,
+                 clock=lambda: next(it),
+                 evidence_collector=W.LiveEvidenceCollector(client), evidence_store=store)
+    return code, fake
+
+
+A_ID, B_ID = "recROWA0000000001", "recROWB0000000002"
+A_CAND = candidate(recommendation_id="rec_pf00000000000000a")
+B_CAND = candidate(recommendation_id="rec_pf00000000000000b")
+
+
+def test_D1_ROW_A_CLEARS_ISSUANCE_THEN_ROW_B_PUSHES_THE_CLOCK_PAST_KICKOFF(tmp_path):
+    """Row A is authorised pre-kickoff; working row B carries the clock past kickoff.
+
+    A must NOT be written APPROVED. Under the old batched write it would have been: A's fields were
+    rendered and signed at its own formation instant and then queued until every row had been processed.
+    """
+    from test_preflight import KICKOFF                                  # noqa: PLC0415
+    k = KICKOFF
+    reads = [
+        k - timedelta(minutes=5), k - timedelta(minutes=5), k - timedelta(seconds=2),   # A: label/dec/form
+        k - timedelta(minutes=4), k - timedelta(minutes=4), k - timedelta(minutes=4),   # B: label/dec/form
+        k + timedelta(seconds=1),                                                       # DELIVERY (shared)
+    ]
+    code, fake = _run_rows(
+        tmp_path, _multi_row([(A_ID, A_CAND), (B_ID, B_CAND)], k - timedelta(minutes=10)),
+        reads=reads, client=FakeKalshiClient(retrieved_at=k - timedelta(minutes=6)))
+    assert code == 0
+
+    for rid in (A_ID, B_ID):
+        assert fake.written[rid][AB.F_STATUS] == AB.STATUS_PREFLIGHT_BLOCKED, rid
+        assert AB.F_APPROVED_PAYLOAD not in fake.written[rid], rid
+        body = json.loads(fake.written[rid][AB.F_PREFLIGHT_RESULT])
+        assert "approval_signature" not in body, rid
+        c = body["candidates"][0]
+        assert c["may_be_shown_as_a_bet"] is False, rid
+        assert any("kickoff passed" in b for b in c["blocking_reasons"]), c["blocking_reasons"]
+        # The refusal that stuck is the DELIVERY one -- the check bound to the outbound write.
+        assert c["issuance"]["stage"] == "delivery"
+        assert c["issuance"]["authorized"] is False
+        # And `answered_at` IS that instant, so the row states the moment it was authorised against.
+        assert body["answered_at"] == (k + timedelta(seconds=1)).isoformat()
+
+
+def test_D2_ROW_AS_EVIDENCE_EXPIRES_WHILE_ROW_B_IS_PROCESSED(tmp_path):
+    """Same shape, freshness instead of kickoff: A is 14 min fresh at its own check, 16 min by delivery."""
+    t0 = DECISION
+    reads = [
+        t0 + timedelta(minutes=14), t0 + timedelta(minutes=14), t0 + timedelta(minutes=14),   # A
+        t0 + timedelta(minutes=15), t0 + timedelta(minutes=15), t0 + timedelta(minutes=15),   # B
+        t0 + timedelta(minutes=16),                                                            # DELIVERY
+    ]
+    code, fake = _run_rows(
+        tmp_path, _multi_row([(A_ID, A_CAND), (B_ID, B_CAND)], t0 + timedelta(minutes=5)),
+        reads=reads, client=FakeKalshiClient(retrieved_at=t0))
+    assert code == 0
+    for rid in (A_ID, B_ID):
+        assert fake.written[rid][AB.F_STATUS] == AB.STATUS_PREFLIGHT_BLOCKED, rid
+        assert AB.F_APPROVED_PAYLOAD not in fake.written[rid], rid
+        body = json.loads(fake.written[rid][AB.F_PREFLIGHT_RESULT])
+        assert "approval_signature" not in body, rid
+        c = body["candidates"][0]
+        assert any("went stale" in b for b in c["blocking_reasons"]), c["blocking_reasons"]
+        assert c["issuance"]["stage"] == "delivery"
+        assert c["issuance"]["quote_age_minutes_at_issue"] > 15.0
+    # The GATES still passed -- this is a delivery refusal, not a re-decision.
+    a = json.loads(fake.written[A_ID][AB.F_PREFLIGHT_RESULT])["candidates"][0]
+    assert a["gates"]["decision_time_quote_freshness"] == G.PASS
+    assert a["quote_age_minutes"] <= 15.0
+
+
+def test_D3_THE_NORMAL_MULTI_ROW_FAST_PATH_STILL_APPROVES_BOTH(tmp_path):
+    """Nothing expires, so the delivery check costs a fast multi-row run nothing."""
+    t0 = DECISION + timedelta(minutes=2)
+    reads = [t0 + timedelta(seconds=i) for i in range(8)]
+    code, fake = _run_rows(
+        tmp_path, _multi_row([(A_ID, A_CAND), (B_ID, B_CAND)], DECISION),
+        reads=reads, client=FakeKalshiClient(retrieved_at=t0 - timedelta(seconds=1)))
+    assert code == 0
+    for rid in (A_ID, B_ID):
+        assert fake.written[rid][AB.F_STATUS] == AB.STATUS_PREFLIGHT_APPROVED, rid
+        assert AB.F_APPROVED_PAYLOAD in fake.written[rid], rid
+        body = json.loads(fake.written[rid][AB.F_PREFLIGHT_RESULT])
+        assert body["approval_signature"] and body["evidence_manifest_sha256"]
+        c = body["candidates"][0]
+        assert c["may_be_shown_as_a_bet"] is True
+        assert c["issuance"]["stage"] == "delivery" and c["issuance"]["authorized"] is True
+    # Both rows share ONE outbound request, so both were authorised against the same delivery instant.
+    assert (json.loads(fake.written[A_ID][AB.F_PREFLIGHT_RESULT])["answered_at"]
+            == json.loads(fake.written[B_ID][AB.F_PREFLIGHT_RESULT])["answered_at"])
+
+
+def test_D4_A_SINGLE_ROW_STILL_APPROVES_NORMALLY(tmp_path):
+    t0 = DECISION + timedelta(minutes=2)
+    code, fake = _run_with_clock(
+        tmp_path, reads=[t0, t0 + timedelta(seconds=1), t0 + timedelta(seconds=2),
+                         t0 + timedelta(seconds=3)],
+        client=FakeKalshiClient(retrieved_at=t0 - timedelta(seconds=1)))
+    assert code == 0
+    assert fake.written[RID][AB.F_STATUS] == AB.STATUS_PREFLIGHT_APPROVED
+    body = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    assert body["approval_signature"] and AB.F_APPROVED_PAYLOAD in fake.written[RID]
+    assert body["candidates"][0]["issuance"]["stage"] == "delivery"
+
+
+def test_D5_NO_MODEL_GATE_OR_REPLAY_SEMANTICS_CHANGED_BY_THE_DELIVERY_BINDING(tmp_path):
+    """The delivery binding is transport. It changes no gate, no handicap and nothing the importer replays."""
+    led = ledger(tmp_path)
+    _code, fake = go(tmp_path, led=led, cand=FILED)
+    body = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    c = body["candidates"][0]
+
+    from test_preflight_no_weakening import EXPECTED_GATES                # noqa: PLC0415
+    assert set(c["gates"]) <= EXPECTED_GATES and P.ISSUANCE not in c["gates"]
+
+    # The HANDICAP is carried forward untouched, exactly as before.
+    approved = json.loads(fake.written[RID][AB.F_APPROVED_PAYLOAD])[0]
+    for f in ("probability_low", "probability_mid", "probability_high", "model_probability",
+              "model_version", "grade", "bet_up_to_probability", "primary_thesis", "artifact_hash"):
+        assert approved[f] == FILED[f], f
+    # The record is still dated at the DECISION, never at delivery.
+    assert approved["created_at"] == body["approval_as_of"] != body["answered_at"] or \
+        body["approval_as_of"] == body["answered_at"]
+    assert approved["created_at"] == body["approval_as_of"]
+
+    # And the archived record still imports, gated against its own evidence, with a replayable gate record.
+    plan = AB.plan_run(_ready_row(fake), led, now=APPROVAL_AT + timedelta(hours=12),
+                       gate_context=_import_ctx(led, [approved]),
+                       signing_key=SIGNING_KEY, evidence_root=fake.evidence_root)
+    assert len(plan.to_write) == 1
+    gate_record = plan.gate_records[0][1]
+    assert gate_record["overall"] == G.PASS
+    assert set(gate_record["gates"]) <= EXPECTED_GATES
+    assert "issued_at" not in json.dumps(gate_record) and "delivery" not in json.dumps(gate_record)
+
+
+def test_the_worker_no_longer_holds_a_rendered_approval_in_memory(tmp_path):
+    """Structural: the payload and the signature are built at delivery, not queued from formation."""
+    import inspect                                                        # noqa: PLC0415
+    assert "signing_key" not in {f for f in W.PendingAnswer.__dataclass_fields__}
+    src = inspect.getsource(W.answer_row)
+    for smell in ("canonical_payload", "APPROVAL.issue(", "F_APPROVED_PAYLOAD", "STATUS_PREFLIGHT_APPROVED"):
+        assert smell not in src, f"answer_row must not render or sign: found {smell!r}"
+    deliver_src = inspect.getsource(W.deliver)
+    check = deliver_src.index("authorize_issuance")
+    render = deliver_src.index("render_answer(")
+    send = deliver_src.index("client.write_fields(")
+    assert check < render < send, "authorise, then render and sign, then send -- in that order"
+
+
+def test_an_errored_row_is_written_without_a_delivery_check(tmp_path):
+    """An ERROR row carries no approval, so there is nothing to withdraw -- but it is still delivered."""
+    code, fake = go(tmp_path, client=FakeKalshiClient(fail_market=True))
+    assert code == 1
+    assert fake.written[RID][AB.F_STATUS] == AB.STATUS_PREFLIGHT_ERROR
+    assert AB.F_APPROVED_PAYLOAD not in fake.written[RID]
+
+
+def test_the_delivery_instant_is_PER_OUTBOUND_REQUEST_not_per_run(tmp_path, monkeypatch):
+    """Airtable caps a PATCH at 10 records, so a big batch is several requests -- and several instants.
+
+    The worker chunks to that cap ITSELF rather than handing the whole batch to `write_fields` and letting
+    it chunk internally, precisely so the authorisation can be bound to the request that carries the row.
+    Forced here to one row per request, the two rows must be authorised against two different instants.
+    """
+    assert W.DELIVERY_CHUNK == 10, "the chunk is Airtable's documented maximum records per PATCH"
+    monkeypatch.setattr(W, "DELIVERY_CHUNK", 1)
+    t0 = DECISION + timedelta(minutes=2)
+    reads = [t0 + timedelta(seconds=i) for i in range(9)]
+    code, fake = _run_rows(
+        tmp_path, _multi_row([(A_ID, A_CAND), (B_ID, B_CAND)], DECISION),
+        reads=reads, client=FakeKalshiClient(retrieved_at=t0 - timedelta(seconds=1)))
+    assert code == 0
+    a = json.loads(fake.written[A_ID][AB.F_PREFLIGHT_RESULT])
+    b = json.loads(fake.written[B_ID][AB.F_PREFLIGHT_RESULT])
+    assert a["answered_at"] != b["answered_at"], \
+        "two outbound requests must carry two delivery instants, not one shared stamp"
+    assert a["candidates"][0]["issuance"]["issued_at"] == a["answered_at"]
+    assert b["candidates"][0]["issuance"]["issued_at"] == b["answered_at"]
+    assert fake.write_calls == 2, "one write_fields call per chunk"
+
+
+def test_answered_at_IS_the_delivery_instant_and_the_row_says_so(tmp_path):
+    """The convention, asserted where an operator can check it: three fields, one instant."""
+    t0 = DECISION + timedelta(minutes=2)
+    code, fake = _run_with_clock(
+        tmp_path, reads=[t0, t0 + timedelta(seconds=1), t0 + timedelta(seconds=2),
+                         t0 + timedelta(seconds=3)],
+        client=FakeKalshiClient(retrieved_at=t0 - timedelta(seconds=1)))
+    assert code == 0
+    body = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    issuance = body["candidates"][0]["issuance"]
+    assert body["answered_at"] == issuance["issued_at"] == (t0 + timedelta(seconds=3)).isoformat()
+    assert issuance["stage"] == "delivery"
+    # And it is strictly later than the decision, which is what the record is dated at.
+    assert body["approval_as_of"] < body["answered_at"]
+    assert json.loads(fake.written[RID][AB.F_APPROVED_PAYLOAD])[0]["created_at"] == body["approval_as_of"]

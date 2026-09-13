@@ -33,10 +33,12 @@ SOURCE_PINS = {
     # which a candidate passes the gates at T-1s and the answer is written after kickoff. It can only ever
     # turn an APPROVED into a BLOCKED, it reuses the same two 15-minute constants, and it is deliberately
     # NOT a gate -- it reads a wall clock, so recording it in the gate report would break the replay.
+    # It is now made at TWO stages (formation, and immediately before the outbound Airtable write), because
+    # an approval that exists only in the worker's memory has authorised nothing: see `deliver`.
     "nfl_edge/handicap/gates.py": "2821835860e32f3e",            # the real-money gates
     "nfl_edge/handicap/risk.py": "e8ba8fd37f0d01a3",             # the risk policy engine
     "nfl_edge/handicap/schema.py": "1ea7b6c31b15d03e",           # recommendation schema, availability rules, ceilings
-    "nfl_edge/handicap/preflight.py": "2cbed0469ff2cc70",        # the pre-trade check
+    "nfl_edge/handicap/preflight.py": "b32665e82cf0b994",        # the pre-trade check
     "config/risk_policy.json": "11d24fbea908f9ed",               # risk limits
     # the frozen Week-1 code lineage (research/FREEZE_WEEK1_2026.json), byte-identical to main
     "nfl_edge/shadow/ledger.py": "26949b1807296331",

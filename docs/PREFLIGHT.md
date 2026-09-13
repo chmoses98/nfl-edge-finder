@@ -56,9 +56,11 @@ Airtable PREFLIGHT_REQUESTED
   → READ IT BACK off the store
   → *** NOW *** stamp the decision instant (approval_as_of)      ← after the evidence exists, never before
   → the existing gates, unchanged, plus decision_before_kickoff
-  → stamp the ISSUANCE instant and re-check kickoff + both freshness windows AT IT
-       any candidate whose authorisation lapsed while we computed becomes BLOCKED here
-  → build the Approved Payload and sign it — only from what survived
+  → FORMATION check: re-check kickoff + both freshness windows; a lapsed candidate is withdrawn here,
+       so a dead approval is never assembled and never signed
+  → *** immediately before the outbound Airtable PATCH ***
+       DELIVERY check: re-check them again, against the instant of THAT request   ← the binding one
+       build the Approved Payload and sign it — only from what is still authorised
   → PREFLIGHT_APPROVED / PREFLIGHT_BLOCKED in Airtable, signed over the evidence manifest
 ```
 
@@ -71,7 +73,7 @@ decision did not have. So the order of the two clocks is not cosmetic:
 |---|---|---|
 | evidence retrieval | by the client, when each response actually arrived | freshness is measured backwards from the decision to this |
 | `approval_as_of` | **after** fetch + persist + read-back, immediately before the gates | the decision; `created_at` of every approved record; what the signature covers |
-| `answered_at` | after the gates, immediately before the payload is built | the **issuance** instant: when the answer was formed and when the delivery check was made |
+| `answered_at` | **immediately before the outbound Airtable PATCH that carries the row** | the **delivery** instant — see the convention below |
 
 Stamping `approval_as_of` at the top of the row loop — which an earlier draft of this rebuild did — inverts
 that rule: the live quote necessarily returns *after* the moment the loop was entered, so every preflight
@@ -94,9 +96,9 @@ Neither is a defect in the gates; they answered the question they were asked, at
 it. `preflight.authorize_issuance` asks the other question — *may this still be delivered?* — at delivery
 time, for any candidate that would otherwise be approved:
 
-| re-checked at `answered_at` | refuses when |
+| re-checked | refuses when |
 |---|---|
-| still pregame | `answered_at >= kickoff_utc` |
+| still pregame | `issued_at >= kickoff_utc` |
 | quote still inside its window | age > `DEFAULT_MAX_QUOTE_AGE_MIN` (15) |
 | book still inside its window | age > `DEFAULT_MAX_BOOK_AGE_MIN` (15) |
 | any of those timestamps unreadable | fail closed — "I cannot tell" is not a yes |
@@ -105,12 +107,45 @@ A refused candidate becomes **BLOCKED**, loses its approved record, and therefor
 Payload and no signature** — the withdrawal happens before the payload is assembled, so there is nothing
 left to sign.
 
+#### What "delivered" means, exactly
+
+> **The delivery instant is the moment immediately before the outbound Airtable PATCH that carries the
+> row** — one clock read per request, taken after the rows in that request are chosen and before anything
+> is rendered, signed or sent.
+
+That one instant is used consistently in three places, and an operator can check they agree on any row:
+
+* `Preflight Result.answered_at`
+* `candidates[].issuance.issued_at`, with `stage: "delivery"`
+* what `preflight_airtable.deliver()` documents and asserts
+
+**Why the outbound write and not the computation.** An approval nobody can read has authorised nothing. The
+row becomes real when Airtable serves it, so the moment that must be pre-kickoff is the moment it becomes
+*readable*. Checking only at formation left an interval bounded by **how many other rows were pending**: row
+A could clear at kickoff − 2s, then rows B and C each spend two live GETs, an evidence commit-and-push and a
+ledger read, and A would appear in Airtable minutes later still stamped APPROVED. That interval is gone —
+not because it is measured, but because A's payload and signature are now *built* after the check that
+immediately precedes A's own request. `answer_row` returns an undelivered `PendingAnswer`; it renders
+nothing and signs nothing.
+
+Airtable caps a PATCH at 10 records, so a large batch is several requests and therefore several delivery
+instants. The worker chunks to that cap itself rather than letting `write_fields` chunk internally, so the
+authorisation is always bound to the request that carries the row.
+
+**The residual, stated honestly.** What remains is the HTTP round trip: the request is authorised, then
+sent. Nothing closes that without a transactional venue, and Airtable is not one. It is bounded by one
+request's latency rather than by the size of the batch — the same residual any external write has.
+
+A row that is already BLOCKED or ERROR is not re-checked: there is nothing to withdraw. It is still written
+in the same request.
+
 **It is not a gate, and must not become one.** `decision_before_kickoff` and the freshness gates are pure
 functions of the record and its evidence, which is exactly what lets the importer reproduce the verdict
 hours later. This check reads a wall clock that will never exist again, so it is recorded on `issuance` and
 in `blocking_reasons`, and never in `gates`. `decision_before_kickoff` is unchanged, still evaluated at the
 decision, and still what the replay compares. The delivery check is **additive** — it can only ever turn an
-APPROVED into a BLOCKED — and it reuses the same two 15-minute constants with no dial of its own.
+APPROVED into a BLOCKED — and it reuses the same two 15-minute constants with no dial of its own. The
+archived record is still dated at `approval_as_of`, never at delivery.
 
 **Target: under 30 seconds request-to-verdict, and materially under 20 in the normal case.**
 

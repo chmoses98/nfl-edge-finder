@@ -60,6 +60,7 @@ import json
 import os
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -333,8 +334,12 @@ def _summary(results: list, *, run_id: str, airtable_id: str, candidate_payload:
 
 def answer_row(row: dict, *, ledger_root: str, clock, market_data_root: str | None = None,
                fee_observations_root: str | None = None, evidence_collector=None, evidence_store=None,
-               workflow_run_id: str = "", signing_key=None, timer: Timer | None = None) -> tuple:
-    """Preflight one Airtable row. Returns (status, result body, approved payload or None).
+               workflow_run_id: str = "", signing_key=None, timer: Timer | None = None) -> "PendingAnswer":
+    """Preflight one Airtable row and return it ASSEMBLED BUT UNDELIVERED.
+
+    It deliberately does not render the Airtable fields, sign anything, or decide a final status. Those
+    happen in `deliver`, against the moment the row is actually sent -- see its docstring for why an
+    approval that exists only in this process has authorised nothing.
 
     THREE TIMESTAMPS, AND THE ORDER THEY ARE TAKEN IN IS LOAD-BEARING
     ----------------------------------------------------------------
@@ -344,7 +349,9 @@ def answer_row(row: dict, *, ledger_root: str, clock, market_data_root: str | No
         DECISION INSTANT     read AFTER the evidence is fetched, persisted and read back, immediately
                              before the gates. This is `approval_as_of` and the `created_at` of every
                              approved record.
-        answered_at          read after the gates, for observability only. Nothing is judged at it.
+        FORMATION            read after the gates. A candidate whose authorisation has already lapsed is
+                             withdrawn here, so a dead approval is never assembled or signed.
+        DELIVERY             read in `deliver`, immediately before the outbound write. THE BINDING ONE.
 
     Stamping the decision BEFORE the fetch -- which is what this did until it was corrected -- inverts the
     one rule the resolvers are built on: evidence dated after the decision is INVISIBLE, because it is
@@ -427,50 +434,177 @@ def answer_row(row: dict, *, ledger_root: str, clock, market_data_root: str | No
         if "ledger_load" in timer.spans:
             timer.spans["gates"] = round(max(0.0, timer.spans["gates"] - timer.spans["ledger_load"]), 3)
 
-    # THE ISSUANCE WINDOW. Read the clock ONE more time, here, and ask the only question the gates cannot:
-    # is this still authorised NOW, at the moment it is about to be handed over? The gates were evaluated at
-    # `decision_at` and were right to be; time has passed since, and kickoff or a fifteen-minute freshness
-    # window can have gone by while the payload was being built. A candidate that has lost its authorisation
-    # is turned into a BLOCKED one BEFORE the payload is assembled -- so there is no approved payload to
-    # sign and nothing to sign it with. See preflight.authorize_issuance for why this is not a gate.
-    issued_at = clock()
-    for cid, why in P.authorize_issuance(results, issued_at=issued_at):
-        log(f"   WITHDRAWN {cid}: {why}")
+    # THE FORMATION CHECK. Read the clock and ask the question the gates cannot: is this still authorised?
+    # The gates were evaluated at `decision_at` and were right to be; time has passed since. A candidate
+    # that has lost its authorisation is turned into a BLOCKED one BEFORE the payload is assembled, so a
+    # dead approval is never built and never signed. This is NOT the binding check -- `deliver` re-asks it
+    # immediately before the outbound write, which is the moment that actually matters.
+    formed_at = clock()
+    for cid, why in P.authorize_issuance(results, issued_at=formed_at, stage=P.STAGE_FORMATION):
+        log(f"   WITHDRAWN at formation {cid}: {why}")
 
+    return PendingAnswer(
+        airtable_id=airtable_id, run_id=run_id,
+        candidate_payload=candidate_payload if isinstance(candidate_payload, str) else "",
+        results=results, evidence=evidence, decision_at=decision_at, formed_at=formed_at)
+
+
+# ---- delivery ----------------------------------------------------------------------------------------
+
+@dataclass
+class PendingAnswer:
+    """One row's answer, assembled but NOT yet visible to anybody.
+
+    It is deliberately NOT a rendered set of Airtable fields. An approval that exists only in this process
+    has authorised nothing -- the owner cannot read it -- so the payload and the signature are built at
+    DELIVERY time, from whatever is still authorised then. Holding the rendered bytes instead would be the
+    same bug in a different place: a row approved at T and written at T+90s, with nothing re-checking the
+    gap.
+    """
+    airtable_id: str
+    run_id: str
+    candidate_payload: str
+    results: list
+    evidence: dict | None
+    decision_at: datetime
+    formed_at: datetime
+
+    @property
+    def carries_an_approval(self) -> bool:
+        """Does this row still hold something that would be written as APPROVED?"""
+        return any(r.may_be_shown_as_a_bet for r in self.results)
+
+
+def render_answer(pending: PendingAnswer, *, signing_key, delivered_at: datetime) -> tuple:
+    """Build the row's verdict, payload and signature AS OF the moment it is about to be sent.
+
+    Called once per outbound request, after `deliver` has re-authorised. Everything it produces is a
+    function of the results as they stand at that instant -- so a candidate withdrawn a line earlier simply
+    is not in `approved_records`, there is no payload to canonicalise, and the signing branch is not taken.
+    """
+    results = pending.results
     approved_records = [r.approved_record for r in results if r.may_be_shown_as_a_bet]
     fully_approved = bool(results) and len(approved_records) == len(results)
     approved_payload = AB.canonical_payload(approved_records) if fully_approved else None
 
-    # ANSWERED_AT is the issuance instant: the moment the answer was formed and the moment the check above
-    # was made. It is observability and delivery, never a clock any gate is judged at -- conflating it with
-    # the decision is what produced the ordering bug.
-    body = _summary(results, run_id=run_id, airtable_id=airtable_id,
-                    candidate_payload=candidate_payload if isinstance(candidate_payload, str) else "",
-                    approved_payload=approved_payload, approval_as_of=decision_at,
-                    answered_at=issued_at, evidence=evidence)
+    body = _summary(results, run_id=pending.run_id, airtable_id=pending.airtable_id,
+                    candidate_payload=pending.candidate_payload,
+                    approved_payload=approved_payload, approval_as_of=pending.decision_at,
+                    answered_at=delivered_at, evidence=pending.evidence)
 
     if approved_payload is not None:
         # SIGN it. A hash the approval carries about itself proves only that the approval is self-consistent;
         # anyone who can write Airtable can write both halves. The signature is what makes the importer's
-        # refusal to archive an unapproved bet a property rather than an etiquette -- and it now covers the
+        # refusal to archive an unapproved bet a property rather than an etiquette -- and it covers the
         # evidence manifest too, so the approval names the exact market documents it was computed from.
         if signing_key is None:
             raise APPROVAL.ApprovalError(
                 f"{APPROVAL.SIGNING_KEY_ENV} is not available, so this approval cannot be signed. An "
                 "unsigned approval would be refused by the importer, so it is not issued at all.")
-        if not (evidence or {}).get("manifest_sha256"):
+        if not (pending.evidence or {}).get("manifest_sha256"):
             raise ES.EvidenceStoreError(
                 "no durable evidence manifest for this batch, so no approval is issued. A real-money "
                 "approval names the market evidence it rests on; one that cannot is refused.")
         body.update(APPROVAL.issue(
-            key=signing_key, airtable_record_id=airtable_id, run_id=run_id,
-            candidate_payload=candidate_payload if isinstance(candidate_payload, str) else "",
-            approved_payload=approved_payload, approval_as_of=decision_at.isoformat(),
-            evidence_manifest_sha256=evidence["manifest_sha256"]))
+            key=signing_key, airtable_record_id=pending.airtable_id, run_id=pending.run_id,
+            candidate_payload=pending.candidate_payload,
+            approved_payload=approved_payload, approval_as_of=pending.decision_at.isoformat(),
+            evidence_manifest_sha256=pending.evidence["manifest_sha256"]))
 
     status = (AB.STATUS_PREFLIGHT_APPROVED if body["verdict"] == "APPROVED"
               else AB.STATUS_PREFLIGHT_BLOCKED)
-    return status, body, approved_payload
+    fields = {AB.F_STATUS: status, AB.F_PREFLIGHT_RESULT: json.dumps(body, indent=1, default=str)}
+    if approved_payload is not None:
+        # The exact canonical batch this approval authorises. The candidate `Payload` is never touched:
+        # request, approval and ledger record stay three distinguishable artifacts.
+        fields[AB.F_APPROVED_PAYLOAD] = approved_payload
+    return status, body, fields
+
+
+# Airtable's documented maximum records per PATCH. The worker chunks to it ITSELF, rather than handing the
+# whole batch to `write_fields` and letting it chunk internally, for one reason: the delivery instant has to
+# be the instant of the request that carries the row, and a second chunk is a second request.
+DELIVERY_CHUNK = 10
+
+
+def deliver(pendings: list, *, client, clock, signing_key, extra_updates: dict | None = None) -> tuple:
+    """Re-authorise, render and SEND. Returns (bodies by row id, rows written, per-row render errors).
+
+    WHAT "DELIVERED" MEANS, EXACTLY
+    -------------------------------
+    The delivery instant is **the moment immediately before the outbound Airtable PATCH that carries the
+    row** -- one clock read per request, taken after the rows in that request are chosen and before the
+    socket is written to. Every approval in that request is revalidated against it: still strictly pregame,
+    quote and book still inside their fifteen-minute windows. That is the convention used throughout: the
+    `answered_at` field of a delivered row, the `issuance` block with `stage: delivery`, and this docstring
+    all mean the same instant.
+
+    WHY THE OUTBOUND WRITE AND NOT THE COMPUTATION
+    ----------------------------------------------
+    An approval nobody can read has authorised nothing. The row becomes real when Airtable serves it, so the
+    moment that has to be pre-kickoff is the moment it becomes readable. Checking only at formation left an
+    interval bounded by HOW MANY OTHER ROWS WERE PENDING: row A could clear at T-2s, then rows B and C each
+    spend two live GETs, an evidence commit-and-push and a ledger read, and A would appear in Airtable
+    minutes later, still stamped APPROVED. That interval is now gone -- not by being measured, but because
+    the payload and the signature for A are built after the check that immediately precedes A's own request.
+
+    THE RESIDUAL, STATED HONESTLY
+    -----------------------------
+    What remains is the HTTP round trip itself: the request is authorised, then sent. Nothing can close that
+    without a transactional venue, and Airtable is not one. It is bounded by one request's latency rather
+    than by the size of the batch, and it is the same residual any external write has.
+
+    A row that is already BLOCKED or ERROR is not re-checked -- there is nothing to withdraw -- but it is
+    still written in the same request.
+    """
+    bodies, written, errors = {}, [], {}
+    queue = list(pendings)
+    extras = list((extra_updates or {}).items())
+
+    while queue or extras:
+        chunk, updates = [], {}
+        while queue and len(updates) + len(chunk) < DELIVERY_CHUNK:
+            chunk.append(queue.pop(0))
+        while extras and len(updates) + len(chunk) < DELIVERY_CHUNK:
+            rid, fields = extras.pop(0)
+            updates[rid] = fields
+
+        # THE DELIVERY INSTANT for this request. One read, taken after the rows in this request are chosen
+        # and before anything is rendered, signed or sent.
+        delivered_at = clock()
+        for p in chunk:
+            if p.carries_an_approval:
+                for cid, why in P.authorize_issuance(p.results, issued_at=delivered_at,
+                                                     stage=P.STAGE_DELIVERY):
+                    log(f"   WITHDRAWN at delivery {p.airtable_id}/{cid}: {why}")
+            try:
+                status, body, fields = render_answer(p, signing_key=signing_key,
+                                                     delivered_at=delivered_at)
+            except (APPROVAL.ApprovalError, ES.EvidenceStoreError, AB.BridgeError, ValueError) as e:
+                # An approval that cannot be rendered or signed is an ERROR, never a silent approval and
+                # never a crash that strands the rest of the batch unanswered.
+                log(f"ERROR  {p.airtable_id}: {AB.scrub(e, '')}")
+                errors[p.airtable_id] = str(e)
+                updates[p.airtable_id] = {
+                    AB.F_STATUS: AB.STATUS_PREFLIGHT_ERROR,
+                    AB.F_PREFLIGHT_RESULT: json.dumps(
+                        {"schema": "preflight-result/1", "verdict": "ERROR",
+                         "answered_at": delivered_at.isoformat(), "error": str(e)[:2000],
+                         "note": "An unanswered or errored request is NOT an approval."}, indent=1),
+                }
+                continue
+            bodies[p.airtable_id] = body
+            updates[p.airtable_id] = fields
+            log(f"{status:<20} {p.airtable_id} run={body['run_id']} "
+                f"candidates={body['n_candidates']} approved={body['n_approved']}")
+            for c in body["candidates"]:
+                if not c["may_be_shown_as_a_bet"]:
+                    for b in c["blocking_reasons"]:
+                        log(f"   blocked {c['recommendation_id']}: {b}")
+
+        client.write_fields(updates)
+        written.extend(updates)
+    return bodies, written, errors
 
 
 # ---- observability -----------------------------------------------------------------------------------
@@ -576,81 +710,60 @@ def run(client, *, ledger_root: str, market_data_root: str | None = None,
         write_summary(summary_path, obs)
         return 0
 
-    updates, had_error = {}, False
+    # PENDING, not rendered. Nothing is signed and no status is decided in this loop: an approval that
+    # exists only here has authorised nothing, so both happen in `deliver`, against the instant the row is
+    # actually sent. Rows that ERROR carry no approval and are queued as finished fields.
+    pendings, error_updates, had_error = [], {}, False
     request_to_verdict = None
+    rows_by_id = {}
     for row in rows:
         rid = (row.get("id") or "").strip()
         if not rid:
             log("ERROR  <no record id>: Airtable row has no record id; cannot be answered")
             had_error = True
             continue
+        rows_by_id[rid] = row
         try:
             # NO CLOCK IS READ HERE. `answer_row` takes the decision instant itself, after the evidence is
             # fetched and durable -- see its docstring for why stamping it out here was a defect.
-            status, body, approved_payload = answer_row(
+            pendings.append(answer_row(
                 row, ledger_root=ledger_root, clock=clock, market_data_root=market_data_root,
                 fee_observations_root=fee_observations_root, evidence_collector=evidence_collector,
                 evidence_store=evidence_store, workflow_run_id=workflow_run_id,
-                signing_key=signing_key, timer=timer)
+                signing_key=signing_key, timer=timer))
         except (AB.BridgeError, ValueError, RISK.RiskPolicyError, APPROVAL.ApprovalError,
                 LE.EvidenceError, ES.EvidenceStoreError, KC.KalshiError) as e:
             # An unusable request is an ERROR, never an approval. The reason goes back to the row so
-            # ChatGPT can see what to fix without anyone reading a workflow log.
+            # ChatGPT can see what to fix without anyone reading a workflow log. An ERROR row carries no
+            # approval, so it needs no delivery authorisation -- but it still has to be written.
             log(f"ERROR  {rid}: {AB.scrub(e, '')}")
             had_error = True
-            updates[rid] = {
+            error_updates[rid] = {
                 AB.F_STATUS: AB.STATUS_PREFLIGHT_ERROR,
                 AB.F_PREFLIGHT_RESULT: json.dumps(
                     {"schema": "preflight-result/1", "verdict": "ERROR",
                      "answered_at": clock().isoformat(), "error": str(e)[:2000],
                      "note": "An unanswered or errored request is NOT an approval."}, indent=1),
             }
-            continue
-
-        approved = body["n_approved"]
-        log(f"{status:<20} {rid} run={body['run_id']} candidates={body['n_candidates']} "
-            f"approved={approved}")
-        for c in body["candidates"]:
-            if not c["may_be_shown_as_a_bet"]:
-                for b in c["blocking_reasons"]:
-                    log(f"   blocked {c['recommendation_id']}: {b}")
-        fields = {AB.F_STATUS: status,
-                  AB.F_PREFLIGHT_RESULT: json.dumps(body, indent=1, default=str)}
-        if approved_payload is not None:
-            # The exact canonical batch this approval authorises. The candidate `Payload` is never touched:
-            # request, approval and ledger record stay three distinguishable artifacts.
-            fields[AB.F_APPROVED_PAYLOAD] = approved_payload
-        updates[rid] = fields
-
-        ev = body.get("evidence") or {}
-        obs["rows_answered"] += 1
-        obs["candidates"] += body["n_candidates"]
-        obs["tickers"] += len(ev.get("documents") or [])
-        obs["evidence_storage"] = ev.get("storage") or obs.get("evidence_storage")
-        obs["evidence_commit"] = ev.get("commit") or obs.get("evidence_commit")
-        obs["per_candidate"].extend(_candidate_timing(body))
-        # REQUEST-TO-VERDICT is measured from Airtable's own server timestamp, which is when the owner
-        # actually asked -- not from when the runner happened to boot. It is the number the fifteen-minute
-        # freshness window and the kickoff deadline are both spent against.
-        req_at = AB._parse_ts("Airtable createdTime", row.get("createdTime"))
-        answered_at = AB._parse_ts("answered_at", body["answered_at"])
-        if req_at is not None and answered_at is not None:
-            span = (answered_at - req_at).total_seconds()
-            request_to_verdict = span if request_to_verdict is None else max(request_to_verdict, span)
-
-    obs["api_requests"] = getattr(evidence_collector, "api_requests", 0)
-    if request_to_verdict is not None:
-        timer.add("request_to_verdict", request_to_verdict)
 
     if not update_status:
-        log(f"--no-write: NOT updating Airtable; would have answered {len(updates)} row(s)")
+        # A DRY RUN DELIVERS NOTHING, so there is no delivery instant to authorise against. The verdicts are
+        # rendered at the formation instant purely so the operator can read them; nothing is written, and a
+        # row rendered here is not an approval anybody could act on.
+        for p in pendings:
+            _status, body, _fields = render_answer(p, signing_key=signing_key, delivered_at=p.formed_at)
+            _record_observation(obs, body, rows_by_id.get(p.airtable_id), timer)
+        log(f"--no-write: NOT updating Airtable; would have answered "
+            f"{len(pendings) + len(error_updates)} row(s)")
         timer.add("worker_total", time.monotonic() - t_worker0)
         write_summary(summary_path, obs)
         return 1 if had_error else 0
 
     timer.start("airtable_write")
     try:
-        client.write_fields(updates)
+        bodies, written, render_errors = deliver(
+            pendings, client=client, clock=clock, signing_key=signing_key,
+            extra_updates=error_updates)
     except AB.TransientError as e:
         timer.stop("airtable_write")
         log(f"TRANSIENT: verdicts computed but could not be written back: {e}")
@@ -659,11 +772,42 @@ def run(client, *, ledger_root: str, market_data_root: str | None = None,
         write_summary(summary_path, obs)
         return 3
     timer.stop("airtable_write")
+    had_error = had_error or bool(render_errors)
 
-    log(f"answered {len(updates)} row(s); total Airtable requests this run: {client.request_count}")
+    for rid, body in bodies.items():
+        span = _record_observation(obs, body, rows_by_id.get(rid), timer)
+        if span is not None:
+            request_to_verdict = span if request_to_verdict is None else max(request_to_verdict, span)
+
+    obs["api_requests"] = getattr(evidence_collector, "api_requests", 0)
+    if request_to_verdict is not None:
+        timer.add("request_to_verdict", request_to_verdict)
+
+    log(f"answered {len(written)} row(s); total Airtable requests this run: {client.request_count}")
     timer.add("worker_total", time.monotonic() - t_worker0)
     write_summary(summary_path, obs)
     return 1 if had_error else 0
+
+
+def _record_observation(obs: dict, body: dict, row: dict | None, timer: Timer) -> float | None:
+    """Fold one answered row into the run summary. Returns its request-to-verdict span, if measurable.
+
+    REQUEST-TO-VERDICT is measured from Airtable's own server timestamp -- when the owner actually asked --
+    to `answered_at`, which for a delivered row is the instant its outbound write was authorised. It is the
+    number the fifteen-minute freshness window and the kickoff deadline are both spent against.
+    """
+    ev = body.get("evidence") or {}
+    obs["rows_answered"] += 1
+    obs["candidates"] += body["n_candidates"]
+    obs["tickers"] += len(ev.get("documents") or [])
+    obs["evidence_storage"] = ev.get("storage") or obs.get("evidence_storage")
+    obs["evidence_commit"] = ev.get("commit") or obs.get("evidence_commit")
+    obs["per_candidate"].extend(_candidate_timing(body))
+    req_at = AB._parse_ts("Airtable createdTime", (row or {}).get("createdTime")) if row else None
+    answered_at = AB._parse_ts("answered_at", body["answered_at"])
+    if req_at is None or answered_at is None:
+        return None
+    return (answered_at - req_at).total_seconds()
 
 
 def main(argv=None) -> int:
