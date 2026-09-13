@@ -1,0 +1,72 @@
+# Discovery -> registry drift (20260913T134952Z)
+
+Registry holds 392 series; discovery lists 459 NFL candidates.
+
+| quantity | n |
+|---|---|
+| new_series | 7 |
+| new_series_open_markets | 778 |
+| unclassified_series | 8 |
+| capture_gap_contracts | 779 |
+| capture_gap_contracts_outside_registry | 778 |
+
+## NEW_SERIES (not in the reviewed registry)
+
+| series | family | open | first seen | lag (days) | title |
+|---|---|---|---|---|---|
+| KXNFLFFWEEKLEAD | UNKNOWN_NEEDS_CLASSIFICATION | 254 | 20260913T134952Z | 0.0 | Weekly Fantasy Football Leader |
+| KXNFLPOTM | UNKNOWN_NEEDS_CLASSIFICATION | 200 | 20260913T134952Z | 0.0 | NFL Player of the Month |
+| KXNFLFFWEEKTOP | UNKNOWN_NEEDS_CLASSIFICATION | 148 | 20260913T134952Z | 0.0 | Weekly Fantasy Football Top Players |
+| KXNFLFFPLAYOFFLEADER | UNKNOWN_NEEDS_CLASSIFICATION | 75 | 20260913T134952Z | 0.0 | Fantasy Football Playoffs Leader |
+| KXNFLROTM | UNKNOWN_NEEDS_CLASSIFICATION | 60 | 20260913T134952Z | 0.0 | NFL Rookie of the Month |
+| KXNFLFFSEASONTOTAL | UNKNOWN_NEEDS_CLASSIFICATION | 36 | 20260913T134952Z | 0.0 | Pro Football Player's Fantasy Season Total |
+| KXNFLLONGESTPLAY | UNKNOWN_NEEDS_CLASSIFICATION | 5 | 20260913T134952Z | 0.0 | NFL Longest Touchdown |
+
+## UNCLASSIFIED
+
+| series | open | title |
+|---|---|---|
+| KXNFLFFWEEKLEAD | 254 | Weekly Fantasy Football Leader |
+| KXNFLPOTM | 200 | NFL Player of the Month |
+| KXNFLFFWEEKTOP | 148 | Weekly Fantasy Football Top Players |
+| KXNFLFFPLAYOFFLEADER | 75 | Fantasy Football Playoffs Leader |
+| KXNFLROTM | 60 | NFL Rookie of the Month |
+| KXNFLFFSEASONTOTAL | 36 | Pro Football Player's Fantasy Season Total |
+| KXNFLLONGESTPLAY | 5 | NFL Longest Touchdown |
+| KXTENNCOACH | 0 | Tennessee Pro Football Team Next Coach |
+
+## CAPTURE_GAP (open contracts never confirmed open by any capture run)
+
+| series | open | never seen | in registry | tier |
+|---|---|---|---|---|
+| KXNFLFFWEEKLEAD | 254 | 254 | False | None |
+| KXNFLPOTM | 200 | 200 | False | None |
+| KXNFLFFWEEKTOP | 148 | 148 | False | None |
+| KXNFLFFPLAYOFFLEADER | 75 | 75 | False | None |
+| KXNFLROTM | 60 | 60 | False | None |
+| KXNFLFFSEASONTOTAL | 36 | 36 | False | None |
+| KXNFLLONGESTPLAY | 5 | 5 | False | None |
+| KXNFLTEAMFIRSTTD | 331 | 1 | True | FULL_MICROSTRUCTURE |
+
+## NEW_MARKET_STRUCTURES: 443 contracts on PROVEN families did not parse PROVEN
+
+* KXNFLFG-26SEP14DENKC-KC4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP14DENKC-KC3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP14DENKC-KC2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP14DENKC-KC1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP14DENKC-DEN4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP14DENKC-DEN3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP14DENKC-DEN2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP14DENKC-DEN1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13DALNYG-NYG4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13DALNYG-NYG3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13DALNYG-NYG2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13DALNYG-NYG1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13DALNYG-DAL4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13DALNYG-DAL3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13DALNYG-DAL2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13DALNYG-DAL1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13WASPHI-WAS4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13WASPHI-WAS3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13WASPHI-WAS2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP13WASPHI-WAS1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
