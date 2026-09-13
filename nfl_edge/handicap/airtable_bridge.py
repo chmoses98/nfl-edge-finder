@@ -498,21 +498,34 @@ class RunPlan:
 def read_preflight_evidence(fields: dict, evidence_root: str | None) -> tuple:
     """The market evidence this row's approval was computed from, re-read and re-hashed here.
 
-    Returns `(documents, manifest_sha256)`, or `(None, None)` when there is nothing to read -- no evidence
-    root configured, or a row whose approval predates evidence binding.
+    Returns `(documents, manifest_sha256)`, or `(None, None)` only for a row that genuinely has no
+    evidence to read: a plain PASS batch, or a legacy `preflight-approval/1` approval issued before evidence
+    binding existed.
 
-    WHY THE IMPORTER NEEDS THIS AND NOT THE CAPTURE STREAM. Preflight now prices a candidate from a live
-    fetch made seconds before the decision. The conductor's own capture of the same contract may be ten
-    minutes older and at a different price, so replaying the approved record against the capture stream would
-    be asking a DIFFERENT question -- and could refuse a sound recommendation because the last bulk pass
-    happened to catch the book somewhere else. The replay has to read the evidence the decision was actually
-    made on, which is exactly what the evidence branch is for.
+    NO SILENT FALLBACK. A `preflight-approval/2` approval NAMES the market documents it was computed from,
+    and it is archived against those documents or it is not archived. "The evidence checkout is missing, so
+    replay from the capture stream instead" is precisely the substitution this whole mechanism exists to
+    prevent -- it would archive a bet by re-deciding it against different, older evidence and call that a
+    reproduction.
 
-    Every document is verified against the hash the approval recorded, and the manifest is re-derived from
-    the documents present. A missing, altered or substituted document raises.
+    WHY THE CAPTURE STREAM IS NOT A SUBSTITUTE. Preflight prices a candidate from a live fetch made seconds
+    before the decision. The conductor's own capture of the same contract may be ten minutes older and at a
+    different price, so replaying the approved record against it asks a DIFFERENT question -- it could refuse
+    a sound recommendation, or pass one whose real evidence has since been deleted.
+
+    THE TWO FAILURE CLASSES ARE DIFFERENT AND ARE KEPT APART:
+
+      ConfigurationError  the evidence cannot be REACHED -- no `--preflight-evidence` root, or a root that
+                          does not hold this document. That is a property of the RUNNER, not the row, so the
+                          row stays READY_FOR_SYNC and imports unchanged once the checkout is right. Marking
+                          it ERROR would destroy a valid signed recommendation to punish a misconfiguration.
+      BridgeError         the evidence is THERE and WRONG -- a hash mismatch, a substituted document, a
+                          manifest that does not reconstruct. Nothing about that is a configuration problem.
+
+    Neither archives anything. Both are loud.
     """
     result_raw = fields.get(F_PREFLIGHT_RESULT)
-    if not evidence_root or not isinstance(result_raw, str) or not result_raw.strip():
+    if not isinstance(result_raw, str) or not result_raw.strip():
         return None, None
     try:
         result = json.loads(result_raw)
@@ -520,8 +533,36 @@ def read_preflight_evidence(fields: dict, evidence_root: str | None) -> tuple:
         return None, None                     # `_canonical_records` reports the malformed result properly
     ev = (result or {}).get("evidence") or {}
     entries = ev.get("documents") or []
-    if not entries:
+
+    # Does this approval REQUIRE its evidence? A v2 approval always names a manifest -- `APPROVAL.issue`
+    # refuses to mint one without it -- so the SCHEMA is the authority, not the presence of a field an
+    # attacker could simply delete.
+    #
+    # Scoped to rows that actually present an `Approved Payload`, because that is the only thing an approval
+    # is ever used FOR. This is not a way out: a row with a real RECOMMENDED record and no `Approved
+    # Payload` is refused outright by `_canonical_records` below, and a batch with no real record has no bet
+    # to protect. What it avoids is a PASS-only row carrying a leftover approval being deferred forever for
+    # evidence nothing was going to be archived against.
+    approved_raw = fields.get(F_APPROVED_PAYLOAD)
+    requires_evidence = ((result or {}).get("approval_schema") == APPROVAL.APPROVAL_SCHEMA
+                         and isinstance(approved_raw, str) and bool(approved_raw.strip()))
+    if not requires_evidence:
         return None, None
+
+    if not entries:
+        raise BridgeError(
+            f"this row carries a {APPROVAL.APPROVAL_SCHEMA} approval but names no evidence documents. A v2 "
+            "approval is issued against live market evidence and cannot be archived without naming it; "
+            "re-request preflight rather than importing a bet nothing can reproduce.")
+    if not evidence_root:
+        raise ConfigurationError(
+            f"this row carries a {APPROVAL.APPROVAL_SCHEMA} approval naming {len(entries)} evidence "
+            "document(s), but no preflight-evidence checkout was supplied to read them from. The approval "
+            "is archived against the evidence it was computed on or not at all -- replaying it against the "
+            "capture stream would re-decide the bet on different, older market data and call that a "
+            "reproduction. Pass --preflight-evidence with a checkout of the preflight-evidence branch. This "
+            f"is a RUNNER problem, not a row problem: the row stays {STATUS_READY} and imports unchanged "
+            "once the checkout is present.")
 
     documents = []
     for e in entries:
@@ -531,9 +572,12 @@ def read_preflight_evidence(fields: dict, evidence_root: str | None) -> tuple:
             with open(path, "rb") as f:
                 text = f.read().decode("utf-8")
         except OSError as exc:
-            raise BridgeError(
-                f"the preflight evidence this approval cites is missing at {rel}: {exc}. A real "
-                "recommendation is not archived on evidence that cannot be re-read.") from None
+            raise ConfigurationError(
+                f"the preflight evidence this approval cites is not present at {rel} under "
+                f"{evidence_root} ({exc}). Either the evidence checkout is stale or wrong, or the document "
+                "has been removed from the branch -- and this importer cannot tell those apart, so it "
+                f"refuses to archive and leaves the row {STATUS_READY}. Nothing is written. If the checkout "
+                "is correct and current, the evidence is genuinely gone and the row must be re-requested.")
         try:
             documents.append(LE.load_document(text, expected_sha256=e.get("sha256")))
         except LE.EvidenceError as exc:

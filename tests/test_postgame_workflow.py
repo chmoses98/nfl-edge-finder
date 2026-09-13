@@ -10,6 +10,8 @@ immutable corpus:
   * a conflict fails the run rather than being reported as a success with zero rows;
   * the job never writes to the ledger it reads.
 """
+import glob
+import hashlib
 import os
 import re
 
@@ -533,13 +535,92 @@ def test_the_upstream_workflow_exists_and_cannot_be_triggered_by_this_one():
 
 
 # ---------------------------------------------------------------- J: nothing scientific moved
-FROZEN = ("nfl_edge/model", "nfl_edge/pricing", "nfl_edge/handicap/risk.py", "nfl_edge/handicap/gates.py",
-          "nfl_edge/settlement/settle.py", "nfl_edge/settlement/semantics.py", "nfl_edge/shadow/pricer.py",
-          "scripts/shadow/settle_arms.py", "scripts/shadow/three_arm_snapshot.py", "research/")
+#
+# WHAT THIS GUARD IS FOR, AND WHY IT WAS REWRITTEN
+# ------------------------------------------------
+# The property is real and worth keeping: *postgame trigger-reliability work must not quietly move the
+# scientific path* -- the model, the pricers, the risk policy, the real-money gates, settlement semantics,
+# or a RECORDED research result.
+#
+# It used to be enforced as a single `git diff --name-status origin/main...HEAD` over a frozen path list.
+# That was right for the one pull request it was written in and wrong forever afterwards: it makes a
+# POSTGAME test fail for any legitimate future change to `gates.py`, in a branch that never touches postgame
+# at all, with a message about "trigger reliability work" that has nothing to do with what the author did.
+# A guard that must be edited by unrelated work is a guard people learn to edit, which is worse than no
+# guard. (It also silently SKIPPED wherever `origin/main` was not fetched, so it protected nothing in
+# exactly the shallow checkouts most likely to be running it.)
+#
+# It is replaced by the two durable forms of the same property, split by what each half actually is:
+#
+#   CODE     a content pin per file. Changing one is legitimate; changing one SILENTLY is not. A deliberate,
+#            reviewed edit updates the pin beside it -- the same contract tests/test_incumbent_unchanged.py
+#            already uses, and the overlap between the two is cross-checked below so they cannot diverge.
+#
+#   RESULTS  `research/` grows: a NEW study with its own results.json is what the directory is for. The
+#            hazard is REWRITING a recorded result, which is an append-only property and therefore
+#            genuinely a diff question -- so that half stays a diff, scoped to research/ alone, where it
+#            cannot be tripped by unrelated code.
+SCIENTIFIC_PINS = {
+    "nfl_edge/handicap/risk.py": "e8ba8fd37f0d01a3",                 # the risk policy engine
+    "nfl_edge/handicap/gates.py": "2821835860e32f3e",                # the real-money gates
+    "nfl_edge/settlement/settle.py": "1f24b396ae07569a",             # settlement
+    "nfl_edge/settlement/semantics.py": "e877fba94b93a122",          # contract value vs event probability
+    "scripts/shadow/settle_arms.py": "3727927428c0ef1d",             # arm settlement
+    "scripts/shadow/three_arm_snapshot.py": "a058813cf06dcc96",      # the three-arm experiment snapshot
+}
+# `nfl_edge/pricing/` is pinned as a TREE (filenames + contents), so adding or deleting a pricer is as loud
+# as editing one. `nfl_edge/model` and `nfl_edge/shadow/pricer.py` were on the old list and do not exist;
+# their absence is asserted rather than assumed, so a future reappearance is not silently unpinned.
+PRICING_TREE_PIN = "d96a6c4daa04d934"
+GONE = ("nfl_edge/model", "nfl_edge/shadow/pricer.py")
 
 
-def _changed_against_main():
-    r = subprocess.run(["git", "diff", "--name-status", "origin/main...HEAD"],
+def _sha16(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()[:16]
+
+
+def _pricing_tree_sha16():
+    h = hashlib.sha256()
+    for f in sorted(glob.glob(os.path.join(ROOT, "nfl_edge", "pricing", "*.py"))):
+        h.update(os.path.basename(f).encode())
+        with open(f, "rb") as fh:
+            h.update(hashlib.sha256(fh.read()).digest())
+    return h.hexdigest()[:16]
+
+
+def test_J_the_scientific_path_has_not_moved_without_a_reviewed_pin_update():
+    """The postgame safety property, as a stable pin instead of a PR-scoped diff."""
+    moved = {rel: got for rel, pin in SCIENTIFIC_PINS.items()
+             if (got := _sha16(os.path.join(ROOT, rel))) != pin}
+    assert not moved, (
+        f"the scientific path moved: {moved}. That is allowed, and it is not allowed SILENTLY: if the edit "
+        "is deliberate and reviewed, update the pin here (and in tests/test_incumbent_unchanged.py where "
+        "the file appears there too) in the same commit, with the reason.")
+
+
+def test_J2_the_pricers_are_pinned_as_a_tree_so_an_added_pricer_is_as_loud_as_an_edited_one():
+    assert _pricing_tree_sha16() == PRICING_TREE_PIN, (
+        "nfl_edge/pricing/ changed (a file added, removed or edited); update PRICING_TREE_PIN deliberately")
+    for rel in GONE:
+        assert not os.path.exists(os.path.join(ROOT, rel)), (
+            f"{rel} has reappeared; it was on the frozen list and now needs a pin of its own")
+
+
+def test_J3_these_pins_agree_with_the_incumbent_freeze():
+    """Two pin lists that can disagree are worse than one. The overlap is checked, not trusted."""
+    from test_incumbent_unchanged import SOURCE_PINS                 # noqa: PLC0415
+    overlap = set(SCIENTIFIC_PINS) & set(SOURCE_PINS)
+    assert overlap, "the two freeze lists should share the gates and the risk engine at minimum"
+    for rel in sorted(overlap):
+        assert SCIENTIFIC_PINS[rel] == SOURCE_PINS[rel], (
+            f"{rel} is pinned to two different hashes in two test files; one of them was updated and the "
+            "other was not, which means neither is now a guard")
+
+
+def _research_changed_against_main():
+    """Modifications and deletions under research/, against origin/main. `None` when it cannot be asked."""
+    r = subprocess.run(["git", "diff", "--name-status", "origin/main...HEAD", "--", "research/"],
                        cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0:
         return None
@@ -551,12 +632,16 @@ def _changed_against_main():
     return out
 
 
-def test_J_no_model_risk_or_experiment_file_is_touched_by_this_change():
-    changed = _changed_against_main()
+def test_J4_no_recorded_research_result_is_rewritten():
+    """Append-only, which is genuinely a diff property -- and scoped to research/, where it belongs.
+
+    A NEW study (status A) with its own results.json and RESULTS.md is what research/ is for; see
+    docs/ARCHITECTURE.md. Rewriting or deleting one that is already recorded is the hazard.
+    """
+    changed = _research_changed_against_main()
     if changed is None:
-        pytest.skip("origin/main is not fetched here")
-    # A NEW study under research/ (its own results.json + RESULTS.md) is what research/ is for (docs/ARCHITECTURE.md);
-    # the hazard this guard exists for is rewriting a RECORDED result or touching the model / risk / settlement code.
-    offenders = [p for status, p in changed for f in FROZEN
-                 if p.startswith(f) and not (f == "research/" and status == "A")]
-    assert not offenders, f"trigger reliability work must not touch the scientific path: {offenders}"
+        pytest.skip("origin/main is not fetched here, so the append-only diff cannot be computed")
+    offenders = [p for status, p in changed if status != "A"]
+    assert not offenders, (
+        f"a recorded research result was modified or deleted: {offenders}. Studies are append-only; record "
+        "a new one rather than rewriting an old one.")

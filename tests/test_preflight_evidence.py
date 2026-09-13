@@ -757,19 +757,53 @@ def test_the_importer_refuses_a_row_whose_evidence_was_altered_after_approval(tm
 
 
 def test_the_importer_refuses_a_row_whose_evidence_has_vanished(tmp_path):
+    """Deferred, not condemned: a correct-looking checkout that lacks the file is ambiguous.
+
+    It is either a stale/wrong checkout or a genuine deletion, and this importer cannot tell those apart --
+    so it archives nothing and leaves the row READY_FOR_SYNC rather than destroying a signed recommendation
+    on a guess.
+    """
     led = ledger(tmp_path)
     _code, fake = go(tmp_path, led=led, cand=FILED)
     result = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
     os.unlink(os.path.join(fake.evidence_root, result["evidence"]["documents"][0]["path"]))
-    with pytest.raises(AB.BridgeError) as e:
+    with pytest.raises(AB.ConfigurationError) as e:
         AB.plan_run(_ready_row(fake), led, now=APPROVAL_AT + timedelta(hours=12),
                     gate_context=_import_ctx(led), signing_key=SIGNING_KEY,
                     evidence_root=fake.evidence_root)
-    assert "cannot be re-read" in str(e.value)
+    assert "not present at" in str(e.value) and "refuses to archive" in str(e.value)
 
 
-def test_a_row_with_no_evidence_root_configured_still_imports_from_the_capture_stream(tmp_path):
-    """Legacy rows and un-configured runners are not broken by the rebuild; they just replay the old way."""
+def _v1_signed_row(fake, led):
+    """The same approved batch, re-signed as a LEGACY preflight-approval/1 row that names no evidence."""
+    written = fake.written[RID]
+    approved_text = written[AB.F_APPROVED_PAYLOAD]
+    candidate_text = fake.rows[0]["fields"][AB.F_PAYLOAD]
+    as_of = json.loads(written[AB.F_PREFLIGHT_RESULT])["approval_as_of"]
+    body = {"schema": "preflight-result/1", "verdict": "APPROVED", "airtable_record_id": RID,
+            "run_id": "20260909T130000Z", "answered_at": as_of, "approval_as_of": as_of,
+            "candidate_payload_sha256": AB.payload_sha(candidate_text),
+            "approved_payload_sha256": AB.payload_sha(approved_text),
+            "approval_schema": "preflight-approval/1",
+            "approval_signature_algorithm": APPROVAL.SIGNATURE_ALGORITHM}
+    message = APPROVAL.canonical_message(
+        airtable_record_id=RID, run_id="20260909T130000Z",
+        candidate_payload_sha256=body["candidate_payload_sha256"],
+        approved_payload_sha256=body["approved_payload_sha256"],
+        approval_as_of=as_of, schema="preflight-approval/1")
+    body["approval_signature"] = APPROVAL.sign(SIGNING_KEY, message)
+    row_obj = _ready_row(fake)
+    row_obj["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
+    return row_obj
+
+
+def test_a_LEGACY_v1_row_still_imports_from_the_capture_stream(tmp_path):
+    """v1 predates evidence binding, so it replays the old way and is not broken by the rebuild.
+
+    This is the ONLY case that may reach the capture stream. The version that used to live here handed the
+    same licence to a v2 row whose evidence checkout was simply missing, which is the hole this pair of
+    tests now closes: see test_A_V2_APPROVAL_WITH_NO_EVIDENCE_ROOT_IS_REFUSED.
+    """
     led = ledger(tmp_path)
     _code, fake = go(tmp_path, led=led, cand=FILED)
     from test_preflight import market_data                       # noqa: PLC0415
@@ -779,7 +813,7 @@ def test_a_row_with_no_evidence_root_configured_still_imports_from_the_capture_s
                               json.loads(fake.written[RID][AB.F_APPROVED_PAYLOAD]),
                               R.RiskPolicy.load(ROOT), led))
     ctx.ledger_root = led
-    plan = AB.plan_run(_ready_row(fake), led, now=APPROVAL_AT + timedelta(hours=12),
+    plan = AB.plan_run(_v1_signed_row(fake, led), led, now=APPROVAL_AT + timedelta(hours=12),
                        gate_context=ctx, signing_key=SIGNING_KEY, evidence_root=None)
     assert len(plan.to_write) == 1
 
@@ -795,3 +829,251 @@ def _import_ctx(led, records=None):
     if records:
         ctx.risk_report = R.report_for_batch(records, R.RiskPolicy.load(ROOT), led)
     return ctx
+
+
+# ======================================================================================================
+# THE APPROVAL-TIMESTAMP ORDERING BUG
+#
+# The worker used to stamp `approval_as_of` at the top of the row loop, BEFORE fetching anything. Every
+# resolver here treats evidence dated after the decision as invisible -- correctly, because it is
+# information the decision did not have -- so in production, where the fetch necessarily returns after the
+# moment the loop was entered, the live quote would always have postdated the decision instant and every
+# single preflight would have come back blocked on "retrieved after the approval instant". Fail-closed, and
+# completely useless.
+#
+# The tests above did not catch it because the fake venue stamped its answers BEFORE the pinned `now`. These
+# do the opposite: the venue answers AFTER worker entry, which is what a real venue does.
+# ======================================================================================================
+
+def stepping(start, step_seconds=1):
+    """A clock that advances on every read, the way a real one does while work is being done."""
+    state = {"n": 0}
+
+    def read():
+        t = start + timedelta(seconds=step_seconds * state["n"])
+        state["n"] += 1
+        return t
+    return read
+
+
+def test_THE_DECISION_INSTANT_IS_STAMPED_AFTER_THE_EVIDENCE_IS_FETCHED(tmp_path):
+    """The regression test for the ordering bug, with the venue answering after worker entry.
+
+    Entry is T+0. The venue stamps its responses at T+5s -- later than entry, as a real one would. The
+    decision instant must therefore be LATER than T+5s, not equal to T+0, or the evidence is from the
+    future and the resolver refuses it.
+    """
+    entry = DECISION + timedelta(minutes=2)
+    venue_at = entry + timedelta(seconds=5)
+    fake = FakeAirtable([row([candidate()])])
+    store, root = evidence_dir(tmp_path)
+    fake.evidence_root = root
+
+    code = W.run(fake, ledger_root=ledger(tmp_path), signing_key=SIGNING_KEY,
+                 clock=stepping(entry, step_seconds=10),
+                 evidence_collector=W.LiveEvidenceCollector(
+                     FakeKalshiClient(retrieved_at=venue_at)),
+                 evidence_store=store)
+    assert code == 0
+    assert fake.written[RID][AB.F_STATUS] == AB.STATUS_PREFLIGHT_APPROVED, \
+        "this is the ordinary case and it must approve, not block on evidence from the future"
+
+    body = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    approval_as_of = AB._parse_ts("x", body["approval_as_of"])
+    assert approval_as_of > venue_at, (
+        f"the decision instant {approval_as_of.isoformat()} must be AFTER the evidence was retrieved "
+        f"({venue_at.isoformat()}); stamping it at worker entry is the bug this test exists for")
+    assert approval_as_of != entry, "the decision is not the moment the row loop was entered"
+
+    # The approved record carries that same instant -- it IS the decision timestamp, not a stamp on the answer.
+    approved = json.loads(fake.written[RID][AB.F_APPROVED_PAYLOAD])[0]
+    assert approved["created_at"] == body["approval_as_of"]
+    assert AB._parse_ts("x", approved["created_at"]) > venue_at
+
+    # And the quote the gates actually used is FRESH and predates the decision, rather than being refused.
+    c = body["candidates"][0]
+    assert c["may_be_shown_as_a_bet"] is True
+    assert 0 < c["quote_age_minutes"] <= 15.0
+
+
+def test_the_evidence_that_was_gated_is_the_evidence_that_was_fetched_after_entry(tmp_path):
+    """A second look at the same run: the stored document's own timestamps straddle entry correctly."""
+    entry = DECISION + timedelta(minutes=2)
+    venue_at = entry + timedelta(seconds=5)
+    fake = FakeAirtable([row([candidate()])])
+    store, root = evidence_dir(tmp_path)
+    fake.evidence_root = root
+    W.run(fake, ledger_root=ledger(tmp_path), signing_key=SIGNING_KEY,
+          clock=stepping(entry, step_seconds=10),
+          evidence_collector=W.LiveEvidenceCollector(FakeKalshiClient(retrieved_at=venue_at)),
+          evidence_store=store)
+    body = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    doc = json.loads(open(os.path.join(root, body["evidence"]["documents"][0]["path"])).read())
+    assert AB._parse_ts("x", doc["market"]["retrieved_at"]) == venue_at
+    assert AB._parse_ts("x", doc["market"]["retrieved_at"]) > entry, "the venue answered after entry"
+    assert AB._parse_ts("x", doc["market"]["retrieved_at"]) < AB._parse_ts("x", body["approval_as_of"])
+
+
+def test_answered_at_is_a_separate_later_clock_from_the_decision(tmp_path):
+    entry = DECISION + timedelta(minutes=2)
+    fake = FakeAirtable([row([candidate()])])
+    store, root = evidence_dir(tmp_path)
+    fake.evidence_root = root
+    W.run(fake, ledger_root=ledger(tmp_path), signing_key=SIGNING_KEY,
+          clock=stepping(entry, step_seconds=10),
+          evidence_collector=W.LiveEvidenceCollector(
+              FakeKalshiClient(retrieved_at=entry + timedelta(seconds=5))),
+          evidence_store=store)
+    body = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    assert body["answered_at"] > body["approval_as_of"], \
+        "the verdict is written after the decision is made, and the two are recorded separately"
+    # The SIGNED instant is the decision, never the answer: the ledger dates the bet at the decision.
+    assert json.loads(fake.written[RID][AB.F_APPROVED_PAYLOAD])[0]["created_at"] == body["approval_as_of"]
+
+
+def test_a_clock_that_runs_backwards_is_an_ERROR_not_a_blocked_market(tmp_path):
+    """If the ordering is ever inverted again, it must be loud rather than look like a stale market."""
+    entry = DECISION + timedelta(minutes=2)
+    fake = FakeAirtable([row([candidate()])])
+    store, root = evidence_dir(tmp_path)
+    fake.evidence_root = root
+    # A frozen clock plus a venue that answers later: exactly the shape the bug produced.
+    code = W.run(fake, ledger_root=ledger(tmp_path), signing_key=SIGNING_KEY, now=entry,
+                 evidence_collector=W.LiveEvidenceCollector(
+                     FakeKalshiClient(retrieved_at=entry + timedelta(seconds=5))),
+                 evidence_store=store)
+    assert code == 1
+    assert fake.written[RID][AB.F_STATUS] == AB.STATUS_PREFLIGHT_ERROR
+    err = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])["error"]
+    assert "AFTER the decision instant" in err and "ordering fault" in err
+    assert AB.F_APPROVED_PAYLOAD not in fake.written[RID]
+
+
+def test_the_worker_reads_no_clock_before_the_evidence_is_gathered():
+    """Pinned as source structure, because the ordering is invisible in a passing test that pins `now`."""
+    import ast                                                          # noqa: PLC0415
+    import inspect                                                      # noqa: PLC0415
+    src = inspect.getsource(W.answer_row)
+    body = ast.parse(src.lstrip()).body[0].body
+    gather = next(i for i, n in enumerate(body) if "gather_evidence" in ast.unparse(n))
+    decision = next(i for i, n in enumerate(body) if "decision_at = clock()" in ast.unparse(n))
+    assert gather < decision, "the decision instant must be taken after the evidence is gathered"
+    gates = next(i for i, n in enumerate(body) if "preflight_batch" in ast.unparse(n))
+    assert decision < gates, "and immediately before the gates run"
+
+
+# ======================================================================================================
+# EXACT-EVIDENCE REPLAY FAILS CLOSED
+#
+# A preflight-approval/2 approval NAMES the market documents it was computed from. It is archived against
+# those documents or it is not archived. "The evidence checkout is missing, so replay from the capture
+# stream instead" would re-decide the bet on different, older market data and call that a reproduction --
+# which is the exact substitution the evidence branch exists to make impossible.
+# ======================================================================================================
+
+def test_A_V2_APPROVAL_WITH_NO_EVIDENCE_ROOT_IS_REFUSED(tmp_path):
+    """A valid, correctly signed v2 approval + no evidence checkout = nothing archived.
+
+    This is the hole the first round left: `evidence_root=None` used to silently fall back to the capture
+    stream, so a bet could be archived by re-deciding it against a bulk capture ten minutes older than the
+    quote it was actually approved on.
+    """
+    led = ledger(tmp_path)
+    _code, fake = go(tmp_path, led=led, cand=FILED)
+    ready = _ready_row(fake)
+
+    # The approval itself is sound -- prove that first, so the refusal below is unambiguously about evidence.
+    body = json.loads(ready["fields"][AB.F_PREFLIGHT_RESULT])
+    assert body["approval_schema"] == APPROVAL.APPROVAL_SCHEMA
+    APPROVAL.verify(body, key=SIGNING_KEY, airtable_record_id=RID, run_id="20260909T130000Z",
+                    candidate_payload=ready["fields"][AB.F_PAYLOAD],
+                    approved_payload=ready["fields"][AB.F_APPROVED_PAYLOAD])
+
+    from test_preflight import market_data                            # noqa: PLC0415
+    md = market_data(tmp_path, minutes_before=-1.0)   # a perfectly good capture stream, deliberately present
+    ctx = P.build_context(md, root=ROOT, risk_report=R.report_for_batch(
+        json.loads(ready["fields"][AB.F_APPROVED_PAYLOAD]), R.RiskPolicy.load(ROOT), led))
+    ctx.ledger_root = led
+
+    with pytest.raises(AB.ConfigurationError) as e:
+        AB.plan_run(ready, led, now=APPROVAL_AT + timedelta(hours=12), gate_context=ctx,
+                    signing_key=SIGNING_KEY, evidence_root=None)
+    assert "no preflight-evidence checkout was supplied" in str(e.value)
+    assert "capture stream" in str(e.value)
+    # A RUNNER problem, not a row problem: deferrable, so a misconfigured importer cannot condemn a good row.
+    assert isinstance(e.value, AB.ConfigurationError)
+    assert not isinstance(e.value, AB.BridgeError) or issubclass(AB.ConfigurationError, AB.BridgeError)
+
+
+def test_a_v2_approval_whose_evidence_root_lacks_the_document_is_refused(tmp_path):
+    led = ledger(tmp_path)
+    _code, fake = go(tmp_path, led=led, cand=FILED)
+    empty = tmp_path / "wrong-checkout"
+    empty.mkdir()
+    with pytest.raises(AB.ConfigurationError) as e:
+        AB.plan_run(_ready_row(fake), led, now=APPROVAL_AT + timedelta(hours=12),
+                    gate_context=_import_ctx(led, json.loads(fake.written[RID][AB.F_APPROVED_PAYLOAD])),
+                    signing_key=SIGNING_KEY, evidence_root=str(empty))
+    assert "not present at" in str(e.value)
+    assert "refuses to archive" in str(e.value)
+
+
+def test_a_v2_approval_whose_evidence_is_corrupt_is_condemned_not_deferred(tmp_path):
+    """Present-and-wrong is not a configuration problem under any reading, so it is an ERROR."""
+    led = ledger(tmp_path)
+    _code, fake = go(tmp_path, led=led, cand=FILED)
+    result = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    path = os.path.join(fake.evidence_root, result["evidence"]["documents"][0]["path"])
+    doc = json.loads(open(path).read())
+    doc["quote_row"]["yes_ask_dollars"] = 0.10
+    with open(path, "w") as f:
+        f.write(LE.canonical_json(doc))
+    with pytest.raises(AB.BridgeError) as e:
+        AB.plan_run(_ready_row(fake), led, now=APPROVAL_AT + timedelta(hours=12),
+                    gate_context=_import_ctx(led, json.loads(fake.written[RID][AB.F_APPROVED_PAYLOAD])),
+                    signing_key=SIGNING_KEY, evidence_root=fake.evidence_root)
+    assert "altered since" in str(e.value)
+    assert not isinstance(e.value, AB.ConfigurationError), "corrupt evidence must not be retried forever"
+
+
+def test_deleting_the_evidence_field_from_a_v2_approval_does_not_get_past_the_check(tmp_path):
+    """The SCHEMA decides whether evidence is required, not a field an editor could remove."""
+    led = ledger(tmp_path)
+    _code, fake = go(tmp_path, led=led, cand=FILED)
+    ready = _ready_row(fake)
+    body = json.loads(ready["fields"][AB.F_PREFLIGHT_RESULT])
+    body["evidence"] = None                       # "there was never any evidence, honest"
+    ready["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
+    with pytest.raises(AB.BridgeError) as e:
+        AB.plan_run(ready, led, now=APPROVAL_AT + timedelta(hours=12),
+                    gate_context=_import_ctx(led, json.loads(fake.written[RID][AB.F_APPROVED_PAYLOAD])),
+                    signing_key=SIGNING_KEY, evidence_root=fake.evidence_root)
+    assert "names no evidence documents" in str(e.value)
+
+
+def test_a_legacy_v1_approval_still_imports_without_an_evidence_root(tmp_path):
+    """The fail-closed rule is scoped to approvals that NAME evidence. v1 predates the mechanism."""
+    # The precise property, stated directly: v1 does not require evidence.
+    assert AB.read_preflight_evidence(
+        {AB.F_PREFLIGHT_RESULT: json.dumps({"approval_schema": "preflight-approval/1", "verdict": "APPROVED"}),
+         AB.F_APPROVED_PAYLOAD: "[]"}, None) == (None, None)
+
+
+def test_a_pass_only_row_is_never_deferred_for_evidence_it_does_not_need(tmp_path):
+    """A row with no approved payload has no bet to protect, so it must not be held hostage."""
+    assert AB.read_preflight_evidence(
+        {AB.F_PREFLIGHT_RESULT: json.dumps({"approval_schema": APPROVAL.APPROVAL_SCHEMA})}, None) \
+        == (None, None)
+
+
+def test_the_bridge_has_no_code_path_that_falls_back_to_the_capture_stream_for_a_v2_row():
+    """Structural, because the hole was an ABSENCE of a check and absences do not show up in a green run."""
+    import inspect                                                     # noqa: PLC0415
+    src = inspect.getsource(AB.read_preflight_evidence)
+    # Exactly three ways out for a v2 row that presents an approved payload: two raises and the documents.
+    assert src.count("raise ConfigurationError") == 2
+    assert src.count("raise BridgeError") == 2
+    assert "requires_evidence" in src
+    body = src.split("requires_evidence = ")[1]
+    assert "if not requires_evidence:\n        return None, None" in body, \
+        "the only early return after this point must be for rows that do not require evidence"

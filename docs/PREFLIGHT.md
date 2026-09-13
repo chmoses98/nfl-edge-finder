@@ -48,15 +48,34 @@ on-time conductor pass and the same post-kickoff clock would have produced an **
 ```
 Airtable PREFLIGHT_REQUESTED
   → owner opens `PREFLIGHT NFL` or `[PREFLIGHT NFL]` (opened OR edited)
-  → preflight.yml: checkout main + ledger + SPARSE data/kalshi/fees + the evidence branch
+  → preflight.yml: checkout main + ledger + SPARSE data/kalshi/fees
   → for each UNIQUE candidate ticker:
         GET /markets/{ticker}                      ← stamped with its real retrieval time
         GET /markets/{ticker}/orderbook?depth=10    ← stamped with its own real retrieval time
   → write that evidence to the append-only `preflight-evidence` branch, commit, push
-  → READ IT BACK off the store and gate against those bytes
+  → READ IT BACK off the store
+  → *** NOW *** stamp the decision instant (approval_as_of)      ← after the evidence exists, never before
   → the existing gates, unchanged, plus decision_before_kickoff
+  → stamp answered_at, separately, for observability only
   → PREFLIGHT_APPROVED / PREFLIGHT_BLOCKED in Airtable, signed over the evidence manifest
 ```
+
+### The decision instant is taken LAST, and that is load-bearing
+
+Every resolver here treats evidence dated after the decision as **invisible** — it is information the
+decision did not have. So the order of the two clocks is not cosmetic:
+
+| timestamp | when it is taken | what it is for |
+|---|---|---|
+| evidence retrieval | by the client, when each response actually arrived | freshness is measured backwards from the decision to this |
+| `approval_as_of` | **after** fetch + persist + read-back, immediately before the gates | the decision; `created_at` of every approved record; what the signature covers |
+| `answered_at` | after the gates | observability only — nothing is judged at it |
+
+Stamping `approval_as_of` at the top of the row loop — which an earlier draft of this rebuild did — inverts
+that rule: the live quote necessarily returns *after* the moment the loop was entered, so every preflight
+would block on "retrieved after the approval instant". Fail-closed, and useless.
+`_assert_evidence_predates` proves the ordering held rather than assuming it; a violation is an **ERROR**,
+not a verdict about the market.
 
 **Target: under 30 seconds request-to-verdict, and materially under 20 in the normal case.**
 
@@ -165,16 +184,29 @@ an approval.
 *when*, **and** *the exact market documents it was computed from*. `preflight-approval/1` still verifies, so
 approvals signed before this change still archive; new approvals are only ever issued as v2.
 
-### The delayed importer replays it
+### The delayed importer replays it, and cannot decline to
 
 `sync_airtable.py --preflight-evidence ../preflight-evidence` makes the twelve-hourly importer read the
 documents the approval names, re-verify every hash, recompute the manifest and feed it into the signature
 check — and then run `evaluate_gates`, the same function, against that evidence.
 
-This is not optional politeness. Preflight now prices a candidate from a fetch made seconds before the
-decision; the conductor's capture of the same contract may be ten minutes older and at a different price.
-Replaying against the capture stream would ask a **different question** and could refuse a sound
-recommendation for a reason that has nothing to do with it.
+**There is no fallback.** A `preflight-approval/2` approval is archived against its own evidence or it is
+not archived. "The evidence checkout is missing, so replay from the capture stream instead" would re-decide
+the bet on different, older market data and call that a reproduction — the exact substitution this whole
+mechanism exists to prevent. Preflight prices from a fetch made seconds before the decision; the conductor's
+capture of the same contract may be ten minutes older and at a different price.
+
+The two failure classes are kept apart, and neither archives anything:
+
+| what happened | class | effect |
+|---|---|---|
+| no `--preflight-evidence` root, or a root that lacks the document | `ConfigurationError` | row stays `READY_FOR_SYNC`, nothing written, exit 2. A **runner** problem — it imports unchanged once the checkout is right, so a misconfigured importer cannot destroy a signed recommendation. |
+| hash mismatch, substituted document, manifest that does not reconstruct | `BridgeError` | row marked `ERROR`. The evidence is present and wrong; that is not a configuration problem under any reading. |
+| `preflight-approval/1` (legacy) | — | no evidence to read; replays from the capture stream as it always did. |
+
+The sync workflow tells apart the only two states that matter: **no `preflight-evidence` branch at all**
+(no v2 approval has ever been issued — a notice, and legacy rows import normally) and **the branch exists
+but could not be checked out** (a hard error, because a v2 row would otherwise silently defer).
 
 For an ad-hoc check outside the importer:
 

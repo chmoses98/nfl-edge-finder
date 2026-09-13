@@ -164,15 +164,41 @@ def _season_week(candidates: list) -> tuple:
     return "unknown", "unknown"
 
 
+def _assert_evidence_predates(evidence: dict | None, decision_at: datetime) -> None:
+    """Prove the fetch-then-stamp ordering actually held, rather than assuming it.
+
+    Every resolver in this system treats evidence dated after the decision as INVISIBLE -- it is information
+    the decision did not have. That rule is correct, and it means an inverted clock does not produce a wrong
+    answer, it produces a UNIVERSALLY BLOCKED one, whose stated reason ("retrieved after the approval
+    instant") reads like a market problem rather than the code defect it is.
+
+    So the ordering is checked here and a violation is an ERROR. It cannot happen when the clock is a real
+    wall clock read after the fetch; it can happen if someone pins `now` in a test, or reorders these two
+    statements again, and both of those should be loud.
+    """
+    for doc in (evidence or {}).get("documents") or []:
+        for part in ("market", "orderbook"):
+            raw = ((doc.get(part) or {}).get("retrieved_at"))
+            at = LE._iso(raw)
+            if at is not None and at > decision_at:
+                raise LE.EvidenceError(
+                    f"the {part} evidence for {doc.get('market_ticker')} is stamped {at.isoformat()}, AFTER "
+                    f"the decision instant {decision_at.isoformat()}. Evidence cannot postdate the decision "
+                    "it informed; the decision instant is taken after the fetch, so this is a clock or an "
+                    "ordering fault, not a verdict about the market.")
+
+
 def gather_evidence(collector, store, candidates: list, *, airtable_record_id: str, run_id: str,
-                    workflow_run_id: str, now: datetime, timer: Timer | None = None) -> dict:
+                    workflow_run_id: str, at: datetime, timer: Timer | None = None) -> dict:
     """Fetch, store, publish and READ BACK this batch's market evidence. Raises rather than degrading.
 
     Returns everything the gates and the approval need: the documents as they came off the store, the
     per-document paths and hashes, the storage reference, and the manifest hash the approval signs.
     """
     timer = timer or Timer()
-    evidence_run_id = _evidence_run_id(now)
+    # `at` names the evidence run directory only -- it is a label, never a decision clock. The decision
+    # instant is taken by the caller AFTER this returns.
+    evidence_run_id = _evidence_run_id(at)
     season, week = _season_week(candidates)
 
     timer.start("market_evidence")
@@ -227,7 +253,8 @@ def gather_evidence(collector, store, candidates: list, *, airtable_record_id: s
 # ---- the answer --------------------------------------------------------------------------------------
 
 def _summary(results: list, *, run_id: str, airtable_id: str, candidate_payload: str,
-             approved_payload: str | None, now: datetime, evidence: dict | None = None) -> dict:
+             approved_payload: str | None, approval_as_of: datetime, answered_at: datetime,
+             evidence: dict | None = None) -> dict:
     """What gets written back to Airtable. Small, readable, and legible to a human in a hurry.
 
     The hashes are the load-bearing part. `approved_payload_sha256` is what the importer re-derives from
@@ -243,8 +270,11 @@ def _summary(results: list, *, run_id: str, airtable_id: str, candidate_payload:
         "schema": "preflight-result/1",
         "run_id": run_id,
         "airtable_record_id": airtable_id,
-        "answered_at": now.isoformat(),
-        "approval_as_of": now.isoformat(),
+        # TWO CLOCKS, DELIBERATELY DIFFERENT. `approval_as_of` is the decision -- stamped after the
+        # evidence was fetched and stored, and the timestamp every gate ran at and every approved record
+        # carries. `answered_at` is when this answer was written, and is observability only.
+        "answered_at": answered_at.isoformat(),
+        "approval_as_of": approval_as_of.isoformat(),
         "verdict": "APPROVED" if approved else ("EXPIRED" if expired else "BLOCKED"),
         "candidate_payload_sha256": AB.payload_sha(candidate_payload),
         "approved_payload_sha256": AB.payload_sha(approved_payload) if approved_payload else None,
@@ -298,16 +328,34 @@ def _summary(results: list, *, run_id: str, airtable_id: str, candidate_payload:
     }
 
 
-def answer_row(row: dict, *, ledger_root: str, now: datetime, market_data_root: str | None = None,
+def answer_row(row: dict, *, ledger_root: str, clock, market_data_root: str | None = None,
                fee_observations_root: str | None = None, evidence_collector=None, evidence_store=None,
                workflow_run_id: str = "", signing_key=None, timer: Timer | None = None) -> tuple:
-    """Preflight one Airtable row AS OF `now`. Returns (status, result body, approved payload or None).
+    """Preflight one Airtable row. Returns (status, result body, approved payload or None).
 
-    `now` is the moment approval is being evaluated, and it is the decision timestamp of everything this
-    approves -- not a stamp on the answer. A candidate drafted at 13:00 and preflighted at 13:30 is a 13:30
-    decision priced at 13:30, or it is not a decision at all. It is stamped PER ROW, at the moment that row's
-    preflight actually runs, because a batch of requests can take meaningful time to work through and the
-    last one must not be dated as though it were the first.
+    THREE TIMESTAMPS, AND THE ORDER THEY ARE TAKEN IN IS LOAD-BEARING
+    ----------------------------------------------------------------
+    `clock()` is read twice, and never before the evidence exists:
+
+        evidence retrieval   stamped by the client when each response actually arrived
+        DECISION INSTANT     read AFTER the evidence is fetched, persisted and read back, immediately
+                             before the gates. This is `approval_as_of` and the `created_at` of every
+                             approved record.
+        answered_at          read after the gates, for observability only. Nothing is judged at it.
+
+    Stamping the decision BEFORE the fetch -- which is what this did until it was corrected -- inverts the
+    one rule the resolvers are built on: evidence dated after the decision is INVISIBLE, because it is
+    information the decision did not have. A quote retrieved a second after a decision instant that was
+    stamped a second before it is not fresh evidence arriving promptly; it is evidence from the future, and
+    `EvidenceQuoteIndex.confirmation` correctly refuses it. Every live preflight would have blocked on
+    "retrieved after the approval instant" -- fail-closed, and useless.
+
+    So the decision instant is taken last, and `_assert_evidence_predates` then proves the ordering held
+    rather than assuming it: a clock that went backwards between the fetch and the stamp is an ERROR, not a
+    verdict.
+
+    It is stamped PER ROW, because a batch of requests can take meaningful time to work through and the last
+    one must not be dated as though it were the first.
 
     The expiry clock is Airtable's SERVER `createdTime`, not the candidate's self-reported `created_at`: the
     requester writes one of those and not the other.
@@ -333,9 +381,12 @@ def answer_row(row: dict, *, ledger_root: str, now: datetime, market_data_root: 
                 "a live preflight collector was supplied with no evidence store. Evidence that is not "
                 "stored dies with the runner, and an approval whose evidence cannot be re-read later is not "
                 "issued at all.")
+        # FETCH, PERSIST AND READ BACK FIRST. No clock has been read yet: the decision instant cannot be
+        # stamped before the evidence it is about exists, or the evidence dates after the decision and the
+        # resolvers correctly refuse to see it.
         evidence = gather_evidence(evidence_collector, evidence_store, candidates,
                                    airtable_record_id=airtable_id, run_id=run_id,
-                                   workflow_run_id=workflow_run_id, now=now, timer=timer)
+                                   workflow_run_id=workflow_run_id, at=clock(), timer=timer)
         capture_index = LE.EvidenceQuoteIndex(evidence["documents"])
         book_index = LE.EvidenceBookIndex(evidence["documents"])
         for doc in evidence["documents"]:
@@ -350,13 +401,19 @@ def answer_row(row: dict, *, ledger_root: str, now: datetime, market_data_root: 
             "answer_row needs either a live evidence collector (the pre-trade path) or a market-data root "
             "(the archival replay path). Gating a real-money candidate against neither is not a mode.")
 
+    # THE DECISION INSTANT. Taken here, with the evidence already durable, and used for nothing else: it is
+    # `approval_as_of`, it is the `created_at` of every record this approves, and it is what every
+    # time-sensitive gate is evaluated at.
+    decision_at = clock()
+    _assert_evidence_predates(evidence, decision_at)
+
     # The ledger read and the gate evaluation are timed apart: they fail for different reasons and are slow
     # for different reasons, and one number covering both hides whichever was actually the problem.
     timer.start("gates")
     try:
         results = P.preflight_batch(
             candidates, market_data_root=market_data_root, ledger_root=ledger_root, root=ROOT,
-            approval_as_of=now, request_id=airtable_id, request_created_at=request_created,
+            approval_as_of=decision_at, request_id=airtable_id, request_created_at=request_created,
             capture_index=capture_index, book_index=book_index,
             fee_observations_root=fee_observations_root or market_data_root,
             phase=timer.add)
@@ -371,9 +428,12 @@ def answer_row(row: dict, *, ledger_root: str, now: datetime, market_data_root: 
     fully_approved = bool(results) and len(approved_records) == len(results)
     approved_payload = AB.canonical_payload(approved_records) if fully_approved else None
 
+    # ANSWERED_AT is a separate, later read. It is observability -- how long the owner waited -- and is
+    # never a clock anything is judged at. Conflating the two is what produced the ordering bug.
     body = _summary(results, run_id=run_id, airtable_id=airtable_id,
                     candidate_payload=candidate_payload if isinstance(candidate_payload, str) else "",
-                    approved_payload=approved_payload, now=now, evidence=evidence)
+                    approved_payload=approved_payload, approval_as_of=decision_at,
+                    answered_at=clock(), evidence=evidence)
 
     if approved_payload is not None:
         # SIGN it. A hash the approval carries about itself proves only that the approval is self-consistent;
@@ -391,7 +451,7 @@ def answer_row(row: dict, *, ledger_root: str, now: datetime, market_data_root: 
         body.update(APPROVAL.issue(
             key=signing_key, airtable_record_id=airtable_id, run_id=run_id,
             candidate_payload=candidate_payload if isinstance(candidate_payload, str) else "",
-            approved_payload=approved_payload, approval_as_of=now.isoformat(),
+            approved_payload=approved_payload, approval_as_of=decision_at.isoformat(),
             evidence_manifest_sha256=evidence["manifest_sha256"]))
 
     status = (AB.STATUS_PREFLIGHT_APPROVED if body["verdict"] == "APPROVED"
@@ -510,10 +570,11 @@ def run(client, *, ledger_root: str, market_data_root: str | None = None,
             log("ERROR  <no record id>: Airtable row has no record id; cannot be answered")
             had_error = True
             continue
-        answered_at = clock()
         try:
+            # NO CLOCK IS READ HERE. `answer_row` takes the decision instant itself, after the evidence is
+            # fetched and durable -- see its docstring for why stamping it out here was a defect.
             status, body, approved_payload = answer_row(
-                row, ledger_root=ledger_root, now=answered_at, market_data_root=market_data_root,
+                row, ledger_root=ledger_root, clock=clock, market_data_root=market_data_root,
                 fee_observations_root=fee_observations_root, evidence_collector=evidence_collector,
                 evidence_store=evidence_store, workflow_run_id=workflow_run_id,
                 signing_key=signing_key, timer=timer)
@@ -527,7 +588,7 @@ def run(client, *, ledger_root: str, market_data_root: str | None = None,
                 AB.F_STATUS: AB.STATUS_PREFLIGHT_ERROR,
                 AB.F_PREFLIGHT_RESULT: json.dumps(
                     {"schema": "preflight-result/1", "verdict": "ERROR",
-                     "answered_at": answered_at.isoformat(), "error": str(e)[:2000],
+                     "answered_at": clock().isoformat(), "error": str(e)[:2000],
                      "note": "An unanswered or errored request is NOT an approval."}, indent=1),
             }
             continue
@@ -558,7 +619,8 @@ def run(client, *, ledger_root: str, market_data_root: str | None = None,
         # actually asked -- not from when the runner happened to boot. It is the number the fifteen-minute
         # freshness window and the kickoff deadline are both spent against.
         req_at = AB._parse_ts("Airtable createdTime", row.get("createdTime"))
-        if req_at is not None:
+        answered_at = AB._parse_ts("answered_at", body["answered_at"])
+        if req_at is not None and answered_at is not None:
             span = (answered_at - req_at).total_seconds()
             request_to_verdict = span if request_to_verdict is None else max(request_to_verdict, span)
 

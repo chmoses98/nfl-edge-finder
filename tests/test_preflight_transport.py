@@ -522,17 +522,32 @@ def test_the_age_basis_is_reported_so_the_two_clocks_cannot_be_confused(tmp_path
     assert c["request_age_minutes"] == pytest.approx(2.0)
 
 
+def stepping(start, step_seconds=1):
+    """A clock that advances on every read, like the real one does while work is being done."""
+    state = {"n": 0}
+
+    def read():
+        t = start + timedelta(seconds=step_seconds * state["n"])
+        state["n"] += 1
+        return t
+    return read
+
+
 def test_each_row_is_stamped_when_its_own_preflight_runs(tmp_path):
     """A batch takes time to work through; the last row must not be dated as though it were the first."""
-    stamps = iter([at(1), at(9)])
     fake = FakeAirtable([row([candidate()], rid="recPF0000000001"),
                          row([candidate(recommendation_id="rec_pf0000000000000002")],
                              rid="recPF0000000002")])
-    wiring, _ = live(tmp_path, at(0), seconds_old=0)
+    # The venue answered a minute before the batch started, so every row's evidence predates its decision.
+    wiring, _ = live(tmp_path, at(0), client=fresh_client(at(-1)))
     code = W.run(fake, ledger_root=ledger(tmp_path), signing_key=SIGNING_KEY,
-                 clock=lambda: next(stamps), **wiring)
+                 clock=stepping(at(1), step_seconds=4), **wiring)
     assert code == 0
-    first = json.loads(fake.written["recPF0000000001"][AB.F_PREFLIGHT_RESULT])["approval_as_of"]
-    second = json.loads(fake.written["recPF0000000002"][AB.F_PREFLIGHT_RESULT])["approval_as_of"]
-    assert first == at(1).isoformat() and second == at(9).isoformat()
-    assert first != second, "one global stamp would date the whole batch at the workflow start"
+    first = json.loads(fake.written["recPF0000000001"][AB.F_PREFLIGHT_RESULT])
+    second = json.loads(fake.written["recPF0000000002"][AB.F_PREFLIGHT_RESULT])
+    assert first["approval_as_of"] != second["approval_as_of"], \
+        "one global stamp would date the whole batch at the workflow start"
+    assert first["approval_as_of"] < second["approval_as_of"], "and they must be in the order they ran"
+    for body in (first, second):
+        assert body["answered_at"] > body["approval_as_of"], \
+            "answered_at is a later, separate read; the decision is not stamped when the answer is written"
