@@ -112,6 +112,10 @@ class PreflightResult:
     fee_schedule: dict | None = None
     risk: dict | None = None
     outstanding: dict | None = None
+    # The DELIVERY check, kept deliberately out of `gates`. See `authorize_issuance`: it is a statement
+    # about the moment the answer was handed over, not about the decision, so it must never appear in the
+    # gate report the importer replays.
+    issuance: dict | None = None
 
     @property
     def may_be_shown_as_a_bet(self) -> bool:
@@ -394,6 +398,118 @@ def _one(original: dict, provisional: dict, ctx, report, outstanding, *,
     res.approved_record = provisional
     res.verdict, res.surface_as = APPROVED, S.RECOMMENDED
     return res
+
+
+# The name that appears on a refusal, stable so a reader can tell an ISSUANCE refusal from a GATE failure
+# at a glance. Deliberately not a `G_*` gate constant: see below.
+ISSUANCE = "issuance_temporal_authorization"
+
+
+def authorize_issuance(results: list, *, issued_at: datetime,
+                       max_quote_age_minutes: float = Q.DEFAULT_MAX_QUOTE_AGE_MIN,
+                       max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN) -> list:
+    """The last thing before an approval is handed over: is it STILL authorised, right now?
+
+    THE RACE THIS CLOSES
+    --------------------
+    Every gate is evaluated at `approval_as_of`, the decision instant -- correctly, because that is what
+    makes the verdict replayable. But the worker then keeps working: it builds the canonical payload, signs
+    it, and writes Airtable. Time passes between the decision and the delivery, and two things can expire in
+    that window:
+
+        decision at T-1s, kickoff at T        ->  the gates pass, and the owner is told to bet on a game
+                                                  that has already started by the time they read it
+        quote confirmed 14.9 min before the   ->  the gates pass, and the price the approval authorises is
+        decision                                  over the fifteen-minute line before the row is written
+
+    Neither is a defect in the gates. The gates answered the question they were asked, at the moment they
+    were asked it. This asks the OTHER question -- may this still be delivered? -- and it can only be asked
+    at delivery time.
+
+    WHY THIS IS NOT A GATE, AND MUST NOT BECOME ONE
+    -----------------------------------------------
+    `decision_before_kickoff` and the freshness gates are pure functions of the record and its evidence, and
+    that is what lets the importer reproduce the verdict hours later and get the same answer. This check
+    reads a clock that will never exist again. Putting it in `gates` would make the gate report
+    irreproducible and quietly break the replay -- so the refusal is recorded on `issuance`, and in
+    `blocking_reasons` where the owner will read it, and nowhere else.
+
+    `decision_before_kickoff` therefore stays exactly as it was. This is an ADDITIONAL refusal, never a
+    replacement, and it can only ever turn an APPROVED into a BLOCKED.
+
+    FAIL CLOSED
+    -----------
+    Only candidates that would otherwise be approved are examined -- there is nothing to withdraw from one
+    already blocked. For those, a missing or unreadable kickoff, quote timestamp or book timestamp is a
+    refusal: at the point of authorising real money, "I cannot tell whether this is still valid" is not a
+    yes. Refused candidates lose their approved record, so no payload is built and nothing is signed.
+
+    Returns the refusals as `(candidate_id, reason)`, and mutates the results in place.
+    """
+    if issued_at.tzinfo is None:
+        issued_at = issued_at.replace(tzinfo=timezone.utc)
+    refusals = []
+    for r in results:
+        if not r.may_be_shown_as_a_bet:
+            continue
+        rec = r.approved_record or {}
+        checks = {"issued_at": issued_at.isoformat()}
+        reason = None
+
+        # 1. STILL PREGAME. Strictly before, exactly as the gate requires of the decision.
+        ko = _ts(rec.get("kickoff_utc"))
+        if ko is None:
+            reason = ("the approved record carries no readable kickoff_utc, so it cannot be shown to be "
+                      "still pregame at the moment of issue")
+        else:
+            checks["kickoff_utc"] = ko.isoformat()
+            checks["minutes_to_kickoff_at_issue"] = round((ko - issued_at).total_seconds() / 60.0, 2)
+            if issued_at >= ko:
+                reason = (
+                    f"kickoff passed while this approval was being prepared: the gates were evaluated at "
+                    f"{r.as_of} and the answer was issued at {issued_at.isoformat()}, at or after kickoff "
+                    f"{ko.isoformat()}. A pregame position can no longer be authorized.")
+
+        # 2. THE QUOTE IS STILL INSIDE ITS WINDOW, measured from the same confirmation the gate used.
+        if reason is None:
+            confirmed = _ts((r.decision_quote or {}).get("confirmed_at"))
+            if confirmed is None:
+                reason = ("the approved record carries no readable quote confirmation time, so its age at "
+                          "issue cannot be established")
+            else:
+                age = round((issued_at - confirmed).total_seconds() / 60.0, 2)
+                checks["quote_age_minutes_at_issue"] = age
+                if age > max_quote_age_minutes:
+                    reason = (
+                        f"the confirmed quote went stale while this approval was being prepared: "
+                        f"{age:.1f} min old at issue, beyond the {max_quote_age_minutes:.0f} min window. "
+                        "The price this approval authorises is no longer one we have seen.")
+
+        # 3. AND SO IS THE BOOK. Its own clock, because books are fetched after quotes and age separately.
+        if reason is None:
+            observed = _ts((r.depth or {}).get("book_observed_at"))
+            if observed is None:
+                reason = ("the approved record carries no readable order-book timestamp, so its age at "
+                          "issue cannot be established")
+            else:
+                age = round((issued_at - observed).total_seconds() / 60.0, 2)
+                checks["book_age_minutes_at_issue"] = age
+                if age > max_book_age_minutes:
+                    reason = (
+                        f"the order book went stale while this approval was being prepared: {age:.1f} min "
+                        f"old at issue, beyond the {max_book_age_minutes:.0f} min window. The depth this "
+                        "approval rests on is no longer observed.")
+
+        checks["authorized"] = reason is None
+        if reason is not None:
+            checks["refusal"] = reason
+            r.verdict, r.surface_as = BLOCKED, CANDIDATE
+            # The record goes with it. Nothing downstream may build a payload from a withdrawn approval.
+            r.approved_record = None
+            r.blocking_reasons.append(f"{ISSUANCE}: {reason}")
+            refusals.append((r.candidate_id, reason))
+        r.issuance = checks
+    return refusals
 
 
 def summarise(results: list) -> str:

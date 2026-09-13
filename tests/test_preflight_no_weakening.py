@@ -68,6 +68,50 @@ def test_the_worker_has_no_switch_for_widening_a_freshness_window():
         assert flag not in src, f"{flag} must not exist on the pre-trade worker"
 
 
+def test_the_issuance_check_reuses_the_same_two_windows_and_adds_no_third():
+    """The delivery check re-asks the freshness question at issue time. It must not ask a LOOSER one."""
+    sig = inspect.signature(P.authorize_issuance)
+    assert sig.parameters["max_quote_age_minutes"].default == Q.DEFAULT_MAX_QUOTE_AGE_MIN
+    assert sig.parameters["max_book_age_minutes"].default == D.DEFAULT_MAX_BOOK_AGE_MIN
+    src = inspect.getsource(P.authorize_issuance)
+    # Strictly before kickoff, and OVER the window blocks -- the same comparisons the gates make.
+    assert "issued_at >= ko" in src
+    assert "age > max_quote_age_minutes" in src and "age > max_book_age_minutes" in src
+    for dial in ("grace", "tolerance", "slack", "buffer_minutes", "allow_late"):
+        assert dial not in src, f"{dial} would be a second, looser clock"
+
+
+def test_the_issuance_check_can_only_withdraw_never_grant():
+    """It is additive to the gates. There is no path by which it turns a BLOCKED into an APPROVED."""
+    src = inspect.getsource(P.authorize_issuance)
+    assert "if not r.may_be_shown_as_a_bet:\n            continue" in src, \
+        "only candidates that would otherwise be approved are examined"
+    assert "r.verdict, r.surface_as = BLOCKED, CANDIDATE" in src
+    assert "= APPROVED" not in src and "r.approved_stake =" not in src
+
+
+def test_the_issuance_check_is_not_a_gate_and_never_enters_the_gate_report():
+    """It reads a wall clock. In the gate report it would make the importer's replay irreproducible."""
+    src = inspect.getsource(P.authorize_issuance)
+    assert "r.gates" not in src, "the delivery refusal must not be written into the replayable gate report"
+    assert P.ISSUANCE not in {v for k, v in vars(G).items()
+                              if k.startswith("G_") and isinstance(v, str)}
+    # And the record the importer replays is still a pure function of the record plus its evidence.
+    assert "issued_at" not in inspect.getsource(G.evaluate_gates)
+
+
+def test_nothing_is_signed_after_the_authorisation_lapses():
+    """Order of operations in the worker: withdraw first, then build the payload, then sign."""
+    src = open(os.path.join(ROOT, "scripts", "handicap", "preflight_airtable.py")).read()
+    body = src.split("def answer_row(")[1]
+    withdraw = body.index("authorize_issuance")
+    payload = body.index("approved_records = [")
+    sign = body.index("APPROVAL.issue(")
+    assert withdraw < payload < sign, (
+        "the issuance check must run BEFORE the approved payload is assembled and signed; a withdrawn "
+        "approval has to leave nothing to sign")
+
+
 def test_the_request_expiry_window_is_unchanged():
     assert APPROVAL.MAX_REQUEST_AGE.total_seconds() / 60.0 == 30.0
     assert APPROVAL.CLOCK_SKEW.total_seconds() / 60.0 == 5.0

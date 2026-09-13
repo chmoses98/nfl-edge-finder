@@ -313,6 +313,9 @@ def _summary(results: list, *, run_id: str, airtable_id: str, candidate_payload:
                 or {}).get("minutes_to_kickoff"),
             "quote_age_minutes": (r.decision_quote or {}).get("age_minutes"),
             "book_age_minutes": (r.depth or {}).get("book_age_minutes"),
+            # The DELIVERY check, reported separately from `gates` because it is not replayable and must
+            # never be mistaken for one. Absent on a candidate that was already blocked at the gates.
+            "issuance": r.issuance,
             "gates": {k: v.get("status") for k, v in (r.gates or {}).items()},
         } for r in results],
         "outstanding_exposure": {
@@ -424,16 +427,27 @@ def answer_row(row: dict, *, ledger_root: str, clock, market_data_root: str | No
         if "ledger_load" in timer.spans:
             timer.spans["gates"] = round(max(0.0, timer.spans["gates"] - timer.spans["ledger_load"]), 3)
 
+    # THE ISSUANCE WINDOW. Read the clock ONE more time, here, and ask the only question the gates cannot:
+    # is this still authorised NOW, at the moment it is about to be handed over? The gates were evaluated at
+    # `decision_at` and were right to be; time has passed since, and kickoff or a fifteen-minute freshness
+    # window can have gone by while the payload was being built. A candidate that has lost its authorisation
+    # is turned into a BLOCKED one BEFORE the payload is assembled -- so there is no approved payload to
+    # sign and nothing to sign it with. See preflight.authorize_issuance for why this is not a gate.
+    issued_at = clock()
+    for cid, why in P.authorize_issuance(results, issued_at=issued_at):
+        log(f"   WITHDRAWN {cid}: {why}")
+
     approved_records = [r.approved_record for r in results if r.may_be_shown_as_a_bet]
     fully_approved = bool(results) and len(approved_records) == len(results)
     approved_payload = AB.canonical_payload(approved_records) if fully_approved else None
 
-    # ANSWERED_AT is a separate, later read. It is observability -- how long the owner waited -- and is
-    # never a clock anything is judged at. Conflating the two is what produced the ordering bug.
+    # ANSWERED_AT is the issuance instant: the moment the answer was formed and the moment the check above
+    # was made. It is observability and delivery, never a clock any gate is judged at -- conflating it with
+    # the decision is what produced the ordering bug.
     body = _summary(results, run_id=run_id, airtable_id=airtable_id,
                     candidate_payload=candidate_payload if isinstance(candidate_payload, str) else "",
                     approved_payload=approved_payload, approval_as_of=decision_at,
-                    answered_at=clock(), evidence=evidence)
+                    answered_at=issued_at, evidence=evidence)
 
     if approved_payload is not None:
         # SIGN it. A hash the approval carries about itself proves only that the approval is self-consistent;

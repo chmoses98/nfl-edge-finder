@@ -1077,3 +1077,202 @@ def test_the_bridge_has_no_code_path_that_falls_back_to_the_capture_stream_for_a
     body = src.split("requires_evidence = ")[1]
     assert "if not requires_evidence:\n        return None, None" in body, \
         "the only early return after this point must be for rows that do not require evidence"
+
+
+# ======================================================================================================
+# THE ISSUANCE WINDOW
+#
+# Every gate is evaluated at `approval_as_of`, which is what makes the verdict replayable. But the worker
+# then keeps working -- it builds the canonical payload, signs it, writes Airtable -- and two things can
+# expire in that gap:
+#
+#   decision at kickoff-1s   -> the gates pass and the owner is told to bet on a game already underway
+#   quote confirmed 14.9 min -> the gates pass and the authorised price is over the fifteen-minute line
+#                               before the row is even written
+#
+# Neither is a defect in the gates; they answered the question they were asked, at the moment they were
+# asked it. `preflight.authorize_issuance` asks the other question, at delivery time, and can only ever
+# turn an APPROVED into a BLOCKED. It is NOT a gate -- it reads a clock that will never exist again, so
+# putting it in the gate report would break the replay.
+# ======================================================================================================
+
+def _race_row(created_at, cand=None):
+    return {"id": RID, "createdTime": created_at.isoformat(),
+            "fields": {AB.F_SPORT: AB.SPORT_NFL, AB.F_STATUS: AB.STATUS_PREFLIGHT_REQUESTED,
+                       AB.F_RUN_ID: "20260909T130000Z",
+                       AB.F_PAYLOAD: json.dumps([cand or candidate()])}}
+
+
+def _run_with_clock(tmp_path, *, reads, client, cand=None, requested_at=None):
+    """Drive one row with an explicit clock script.
+
+    The worker reads the clock exactly three times per row, in this order:
+        1. the evidence run-id label (before the fetch; a label, never a decision)
+        2. the DECISION instant   (after fetch + persist + read-back)
+        3. the ISSUANCE instant   (immediately before the payload is built and signed)
+    """
+    it = iter(reads)
+    fake = FakeAirtable([_race_row(requested_at or (reads[1] - timedelta(minutes=5)), cand)])
+    store, root = evidence_dir(tmp_path)
+    fake.evidence_root = root
+    code = W.run(fake, ledger_root=ledger(tmp_path), signing_key=SIGNING_KEY,
+                 clock=lambda: next(it),
+                 evidence_collector=W.LiveEvidenceCollector(client), evidence_store=store)
+    return code, fake
+
+
+def _assert_withdrawn(fake, *, contains):
+    """BLOCKED, no approved payload, no signature -- the three things that must all hold together."""
+    assert fake.written[RID][AB.F_STATUS] == AB.STATUS_PREFLIGHT_BLOCKED
+    assert AB.F_APPROVED_PAYLOAD not in fake.written[RID], "a withdrawn approval authorises no payload"
+    body = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    assert body["verdict"] == "BLOCKED" and body["n_approved"] == 0
+    assert "approval_signature" not in body, "nothing may be signed once the authorisation has lapsed"
+    assert "approval_schema" not in body and "evidence_manifest_sha256" not in body
+    c = body["candidates"][0]
+    assert c["may_be_shown_as_a_bet"] is False
+    assert any(P.ISSUANCE in b and contains in b for b in c["blocking_reasons"]), c["blocking_reasons"]
+    return body
+
+
+def test_1_KICKOFF_PASSES_BETWEEN_THE_DECISION_AND_THE_ISSUE(tmp_path):
+    """decision_at = kickoff - 1s, issued_at = kickoff + 1s. The gates pass; the delivery must not."""
+    from test_preflight import KICKOFF                                  # noqa: PLC0415
+    reads = [KICKOFF - timedelta(seconds=2),      # evidence label
+             KICKOFF - timedelta(seconds=1),      # decision  -- strictly pregame, the gate PASSES
+             KICKOFF + timedelta(seconds=1)]      # issue     -- no longer pregame
+    code, fake = _run_with_clock(
+        tmp_path, reads=reads, client=FakeKalshiClient(retrieved_at=KICKOFF - timedelta(seconds=30)),
+        requested_at=KICKOFF - timedelta(minutes=10))
+    assert code == 0, "a withdrawn approval is an ANSWER, not a pipeline failure"
+    body = _assert_withdrawn(fake, contains="kickoff passed while this approval was being prepared")
+
+    c = body["candidates"][0]
+    # The replayable gate is untouched and still records a PASS at the decision instant. That is correct:
+    # the decision WAS pregame. The refusal is about the delivery, and it is reported separately.
+    assert c["gates"]["decision_before_kickoff"] == G.PASS
+    assert c["issuance"]["authorized"] is False
+    assert c["issuance"]["minutes_to_kickoff_at_issue"] < 0
+    assert body["approval_as_of"] < body["answered_at"]
+
+
+def test_2_THE_QUOTE_GOES_STALE_BETWEEN_THE_DECISION_AND_THE_ISSUE(tmp_path):
+    """Fresh at 14 minutes when the gates run, 16 minutes old by the time the answer is handed over."""
+    t0 = DECISION
+    reads = [t0 + timedelta(minutes=14), t0 + timedelta(minutes=14), t0 + timedelta(minutes=16)]
+    code, fake = _run_with_clock(tmp_path, reads=reads, client=FakeKalshiClient(retrieved_at=t0),
+                                 requested_at=t0 + timedelta(minutes=5))
+    assert code == 0
+    body = _assert_withdrawn(fake, contains="went stale while this approval was being prepared")
+    c = body["candidates"][0]
+    assert c["gates"]["decision_time_quote_freshness"] == G.PASS, "it was fresh AT THE DECISION"
+    assert c["quote_age_minutes"] <= 15.0, "and the gate recorded it as such"
+    assert c["issuance"]["quote_age_minutes_at_issue"] > 15.0, "but not by the time it was issued"
+
+
+def test_3_THE_BOOK_GOES_STALE_BETWEEN_THE_DECISION_AND_THE_ISSUE(tmp_path):
+    """The book has its own clock: the quote can be seconds old while the depth is already over the line."""
+    t0 = DECISION
+    decision = t0 + timedelta(minutes=14)
+    reads = [decision, decision, t0 + timedelta(minutes=16)]
+    client = FakeKalshiClient(retrieved_at=decision, book_retrieved_at=t0)
+    code, fake = _run_with_clock(tmp_path, reads=reads, client=client,
+                                 requested_at=t0 + timedelta(minutes=5))
+    assert code == 0
+    body = _assert_withdrawn(fake, contains="order book went stale")
+    c = body["candidates"][0]
+    assert c["gates"]["full_position_executable"] == G.PASS, "the depth walk passed AT THE DECISION"
+    assert c["issuance"]["quote_age_minutes_at_issue"] <= 15.0, "the quote is still perfectly fresh"
+    assert c["issuance"]["book_age_minutes_at_issue"] > 15.0, "and the book alone is what expired"
+
+
+def test_4_THE_NORMAL_FAST_PATH_IS_STILL_APPROVED(tmp_path):
+    """The whole point of the check is that it costs a fast, correct run nothing."""
+    t0 = DECISION + timedelta(minutes=2)
+    reads = [t0, t0 + timedelta(seconds=1), t0 + timedelta(seconds=3)]
+    code, fake = _run_with_clock(tmp_path, reads=reads,
+                                 client=FakeKalshiClient(retrieved_at=t0 - timedelta(seconds=1)))
+    assert code == 0
+    assert fake.written[RID][AB.F_STATUS] == AB.STATUS_PREFLIGHT_APPROVED
+    body = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    assert body["verdict"] == "APPROVED" and body["n_approved"] == 1
+    assert body["approval_signature"] and body["evidence_manifest_sha256"]
+    assert AB.F_APPROVED_PAYLOAD in fake.written[RID]
+    c = body["candidates"][0]
+    assert c["may_be_shown_as_a_bet"] is True
+    assert c["issuance"]["authorized"] is True
+    assert c["issuance"]["quote_age_minutes_at_issue"] < 1.0
+    assert c["issuance"]["book_age_minutes_at_issue"] < 1.0
+
+
+def test_5_ARCHIVED_REPLAY_SEMANTICS_ARE_UNCHANGED(tmp_path):
+    """The issuance check leaves no trace in anything the importer replays.
+
+    It reads a clock that will never exist again, so if it appeared in the gate report the replay would
+    stop being reproducible. The gate report must carry exactly the gates, and the archived record must
+    import exactly as it did before this check existed.
+    """
+    led = ledger(tmp_path)
+    _code, fake = go(tmp_path, led=led, cand=FILED)
+    body = json.loads(fake.written[RID][AB.F_PREFLIGHT_RESULT])
+    c = body["candidates"][0]
+
+    # The delivery check is reported BESIDE the gates, never inside them.
+    assert P.ISSUANCE not in c["gates"]
+    assert "issuance" in c and c["issuance"]["authorized"] is True
+    from test_preflight_no_weakening import EXPECTED_GATES                # noqa: PLC0415
+    assert set(c["gates"]) <= EXPECTED_GATES, "no non-replayable entry may enter the gate report"
+
+    # And the archived record still imports, gated against its own evidence, exactly as before.
+    approved = json.loads(fake.written[RID][AB.F_APPROVED_PAYLOAD])
+    plan = AB.plan_run(_ready_row(fake), led, now=APPROVAL_AT + timedelta(hours=12),
+                       gate_context=_import_ctx(led, approved),
+                       signing_key=SIGNING_KEY, evidence_root=fake.evidence_root)
+    assert len(plan.to_write) == 1
+    gate_record = plan.gate_records[0][1]
+    assert set(gate_record["gates"]) <= EXPECTED_GATES
+    assert P.ISSUANCE not in gate_record["gates"]
+    assert gate_record["overall"] == G.PASS
+    # The DecisionGates record is a pure function of the record and its evidence; it carries no issuance
+    # timestamp, so re-running the importer tomorrow produces the same bytes.
+    assert "issued_at" not in json.dumps(gate_record)
+
+
+def test_the_issuance_check_can_only_ever_withdraw_an_approval(tmp_path):
+    """It is additive. A candidate already blocked at the gates is not examined and is not resurrected."""
+    r = fly(tmp_path, client=fresh_client(APPROVAL_AT, ladder=[(0.56, 2.0)]),
+            cand=candidate(proposed_stake=50, recommended_stake=50))
+    assert not r.may_be_shown_as_a_bet
+    before = list(r.blocking_reasons)
+    refusals = P.authorize_issuance([r], issued_at=APPROVAL_AT)
+    assert refusals == [] and r.blocking_reasons == before
+    assert r.issuance is None, "there is nothing to withdraw from a candidate already blocked"
+
+
+def test_the_issuance_check_fails_closed_on_a_timestamp_it_cannot_read(tmp_path):
+    """At the point of authorising real money, 'I cannot tell' is not a yes."""
+    for field, contains in (("kickoff_utc", "no readable kickoff_utc"),
+                            ("quote", "no readable quote confirmation time"),
+                            ("book", "no readable order-book timestamp")):
+        r = fly(tmp_path)
+        assert r.may_be_shown_as_a_bet, "starts from a genuine approval"
+        if field == "kickoff_utc":
+            r.approved_record = dict(r.approved_record, kickoff_utc=None)
+        elif field == "quote":
+            r.decision_quote = dict(r.decision_quote, confirmed_at=None)
+        else:
+            r.depth = dict(r.depth, book_observed_at=None)
+        refusals = P.authorize_issuance([r], issued_at=APPROVAL_AT)
+        assert len(refusals) == 1 and contains in refusals[0][1], field
+        assert not r.may_be_shown_as_a_bet and r.approved_record is None
+
+
+def test_the_issuance_check_uses_the_same_thresholds_and_has_no_dial_of_its_own():
+    import inspect                                                       # noqa: PLC0415
+    sig = inspect.signature(P.authorize_issuance)
+    assert sig.parameters["max_quote_age_minutes"].default == Q.DEFAULT_MAX_QUOTE_AGE_MIN == 15.0
+    assert sig.parameters["max_book_age_minutes"].default == \
+        __import__("nfl_edge.execution.depth", fromlist=["x"]).DEFAULT_MAX_BOOK_AGE_MIN == 15.0
+    src = open(os.path.join(ROOT, "scripts", "handicap", "preflight_airtable.py")).read()
+    assert "authorize_issuance(results, issued_at=issued_at)" in src, \
+        "the worker must not pass its own thresholds; it uses the same two numbers as the gates"

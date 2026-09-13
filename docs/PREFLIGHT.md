@@ -56,7 +56,9 @@ Airtable PREFLIGHT_REQUESTED
   → READ IT BACK off the store
   → *** NOW *** stamp the decision instant (approval_as_of)      ← after the evidence exists, never before
   → the existing gates, unchanged, plus decision_before_kickoff
-  → stamp answered_at, separately, for observability only
+  → stamp the ISSUANCE instant and re-check kickoff + both freshness windows AT IT
+       any candidate whose authorisation lapsed while we computed becomes BLOCKED here
+  → build the Approved Payload and sign it — only from what survived
   → PREFLIGHT_APPROVED / PREFLIGHT_BLOCKED in Airtable, signed over the evidence manifest
 ```
 
@@ -69,13 +71,46 @@ decision did not have. So the order of the two clocks is not cosmetic:
 |---|---|---|
 | evidence retrieval | by the client, when each response actually arrived | freshness is measured backwards from the decision to this |
 | `approval_as_of` | **after** fetch + persist + read-back, immediately before the gates | the decision; `created_at` of every approved record; what the signature covers |
-| `answered_at` | after the gates | observability only — nothing is judged at it |
+| `answered_at` | after the gates, immediately before the payload is built | the **issuance** instant: when the answer was formed and when the delivery check was made |
 
 Stamping `approval_as_of` at the top of the row loop — which an earlier draft of this rebuild did — inverts
 that rule: the live quote necessarily returns *after* the moment the loop was entered, so every preflight
 would block on "retrieved after the approval instant". Fail-closed, and useless.
 `_assert_evidence_predates` proves the ordering held rather than assuming it; a violation is an **ERROR**,
 not a verdict about the market.
+
+### And the authorisation is re-checked at DELIVERY
+
+Evaluating the gates at the decision instant is what makes the verdict replayable — and it leaves a window.
+The worker keeps working after the gates pass: it builds the canonical payload, signs it, and writes
+Airtable. Two things can expire in that gap:
+
+* the gates pass at **kickoff − 1s** and the answer is written at **kickoff + 1s**, telling the owner to bet
+  on a game that has already started;
+* a quote confirmed **14.9 minutes** before the decision crosses the fifteen-minute line before the row is
+  written.
+
+Neither is a defect in the gates; they answered the question they were asked, at the moment they were asked
+it. `preflight.authorize_issuance` asks the other question — *may this still be delivered?* — at delivery
+time, for any candidate that would otherwise be approved:
+
+| re-checked at `answered_at` | refuses when |
+|---|---|
+| still pregame | `answered_at >= kickoff_utc` |
+| quote still inside its window | age > `DEFAULT_MAX_QUOTE_AGE_MIN` (15) |
+| book still inside its window | age > `DEFAULT_MAX_BOOK_AGE_MIN` (15) |
+| any of those timestamps unreadable | fail closed — "I cannot tell" is not a yes |
+
+A refused candidate becomes **BLOCKED**, loses its approved record, and therefore produces **no Approved
+Payload and no signature** — the withdrawal happens before the payload is assembled, so there is nothing
+left to sign.
+
+**It is not a gate, and must not become one.** `decision_before_kickoff` and the freshness gates are pure
+functions of the record and its evidence, which is exactly what lets the importer reproduce the verdict
+hours later. This check reads a wall clock that will never exist again, so it is recorded on `issuance` and
+in `blocking_reasons`, and never in `gates`. `decision_before_kickoff` is unchanged, still evaluated at the
+decision, and still what the replay compares. The delivery check is **additive** — it can only ever turn an
+APPROVED into a BLOCKED — and it reuses the same two 15-minute constants with no dial of its own.
 
 **Target: under 30 seconds request-to-verdict, and materially under 20 in the normal case.**
 

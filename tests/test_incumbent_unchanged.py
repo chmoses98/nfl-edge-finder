@@ -27,10 +27,16 @@ SOURCE_PINS = {
     # checking out the whole capture stream. No threshold moved: DEFAULT_MAX_QUOTE_AGE_MIN and
     # DEFAULT_MAX_BOOK_AGE_MIN are still 15, fee, depth, net-EV and portfolio rules are untouched, and
     # tests/test_preflight_no_weakening.py asserts exactly that.
+    #
+    # `preflight.py` additionally gained `authorize_issuance`: a DELIVERY-time refusal that re-checks
+    # kickoff and the two freshness windows at the moment an approval is handed over, closing the race in
+    # which a candidate passes the gates at T-1s and the answer is written after kickoff. It can only ever
+    # turn an APPROVED into a BLOCKED, it reuses the same two 15-minute constants, and it is deliberately
+    # NOT a gate -- it reads a wall clock, so recording it in the gate report would break the replay.
     "nfl_edge/handicap/gates.py": "2821835860e32f3e",            # the real-money gates
     "nfl_edge/handicap/risk.py": "e8ba8fd37f0d01a3",             # the risk policy engine
     "nfl_edge/handicap/schema.py": "1ea7b6c31b15d03e",           # recommendation schema, availability rules, ceilings
-    "nfl_edge/handicap/preflight.py": "fe4710c2630cefe1",        # the pre-trade check
+    "nfl_edge/handicap/preflight.py": "2cbed0469ff2cc70",        # the pre-trade check
     "config/risk_policy.json": "11d24fbea908f9ed",               # risk limits
     # the frozen Week-1 code lineage (research/FREEZE_WEEK1_2026.json), byte-identical to main
     "nfl_edge/shadow/ledger.py": "26949b1807296331",
