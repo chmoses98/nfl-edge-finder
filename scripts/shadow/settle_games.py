@@ -470,12 +470,51 @@ def settle_game(gid, obs, book, corpus, capture_root, a, batch, now) -> dict:
     if cross:
         # written next to the batch, not inside it: Kalshi's result is evidence ABOUT our settlement, never the
         # settlement itself, and it can arrive after the corpus row it comments on.
-        with open(os.path.join(ST.game_dir(a.out, gid),
-                               f"{a.eval_version}.{batch}.kalshi_crosscheck.json"), "w") as f:
-            json.dump({"game_id": gid, "batch_id": batch, **cross}, f, indent=1, default=str)
+        #
+        # AND WRITTEN ONCE. `batch` is a wall-clock id, and a re-run of an already-settled game recomputes the
+        # same comparison from the same pinned evidence -- so writing unconditionally left one duplicate
+        # crosscheck per re-run, identical except for the filename and the `batch_id` inside it. Two re-runs
+        # inside one UTC second silently overwrote each other; two that straddled a second left two files. The
+        # second case is what made `test_the_pinned_snapshot_is_not_refetched_on_a_later_run` flake, but the
+        # accumulation was real either way: an append-only evidence corpus should not grow a new file every
+        # time somebody re-runs settlement on a game that is already settled.
+        #
+        # A crosscheck whose SUBSTANCE differs -- the exchange settled something new, or now disagrees -- is
+        # not suppressed; it is new evidence and gets its own batch id.
+        body = {"game_id": gid, "batch_id": batch, **cross}
+        if _crosscheck_already_recorded(ST.game_dir(a.out, gid), body):
+            rep["kalshi_crosscheck_already_recorded"] = True
+        else:
+            with open(os.path.join(ST.game_dir(a.out, gid),
+                                   f"{a.eval_version}.{batch}.kalshi_crosscheck.json"), "w") as f:
+                json.dump(body, f, indent=1, default=str)
     rep["written"] = man.get("written", 0)
     rep["manifest"] = man
     return rep
+
+
+def _crosscheck_body(d: dict) -> str:
+    """A crosscheck's SUBSTANCE: everything except the wall-clock batch label that names the run.
+
+    Serialised rather than compared as objects so a value that only survives `default=str` on the way to disk
+    compares equal to the same value read back out of it.
+    """
+    return json.dumps({k: v for k, v in d.items() if k != "batch_id"},
+                      sort_keys=True, default=str)
+
+
+def _crosscheck_already_recorded(game_dir: str, body: dict) -> bool:
+    """Is this exact comparison already on disk for this game, under some earlier batch id?"""
+    want = _crosscheck_body(body)
+    for path in sorted(glob.glob(os.path.join(game_dir, "*.kalshi_crosscheck.json"))):
+        try:
+            with open(path) as f:
+                prior = json.load(f)
+        except (OSError, ValueError):
+            continue                                  # unreadable evidence is not evidence of agreement
+        if isinstance(prior, dict) and _crosscheck_body(prior) == want:
+            return True
+    return False
 
 
 def crosscheck(rows, exchange) -> dict:

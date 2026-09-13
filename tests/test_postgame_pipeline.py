@@ -791,3 +791,120 @@ def test_the_observations_loader_never_opens_a_ledger_file_for_writing(tmp_path)
         assert os.access(path, os.R_OK)
     original = copy.deepcopy(by_game[GAME][0])
     assert original["support_state"] == "SUPPORTED"
+
+
+# ---------------------------------------------------------------------------- the second-boundary flake
+#
+# `batch = ST.batch_id(now)` is a wall-clock id at SECOND granularity, and the Kalshi crosscheck used to be
+# written unconditionally under it. A re-run of an already-settled game recomputes the same comparison from
+# the same pinned evidence, so:
+#
+#     two runs inside one UTC second   -> the second silently overwrote the first (same filename)
+#     two runs across a second boundary -> a second file appeared:
+#         eval-1.0.0.20260913T195833Z.kalshi_crosscheck.json
+#         eval-1.0.0.20260913T195834Z.kalshi_crosscheck.json
+#
+# Only the filename and the embedded `batch_id` differed; the comparison itself was identical. That is what
+# made `test_the_pinned_snapshot_is_not_refetched_on_a_later_run` flake -- but the accumulation was real
+# either way, and an append-only evidence corpus must not grow a file every time settlement is re-run on a
+# game that is already settled.
+#
+# These tests FORCE the boundary rather than waiting for it, so the property holds deterministically.
+
+def _at(monkeypatch, when):
+    """Pin `settle_games`' wall clock, which is where the batch id comes from."""
+    import datetime as _dt
+
+    class _Frozen(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return when if tz is None else when.astimezone(tz)
+
+    monkeypatch.setattr(settle_games, "datetime", _Frozen)
+
+
+def _crosschecks(out):
+    return sorted(os.path.basename(p) for p in
+                  glob.glob(os.path.join(str(out), GAME, "*.kalshi_crosscheck.json")))
+
+
+def test_a_rerun_across_a_UTC_second_boundary_adds_no_duplicate_crosscheck(built, monkeypatch):
+    """The exact flake, forced: first run at ...:33, second at ...:34. No sleeping, no wall-clock luck."""
+    from datetime import datetime, timezone
+
+    before_files = _crosschecks(built["out"])
+    assert before_files, "the fixture must already have written one crosscheck to re-run against"
+    before = tree_digest(str(built["out"]))
+
+    calls = []
+    monkeypatch.setattr(settle_games.KS, "fetch_game_settlements",
+                        lambda *a, **k: (calls.append(1), ([], []))[1])
+
+    _at(monkeypatch, datetime(2026, 9, 13, 19, 58, 34, 123456, tzinfo=timezone.utc))
+    assert run_settle(monkeypatch, built["md"], built["out"]) == 0
+
+    assert calls == [], "a pinned snapshot must not trigger another exchange read"
+    assert _crosschecks(built["out"]) == before_files, (
+        "a re-run recomputing the same comparison from the same pinned evidence must not leave a second "
+        f"crosscheck artifact: {_crosschecks(built['out'])}")
+    assert tree_digest(str(built["out"])) == before, "an idempotent re-run must not change the tree"
+
+
+def test_two_reruns_a_second_apart_are_both_no_ops(built, monkeypatch):
+    """...:33 then ...:34, back to back. Neither may write, and neither may refetch."""
+    from datetime import datetime, timezone
+
+    before_files = _crosschecks(built["out"])
+    before = tree_digest(str(built["out"]))
+    calls = []
+    monkeypatch.setattr(settle_games.KS, "fetch_game_settlements",
+                        lambda *a, **k: (calls.append(1), ([], []))[1])
+
+    for second in (33, 34):
+        _at(monkeypatch, datetime(2026, 9, 13, 19, 58, second, 500000, tzinfo=timezone.utc))
+        assert run_settle(monkeypatch, built["md"], built["out"]) == 0
+
+    assert calls == []
+    assert _crosschecks(built["out"]) == before_files
+    assert tree_digest(str(built["out"])) == before
+
+
+def test_the_batch_ids_really_would_have_differed_across_that_boundary():
+    """Guards the guard: if both runs produced the same batch id the test above would prove nothing."""
+    from datetime import datetime, timezone
+    from nfl_edge.shadow import evaluation_store as ST
+    a = ST.batch_id(datetime(2026, 9, 13, 19, 58, 33, 999999, tzinfo=timezone.utc))
+    b = ST.batch_id(datetime(2026, 9, 13, 19, 58, 34, 1, tzinfo=timezone.utc))
+    assert a != b and a.endswith("195833Z") and b.endswith("195834Z")
+
+
+def test_a_genuinely_different_crosscheck_is_still_written(built, monkeypatch):
+    """Suppression is by SUBSTANCE, not by counter: new exchange evidence still lands under its own batch."""
+    from datetime import datetime, timezone
+
+    before_files = _crosschecks(built["out"])
+    real = settle_games.crosscheck
+
+    def _different(rows, exchange):
+        out = dict(real(rows, exchange) or {})
+        out["agree"] = (out.get("agree") or 0) + 1      # a comparison nobody has recorded before
+        return out
+
+    monkeypatch.setattr(settle_games, "crosscheck", _different)
+    monkeypatch.setattr(settle_games.KS, "fetch_game_settlements", lambda *a, **k: ([], []))
+    _at(monkeypatch, datetime(2026, 9, 13, 19, 58, 35, 0, tzinfo=timezone.utc))
+    assert run_settle(monkeypatch, built["md"], built["out"]) == 0
+
+    after = _crosschecks(built["out"])
+    assert len(after) == len(before_files) + 1, (
+        "a crosscheck whose substance differs is new evidence and must be recorded, not suppressed")
+
+
+def test_the_suppression_compares_substance_and_ignores_only_the_batch_label():
+    """Unit-level, so the rule is readable without running the whole pipeline."""
+    body = {"game_id": GAME, "batch_id": "20260913T195833Z", "agree": 4, "disagreements": []}
+    assert settle_games._crosscheck_body(body) == settle_games._crosscheck_body(
+        dict(body, batch_id="20260913T195834Z")), "only the batch label is ignored"
+    assert settle_games._crosscheck_body(body) != settle_games._crosscheck_body(dict(body, agree=5))
+    assert settle_games._crosscheck_body(body) != settle_games._crosscheck_body(
+        dict(body, disagreements=[{"ticker": "T"}]))
