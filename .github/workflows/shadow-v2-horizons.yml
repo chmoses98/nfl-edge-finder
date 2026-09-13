@@ -78,16 +78,21 @@ jobs:
         run: |
           D=$(ls -d /tmp/md/data/kalshi/discovery/*/ | tail -1)
           python3 scripts/kalshi/build_player_map.py --discovery-dir "$D" --season 2026 2>&1 | tail -6
-      # One projection run per due horizon id: the records carry the horizon label and lateness, and the marker
-      # is written (append-only) only after the store accepted the rows.
+      # ONE build serves EVERY due horizon, because a build is one observation of one board.
+      #
+      # This used to loop, one process per due horizon id. The ids are for different KICKOFF CLUSTERS, and
+      # each process stamped its single id onto every record on the board -- so a game kicking off at 00:20Z
+      # was labelled with the 17:00Z cluster's trigger, and the second process then hit the first one's rows
+      # under the same record_id and the append-only store refused to rewrite them. Exit 4, nothing
+      # published, every due horizon lost. The store was right; this loop was wrong.
+      #
+      # The projector now takes all due ids at once and gives each record the horizon of its OWN cluster, and
+      # writes a marker only for horizons that actually reached accepted rows.
       - name: Project the board at the due horizons
         env:
           HORIZON_IDS: ${{ needs.gate.outputs.horizon_ids }}
         run: |
-          IFS=',' read -ra IDS <<< "$HORIZON_IDS"
-          for h in "${IDS[@]}"; do
-            python3 scripts/shadow_v2/project_slate_v2.py --market-data /tmp/md --out data --target-season 2026 --horizon-id "$h" 2>&1 | tail -20
-          done
+          python3 scripts/shadow_v2/project_slate_v2.py --market-data /tmp/md --out data --target-season 2026 --horizon-id "$HORIZON_IDS" 2>&1 | tail -25
       - name: Verify before anything is published
         run: |
           python3 scripts/shadow_v2/verify_projections.py --root data/shadow/v2/projections --require-rows

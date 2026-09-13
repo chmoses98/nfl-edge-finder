@@ -39,6 +39,7 @@ sys.path.insert(0, ROOT)
 from nfl_edge.data.nfl_calendar import kickoff_utc                                        # noqa: E402
 from nfl_edge.engines import coherence as CE, game as GE, joint as JE, period as PE, season as SE  # noqa: E402
 from nfl_edge.engines.player import data_dist as DD, hybrid_dist as HD, market_dist as MD   # noqa: E402
+from nfl_edge.handicap.horizons import cluster_kickoffs, parse_horizon_id                  # noqa: E402
 from nfl_edge.engines.player.features_v2 import add_v2_features                             # noqa: E402
 from nfl_edge.evaluation import clv as CLV                                                 # noqa: E402
 from nfl_edge.evaluation import execution_depth as XD                                      # noqa: E402
@@ -134,7 +135,7 @@ def main(argv=None):
     ap.add_argument("--snapshot-id", default="", help="price this capture run (default: latest)")
     ap.add_argument("--target-season", type=int, default=2026)
     ap.add_argument("--now", default="", help="override the wall clock (tests only)")
-    ap.add_argument("--horizon-id", default="", help="<slate>|<trigger>|T-<n>m from the horizon gate; else CYCLE")
+    ap.add_argument("--horizon-id", default="", help="comma-separated <slate>|<cluster>|T-<n>m ids from the horizon gate (one build serves every due cluster); else CYCLE")
     ap.add_argument("--n-sims", type=int, default=40000)
     ap.add_argument("--limit-games", type=int, default=0)
     ap.add_argument("--skip-player", action="store_true")
@@ -299,7 +300,43 @@ def main(argv=None):
         fee_sched = load_fee_schedule(ROOT)
     except Exception as e:  # noqa: BLE001
         log(f"fee schedule unavailable: {e}")
-    horizon_id = a.horizon_id or None
+    # A HORIZON BELONGS TO A KICKOFF CLUSTER, SO IT BELONGS TO SOME RECORDS AND NOT OTHERS.
+    #
+    # The gate can return several due horizon ids at once, and they are ids for DIFFERENT clusters
+    # (`<slate>|<cluster>|T-<n>m`). The workflow used to loop them, one process per id, and each process
+    # stamped its single id onto EVERY record on the board. That was wrong twice over: a DAL@NYG contract
+    # kicking off at 00:20Z was labelled with the 17:00Z cluster's trigger -- 678 minutes "late" against a
+    # horizon that is not its own -- and the second process then met the first one's rows under the same
+    # `record_id` (which is snapshot|ticker|arm|engine|distribution, with no horizon in it) and the
+    # append-only store correctly refused to rewrite them. Exit 4, nothing published, three valid horizons
+    # lost.
+    #
+    # The store was right; the orchestration was wrong. One build now serves every due horizon at once, and
+    # each record takes the horizon of ITS OWN cluster -- which is the only horizon that was ever true of it.
+    # One coherent record set, one write per arm, no duplication, and the immutability guard is untouched.
+    #
+    # Within one cluster the TIGHTEST due horizon wins: the observation is at T-90m, so calling it the T-6h
+    # freeze would backdate it. A looser horizon this build did not serve gets no marker and stays due, which
+    # is what "never reconstructed" means.
+    due_ids = [h.strip() for h in (a.horizon_id or "").split(",") if h.strip()]
+    horizon_by_cluster = {}
+    for hid in due_ids:
+        try:
+            h = parse_horizon_id(hid)
+        except ValueError:
+            log(f"::warning::ignoring unparseable horizon id {hid!r}")
+            continue
+        cur = horizon_by_cluster.get(h["cluster_key"])
+        if cur is None or h["horizon_min"] < cur["horizon_min"]:
+            horizon_by_cluster[h["cluster_key"]] = h
+    cluster_of_game = {}
+    if horizon_by_cluster:
+        for c in cluster_kickoffs([{"game_id": g, "kickoff_utc": k} for g, k in kick.items()]):
+            for g in c["game_ids"]:
+                cluster_of_game[g] = c["cluster_key"]
+        log(f"due horizons: {len(due_ids)} id(s) over {len(horizon_by_cluster)} cluster(s); "
+            f"serving {sorted(h['horizon_id'] for h in horizon_by_cluster.values())}")
+    horizon_ids_applied = set()
     board_rows, arm_rows = [], {arm: [] for arm in PLAYER_ARMS}
     gen_iso = now.isoformat()
     coherence_rows = []
@@ -330,9 +367,13 @@ def main(argv=None):
                     # per record, because the quote's own last-change instant differs per ticker even though
                     # the cutoff and the frontier are run-level
                     information_sync={**sync_block, "market_observed_at": q.get("observed_at")})
-        if ko and pregame and horizon_id:
+        # the horizon of THIS record's own kickoff cluster, or none -- a record outside every due cluster is
+        # a CYCLE observation and must not borrow another cluster's trigger
+        row_horizon = horizon_by_cluster.get(cluster_of_game.get(gid)) if gid else None
+        if ko and pregame and row_horizon:
             try:
-                base.update(HZ.label_snapshot(obs, ko, horizon_id))
+                base.update(HZ.label_snapshot(obs, ko, row_horizon["horizon_id"]))
+                horizon_ids_applied.add(row_horizon["horizon_id"])
             except ValueError:
                 pass
         elif ko and pregame:
@@ -485,7 +526,7 @@ def main(argv=None):
     written = {}
     perf = {"seconds": time.time() - t0, "max_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, "api_calls": 0}
     extra = {"model_version": MODEL_VERSION, "capture_manifest": man.get("run_id"), "discovery": os.path.basename(ddir) if ddir else None,
-             "horizon_id": horizon_id, "generated_at": gen_iso, "n_sims": a.n_sims, "perf": perf}
+             "horizon_id": ",".join(sorted(horizon_ids_applied)) or None, "generated_at": gen_iso, "n_sims": a.n_sims, "perf": perf}
     try:
         for arm, rows in [(ARM_BOARD, board_rows)] + list(arm_rows.items()):
             if not rows:
@@ -500,12 +541,17 @@ def main(argv=None):
         log(f"  context sidecar: {side.get('status')} {len(game_ctx_cache)} game + {len(player_ctx_cache)} player contexts -> {side.get('path')}")
     except ProjectionConflict as e:
         log(f"::error::projection conflict: {e}"); return 4
-    if horizon_id and written:
-        markers = HZ.write_markers(a.out, [horizon_id], snapshot_id=snapshot_id, status="CAPTURED", now=now)
+    # ONLY horizons that actually reached accepted records get a marker. A due horizon whose cluster
+    # contributed no row was not served by this build, and a marker would claim a freeze that never happened.
+    if horizon_ids_applied and written:
+        markers = HZ.write_markers(a.out, sorted(horizon_ids_applied), snapshot_id=snapshot_id, status="CAPTURED", now=now)
         log(f"horizon markers: {markers}")
+        unserved = sorted(set(due_ids) - horizon_ids_applied)
+        if unserved:
+            log(f"::notice::due but not served by this build (no marker, still due): {unserved}")
     # ---- summary
     all_rows = board_rows + [r for rs in arm_rows.values() for r in rs]
-    summ = {"snapshot_id": snapshot_id, "generated_at": gen_iso, "now_override": bool(a.now), "horizon_id": horizon_id, "n_quotes": len(quotes),
+    summ = {"snapshot_id": snapshot_id, "generated_at": gen_iso, "now_override": bool(a.now), "horizon_id": (",".join(sorted(horizon_ids_applied)) or None), "horizon_ids_served": sorted(horizon_ids_applied), "n_quotes": len(quotes),
             "n_records": len(all_rows), "by_arm_state": {arm: dict(Counter(r["support_state"] for r in rows)) for arm, rows in [(ARM_BOARD, board_rows)] + list(arm_rows.items())},
             "by_engine_state": _nested(all_rows, "engine", "support_state"), "by_family_state": _nested(board_rows, "market_family", "support_state"),
             "by_stat_arm_state": {arm: _nested(rows, "stat_family", "support_state") for arm, rows in arm_rows.items()},
