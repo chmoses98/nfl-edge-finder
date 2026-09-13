@@ -90,9 +90,16 @@ SIGNING_KEY = ("test-preflight-signing-key-0123456789abcdef" * 2).encode()
 APPROVAL_AT = (AB._parse_ts("createdTime", CREATED) + timedelta(minutes=8)).isoformat()
 
 
+# A stand-in for the hash of the live market evidence a real approval is computed from. These tests are
+# about the TRANSPORT and the signature, not about the evidence branch -- but the signature covers the
+# manifest, so every approval they build has to name one. tests/test_preflight_evidence.py is where the real
+# documents are collected, stored and replayed.
+EVIDENCE_MANIFEST = "e" * 64
+
+
 def approved_row(records, *, rid="recE2E00000000001", verdict="APPROVED", tamper=False,
                  run_id=RUN_ID, approval_at=None, sign_as_row=None, sign_as_run=None,
-                 sign=True, key=None, candidate=None, **kw):
+                 sign=True, key=None, candidate=None, evidence=EVIDENCE_MANIFEST, **kw):
     """A row carrying the AUTHENTICATED preflight approval a real recommendation now needs.
 
     `Payload` stays the candidate request; `Approved Payload` is the exact approved batch, whose hash and
@@ -117,7 +124,8 @@ def approved_row(records, *, rid="recE2E00000000001", verdict="APPROVED", tamper
         body.update(APPROVAL.issue(
             key=key or SIGNING_KEY, airtable_record_id=sign_as_row or rid,
             run_id=sign_as_run or run_id, candidate_payload=candidate_text,
-            approved_payload=approved_text, approval_as_of=approval_at))
+            approved_payload=approved_text, approval_as_of=approval_at,
+            evidence_manifest_sha256=evidence))
     if tamper:
         edited = [dict(r) for r in stamped]
         edited[0]["recommended_stake"] = 500
@@ -700,20 +708,29 @@ def test_idle_polling_stays_inside_a_modest_monthly_api_budget():
         "status updates, retries and E2E testing on the free tier")
 
 
-def test_workflow_checks_out_code_ledger_and_market_data_separately():
-    """Three checkouts, one writable.
+def test_workflow_checks_out_code_ledger_market_data_and_evidence_separately():
+    """Four checkouts, one writable.
 
-    `market-data` is now checked out deliberately: the decision-time price gate resolves the freshest
-    CONFIRMED executable quote from the capture stream, and without it every real recommendation would fail
-    the gate for a reason that is really a missing checkout. It is READ-ONLY here -- the next test pins that.
+    `market-data` is checked out deliberately: the decision-time price gate resolves the freshest CONFIRMED
+    executable quote from the capture stream, and without it every real recommendation would fail the gate
+    for a reason that is really a missing checkout. It is READ-ONLY here -- the next test pins that.
+
+    `preflight-evidence` is the pre-trade half. When a row's approval names live market evidence, the replay
+    reads THOSE documents -- the ones the decision was actually made on, seconds before it -- rather than a
+    bulk capture of the same contract that may be ten minutes older and at a different price. It is a few KB
+    per request, and also read-only.
     """
     doc = _workflow()
     steps = doc["jobs"]["sync"]["steps"]
     checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout")]
     paths = {s["with"]["path"] for s in checkouts}
-    assert paths == {"code", "ledger", "market-data"}, "code, ledger and market-data must be separate"
+    assert paths == {"code", "ledger", "market-data", "preflight-evidence"}
     ledger_step = next(s for s in checkouts if s["with"]["path"] == "ledger")
     assert ledger_step["with"]["ref"] == store.BRANCH
+    ev = next(s for s in checkouts if s["with"]["path"] == "preflight-evidence")
+    assert ev["with"]["ref"] == "preflight-evidence"
+    # Missing branch (nothing preflighted yet) must not stop archival transport.
+    assert ev.get("continue-on-error") is True
 
 
 def test_the_workflow_never_writes_to_the_collector_branch():
@@ -1256,7 +1273,7 @@ def test_E_a_record_not_dated_at_the_signed_approval_is_rejected(ledger):
     body.update(APPROVAL.issue(
         key=SIGNING_KEY, airtable_record_id=r["id"], run_id=RUN_ID,
         candidate_payload=r["fields"][AB.F_PAYLOAD], approved_payload=approved_text,
-        approval_as_of=approval_at))
+        approval_as_of=approval_at, evidence_manifest_sha256=EVIDENCE_MANIFEST))
     r["fields"][AB.F_APPROVED_PAYLOAD] = approved_text
     r["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
     _expect_error(ledger, [r], contains="but the signed approval is for")

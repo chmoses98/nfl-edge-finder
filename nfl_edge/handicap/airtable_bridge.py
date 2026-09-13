@@ -36,6 +36,7 @@ written. A batch that is partly in the ledger is a batch nobody can score.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -48,6 +49,7 @@ from datetime import datetime, timedelta, timezone
 
 from nfl_edge.handicap import approval as APPROVAL
 from nfl_edge.handicap import gates as G
+from nfl_edge.handicap import live_evidence as LE
 from nfl_edge.handicap import schema as S
 from nfl_edge.handicap import store
 
@@ -493,9 +495,75 @@ class RunPlan:
         return not self.to_write and self.receipt is None
 
 
+def read_preflight_evidence(fields: dict, evidence_root: str | None) -> tuple:
+    """The market evidence this row's approval was computed from, re-read and re-hashed here.
+
+    Returns `(documents, manifest_sha256)`, or `(None, None)` when there is nothing to read -- no evidence
+    root configured, or a row whose approval predates evidence binding.
+
+    WHY THE IMPORTER NEEDS THIS AND NOT THE CAPTURE STREAM. Preflight now prices a candidate from a live
+    fetch made seconds before the decision. The conductor's own capture of the same contract may be ten
+    minutes older and at a different price, so replaying the approved record against the capture stream would
+    be asking a DIFFERENT question -- and could refuse a sound recommendation because the last bulk pass
+    happened to catch the book somewhere else. The replay has to read the evidence the decision was actually
+    made on, which is exactly what the evidence branch is for.
+
+    Every document is verified against the hash the approval recorded, and the manifest is re-derived from
+    the documents present. A missing, altered or substituted document raises.
+    """
+    result_raw = fields.get(F_PREFLIGHT_RESULT)
+    if not evidence_root or not isinstance(result_raw, str) or not result_raw.strip():
+        return None, None
+    try:
+        result = json.loads(result_raw)
+    except (ValueError, TypeError):
+        return None, None                     # `_canonical_records` reports the malformed result properly
+    ev = (result or {}).get("evidence") or {}
+    entries = ev.get("documents") or []
+    if not entries:
+        return None, None
+
+    documents = []
+    for e in entries:
+        rel = str(e.get("path") or "").lstrip("/")
+        path = os.path.join(evidence_root, rel)
+        try:
+            with open(path, "rb") as f:
+                text = f.read().decode("utf-8")
+        except OSError as exc:
+            raise BridgeError(
+                f"the preflight evidence this approval cites is missing at {rel}: {exc}. A real "
+                "recommendation is not archived on evidence that cannot be re-read.") from None
+        try:
+            documents.append(LE.load_document(text, expected_sha256=e.get("sha256")))
+        except LE.EvidenceError as exc:
+            raise BridgeError(str(exc)) from None
+
+    recomputed = LE.manifest_sha256(
+        [{"path": e.get("path"), "sha256": e.get("sha256")} for e in entries],
+        storage=ev.get("storage") or "", commit=ev.get("commit"))
+    return documents, recomputed
+
+
+def _context_with_evidence(gate_context, documents):
+    """A shallow copy of the gate context reading the preflight evidence instead of the capture stream.
+
+    Shallow, so the fee schedule and the risk report are shared and only the two market indexes move. The
+    gate FUNCTION is untouched: `evaluate_gates` reads the same two interfaces either way, which is what
+    makes this a replay rather than a second opinion.
+    """
+    if gate_context is None or not documents:
+        return gate_context
+    ctx = copy.copy(gate_context)
+    ctx.capture_index = LE.EvidenceQuoteIndex(documents)
+    ctx.book_index = LE.EvidenceBookIndex(documents)
+    return ctx
+
+
 def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
              base_id: str = BASE_ID, table_id: str = TABLE_ID,
-             gate_context: "G.GateContext | None" = None, signing_key=None) -> RunPlan:
+             gate_context: "G.GateContext | None" = None, signing_key=None,
+             evidence_root: str | None = None) -> RunPlan:
     """Validate one row and work out the exact file operations, without performing any of them.
 
     Planning before writing is what makes a batch atomic: every reason to refuse -- schema, coherence,
@@ -518,8 +586,12 @@ def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
     # archived from `Approved Payload` -- the exact batch the pre-trade worker approved -- and only after its
     # hash is re-derived here and matched against the hash recorded in `Preflight Result`. Without that, a
     # row could be written straight to READY_FOR_SYNC and walk a bet into the ledger having passed nothing.
+    # Read the approval's own market evidence FIRST, so the manifest hash goes into the signature check and
+    # the same documents then drive the gate replay below. Both halves fail closed.
+    evidence_documents, evidence_manifest = read_preflight_evidence(fields, evidence_root)
     records, source, approved_sha, verified = _canonical_records(
-        fields, candidate_records, airtable_id, run_id, airtable_created, signing_key)
+        fields, candidate_records, airtable_id, run_id, airtable_created, signing_key,
+        evidence_manifest_sha256=evidence_manifest)
     # The CANDIDATE request is still judged by the old anti-backfill discipline -- that clock did not change,
     # and a request that claims to predate its own row by a day is still not prospective evidence. What the
     # approval clock replaces is only the rule about the machine-approved record.
@@ -556,7 +628,7 @@ def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
                 "overwrite one. To revise a decision, submit a NEW row whose records carry `amends` set to "
                 "the original recommendation_id.")
 
-    _plan_gates(plan, ledger_root, gate_context, now)
+    _plan_gates(plan, ledger_root, _context_with_evidence(gate_context, evidence_documents), now)
     plan.receipt = _plan_receipt(plan, ledger_root, records, base_id, table_id, now)
     return plan
 
@@ -567,7 +639,8 @@ def _needs_preflight(records: list) -> bool:
 
 
 def _canonical_records(fields: dict, candidate_records: list, airtable_id: str, run_id: str,
-                      airtable_created: datetime, signing_key) -> tuple:
+                      airtable_created: datetime, signing_key,
+                      evidence_manifest_sha256: str | None = None) -> tuple:
     """The records this row actually archives, and the AUTHENTICATED proof it is allowed to.
 
     A batch with no real RECOMMENDED record keeps the simple path: a PASS is scientifically valuable, costs
@@ -627,7 +700,8 @@ def _canonical_records(fields: dict, candidate_records: list, airtable_id: str, 
         verified = APPROVAL.verify(
             result, key=signing_key, airtable_record_id=airtable_id, run_id=run_id,
             candidate_payload=candidate_raw if isinstance(candidate_raw, str) else "",
-            approved_payload=approved_raw)
+            approved_payload=approved_raw,
+            evidence_manifest_sha256=evidence_manifest_sha256)
         APPROVAL.check_approval_window(verified.approval_as_of, airtable_created)
     except APPROVAL.ApprovalError as e:
         raise BridgeError(str(e)) from None

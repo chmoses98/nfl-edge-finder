@@ -91,6 +91,20 @@ jobs:
           path: market-data
           fetch-depth: 1
 
+      # READ-ONLY, and tiny. When a row's approval names live pre-trade market evidence, the gate REPLAY
+      # reads those documents -- the ones the decision was actually made on -- instead of the capture
+      # stream, and re-verifies every hash. Preflight prices a candidate from a fetch made seconds before
+      # the decision; the conductor's capture of the same contract may be ten minutes older and at a
+      # different price, so replaying against it would ask a different question. The branch holds a few KB
+      # per request.
+      - name: Checkout pre-trade evidence (preflight-evidence)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: preflight-evidence
+          path: preflight-evidence
+          fetch-depth: 1
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -157,9 +171,12 @@ jobs:
           AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
           PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
         run: |
+          EVIDENCE=""
+          if [ -d ../preflight-evidence ]; then EVIDENCE="--preflight-evidence ../preflight-evidence"; fi
           python3 scripts/handicap/sync_airtable.py \
             --handicap-root ../ledger \
             --market-data ../market-data \
+            $EVIDENCE \
             ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
 
       - name: Ledger state after sync

@@ -163,7 +163,17 @@ def _context_for(base_ctx, records):
 
 def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
          pusher=commit_and_push, sport: str = AB.SPORT_NFL, update_status: bool = True,
-         gate_context=None, signing_key=None) -> int:
+         gate_context=None, signing_key=None, evidence_root: str | None = None) -> int:
+    """`evidence_root` is a checkout of the `preflight-evidence` branch.
+
+    When a row's approval names live market evidence, the gate replay reads THAT rather than the capture
+    stream, and the evidence manifest hash is recomputed here and fed into the signature check. Preflight
+    now prices a candidate from a fetch made seconds before the decision; the conductor's own capture of the
+    same contract can be ten minutes older and at a different price, so replaying against the capture stream
+    would ask a different question and could refuse a sound recommendation for a reason that has nothing to
+    do with it. Rows whose approval names no evidence are unaffected and still replay from the capture
+    stream.
+    """
     now = now or datetime.now(timezone.utc)
 
     # The ledger the gates measure cumulative exposure against MUST be the ledger being written. Binding it
@@ -207,7 +217,7 @@ def sync(client, ledger_root: str, *, dry_run: bool = False, now=None,
             plan = AB.plan_run(row, ledger_root, now=now,
                                base_id=client.base_id, table_id=client.table_id,
                                gate_context=_context_for(gate_context, records),
-                               signing_key=signing_key)
+                               signing_key=signing_key, evidence_root=evidence_root)
         except AB.ConfigurationError as e:
             # Listed BEFORE BridgeError deliberately: this is the one failure raised while inspecting a row
             # that is not about the row. Leaving it in the ERROR bucket is how a misconfigured runner
@@ -327,6 +337,11 @@ def main(argv=None) -> int:
                     help="validate pending rows and report; write nothing, change no Airtable status")
     ap.add_argument("--no-push", action="store_true",
                     help="write records but do not commit or push (local inspection only)")
+    ap.add_argument("--preflight-evidence", default=None,
+                    help="checkout of the preflight-evidence branch. When a row's approval names live "
+                         "market evidence, the gate replay reads it from here -- the documents the decision "
+                         "was actually made on -- and every hash is re-verified. Without it, such a row is "
+                         "still archived, but its replay falls back to the capture stream.")
     ap.add_argument("--market-data", default="/home/user/_market_data_wt",
                     help="checkout of the market-data branch; the decision-time price gate reads its "
                          "capture stream")
@@ -388,7 +403,8 @@ def main(argv=None) -> int:
                                  ledger_root=os.path.abspath(a.handicap_root))
         return sync(client, os.path.abspath(a.handicap_root), dry_run=a.dry_run, pusher=pusher,
                     sport=a.sport, update_status=not a.no_push, gate_context=ctx,
-                    signing_key=signing_key)
+                    signing_key=signing_key,
+                    evidence_root=os.path.abspath(a.preflight_evidence) if a.preflight_evidence else None)
     except AB.ConfigurationError as e:
         # Belt and braces: `sync` handles these per row, so reaching here means one escaped a path that does
         # not yet defer. Exit 2, never 1: nothing about it says a row is bad.

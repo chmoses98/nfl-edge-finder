@@ -416,10 +416,11 @@ This section is a **different leg with a different job and a different cadence**
 ```
 ChatGPT
   → writes a PREFLIGHT_REQUESTED row (candidates in Payload)
-  → opens a `[PREFLIGHT NFL]` issue in this repository                      ← the trigger signal, free
-  → the `issues: opened` event starts preflight.yml                          (owner-authored issues only)
-  → the workflow checks out main + market-data + handicap-data
-  → scripts/handicap/preflight_airtable.py runs the SAME gates the ledger later replays
+  → opens a `PREFLIGHT NFL` or `[PREFLIGHT NFL]` issue in this repository   ← the trigger signal, free
+  → the `issues: opened|edited` event starts preflight.yml                   (owner-authored issues only)
+  → the workflow checks out main + handicap-data + a SPARSE data/kalshi/fees + preflight-evidence
+  → scripts/handicap/preflight_airtable.py fetches THIS candidate's live market + depth-10 book,
+    publishes that evidence append-only, and runs the SAME gates the ledger later replays
   → the row becomes PREFLIGHT_APPROVED or PREFLIGHT_BLOCKED, verdict in `Preflight Result`
   → ChatGPT reads the row
   → ONLY an APPROVED candidate may be surfaced as a BET, and only at `approved_stake`
@@ -637,7 +638,7 @@ configure — the paid `Run script` action this used to need does not exist on t
 
 | field | value |
 |---|---|
-| title | `[PREFLIGHT NFL] <anything>` — the prefix must be at the **start** |
+| title | `PREFLIGHT NFL <anything>` or `[PREFLIGHT NFL] <anything>` — either form, at the **start** |
 | body | generic text only, e.g. *"Trigger preflight for pending Airtable NFL requests. No candidate data is stored in this issue."* |
 
 Never put a candidate, a ticker, a thesis, a probability, a price, a stake, an Airtable record or a secret
@@ -647,8 +648,15 @@ in the issue. It is a public repository, and the issue is a doorbell.
 
 ```yaml
 github.event.issue.user.login == github.repository_owner
-startsWith(github.event.issue.title, '[PREFLIGHT NFL]')
+(startsWith(github.event.issue.title, '[PREFLIGHT NFL]') ||
+ startsWith(github.event.issue.title, 'PREFLIGHT NFL'))
 ```
+
+Both title forms are accepted, and `edited` issues count. On 2026-09-13 the owner opened `PREFLIGHT NFL`,
+the guard wanted the bracketed form, the job was silently skipped, and the manual dispatch that followed
+answered ninety seconds after kickoff. Routing was relaxed; **authorisation was not** — `issue.user.login`
+is the issue's AUTHOR, not whoever edited it, so an outsider is still refused with any title. The same rule
+exists as `nfl_edge/handicap/preflight_trigger.may_start_worker`, and the tests assert the two agree.
 
 A skipped job never starts, so an outsider's issue spends no Actions minutes, touches no secret, is never
 commented on and is never closed — it is simply ignored. `tests/test_preflight_issue_trigger.py` evaluates
@@ -658,9 +666,12 @@ that expression directly against synthetic events, so an owner-lookalike (`chmos
 GitHub's `startsWith` is case-insensitive, so `[preflight nfl]` from the owner also triggers. That is
 recorded rather than fought: the title is routing, the author check is the security control.
 
-**Permissions.** `contents: read` is unchanged — this job has never pushed and still cannot. `issues: write`
-is the single addition, for closing the trigger issue. It cannot push, cannot start workflows and cannot
-touch a pull request. `GITHUB_TOKEN` does the closing; no PAT is involved.
+**Permissions.** `contents: write` exists for exactly one purpose: publishing append-only **public market
+evidence** to the `preflight-evidence` branch, which is what makes an approval replayable after the runner is
+gone. `nfl_edge/handicap/evidence_store.GitBranchEvidenceStore` refuses every other branch, so the grant
+cannot reach `main`, `market-data` or `handicap-data`, and the workflow file itself contains no `git push`.
+`issues: write` is for closing the trigger issue. This job cannot start workflows and cannot touch a pull
+request. `GITHUB_TOKEN` does both; no PAT is involved. See `docs/PREFLIGHT.md`.
 
 The workflow answers **every** pending `PREFLIGHT_REQUESTED` row, so the trigger carries no payload and two
 requests arriving together cost one run.
@@ -681,11 +692,27 @@ ticker that does not exist.
    `may_be_shown_as_a_bet: false`. That is the correct answer, and a `TEST_ONLY` probe coming back approved
    would itself be the bug.
 4. Nothing is written to any ledger branch. Preflight files no records.
+5. A `TEST_ONLY` probe also touches **no live market and publishes no evidence**: the collector skips
+   `test_only` candidates, so the fake ticker cannot turn the connectivity check into a 404, and nothing
+   lands on the permanent evidence branch. The Actions job summary still reports the full timing breakdown,
+   which is the half of this test that proves the latency fix.
 
 `tests/test_preflight_transport.py` runs this whole leg against a fake Airtable, including the TEST_ONLY
 probe, and `tests/test_preflight_issue_trigger.py` proves the trigger guard, so the repository side is
 proven before any issue is opened. What the live run proves is the one thing tests cannot: that ChatGPT's
 issue actually starts the workflow.
+
+### Where the market evidence comes from
+
+The live decision path **no longer reads the capture stream**. For every unique candidate ticker it makes two
+public GETs (`/markets/{ticker}` and `/markets/{ticker}/orderbook?depth=10`), publishes the answer to the
+append-only `preflight-evidence` branch, reads it back, and gates against the stored bytes. `market-data` is
+still checked out, but **sparsely** — `data/kalshi/fees/` only, for the fee-schedule gate.
+
+The twelve-hourly importer replays the approved record against **that same evidence** when
+`--preflight-evidence` names a checkout of the branch, re-verifying every document hash and the signed
+manifest. `docs/PREFLIGHT.md` is the full description, including why replaying against the capture stream
+would now ask a different question.
 
 ### Debugging fallbacks — not the operating workflow
 

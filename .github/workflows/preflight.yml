@@ -6,9 +6,10 @@ name: Pre-trade preflight
 # a workflow. It CAN open a GitHub issue, so that is the doorbell:
 #
 #   ChatGPT writes a PREFLIGHT_REQUESTED row
-#     -> ChatGPT opens a `[PREFLIGHT NFL]` issue in this repository               (the free trigger)
-#     -> this job checks out main + market-data + handicap-data
-#     -> scripts/handicap/preflight_airtable.py runs the SAME gates the ledger will later replay
+#     -> ChatGPT opens a `PREFLIGHT NFL` issue in this repository                (the free trigger)
+#     -> this job checks out main, the ledger, and the tiny evidence branch
+#     -> scripts/handicap/preflight_airtable.py fetches THIS candidate's live market + depth-10 book,
+#        publishes that evidence append-only, and runs the SAME gates the ledger will later replay
 #     -> the row becomes PREFLIGHT_APPROVED or PREFLIGHT_BLOCKED, verdict in `Preflight Result`
 #     -> ChatGPT reads it; ONLY APPROVED may be surfaced as a BET
 #
@@ -24,8 +25,15 @@ name: Pre-trade preflight
 # only place the verdict lives. Nothing in the issue -- title beyond the prefix, body, labels -- is read as
 # input, so a trigger cannot influence what the worker decides, only that it runs.
 #
-# NOTHING HERE WRITES A LEDGER BRANCH. It reads market-data and handicap-data and writes one Airtable field
-# plus a status. A preflight verdict is not a record; the record is filed later, through the normal bridge.
+# WHY THIS JOB NO LONGER CHECKS OUT market-data. On 2026-09-13 it did, to look up ONE ticker in the capture
+# stream: the fetch ran ~57s and writing ~17,491 files ran another ~43s, so the worker started ~101s into the
+# run and answered a 17:00:00Z kickoff at 17:01:30Z. The live path now asks the venue about that one contract
+# directly (two public GETs) and keeps the evidence on an append-only branch. `market-data` is still read --
+# SPARSELY, for `data/kalshi/fees/` alone, which is a handful of small JSON files.
+#
+# WHAT IT WRITES. One Airtable field plus a status, and append-only public market evidence on
+# `preflight-evidence`. It never writes a ledger branch: a preflight verdict is not a record, and the record
+# is filed later through the normal bridge.
 
 on:
   workflow_dispatch:
@@ -41,14 +49,24 @@ on:
     types: [preflight]
   # The free trigger. This repository is PUBLIC, so anyone can open an issue: the job-level `if` below is
   # the security boundary, and it is what stops an arbitrary user from making the real Airtable worker run.
+  #
+  # `edited` is here because of the 2026-09-13 incident. The owner opened `PREFLIGHT NFL`, the guard wanted
+  # `[PREFLIGHT NFL]`, and the job was SKIPPED -- correctly silent, because silence is what protects the
+  # boundary from strangers, and therefore invisible to the owner, who waited and then dispatched by hand
+  # into a run that answered after kickoff. Fixing the title must be able to ring the doorbell. It widens
+  # nothing: `issue.user.login` is the issue's AUTHOR, not whoever edited it, and only the owner or a
+  # collaborator can edit a title at all.
   issues:
-    types: [opened]
+    types: [opened, edited]
 
-# Read-only on this repository's contents. This job never pushes.
-# `issues: write` is added for exactly one purpose: closing (and commenting once on) the trigger issue after
-# the attempt. It cannot push, cannot start workflows and cannot touch a pull request.
+# Read-only on this repository's code. `contents: write` exists for ONE purpose: publishing append-only
+# public market evidence to the `preflight-evidence` branch, which is what makes an approval replayable after
+# the runner is gone. `nfl_edge/handicap/evidence_store.py` refuses to publish to any other branch, so this
+# grant cannot reach main, market-data or handicap-data.
+# `issues: write` exists for exactly one purpose: closing (and commenting once on) the trigger issue after
+# the attempt. This job cannot start workflows and cannot touch a pull request.
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 # Serialise: two runs answering the same row would each compute a verdict and the later write would win.
@@ -66,9 +84,15 @@ jobs:
   preflight:
     # AN ALLOWLIST, NOT A DENYLIST. A trigger this expression does not name cannot start the worker, so a
     # future `on:` entry added without thinking about authorisation is inert rather than open. For the issue
-    # trigger both conditions must hold: the author is the repository owner, and the title carries the
-    # prefix. The owner check is the security control; the prefix is routing, so an ordinary bug report from
-    # the owner does not spend a preflight run.
+    # trigger both conditions must hold: the author is the repository owner, and the title carries one of the
+    # accepted prefixes. The owner check is the security control; the prefix is routing, so an ordinary bug
+    # report from the owner does not spend a preflight run.
+    #
+    # BOTH title forms are accepted. `[PREFLIGHT NFL]` is the documented convention; `PREFLIGHT NFL` is what
+    # a human types in a hurry, which is the only time this doorbell is ever rung. Relaxing routing costs an
+    # attacker nothing -- an outsider with a perfect title is still refused -- and tightening it cost a
+    # kickoff. `nfl_edge/handicap/preflight_trigger.py` is the same rule as a function, and
+    # tests/test_preflight_issue_trigger.py evaluates THIS expression and asserts the two agree.
     #
     # A job that is skipped here never starts, so an outsider's issue costs nothing, reveals nothing and is
     # not touched: no run, no comment, no close.
@@ -77,23 +101,34 @@ jobs:
       github.event_name == 'repository_dispatch' ||
       (github.event_name == 'issues' &&
        github.event.issue.user.login == github.repository_owner &&
-       startsWith(github.event.issue.title, '[PREFLIGHT NFL]'))
+       (startsWith(github.event.issue.title, '[PREFLIGHT NFL]') ||
+        startsWith(github.event.issue.title, 'PREFLIGHT NFL')))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Mark the start of the run
+        id: t0
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
       - name: Checkout preflight code (main)
         uses: actions/checkout@v4
         with:
           path: code
+          fetch-depth: 1
 
-      # READ-ONLY. The decision-time quote gate and the full-position depth walk both read the capture
-      # stream. Without it every candidate is blocked for a reason that is really a misconfiguration here.
-      - name: Checkout market data (market-data)
+      # READ-ONLY and SPARSE. The fee-schedule gate wants the append-only fee observations, and nothing else
+      # on this branch is on the live decision path any more. `sparse-checkout` with cone mode off fetches
+      # blobs for these paths only, so this step costs a fraction of a second instead of the ~100s the full
+      # branch cost on 2026-09-13. The capture stream is deliberately NOT here.
+      - name: Checkout fee observations only (market-data, sparse)
         uses: actions/checkout@v4
         with:
           ref: market-data
-          path: market-data
+          path: fees
           fetch-depth: 1
+          sparse-checkout: |
+            data/kalshi/fees
+          sparse-checkout-cone-mode: false
 
       # READ-ONLY. Outstanding portfolio exposure is read from the committed ledger, so the caps bind
       # cumulatively rather than resetting for every candidate batch. An unreadable ledger blocks.
@@ -134,6 +169,12 @@ jobs:
           fi
           echo "PREFLIGHT_SIGNING_KEY is present (value never printed)."
 
+      - name: Identify the evidence publisher
+        working-directory: code
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Answer pending preflight requests
         working-directory: code
         env:
@@ -142,11 +183,13 @@ jobs:
           # trigger issue, never in ChatGPT, never in this repository. Without it the worker will not issue
           # an approval and the importer will not archive a real recommendation.
           PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
+          PREFLIGHT_TRIGGER: ${{ github.event_name }}
         run: |
           python3 scripts/handicap/preflight_airtable.py \
-            --market-data ../market-data \
             --handicap-root ../ledger \
-            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--no-write' || '' }}
+            --fee-observations ../fees \
+            --started-at-epoch "${{ steps.t0.outputs.epoch }}" \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--no-write --no-evidence-push' || '' }}
 
       # Cleanup runs on `always()` so a failed worker still closes its trigger. The comment is deliberately
       # contentless: it names the Actions run and nothing else. It must never carry the verdict, a candidate,

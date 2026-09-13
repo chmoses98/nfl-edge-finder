@@ -302,9 +302,13 @@ def test_no_current_documentation_calls_the_trade_fee_increment_a_centicent():
 def test_the_approval_signature_is_still_required_and_verified():
     from nfl_edge.handicap import approval as A                          # noqa: PLC0415
     assert A.SIGNATURE_ALGORITHM == "HMAC-SHA256"
-    assert set(A.SIGNED_FIELDS) == {
+    # The v1 field set is still signed, in full and unchanged: nothing an approval used to authenticate has
+    # stopped being authenticated. v2 ADDS the evidence manifest, so an approval now also names the live
+    # market documents it was computed from -- which is what lets a later replay re-read them.
+    assert set(A.SIGNED_FIELDS_V1) == {
         "schema", "airtable_record_id", "run_id",
         "candidate_payload_sha256", "approved_payload_sha256", "approval_as_of"}
+    assert set(A.SIGNED_FIELDS) == set(A.SIGNED_FIELDS_V1) | {"evidence_manifest_sha256"}
     with pytest.raises(A.ApprovalError):
         A.signing_key(env={})
     with pytest.raises(A.ApprovalError):

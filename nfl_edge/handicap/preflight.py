@@ -68,6 +68,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from time import monotonic as _monotonic
 
 from nfl_edge.execution import depth as D
 from nfl_edge.execution import fees as F
@@ -126,19 +127,37 @@ class PreflightResult:
 
 def build_context(market_data_root: str | None, *, root: str, risk_report=None,
                   max_quote_age_minutes: float = Q.DEFAULT_MAX_QUOTE_AGE_MIN,
-                  max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN) -> G.GateContext:
+                  max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN,
+                  capture_index=None, book_index=None,
+                  fee_observations_root: str | None = None) -> G.GateContext:
     """The gate context, assembled identically for the pre-trade path and the import path.
 
     Note again what is absent: a `now`. Preflight runs minutes after the decision and the importer runs hours
     after it, and neither may consult a wall clock -- otherwise the two would be answering different
     questions and the replay would prove nothing.
+
+    TWO SOURCES OF MARKET EVIDENCE, ONE SET OF GATES
+    ------------------------------------------------
+    `market_data_root` is the capture stream: immutable, point-in-time, and the right evidence for the
+    ARCHIVAL replay, which is asking what the market was hours ago. Reading it costs a full checkout of a
+    branch that held ~17,491 files on 2026-09-13, which is the wrong price to pay for a live pre-trade
+    question about ONE contract.
+
+    So `capture_index` and `book_index` may be supplied directly. The live path passes indexes over
+    candidate-specific evidence fetched seconds earlier (see nfl_edge/handicap/live_evidence.py); the
+    importer passes nothing and gets the capture stream. Either way `evaluate_gates` is the same function
+    reading the same two interfaces, which is what keeps the replay meaningful.
+
+    `fee_observations_root` splits the fee-observation read off from the quote read, so the live path can
+    take a SPARSE checkout holding only `data/kalshi/fees/` and still answer the fee-schedule gate properly.
     """
     md = os.path.abspath(market_data_root) if market_data_root else None
+    fees_root = os.path.abspath(fee_observations_root) if fee_observations_root else md
     ctx = G.GateContext(
-        capture_index=Q.CaptureIndex(md) if md else None,
-        book_index=D.BookIndex(md) if md else None,
+        capture_index=capture_index if capture_index is not None else (Q.CaptureIndex(md) if md else None),
+        book_index=book_index if book_index is not None else (D.BookIndex(md) if md else None),
         fee_schedule=F.load_fee_schedule(root),
-        fee_observations=F.FeeObservations(md),
+        fee_observations=F.FeeObservations(fees_root),
         max_quote_age_minutes=max_quote_age_minutes,
         max_book_age_minutes=max_book_age_minutes,
     )
@@ -198,7 +217,10 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
                     max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN,
                     max_request_age_minutes: float = MAX_REQUEST_AGE_MIN,
                     request_id: str | None = None, request_created_at: datetime | None = None,
-                    bankroll_snapshot: float | None = None) -> list:
+                    bankroll_snapshot: float | None = None,
+                    capture_index=None, book_index=None,
+                    fee_observations_root: str | None = None,
+                    phase=None) -> list:
     """Preflight a slate of candidates together, AS OF the moment approval is being evaluated.
 
     Together, not one at a time, because the portfolio limits are statements about a SET of positions: three
@@ -228,7 +250,9 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
 
     ctx = build_context(market_data_root, root=root,
                         max_quote_age_minutes=max_quote_age_minutes,
-                        max_book_age_minutes=max_book_age_minutes)
+                        max_book_age_minutes=max_book_age_minutes,
+                        capture_index=capture_index, book_index=book_index,
+                        fee_observations_root=fee_observations_root)
 
     # Every candidate is evaluated as the RECOMMENDED record it would become, at the APPROVAL time, with its
     # market state re-priced to that moment. A candidate is by definition not yet recommended, and
@@ -254,7 +278,14 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
             p["preflight_request_airtable_id"] = request_id
         provisional.append(p)
 
+    # `phase(name, seconds)` is OBSERVATION ONLY and is never consulted for anything. The 2026-09-13
+    # incident was a latency failure nobody could see the shape of without reading raw runner logs
+    # afterwards, and reading the committed ledger is a genuinely separate cost from running the gates --
+    # reporting them as one number would hide whichever of the two was actually slow.
+    _t0 = _monotonic()
     report = R.report_for_batch(provisional, policy, ledger_root, bankroll_snapshot)
+    if phase is not None:
+        phase("ledger_load", _monotonic() - _t0)
     ctx.risk_report = report
     outstanding = getattr(report, "outstanding", None) or {}
 
@@ -315,6 +346,23 @@ def _one(original: dict, provisional: dict, ctx, report, outstanding, *,
             f"{max_request_age_minutes:.0f} min window. The market can be re-priced; the handicap cannot. "
             "Submit a fresh request rather than approving a thesis nobody has revisited.")
         return res
+
+    # 0.5 PRE-KICKOFF. Before the schema, so a post-kickoff request comes back with the gate's own name on
+    #     it. The schema also refuses `minutes_to_kickoff <= 0`, but that is a number the REQUESTER supplies
+    #     and preflight only recomputes when a fresh quote could be confirmed -- so the case that matters
+    #     most, a request whose market state could not be refreshed, is exactly the one where the stale
+    #     self-reported figure survives. This reads `kickoff_utc` against the approval clock. It is the same
+    #     function `evaluate_gates` runs, so the importer's replay reaches the identical verdict.
+    if not provisional.get("test_only"):
+        as_of_dt = _ts(provisional.get("created_at"))
+        pk = (G.pre_kickoff_gate(provisional, as_of_dt) if as_of_dt is not None else
+              G.GateResult(G.UNAVAILABLE,
+                           "the approval carries no usable timestamp, so it cannot be shown to predate "
+                           "kickoff"))
+        res.gates[G.G_PRE_KICKOFF] = pk.to_dict()
+        if pk.status in G.BLOCKING:
+            res.blocking_reasons.append(f"{G.G_PRE_KICKOFF}: {pk.reason}")
+            return res
 
     # 1. STRUCTURAL. The same schema the importer will apply. A candidate that could not be filed as a
     #    recommendation must not be shown as one either; discovering that twelve hours later is the whole

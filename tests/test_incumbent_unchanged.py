@@ -20,10 +20,17 @@ SOURCE_PINS = {
     "nfl_edge/pricing/game_env.py": "b880dc755311d928",          # the residual bank + 40,000-row joint simulation
     "nfl_edge/pricing/market_implied.py": "81c47febf9a96a6d",    # the Kalshi-implied centre estimator
     "nfl_edge/settlement/semantics.py": "e877fba94b93a122",      # contract value vs event probability
-    "nfl_edge/handicap/gates.py": "00f51f86f39eda17",            # the real-money gates
+    # DELIBERATE, REVIEWED EDIT (pre-trade preflight latency + robustness). `gates.py` gained ONE gate,
+    # `decision_before_kickoff`, which blocks a decision dated at or after kickoff instead of leaving that
+    # case to coincide with a stale quote; `preflight.py` gained optional `capture_index` / `book_index` /
+    # `fee_observations_root` arguments so the live path can supply candidate-specific evidence instead of
+    # checking out the whole capture stream. No threshold moved: DEFAULT_MAX_QUOTE_AGE_MIN and
+    # DEFAULT_MAX_BOOK_AGE_MIN are still 15, fee, depth, net-EV and portfolio rules are untouched, and
+    # tests/test_preflight_no_weakening.py asserts exactly that.
+    "nfl_edge/handicap/gates.py": "2821835860e32f3e",            # the real-money gates
     "nfl_edge/handicap/risk.py": "e8ba8fd37f0d01a3",             # the risk policy engine
     "nfl_edge/handicap/schema.py": "1ea7b6c31b15d03e",           # recommendation schema, availability rules, ceilings
-    "nfl_edge/handicap/preflight.py": "7910ea5b70ce8d38",        # the pre-trade check
+    "nfl_edge/handicap/preflight.py": "fe4710c2630cefe1",        # the pre-trade check
     "config/risk_policy.json": "11d24fbea908f9ed",               # risk limits
     # the frozen Week-1 code lineage (research/FREEZE_WEEK1_2026.json), byte-identical to main
     "nfl_edge/shadow/ledger.py": "26949b1807296331",
