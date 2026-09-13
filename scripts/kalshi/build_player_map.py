@@ -87,7 +87,22 @@ def main():
                 gsis, status, method = c4["gsis_id"][0], "RESOLVED_PLAYERS_TABLE", "name only (players.parquet, unique recent)"
         rows.append({"kalshi_player_id": kid, "kalshi_team_id": rec["team_uuid"], "name": name, "team": team, "jersey": jersey, "n_markets": rec["n"],
                      "gsis_id": gsis, "status": status, "method": method, "season": a.season, "all_names": json.dumps(rec["names"])})
-    df = pl.DataFrame(rows)
+    # EVERY ROW DECIDES THE SCHEMA, NOT THE FIRST 100.
+    #
+    # `kalshi_team_id`, `team`, `gsis_id`, `method` and `jersey` are all None for a player whose markets
+    # carried no team token and whom no roster match resolved. Polars infers dtypes from the first
+    # `infer_schema_length` rows (default 100), so a board whose first hundred players were all unresolved
+    # inferred Null for those columns and then refused the first real value:
+    #
+    #     ComputeError: could not append value: "8e52cc75-cba8-4373-9b62-b535b53b3be8" of type: str
+    #                   to the builder; ... consider increasing `infer_schema_length`
+    #
+    # The data was never malformed -- the identical rows in a different order built fine. It was purely an
+    # inference window, and it broke shadow-price, run-nfl-horizons and both shadow-v2 projection jobs.
+    # `None` scans every row, so the dtype is a fact about the whole frame rather than about its first page.
+    # Values and dtypes are unchanged on any input that built before: widening only ever affects a column
+    # whose first hundred entries were unrepresentative, which is exactly the case that used to raise.
+    df = pl.DataFrame(rows, infer_schema_length=None)
     out = os.path.join(ROOT, "data", "silver", "kalshi_player_map.parquet")
     df.write_parquet(out)
     df.write_json(os.path.join(ROOT, "data", "silver", "kalshi_player_map.json"))
