@@ -71,6 +71,23 @@ on:
   # guard below has to establish that the object really is a pull request and really is the doorbell.
   issue_comment:
     types: [created]
+  # THE NORMAL OPERATING TRIGGER. GitHub wakes every ten minutes; that is NOT the same as querying Airtable
+  # every ten minutes. Each wake runs the cheap `schedule_gate` job first, which reads the canonical NFL
+  # schedule from a CSV and decides whether a kickoff cluster is inside its polling window. Only then is the
+  # worker -- and an Airtable request -- allowed to exist.
+  #
+  # WHY TEN MINUTES. A request row is valid for 30 minutes from Airtable's own createdTime, and that limit
+  # is NOT relaxed for polling. A ten-minute cadence means a row written inside an intake window is normally
+  # seen with most of its life left, even allowing for GitHub's best-effort scheduling.
+  #
+  # Minutes land at :07, :17, ... rather than :00, :10, ... because the top of the hour is when every cron
+  # on GitHub fires at once, and that queue is where scheduler lag comes from.
+  #
+  # scripts/handicap/preflight_budget.py computes the worst calendar month from the real schedule using the
+  # SAME window function the gate uses, and tests/test_preflight_budget.py fails the build above 650
+  # Airtable reads a month. Measured worst month across four seasons: 443.
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
 
 # Read-only on this repository's code. `contents: write` exists for ONE purpose: publishing append-only
 # public market evidence to the `preflight-evidence` branch, which is what makes an approval replayable after
@@ -94,7 +111,60 @@ defaults:
     shell: bash -eo pipefail {0}
 
 jobs:
+  # JOB 1 -- THE CHEAP GATE. Scheduled wakes only. It reads a CSV already on disk and answers one question:
+  # is NOW inside a window when an NFL preflight request could plausibly be waiting? It holds NO secret, so
+  # a wake outside every window cannot touch Airtable even by accident -- the job that could is never
+  # created. That is the quota boundary made structural rather than promised.
+  #
+  # An unreadable schedule exits 2 and FAILS this job. It does not report "no window": not knowing whether
+  # a window is open is not permission to open one, and a quiet INACTIVE would look exactly like a healthy
+  # Tuesday for as long as nobody noticed rows going unanswered.
+  schedule_gate:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      active: ${{ steps.gate.outputs.active }}
+      status: ${{ steps.gate.outputs.status }}
+    steps:
+      - name: Checkout preflight code (main)
+        uses: actions/checkout@v4
+        with:
+          path: code
+          fetch-depth: 1
+
+      # The canonical NFL schedule, and nothing else on the branch. One small CSV.
+      - name: Checkout the NFL schedule only (market-data, sparse)
+        uses: actions/checkout@v4
+        with:
+          ref: market-data
+          path: schedule
+          fetch-depth: 1
+          sparse-checkout: |
+            data/kalshi/capture/schedule_cache.csv
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # No secret is declared on this step, and none is needed. stdlib only.
+      - name: Is a preflight polling window open?
+        id: gate
+        working-directory: code
+        run: |
+          python3 scripts/handicap/preflight_window_gate.py \
+            --market-data ../schedule | tee -a "$GITHUB_STEP_SUMMARY"
+
   preflight:
+    # Scheduled runs reach this job ONLY through the gate above. `always()` is required because a `needs:`
+    # dependency on a SKIPPED job would otherwise skip this one too, and the gate is skipped for every
+    # non-scheduled trigger. It does not weaken anything: the schedule branch additionally requires the gate
+    # to have SUCCEEDED and to have said `active == 'true'`, so a gate that errored or returned INACTIVE
+    # leaves this job unstarted. Every other branch is the same explicit allowlist it has always been.
+    needs: [schedule_gate]
     # AN ALLOWLIST, NOT A DENYLIST. A trigger this expression does not name cannot start the worker, so a
     # future `on:` entry added without thinking about authorisation is inert rather than open. For the issue
     # trigger both conditions must hold: the author is the repository owner, and the title carries one of the
@@ -110,8 +180,12 @@ jobs:
     # A job that is skipped here never starts, so an outsider's issue costs nothing, reveals nothing and is
     # not touched: no run, no comment, no close.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      always() &&
+      (github.event_name == 'workflow_dispatch' ||
       github.event_name == 'repository_dispatch' ||
+      (github.event_name == 'schedule' &&
+       needs.schedule_gate.result == 'success' &&
+       needs.schedule_gate.outputs.active == 'true') ||
       (github.event_name == 'issue_comment' &&
        github.event.action == 'created' &&
        github.event.issue.number == 18 &&
@@ -121,7 +195,7 @@ jobs:
       (github.event_name == 'issues' &&
        github.event.issue.user.login == github.repository_owner &&
        (startsWith(github.event.issue.title, '[PREFLIGHT NFL]') ||
-        startsWith(github.event.issue.title, 'PREFLIGHT NFL')))
+        startsWith(github.event.issue.title, 'PREFLIGHT NFL'))))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

@@ -223,7 +223,17 @@ def test_the_archival_cadence_is_untouched():
     assert crons == ["23 */12 * 9-12,1-2 *"], "the archival cadence must not have been sped up"
 
     pre = yaml.safe_load(open(os.path.join(ROOT, ".github/workflows/preflight.yml")))
-    assert "schedule" not in pre[True], "the pre-trade leg is event-driven; a cron here would be polling"
+    # The pre-trade leg polls again, but the line this test used to hold -- "a cron here would be polling"
+    # -- was really protecting two things: that the archival importer is never sped up to carry pre-trade
+    # latency, and that the two transports stay separate. Both still hold, and are now asserted directly.
+    # What stops the poll being expensive is the window gate, not the absence of a cron.
+    assert "schedule" in pre[True]
+    assert [c["cron"] for c in pre[True]["schedule"]] != crons, \
+        "the two transports must not share a cadence"
+    assert "schedule_gate" in pre["jobs"], \
+        "a scheduled wake must pass the cheap window gate before any Airtable request exists"
+    assert "sync_airtable.py" not in open(os.path.join(ROOT, ".github/workflows/preflight.yml")).read(), \
+        "the pre-trade leg must not have grown an archival step"
     assert "workflow_dispatch" in pre[True] and "repository_dispatch" in pre[True]
     # `contents: write` publishes append-only PUBLIC market evidence to `preflight-evidence`, and the
     # evidence store refuses every other branch. See test_preflight_evidence.py.

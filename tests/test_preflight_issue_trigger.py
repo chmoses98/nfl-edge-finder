@@ -160,7 +160,8 @@ class _Eval:
 
 
 def eligible(*, event_name, author=None, title=None, body=None, action=None,
-             comment_author=None, comment_body=None, issue_number=None, is_pull_request=False):
+             comment_author=None, comment_body=None, issue_number=None, is_pull_request=False,
+             gate_result=None, gate_active=None):
     """Evaluate the WORKFLOW'S OWN expression, then assert the Python copy of the rule agrees.
 
     Two copies of a security guard that can disagree is worse than one, so every case in this file is run
@@ -178,13 +179,19 @@ def eligible(*, event_name, author=None, title=None, body=None, action=None,
                                 # on a PR; its ABSENCE is how an issue comment is told from a PR comment.
                                 **({"pull_request": {"url": "..."}} if is_pull_request else {})},
                       "comment": {"user": {"login": comment_author}, "body": comment_body}},
-        }
+        },
+        # A scheduled run reaches the worker only through the gate JOB, so the guard reads its result and
+        # its output. For every other trigger the gate is skipped and neither is set, which is why the
+        # schedule branch is false by default here.
+        "needs": {"schedule_gate": {"result": gate_result,
+                                    "outputs": {"active": gate_active}}},
     }
     from_yaml = bool(_Eval(_lex(job()["if"]), ctx).parse())
     from_python = T.may_start_worker(event_name=event_name, action=action, author=author,
                                      repository_owner=OWNER, title=title,
                                      comment_author=comment_author, comment_body=comment_body,
-                                     issue_number=issue_number, is_pull_request=is_pull_request)
+                                     issue_number=issue_number, is_pull_request=is_pull_request,
+                                     gate_result=gate_result, gate_active=gate_active)
     assert from_yaml == from_python, (
         f"the workflow guard and preflight_trigger.may_start_worker disagree on "
         f"event={event_name!r} author={author!r} title={title!r}: {from_yaml} vs {from_python}")
@@ -264,8 +271,35 @@ def test_E_repository_dispatch_is_unaffected():
 
 def test_an_unlisted_event_cannot_start_the_worker():
     """The guard is an allowlist: an `on:` entry added later without thinking is inert, not open."""
-    for ev in ("push", "pull_request", "schedule", "fork", "watch", "workflow_run"):
+    for ev in ("push", "pull_request", "fork", "watch", "workflow_run"):
         assert eligible(event_name=ev, author=OWNER, title=f"{PREFIX} x") is False, ev
+
+
+# ---- the scheduled path, which exists only behind the window gate ------------------------------------
+
+def test_H1_a_schedule_reaches_the_worker_only_when_the_gate_succeeded_and_said_active():
+    assert eligible(event_name="schedule", gate_result="success", gate_active="true") is True
+
+
+def test_H2_an_inactive_gate_never_starts_the_worker():
+    """The quota boundary. Most wakes land here, and they must cost zero Airtable requests."""
+    assert eligible(event_name="schedule", gate_result="success", gate_active="false") is False
+    assert eligible(event_name="schedule", gate_result="success", gate_active=None) is False
+
+
+def test_H3_a_failed_gate_never_starts_the_worker():
+    """FAIL CLOSED. An unreadable schedule is an unknown, and unknown is not permission.
+
+    This is the single most important assertion about the new structure: `always()` on the worker job means
+    the guard is EVALUATED even when the gate failed, so the gate's result has to be checked explicitly.
+    Drop that check and a broken calendar would start spending Airtable requests.
+    """
+    for result in ("failure", "cancelled", "skipped", None):
+        assert eligible(event_name="schedule", gate_result=result, gate_active="true") is False, result
+
+
+def test_H4_a_bare_schedule_with_no_gate_at_all_is_refused():
+    assert eligible(event_name="schedule") is False
 
 
 # ---- the comment doorbell: the normal operating trigger ----------------------------------------------

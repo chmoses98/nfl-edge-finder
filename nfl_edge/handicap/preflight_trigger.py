@@ -117,7 +117,7 @@ def comment_is_trigger(body) -> bool:
 
 def may_start_worker(*, event_name, action=None, author=None, repository_owner=None, title=None,
                      comment_author=None, comment_body=None, issue_number=None,
-                     is_pull_request=False) -> bool:
+                     is_pull_request=False, gate_result=None, gate_active=None) -> bool:
     """The whole guard: may this event start the Airtable preflight worker?
 
     `workflow_dispatch` and `repository_dispatch` are already authenticated by GitHub -- both require a token
@@ -139,6 +139,11 @@ def may_start_worker(*, event_name, action=None, author=None, repository_owner=N
     """
     if event_name in DISPATCH_EVENTS:
         return True
+    if event_name == "schedule":
+        # A wake authorises nothing by itself. It reaches the worker only when the cheap window gate RAN,
+        # SUCCEEDED, and said a kickoff cluster is inside its polling window. A gate that failed -- an
+        # unreadable schedule -- is not a quiet no: it is an unknown, and unknown is not permission.
+        return gate_result == "success" and gate_active == "true"
     if event_name == "issue_comment":
         if action is not None and action not in COMMENT_ACTIONS:
             return False
