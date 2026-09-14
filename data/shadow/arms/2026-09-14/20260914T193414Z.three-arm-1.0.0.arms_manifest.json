@@ -1,0 +1,193 @@
+{
+ "status": "WRITTEN",
+ "run_id": "20260914T193414Z",
+ "arms_version": "three-arm-1.0.0",
+ "schema_version": "1.0.0",
+ "written_at": "2026-09-14T19:47:35.167790+00:00",
+ "n_games": 32,
+ "n_contracts": 782,
+ "games_by_status": {
+  "POST_KICKOFF_EXCLUDED": 15,
+  "OK": 17
+ },
+ "arm_status_counts": {
+  "CURRENT_MARKET_PRIOR": {
+   "OK": 17
+  },
+  "DATA_ONLY": {
+   "OK": 17
+  },
+  "HYBRID_30_DATA": {
+   "OK": 17
+  }
+ },
+ "arm_games_file": "20260914T193414Z.three-arm-1.0.0.arm_games.jsonl.gz",
+ "arm_contracts_file": "20260914T193414Z.three-arm-1.0.0.arm_contracts.jsonl.gz",
+ "arm_games_sha256": "e95ba3720e4b4a08c697980247487deb8890093736d076097a4c935a1f0ffd47",
+ "arm_contracts_sha256": "9b8d07814b75655f2f4b2a1921686866481e0286c9639f1fa3cae41a7311766d",
+ "content_hashes_sha256": "2ab63113878de496bd5b7ec10efda53c353ec35c5ce1de176d7c624f18605981",
+ "preregistration": {
+  "hypothesis_id": "H-20260910-026",
+  "arms": [
+   "CURRENT_MARKET_PRIOR",
+   "DATA_ONLY",
+   "HYBRID_30_DATA"
+  ],
+  "hybrid_weight_market": 0.7,
+  "hybrid_weight_data": 0.3,
+  "n_sims": 40000,
+  "primary_horizons_min": [
+   1440,
+   360,
+   90,
+   30
+  ],
+  "primary_game_center_metrics": [
+   "margin_rmse",
+   "margin_mae",
+   "total_rmse",
+   "total_mae"
+  ],
+  "primary_market_pricing_metrics": [
+   "paired_brier_vs_current",
+   "paired_payout_mse_vs_market_at_snapshot",
+   "movement_toward_close"
+  ],
+  "min_games_for_verdict": 64,
+  "disagreement_bands_points": [
+   "<=1",
+   "1-2",
+   "2-3",
+   "3-5",
+   ">5"
+  ],
+  "arms_version": "three-arm-1.0.0",
+  "data_only_version": "data_only-1.0.0",
+  "crn_version": "crn-1.0.0"
+ },
+ "preregistration_sha": "ef0a095ace1ec698",
+ "incumbent_ledger_file": "20260914T193414Z.shadow-0.4.0.observations.jsonl.gz",
+ "center_provenance": "incumbent_replay",
+ "incumbent_model_version": "shadow-0",
+ "capture_to_generation_lag_min": 8.3,
+ "code_sha": "7638f64d3f97a81ea58731021cd6c48b302960dc",
+ "data_only": {
+  "team_game_history_path": "/home/runner/work/nfl-edge-finder/nfl-edge-finder/data/silver/team_game.parquet",
+  "team_game_history_sha": "a31b40427d1d8f21",
+  "games_path": "/home/runner/work/nfl-edge-finder/nfl-edge-finder/data/silver/games.parquet",
+  "games_sha": "e1146e4e72ebec3c",
+  "current_season_pbp_path": "/home/runner/work/nfl-edge-finder/nfl-edge-finder/data/raw/nflverse/pbp/play_by_play_2026.parquet",
+  "current_season_pbp_sha": "a805dfc41b3c0590",
+  "current_season_team_games": 30,
+  "unavailable": [],
+  "schedule_market_columns_dropped": [
+   "away_moneyline",
+   "away_spread_odds",
+   "home_moneyline",
+   "home_spread_odds",
+   "over_odds",
+   "spread_line",
+   "total_line",
+   "under_odds"
+  ],
+  "ratings": {
+   "metrics": {
+    "epa": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": -0.004211549643316875,
+     "solved": true
+    },
+    "sr": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": 0.0016303210910444102,
+     "solved": true
+    },
+    "db_epa": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": 0.0015822560343884378,
+     "solved": true
+    },
+    "rush_epa": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": -0.01241623215000169,
+     "solved": true
+    },
+    "epa_ng": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": 0.0024966318705579036,
+     "solved": true
+    },
+    "explosive": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": 0.00026290587122325225,
+     "solved": true
+    },
+    "sack_rate": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": -0.0017540833401271164,
+     "solved": true
+    },
+    "to_rate": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": -0.0013520507675615118,
+     "solved": true
+    },
+    "proe": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": -0.035464270488105826,
+     "solved": true
+    },
+    "st_epa": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": 0.20295988966035933,
+     "solved": true
+    },
+    "ed_epa": {
+     "n": 1662,
+     "eff_n": 154.8,
+     "hfa": -0.0003560739514887731,
+     "solved": true
+    }
+   },
+   "n_team_games": 1662,
+   "seasons_used": [
+    2023,
+    2024,
+    2025,
+    2026
+   ]
+  },
+  "artifact_path": "research/three_arm/data_only_artifact_2026.json"
+ },
+ "data_only_artifact_sha": "e544b99917b9d0b1",
+ "data_only_problem": null,
+ "residual_bank": {
+  "bank_sha": "03e2575b99b42c83",
+  "n_pairs": 2654,
+  "seasons": [
+   2016,
+   2026
+  ],
+  "halflife_seasons": 3.0,
+  "p_tie_given_ot": 0.06896551724137931,
+  "incumbent_n_pairs": 2654,
+  "n_pairs_match": true
+ },
+ "n_sims": 40000,
+ "reproduction_check": {
+  "n_contracts": 782,
+  "max_abs_diff": 0.010224999999999984,
+  "mean_signed_diff": 0.00034335038363171344
+ },
+ "seconds": 305.40511
+}
