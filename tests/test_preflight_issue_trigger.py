@@ -53,7 +53,7 @@ def triggers():
 # tests loudly instead of being waved through.
 # ----------------------------------------------------------------------------------------------------
 
-_TOKEN = re.compile(r"""\s*(\(|\)|\|\||&&|==|!=|,|'[^']*'|[A-Za-z_][A-Za-z0-9_.]*)""")
+_TOKEN = re.compile(r"""\s*(\(|\)|\|\||&&|==|!=|,|'[^']*'|[0-9]+|[A-Za-z_][A-Za-z0-9_.]*)""")
 
 
 def _lex(src):
@@ -129,6 +129,13 @@ class _Eval:
         tok = self.take()
         if tok.startswith("'"):
             return tok[1:-1]
+        # The comment doorbell compares an issue NUMBER and tests an object for absence, so the evaluator
+        # grew integer literals and `null`. Both are real GitHub expression syntax; neither widens what the
+        # evaluator will accept elsewhere, and unknown tokens still raise.
+        if tok.isdigit():
+            return int(tok)
+        if tok == "null":
+            return None
         if tok == "startsWith":
             self.take("(")
             a = self.or_()
@@ -152,7 +159,8 @@ class _Eval:
         return cur
 
 
-def eligible(*, event_name, author=None, title=None, body=None, action=None):
+def eligible(*, event_name, author=None, title=None, body=None, action=None,
+             comment_author=None, comment_body=None, issue_number=None, is_pull_request=False):
     """Evaluate the WORKFLOW'S OWN expression, then assert the Python copy of the rule agrees.
 
     Two copies of a security guard that can disagree is worse than one, so every case in this file is run
@@ -163,12 +171,20 @@ def eligible(*, event_name, author=None, title=None, body=None, action=None):
         "github": {
             "event_name": event_name,
             "repository_owner": OWNER,
-            "event": {"issue": {"user": {"login": author}, "title": title, "body": body}},
+            "event": {"action": action,
+                      "issue": {"user": {"login": author}, "title": title, "body": body,
+                                "number": issue_number,
+                                # GitHub puts a `pull_request` object on the issue only when the comment is
+                                # on a PR; its ABSENCE is how an issue comment is told from a PR comment.
+                                **({"pull_request": {"url": "..."}} if is_pull_request else {})},
+                      "comment": {"user": {"login": comment_author}, "body": comment_body}},
         }
     }
     from_yaml = bool(_Eval(_lex(job()["if"]), ctx).parse())
     from_python = T.may_start_worker(event_name=event_name, action=action, author=author,
-                                     repository_owner=OWNER, title=title)
+                                     repository_owner=OWNER, title=title,
+                                     comment_author=comment_author, comment_body=comment_body,
+                                     issue_number=issue_number, is_pull_request=is_pull_request)
     assert from_yaml == from_python, (
         f"the workflow guard and preflight_trigger.may_start_worker disagree on "
         f"event={event_name!r} author={author!r} title={title!r}: {from_yaml} vs {from_python}")
@@ -248,8 +264,90 @@ def test_E_repository_dispatch_is_unaffected():
 
 def test_an_unlisted_event_cannot_start_the_worker():
     """The guard is an allowlist: an `on:` entry added later without thinking is inert, not open."""
-    for ev in ("push", "pull_request", "issue_comment", "schedule", "fork", "watch"):
+    for ev in ("push", "pull_request", "schedule", "fork", "watch", "workflow_run"):
         assert eligible(event_name=ev, author=OWNER, title=f"{PREFIX} x") is False, ev
+
+
+# ---- the comment doorbell: the normal operating trigger ----------------------------------------------
+
+DOORBELL = T.DOORBELL_PR_NUMBER
+COMMENT = "PREFLIGHT NFL"
+
+
+def ring(**kw):
+    """A well-formed doorbell, with one field overridable per test."""
+    kw = {"event_name": "issue_comment", "action": "created", "comment_author": OWNER,
+          "comment_body": COMMENT, "issue_number": DOORBELL, "is_pull_request": True, **kw}
+    return eligible(**kw)
+
+
+def test_G1_the_owners_doorbell_comment_starts_the_worker():
+    assert ring() is True
+    assert ring(comment_body="PREFLIGHT NFL — week 2 slate") is True
+
+
+def test_G2_an_outsiders_identical_comment_is_refused():
+    """The security control, unchanged in kind from the issue path: the AUTHOR is what is checked.
+
+    This repository is public and anybody can comment on a merged pull request, so the identical text from
+    a stranger must do nothing at all -- no run, no Airtable request, no log line.
+    """
+    assert ring(comment_author="a-stranger") is False
+    assert ring(comment_author=None) is False
+
+
+def test_G3_a_comment_on_any_other_object_is_refused():
+    """The doorbell is ONE pinned pull request, so the new trigger's blast radius is one conversation."""
+    assert ring(issue_number=DOORBELL + 1) is False
+    assert ring(issue_number=1) is False
+    assert ring(issue_number=None) is False
+
+
+def test_G4_an_ordinary_owner_comment_on_the_doorbell_is_refused():
+    """Routing. The owner must be able to talk on that PR without spending a preflight run."""
+    assert ring(comment_body="looks good to me") is False
+    assert ring(comment_body="") is False
+    assert ring(comment_body=None) is False
+    assert ring(comment_body="please run PREFLIGHT NFL") is False, "the prefix must LEAD the comment"
+
+
+def test_G5_an_issue_comment_that_is_not_on_a_pull_request_is_refused():
+    """`issue_comment` fires for issues too; only the designated PR is the doorbell."""
+    assert ring(is_pull_request=False) is False
+
+
+def test_G6_only_a_new_comment_rings():
+    """An edit is not a doorbell: re-reading edits would let one comment ring over and over."""
+    assert ring(action="edited") is False
+    assert ring(action="deleted") is False
+    assert set(T.COMMENT_ACTIONS) == {"created"}
+
+
+def test_G7_the_workflow_listens_for_created_comments_only():
+    assert triggers()["issue_comment"] == {"types": ["created"]}
+
+
+def test_G8_the_doorbell_number_in_the_yaml_matches_the_python_copy():
+    """Two places name the PR; a silent drift between them would open or close the door unnoticed."""
+    assert f"github.event.issue.number == {DOORBELL}" in " ".join(job()["if"].split())
+
+
+def test_G9_the_comment_trigger_never_closes_or_comments_on_the_doorbell():
+    """The cleanup step belongs to the ISSUE path. A doorbell PR that closed itself would be absurd."""
+    cleanup = next(s for s in job()["steps"] if "Close the trigger issue" in (s.get("name") or ""))
+    assert cleanup["if"] == "always() && github.event_name == 'issues'"
+
+
+def test_G10_nothing_from_the_comment_reaches_the_worker():
+    """The comment is a SIGNAL, not a message -- the same rule the issue path already obeys.
+
+    The worker's command line is fixed. There is no argument by which a ticker, price, stake, probability or
+    thesis written in a comment could reach a decision, which is why the comment is allowed to be generic.
+    """
+    worker = next(s for s in job()["steps"] if "preflight_airtable.py" in (s.get("run") or ""))
+    for leak in ("github.event.comment", "github.event.issue.body", "github.event.issue.title"):
+        assert leak not in worker["run"], f"the worker invocation reads {leak}"
+    assert set(worker["env"]) == {"AIRTABLE_TOKEN", "PREFLIGHT_SIGNING_KEY", "PREFLIGHT_TRIGGER"}
 
 
 def test_the_workflow_listens_for_opened_and_edited_issues():

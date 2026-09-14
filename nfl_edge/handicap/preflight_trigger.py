@@ -52,6 +52,31 @@ ACCEPTED_TITLE_PREFIXES = ("[PREFLIGHT NFL]", "PREFLIGHT NFL")
 # authorisation is inert rather than open.
 DISPATCH_EVENTS = ("workflow_dispatch", "repository_dispatch")
 
+# ---- the comment doorbell ----------------------------------------------------------------------------
+# THE NORMAL OPERATING TRIGGER. ChatGPT can write Airtable and can comment on GitHub; it cannot dispatch a
+# workflow or run a script. So after it writes the candidate rows it rings a doorbell by commenting on one
+# designated pull request, and the worker wakes immediately.
+#
+# WHY NOT A SCHEDULE. A five-minute poll costs one Airtable request per wake-up whether or not anything is
+# waiting -- roughly 6,500 a month against a Free workspace allowance of 1,000. Even a fifteen-minute poll
+# exceeds it. An event-driven doorbell costs ZERO when idle: Airtable usage scales with actual requests
+# rather than with elapsed clock time, which is the only shape that fits inside the allowance at all.
+#
+# ONE FIXED OBJECT, BY NUMBER. The doorbell is a specific merged pull request, named here and asserted
+# against the workflow. Pinning it means a comment anywhere else in the repository -- another PR, an issue,
+# a discussion -- cannot start the worker even from the owner, so the blast radius of the new trigger is one
+# conversation rather than every conversation.
+DOORBELL_PR_NUMBER = 18
+
+# Only a NEW comment. An edited comment is deliberately not a doorbell: re-reading an edit would let one
+# comment ring repeatedly, and there is no reason to need that when posting another costs nothing.
+COMMENT_ACTIONS = ("created",)
+
+# The routing prefix for a comment, matched case-insensitively exactly as `startsWith` matches it. Only the
+# bare form: a comment is a fresh affordance with no legacy convention to honour, so it gets one spelling
+# rather than two. The bracketed form remains accepted on the ISSUE path, where it is the documented one.
+COMMENT_TRIGGER_PREFIX = "PREFLIGHT NFL"
+
 # `opened` is the doorbell. `edited` exists because of the incident: when the title is wrong the job is
 # silently skipped, and the natural human repair is to fix the title -- which, without this, does nothing and
 # costs another round trip while the quote ages. Editing cannot widen the boundary: `issue.user.login` is the
@@ -78,18 +103,50 @@ def _same_login(a, b) -> bool:
     return a.lower() == b.lower()
 
 
-def may_start_worker(*, event_name, action=None, author=None, repository_owner=None, title=None) -> bool:
+def comment_is_trigger(body) -> bool:
+    """Does this comment body route to preflight? Case-insensitive prefix, like `startsWith`.
+
+    The prefix is all that is ever read. Nothing after it reaches the worker, and nothing in it could: the
+    worker takes its candidates from Airtable and has no parameter by which a comment could name a ticker,
+    a price, a stake or a probability even if one were written there.
+    """
+    if not isinstance(body, str):
+        return False
+    return body.lower().startswith(COMMENT_TRIGGER_PREFIX.lower())
+
+
+def may_start_worker(*, event_name, action=None, author=None, repository_owner=None, title=None,
+                     comment_author=None, comment_body=None, issue_number=None,
+                     is_pull_request=False) -> bool:
     """The whole guard: may this event start the Airtable preflight worker?
 
     `workflow_dispatch` and `repository_dispatch` are already authenticated by GitHub -- both require a token
     with write access to this repository -- so they need no further check here.
 
+    An `issue_comment` needs FIVE things, and it is the normal operating trigger: the comment is new, it is
+    on the one designated doorbell pull request, that object really is a pull request, its AUTHOR is the
+    repository owner, and its body carries the routing prefix. The author check is the security control and
+    the rest is routing, exactly as on the issue path. An outsider commenting the identical text is refused,
+    and so is the owner commenting anywhere else or saying anything else.
+
     An `issues` event needs BOTH halves: the author is the repository owner (authorisation) and the title
     carries an accepted prefix (routing). Any other event is refused, including one whose `on:` entry someone
     adds later without revisiting this function.
+
+    None of this authorises a DECISION. Every trigger here wakes the same worker, whose entire input is
+    PREFLIGHT_REQUESTED rows that already exist in Airtable; `airtable_bridge` speaks only GET and PATCH and
+    has no record-create path, so no trigger can bring a candidate into being.
     """
     if event_name in DISPATCH_EVENTS:
         return True
+    if event_name == "issue_comment":
+        if action is not None and action not in COMMENT_ACTIONS:
+            return False
+        if issue_number != DOORBELL_PR_NUMBER:
+            return False
+        if not is_pull_request:
+            return False
+        return _same_login(comment_author, repository_owner) and comment_is_trigger(comment_body)
     if event_name != "issues":
         return False
     # `action` is checked only when supplied. The workflow's `on:` block is what filters actions in

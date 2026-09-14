@@ -459,6 +459,55 @@ window. Polling for it would also spend the Airtable free-tier allowance the arc
 to buy latency on a leg that has no use for it. So: preflight is invoked by an event, the importer is a
 schedule, and neither is a workaround for the other.
 
+### The normal operating path: the comment doorbell
+
+The ordinary flow needs **no GitHub interaction from the owner at all**:
+
+```
+"Run NFL"              ->  ChatGPT handicaps the slate
+                       ->  ChatGPT writes PREFLIGHT_REQUESTED rows to Airtable
+                       ->  ChatGPT comments "PREFLIGHT NFL" on PR #18
+                       ->  the worker wakes and answers every pending row
+"Check NFL preflight"  ->  ChatGPT reads the terminal statuses back
+```
+
+ChatGPT can write Airtable and can comment on GitHub; it cannot dispatch a workflow or run a script. A
+comment is therefore the one signal it can send by itself, and `issue_comment` covers pull-request
+conversation comments.
+
+**Why a doorbell and not a schedule.** Airtable meters API calls per workspace per month — **1,000 on Free**,
+100,000 on Team. A five-minute poll spends one call per wake-up whether or not anything is waiting:
+
+| trigger | Airtable calls/month when idle |
+|---|---|
+| 5-minute poll | ~6,500 — **over Free** |
+| 15-minute poll | ~2,200 — **still over Free** |
+| **comment doorbell** | **0** |
+
+A doorbell costs nothing when idle, so usage tracks actual requests rather than elapsed clock time. It is
+also faster: the worker starts on the comment instead of at the next slot.
+
+**The comment is only a doorbell.** Authorisation is, and stays, the Airtable row. Five conditions must all
+hold, checked in the job-level `if`, which is an allowlist:
+
+1. `github.event_name == 'issue_comment'`
+2. `github.event.action == 'created'` — an edit is not a doorbell
+3. `github.event.issue.number == 18` — one pinned object, so the blast radius is one conversation
+4. `github.event.issue.pull_request != null` — it really is a PR comment
+5. `github.event.comment.user.login == github.repository_owner` **and** the body starts `PREFLIGHT NFL`
+
+The author check is the security control; the rest is routing. This repository is public, so an outsider
+posting the identical text is refused — no run, no Airtable call, no log line.
+
+**The comment carries no candidate information**, and could not matter if it did. The guard consumes a
+prefix; the worker takes its candidates from Airtable and has no parameter by which a ticker, price, stake,
+probability or thesis written in a comment could reach a decision. Nothing in this repository can create a
+`PREFLIGHT_REQUESTED` row at all — the bridge speaks only `GET` and `PATCH`.
+
+**Fallbacks**, in order: `workflow_dispatch` (immediate, manual), `repository_dispatch` (for anything
+holding a token), and the owner-authored `PREFLIGHT NFL` issue. No schedule is required for normal
+operation.
+
 ### Statuses and fields
 
 | status | meaning |
