@@ -94,20 +94,57 @@ def render(sim: dict) -> str:
     return "\n".join(lines)
 
 
+def certify(games: list, seasons) -> tuple:
+    """Run the budget for each named season and report every month. Returns `(text, worst, ok)`.
+
+    This is what CI runs against the CANONICAL market-data schedule. A synthetic fixture cannot stand in
+    for it: the fixture would stay green at 400-something while a real schedule change pushed the actual
+    polling windows past the ceiling, which is precisely the failure the ceiling exists to catch.
+    """
+    blocks, worst_overall, worst_season = [], 0, None
+    for season in seasons:
+        rows = [g for g in games if g.get("season") == season]
+        if not rows:
+            blocks.append(f"=== season {season}: NO GAMES IN THE CANONICAL SCHEDULE -- not certified ===")
+            continue
+        sim = simulate(rows)
+        blocks.append(f"=== season {season}  ({len(rows)} games) ===")
+        blocks.append(render(sim))
+        blocks.append("")
+        if sim["worst_reads"] > worst_overall:
+            worst_overall, worst_season = sim["worst_reads"], season
+    ok = worst_overall <= MAX_MONTHLY_SCHEDULED_READS
+    blocks.append(f"WORST MONTH ACROSS ALL CERTIFIED SEASONS : {worst_overall} (season {worst_season})")
+    blocks.append(f"CEILING                                  : {MAX_MONTHLY_SCHEDULED_READS}")
+    blocks.append(f"HEADROOM TO THE FREE PLAN                : "
+                  f"{FREE_PLAN_MONTHLY_REQUESTS - worst_overall}")
+    blocks.append(f"RESULT                                   : {'PASS' if ok else 'FAIL'}")
+    return "\n".join(blocks), worst_overall, ok
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--schedule", default=None)
     ap.add_argument("--market-data", default=None)
     ap.add_argument("--allow-download", action="store_true")
     ap.add_argument("--season", type=int, default=None, help="restrict to one season's games")
+    ap.add_argument("--certify", default=None,
+                    help="comma-separated seasons to certify against the ceiling, e.g. 2023,2024,2025,2026")
     a = ap.parse_args(argv)
 
     games, source = CAL.load_schedule(ROOT, market_data=a.market_data, path=a.schedule,
                                       allow_download=a.allow_download)
+    print(f"schedule: {os.path.basename(str(source))}   games: {len(games)}")
+
+    if a.certify:
+        seasons = [int(s) for s in a.certify.split(",") if s.strip()]
+        text, worst, ok = certify(games, seasons)
+        print(text)
+        return 0 if ok else 1
+
     if a.season:
         games = [g for g in games if g.get("season") == a.season]
     sim = simulate(games)
-    print(f"schedule: {os.path.basename(str(source))}   games: {len(games)}")
     print(render(sim))
     return 0 if sim["worst_reads"] <= MAX_MONTHLY_SCHEDULED_READS else 1
 

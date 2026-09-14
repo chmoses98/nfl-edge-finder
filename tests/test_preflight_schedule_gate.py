@@ -211,6 +211,62 @@ def test_exactly_at_a_secondary_opening_boundary_is_active():
     assert PW.evaluate(games, snf - timedelta(minutes=121))["active"] is False
 
 
+def test_a_secondary_window_reports_the_days_real_primary_not_the_active_cluster():
+    """REGRESSION. An open secondary window must not label its own cluster 'primary'.
+
+    An international morning opens a 2-hour window hours before the nine-game 1pm slate. Reporting the
+    earliest ACTIVE cluster as `primary_cluster_utc` made the acceptance record say the day's primary slate
+    was the 9:30am game, which is simply false. The two facts are now separate fields, and the primary is
+    found with the same `primary_cluster()` that built the windows.
+    """
+    rows = [game("intl", "2026-10-04", "09:30")] + \
+           [game(f"g{i}", "2026-10-04", "13:00") for i in range(9)]
+    games = sched(rows)
+    intl, one_pm = et("2026-10-04", "09:30"), et("2026-10-04", "13:00")
+
+    out = PW.evaluate(games, intl - timedelta(minutes=60))     # inside the MORNING window only
+    assert out["active"] is True
+    assert out["game_day"] == "2026-10-04"
+    assert out["primary_cluster_utc"] == one_pm.isoformat(), "the 9-game 1pm slate is the primary"
+    assert out["active_cluster_utc"] == intl.isoformat(), "...and the morning cluster is what is open"
+    assert out["active_is_primary"] is False
+
+
+def test_inside_the_primary_window_both_fields_agree():
+    rows = [game("intl", "2026-10-04", "09:30")] + \
+           [game(f"g{i}", "2026-10-04", "13:00") for i in range(9)]
+    one_pm = et("2026-10-04", "13:00")
+    out = PW.evaluate(sched(rows), one_pm - timedelta(minutes=60))
+    assert out["primary_cluster_utc"] == out["active_cluster_utc"] == one_pm.isoformat()
+    assert out["active_is_primary"] is True
+
+
+def test_the_reported_primary_is_scoped_to_the_ACTIVE_game_day():
+    """Found by mutation: a single-day fixture cannot tell 'this day's primary' from 'the season's'.
+
+    A Thursday standalone and a nine-game Sunday. Inside the Thursday window the primary is the Thursday
+    game -- it is that day's only cluster. Picking the largest cluster across the whole schedule instead
+    would report the Sunday slate while a Thursday window was open.
+    """
+    rows = [game("thu", "2026-09-10", "20:20")] + \
+           [game(f"sun{i}", "2026-09-13", "13:00") for i in range(9)]
+    games = sched(rows)
+    thu = et("2026-09-10", "20:20")
+    out = PW.evaluate(games, thu - timedelta(minutes=60))
+    assert out["active"] is True
+    assert out["game_day"] == "2026-09-10"
+    assert out["primary_cluster_utc"] == thu.isoformat(), \
+        "the Thursday game is Thursday's primary, whatever Sunday looks like"
+    assert out["active_is_primary"] is True
+
+
+def test_the_reported_primary_uses_the_same_function_that_built_the_windows():
+    """Telemetry that re-derived 'primary' its own way could disagree with the window it describes."""
+    import inspect                                                        # noqa: PLC0415
+    src = inspect.getsource(PW.evaluate)
+    assert "primary_cluster(" in src, "evaluate must call the shared primary_cluster()"
+
+
 def test_a_quiet_tuesday_is_inactive_and_says_when_the_next_window_opens(one_game):
     out = PW.evaluate(one_game, at("2026-09-08T12:00:00"))
     assert out["active"] is False

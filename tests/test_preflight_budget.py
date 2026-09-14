@@ -22,6 +22,7 @@ import sys
 from datetime import timedelta
 
 import pytest
+import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -79,7 +80,6 @@ def test_the_cadence_is_ten_minutes():
 
 
 def test_the_cron_in_the_workflow_matches_the_simulated_cadence():
-    import yaml                                                        # noqa: PLC0415
     wf = yaml.safe_load(open(os.path.join(ROOT, ".github", "workflows", "preflight.yml")))
     crons = [c["cron"] for c in (wf.get("on") or wf.get(True))["schedule"]]
     assert len(crons) == 1
@@ -118,6 +118,116 @@ def test_every_month_is_reported_individually():
 def test_the_rendered_table_states_the_verdict():
     text = BUDGET.render(BUDGET.simulate(_season()))
     assert "worst calendar month" in text and "WITHIN BUDGET" in text
+
+
+# ---- the CANONICAL schedule gate ---------------------------------------------------------------------
+#
+# The synthetic season below is right for shape and mutation testing and WRONG as the acceptance gate: it
+# would sit at 400-something forever while a real schedule change pushed the actual polling windows past the
+# ceiling. So CI runs the real simulator against the same market-data CSV the production gate reads, and
+# these tests pin that wiring so it cannot be quietly dropped.
+
+def _tests_workflow():
+    return yaml.safe_load(open(os.path.join(ROOT, ".github", "workflows", "tests.yml")))
+
+
+def test_ci_fetches_the_same_canonical_schedule_the_production_gate_reads():
+    steps = _tests_workflow()["jobs"]["pytest"]["steps"]
+    checkout = [s for s in steps
+                if str(s.get("uses", "")).startswith("actions/checkout")
+                and (s.get("with") or {}).get("ref") == "market-data"]
+    assert len(checkout) == 1, "CI must sparse-fetch the canonical schedule from market-data"
+    with_ = checkout[0]["with"]
+    assert "data/kalshi/capture/schedule_cache.csv" in with_["sparse-checkout"]
+    assert with_["sparse-checkout-cone-mode"] is False
+    # The same file the runtime gate is pointed at by .github/workflows/preflight.yml.
+    pre = yaml.safe_load(open(os.path.join(ROOT, ".github", "workflows", "preflight.yml")))
+    gate_checkout = [s for s in pre["jobs"]["schedule_gate"]["steps"]
+                     if (s.get("with") or {}).get("ref") == "market-data"]
+    assert "data/kalshi/capture/schedule_cache.csv" in gate_checkout[0]["with"]["sparse-checkout"]
+
+
+def test_ci_runs_the_real_simulator_and_certifies_every_reported_season():
+    runs = " ".join(s.get("run") or "" for s in _tests_workflow()["jobs"]["pytest"]["steps"])
+    assert "scripts/handicap/preflight_budget.py" in runs, "CI must call the production simulator"
+    assert "--certify" in runs
+    for season in (2023, 2024, 2025, 2026):
+        assert str(season) in runs, f"season {season} is reported but not certified"
+    # No budget arithmetic in YAML -- the ceiling lives in one place and CI fails on the exit code.
+    assert str(CEILING) not in runs, "the ceiling must not be restated in the workflow"
+
+
+def test_certify_reports_every_month_and_names_the_worst():
+    text, worst, ok = BUDGET.certify(_season(), [2026])
+    assert ok and worst <= CEILING
+    assert "WORST MONTH ACROSS ALL CERTIFIED SEASONS" in text
+    assert "RESULT" in text and "PASS" in text
+    assert "ceiling enforced by CI" in text
+
+
+def test_certify_fails_when_a_real_schedule_would_exceed_the_ceiling():
+    """THE POINT OF THE CANONICAL GATE: a denser schedule must turn CI red, not pass unnoticed.
+
+    Three clusters every single day is not a plausible NFL season -- it is the shape of the failure the gate
+    exists to catch, where a schedule change quietly multiplies the windows.
+    """
+    from datetime import date                                          # noqa: PLC0415
+    rows = []
+    for d in range(40):
+        day = (date(2026, 9, 1) + timedelta(days=d)).isoformat()
+        rows += [game(f"a{d}_{i}", day, "13:00", season=2026) for i in range(3)]
+        rows += [game(f"b{d}", day, "17:00", season=2026), game(f"c{d}", day, "20:30", season=2026)]
+    text, worst, ok = BUDGET.certify(sched(rows), [2026])
+    assert worst > CEILING, f"the dense schedule only reached {worst}"
+    assert ok is False and "FAIL" in text
+
+
+def _dense_csv(tmp_path):
+    """A schedule dense enough to blow the ceiling: three clusters every day for forty days."""
+    from datetime import date                                          # noqa: PLC0415
+    from test_preflight_schedule_gate import CSV_HEAD                  # noqa: PLC0415
+    rows = []
+    for d in range(40):
+        day = (date(2026, 9, 1) + timedelta(days=d)).isoformat()
+        rows += [game(f"a{d}_{i}", day, "13:00", season=2026) for i in range(3)]
+        rows += [game(f"b{d}", day, "17:00", season=2026), game(f"c{d}", day, "20:30", season=2026)]
+    csv = tmp_path / "dense.csv"
+    csv.write_text(CSV_HEAD + "".join(rows))
+    return csv
+
+
+def _run_certify(csv, season="2026"):
+    import subprocess                                                  # noqa: PLC0415
+    script = os.path.join(ROOT, "scripts", "handicap", "preflight_budget.py")
+    return subprocess.run([sys.executable, script, "--schedule", str(csv), "--certify", season],
+                          capture_output=True, text=True)
+
+
+def test_the_certify_CLI_exits_non_zero_when_the_budget_is_blown(tmp_path):
+    """Found by mutation: `certify()` returning ok=False proves nothing if `main()` still exits 0.
+
+    CI fails on the EXIT CODE, so the exit code is what has to be tested -- end to end, through argparse
+    and the real schedule loader, exactly as the workflow invokes it.
+    """
+    r = _run_certify(_dense_csv(tmp_path))
+    assert r.returncode == 1, f"a blown budget must fail CI; got exit {r.returncode}"
+    assert "FAIL" in r.stdout
+
+
+def test_the_certify_CLI_exits_zero_within_budget(tmp_path):
+    """The control. An exit code that is always 1 would be exactly as useless as one always 0."""
+    from test_preflight_schedule_gate import CSV_HEAD                  # noqa: PLC0415
+    csv = tmp_path / "ok.csv"
+    csv.write_text(CSV_HEAD + game("g1", "2026-09-13", "13:00", season=2026))
+    r = _run_certify(csv)
+    assert r.returncode == 0, r.stdout
+    assert "PASS" in r.stdout
+
+
+def test_a_season_missing_from_the_schedule_is_reported_not_silently_skipped():
+    text, _worst, ok = BUDGET.certify(_season(), [1999])
+    assert "NO GAMES IN THE CANONICAL SCHEDULE" in text
+    assert ok is True, "an absent season is not a budget failure, but it must be visible"
 
 
 # ---- the mutation: prove the assertion can actually fail ----------------------------------------------

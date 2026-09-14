@@ -60,6 +60,31 @@ jobs:
       - name: Run the suite
         run: python3 -m pytest -q --tb=short
 
+      # THE CANONICAL AIRTABLE BUDGET GATE. The suite's own budget tests use a synthetic season, which is
+      # right for shape and mutation testing and WRONG as the acceptance gate: a fixture sitting at
+      # 400-something would stay green while a real schedule change pushed the actual polling windows past
+      # the ceiling. So this fetches the same `schedule_cache.csv` the production window gate reads and runs
+      # the real simulator -- and therefore the same `preflight_window.windows` -- against it.
+      #
+      # Sparse: one CSV, not the branch. Read-only: this job is `contents: read`.
+      - name: Checkout the canonical NFL schedule (market-data, sparse)
+        uses: actions/checkout@v4
+        with:
+          ref: market-data
+          path: schedule
+          fetch-depth: 1
+          sparse-checkout: |
+            data/kalshi/capture/schedule_cache.csv
+          sparse-checkout-cone-mode: false
+
+      # No budget arithmetic in YAML: this calls the production simulator and fails on its exit code, so the
+      # ceiling cannot drift between what CI checks and what the deployed gate actually does.
+      - name: Scheduled Airtable polling stays inside the Free-plan budget
+        run: |
+          python3 scripts/handicap/preflight_budget.py \
+            --market-data schedule \
+            --certify 2023,2024,2025,2026 | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Config files are valid JSON
         run: |
           python3 - <<'PY'

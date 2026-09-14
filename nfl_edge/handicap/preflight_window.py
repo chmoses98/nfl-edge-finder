@@ -153,16 +153,30 @@ def evaluate(games: list, now: datetime, *, tolerance_min: float = TOLERANCE_MIN
     }
 
     # Which clusters this window was built from, for the log only. Never used to decide anything.
+    #
+    # TWO DIFFERENT FACTS, AND THEY ARE NOT INTERCHANGEABLE. The cluster whose window is open right now is
+    # not necessarily the day's primary one: an international morning opens its own secondary window hours
+    # before the main slate. An earlier version reported the earliest ACTIVE cluster as
+    # `primary_cluster_utc`, which labelled that international kickoff "primary" while the real primary was
+    # the nine-game 1pm slate. So the active cluster and the day's primary are reported separately, and the
+    # primary is found with the SAME `primary_cluster()` the windows were built with rather than re-derived.
     if here:
         start, end = here[0]
-        members = [c for c in clusters(games, tolerance_min=tolerance_min)
+        all_clusters = clusters(games, tolerance_min=tolerance_min)
+        members = [c for c in all_clusters
                    if start <= c["kickoff_utc"] - timedelta(minutes=close_lead_min) <= end
                    or start <= c["kickoff_utc"] <= end + timedelta(minutes=close_lead_min)]
         out["active_cluster_count"] = len(members)
         if members:
-            first = min(members, key=lambda c: c["kickoff_utc"])
-            out["game_day"] = first.get("game_day")
-            out["primary_cluster_utc"] = first["kickoff_utc"].isoformat()
+            active = min(members, key=lambda c: c["kickoff_utc"])
+            day = active.get("game_day")
+            out["game_day"] = day
+            out["active_cluster_utc"] = active["kickoff_utc"].isoformat()
+            same_day = [c for c in all_clusters if c.get("game_day") == day]
+            primary = primary_cluster(same_day) if same_day else active
+            out["primary_cluster_utc"] = primary["kickoff_utc"].isoformat()
+            # True when the open window belongs to the day's main slate rather than a side cluster.
+            out["active_is_primary"] = primary["cluster_key"] == active["cluster_key"]
     else:
         out["active_cluster_count"] = 0
         nxt = [s for s, _e in spans if s > now]
