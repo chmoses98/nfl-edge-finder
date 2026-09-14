@@ -459,7 +459,60 @@ window. Polling for it would also spend the Airtable free-tier allowance the arc
 to buy latency on a leg that has no use for it. So: preflight is invoked by an event, the importer is a
 schedule, and neither is a workaround for the other.
 
-### The normal operating path: the comment doorbell
+### The normal operating path: schedule-aware polling
+
+```
+"Run NFL"              ->  ChatGPT handicaps the slate
+                       ->  ChatGPT writes ONE PREFLIGHT_REQUESTED row holding the whole candidate batch
+                       ->  GitHub wakes every 10 min, checks the NFL clock, polls Airtable only if useful
+"Check NFL preflight"  ->  ChatGPT reads the terminal statuses back
+```
+
+No GitHub clicks, no issues, no comments, no dispatches, no Airtable Automations.
+
+**A GitHub wake is not an Airtable call.** `cron: '7,17,27,37,47,57 * * * *'` wakes every ten minutes, but
+each wake first runs a cheap `schedule_gate` job that reads the canonical NFL schedule from a CSV, needs no
+secret, and answers one question: is now inside a polling window? Only then does the worker — and an
+Airtable request — exist at all. The gate job holds no token, so an INACTIVE wake *cannot* reach Airtable.
+
+**Windows come from the real schedule, never from weekday folklore.** Kickoffs are clustered with the
+existing `horizons.cluster_kickoffs` (30-minute single-linkage), so Thursday, Saturday, Wednesday, Friday,
+Thanksgiving, Christmas, international mornings, the postseason and any reschedule all work because they
+are just kickoffs in the file.
+
+| cluster | opens | closes |
+|---|---|---|
+| **primary** — most games on that US-Eastern date (ties: earliest kickoff) | T−180 min | T−10 min |
+| every other cluster that date | T−120 min | T−10 min |
+
+Overlapping windows are **unioned**, so one wake can never authorise more than one Airtable request however
+many clusters are open. A cluster's Eastern date comes from the schedule's own `gameday`, which is what
+keeps a Sunday-night game on Sunday instead of becoming a fake Monday's primary slate.
+
+**Budget, enforced by CI not by comment.** `scripts/handicap/preflight_budget.py` walks every cron slot of a
+real season using the *same* window function the gate uses:
+
+| season | worst month | scheduled Airtable reads | headroom to 1,000 |
+|---|---|---|---|
+| 2023 | December | 436 | 564 |
+| 2024 | December | 443 | 557 |
+| 2025 | December | 394 | 606 |
+| 2026 | November | 420 | 580 |
+
+`tests/test_preflight_budget.py` fails the build above **650** reads/month, reserving ≥350 for real work.
+An idle wake costs **0** requests; an active no-work poll costs exactly **1**, proved against the worker.
+
+**Fail closed.** An unreadable schedule is `SCHEDULE_ERROR`, exits non-zero and fails the run — never a
+quiet "no window", which would look identical to a healthy Tuesday while rows went unanswered.
+
+**Intake rule (operational).** ChatGPT should create `PREFLIGHT_REQUESTED` rows only while the gate would
+say ACTIVE. Outside a window the handicap and report are still produced — the model output never changes —
+but a request written then would predictably age past its 30-minute limit before the next window opens.
+
+**Request age is unchanged at 30 minutes.** The ten-minute cadence exists so a row written inside a window
+is normally seen with most of its life left. A delayed GitHub schedule does not authorise stale work.
+
+### The comment doorbell (retained as a fallback)
 
 The ordinary flow needs **no GitHub interaction from the owner at all**:
 

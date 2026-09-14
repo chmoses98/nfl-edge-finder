@@ -157,21 +157,52 @@ def test_the_doorbell_runs_the_exact_phase_4H_worker():
 
 # ---- no polling ---------------------------------------------------------------------------------------
 
-def test_no_schedule_is_required_for_normal_operation():
-    """An idle poll would spend the Free-workspace Airtable allowance to discover nothing.
+def test_a_scheduled_wake_reaches_airtable_only_through_the_window_gate():
+    """Polling returned, but a WAKE is still not an Airtable CALL -- and that is what this pins.
 
-    Free is 1,000 API calls/workspace/month. A five-minute poll is ~6,500/month and a fifteen-minute poll
-    ~2,200 -- both over. The doorbell costs zero when idle, so usage tracks requests rather than clock time.
+    This test previously asserted no `schedule:` trigger existed at all, because the doorbell was meant to
+    be the only trigger. ChatGPT's GitHub integration turned out not to be able to post the doorbell
+    (403 Resource not accessible by integration), so scheduling came back -- but the quota argument that
+    motivated the doorbell did not go away. The answer is the cheap gate: GitHub may wake every ten minutes
+    and Airtable is touched only inside a schedule-derived window.
     """
-    assert "schedule" not in triggers(), "routine polling must not be the normal trigger"
-    src = open(PREFLIGHT).read()
-    assert "cron" not in src
+    assert "schedule" in triggers()
+    jobs = doc()["jobs"]
+    assert "schedule_gate" in jobs, "a scheduled wake must pass a gate before the worker exists"
+    # The scheduled path into the worker requires a SUCCESSFUL, ACTIVE gate. Both halves matter.
+    expr = " ".join(jobs["preflight"]["if"].split())
+    assert "needs.schedule_gate.result == 'success'" in expr
+    assert "needs.schedule_gate.outputs.active == 'true'" in expr
+    assert jobs["preflight"].get("needs") == ["schedule_gate"]
+
+
+def test_the_gate_job_runs_for_scheduled_wakes_only():
+    """A dispatch or a doorbell must not pay for a gate whose answer it does not consult.
+
+    Found by mutation: removing the gate job's own `if` changed nothing any other test could see, because
+    the worker's guard only reads the gate on the schedule branch. The cost is a wasted runner on every
+    manual trigger, and the confusion is worse -- a gate that ran and said INACTIVE while the worker
+    correctly ignored it looks, in the log, exactly like a bug.
+    """
+    assert doc()["jobs"]["schedule_gate"]["if"] == "github.event_name == 'schedule'"
+
+
+def test_the_gate_job_holds_no_secret_so_an_inactive_wake_cannot_touch_airtable():
+    """Structural, not procedural: the job that COULD reach Airtable is never created when INACTIVE."""
+    gate = doc()["jobs"]["schedule_gate"]
+    assert gate["permissions"] == {"contents": "read"}
+    for step in gate["steps"]:
+        assert not step.get("env"), f"the gate step {step.get('name')!r} declares an environment"
+        assert "secrets." not in (step.get("run") or ""), "the gate references a secret"
+    runs = " ".join(s.get("run") or "" for s in gate["steps"])
+    for forbidden in ("preflight_airtable", "AIRTABLE", "PREFLIGHT_SIGNING_KEY"):
+        assert forbidden not in runs, f"the gate job mentions {forbidden}"
 
 
 def test_no_scheduler_lag_code_survives():
-    """It existed only to observe polling, and its minute arithmetic crashed at :00 and :01."""
+    """The old telemetry's minute arithmetic crashed at :00 and :01; it is not coming back."""
     src = open(PREFLIGHT).read()
-    for dead in ("scheduler_delay", "scheduled_slot", "github.event.schedule"):
+    for dead in ("scheduler_delay", "scheduled_slot", "now.minute"):
         assert dead not in src, f"dead polling telemetry remains: {dead}"
 
 
@@ -187,8 +218,20 @@ def test_concurrency_is_unchanged():
 
 
 def test_the_allowlist_is_still_an_allowlist():
+    """Every permitted event is named. `always()` is mechanics, not permission -- see below.
+
+    This used to assert `always()` was absent. It is now required: the worker job `needs:` the gate job, and
+    a `needs:` dependency on a SKIPPED job skips the dependent, which would break every non-scheduled
+    trigger. `always()` restores the job's eligibility to be evaluated; the expression inside it is the same
+    explicit allowlist, and the schedule branch additionally demands the gate SUCCEEDED and said active.
+    So `always()` widens when the guard is CONSULTED, never what it permits -- and
+    test_a_failed_gate_never_starts_the_worker proves the distinction holds.
+    """
     expr = " ".join(doc()["jobs"]["preflight"]["if"].split())
-    for ev in ("workflow_dispatch", "repository_dispatch", "issue_comment", "issues"):
+    for ev in ("workflow_dispatch", "repository_dispatch", "schedule", "issue_comment", "issues"):
         assert f"github.event_name == '{ev}'" in expr, ev
-    assert "always()" not in expr and "success()" not in expr
+    assert "success()" not in expr
     assert "github.event_name != " not in expr, "an allowlist never reasons by exclusion"
+    # `always()` may appear ONLY as the outer guard on the whole allowlist, never inside a branch.
+    assert expr.startswith("always() && ("), expr[:60]
+    assert expr.count("always()") == 1
