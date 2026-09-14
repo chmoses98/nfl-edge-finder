@@ -1,0 +1,92 @@
+---
+# AUDITOR, NOT A WORKER. This workflow authenticates one approval that has ALREADY been issued. It answers
+# no request, writes no Airtable field, publishes no evidence and places nothing. It exists because the
+# production HMAC check needs the two secrets, which live only on a runner, and the importer performs that
+# check as a side effect of archiving rather than as something an operator can run on demand.
+#
+# WHY IT IS SAFE TO ADD. The job is `workflow_dispatch` only, so nothing schedules or triggers it; its
+# `GITHUB_TOKEN` is `contents: read`, so it cannot push, comment, label or touch a pull request; and the one
+# script it runs makes a single Airtable GET. The two secrets are the ones already configured for the
+# production leg -- this adds no new credential and widens no existing grant.
+name: Preflight approval audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      airtable_record_id:
+        description: 'the approved row to authenticate'
+        type: string
+        required: true
+        default: 'recr8zneL4xrLubw9'
+      run_id:
+        description: 'the Run ID that row must carry'
+        type: string
+        required: true
+        default: '4H-KWALKER-U60-20260914'
+
+# READ-ONLY. Deliberately narrower than the production preflight job, which needs `contents: write` to
+# publish evidence. An auditor that could write is not an auditor.
+permissions:
+  contents: read
+
+# Never contend with the production worker. A different group, because this job answers nothing and so
+# cannot race a decision -- but it is still serialised against itself so two operators cannot interleave.
+concurrency:
+  group: nfl-preflight-approval-audit
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout audit code (main)
+        uses: actions/checkout@v4
+        with:
+          path: code
+          fetch-depth: 1
+
+      # The evidence the approval names. Read-only: this job has no write permission, so it could not push
+      # here even if the script asked it to.
+      - name: Checkout preflight evidence (read-only)
+        uses: actions/checkout@v4
+        with:
+          ref: preflight-evidence
+          path: evidence
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Same posture as the production leg: a missing secret is a FAILURE, never a quiet pass. An audit that
+      # could not run has not succeeded.
+      - name: Check the audit secrets are configured
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
+        run: |
+          if [ -z "${AIRTABLE_TOKEN}" ]; then
+            echo "::error::AIRTABLE_TOKEN is not configured; the audit cannot read the row."
+            exit 1
+          fi
+          if [ -z "${PREFLIGHT_SIGNING_KEY}" ]; then
+            echo "::error::PREFLIGHT_SIGNING_KEY is not configured; the audit cannot authenticate."
+            exit 1
+          fi
+          echo "both secrets are present (values never printed)."
+
+      - name: Authenticate the production approval
+        working-directory: code
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
+        run: |
+          python3 scripts/handicap/audit_preflight_approval.py \
+            --airtable-record-id "${{ inputs.airtable_record_id }}" \
+            --run-id "${{ inputs.run_id }}" \
+            --evidence-root ../evidence | tee "$GITHUB_STEP_SUMMARY"
