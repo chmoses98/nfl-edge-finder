@@ -34,7 +34,53 @@ sys.path.insert(0, ROOT)
 # manifest keys this branch adds outside the v2 gate; additive observation only
 ADDITIVE_MANIFEST_KEYS = {"books_dropped_by_cap", "openset", "provisional_series", "provisional_file_present",
                           "schema_version", "v2_capture", "capture_mode"}
+# The same thing one level down: PER-SERIES manifest keys added outside the v2 gate. `provisional` records
+# whether a series came from the discovered-but-not-yet-reviewed list; it is an observation ABOUT the
+# capture, never an input to what was requested or how anything was priced.
+ADDITIVE_SERIES_KEYS = {"provisional"}
 VOLATILE = {"run_id", "started_at", "finished_at", "seconds", "client_stats"}
+
+
+def _without(d, keys):
+    return {k: v for k, v in d.items() if k not in keys}
+
+
+def series_differences(a_series, b_series):
+    """Every way the per-series manifest entries differ, ignoring the ADDITIVE keys ON BOTH SIDES.
+
+    WHY BOTH SIDES, AND WHY THIS WAS WRONG
+    --------------------------------------
+    This comparison used to strip `provisional` from the HEAD entry only:
+
+        {kk: vv for kk, vv in b[k][s].items() if kk != "provisional"} == a[k][s]
+
+    which was correct exactly while the baseline was a PRE-V2 revision that had no `provisional` key at all.
+    `pair` builds its baseline from `git merge-base HEAD origin/main`, so once the v2 capture work merged to
+    main the merge base collapsed onto HEAD: both sides became the same file, both emit `provisional`, and
+    stripping it from one side alone made the head entry look like it had LOST a key the baseline had. The
+    assertion failed reporting `Right contains 1 more item: {'provisional': False}` -- a self-reference
+    artifact, not a capture regression.
+
+    The intent was always "ignore the additive key, compare everything else", so it is stripped from both.
+    Every other key -- `n`, `complete`, `tier`, `observed_at` -- is still compared exactly, which is what
+    keeps this a real check that the manifest change is additive and alters no existing value.
+    """
+    problems = []
+    if set(a_series) != set(b_series):
+        problems.append(f"series set changed: {sorted(set(a_series) ^ set(b_series))}")
+        return problems
+    for s in a_series:
+        extra = set(b_series[s]) - set(a_series[s]) - ADDITIVE_SERIES_KEYS
+        if extra:
+            problems.append(f"series.{s} gained non-additive key(s): {sorted(extra)}")
+        lost = set(a_series[s]) - set(b_series[s]) - ADDITIVE_SERIES_KEYS
+        if lost:
+            problems.append(f"series.{s} lost key(s): {sorted(lost)}")
+        x, y = _without(a_series[s], ADDITIVE_SERIES_KEYS), _without(b_series[s], ADDITIVE_SERIES_KEYS)
+        for kk in sorted(set(x) & set(y)):
+            if x[kk] != y[kk]:
+                problems.append(f"series.{s}.{kk} changed: {x[kk]!r} -> {y[kk]!r}")
+    return problems
 
 
 def _merge_base():
@@ -211,11 +257,53 @@ def test_the_manifest_gains_only_additive_keys_and_changes_no_existing_value(pai
     assert set(b) - set(a) <= ADDITIVE_MANIFEST_KEYS, f"unexpected manifest keys: {sorted(set(b) - set(a) - ADDITIVE_MANIFEST_KEYS)}"
     for k in a:
         if k == "series":
-            assert set(a[k]) == set(b[k])
-            for s in a[k]:
-                assert {kk: vv for kk, vv in b[k][s].items() if kk != "provisional"} == a[k][s]
+            assert series_differences(a[k], b[k]) == []
         else:
             assert a[k] == b[k], f"manifest.{k} changed: {a[k]!r} -> {b[k]!r}"
+
+
+def test_the_series_comparison_still_catches_a_changed_existing_value():
+    """Mutation check on the comparison itself: stripping the additive key must not make it blind.
+
+    Every one of these is a REAL capture regression, and each must still be reported now that `provisional`
+    is ignored on both sides.
+    """
+    base = {"KXNFLGAME": {"n": 18, "complete": True, "tier": "FULL_MICROSTRUCTURE",
+                          "observed_at": "2026-09-13T16:30:00+00:00", "provisional": False}}
+    assert series_differences(base, base) == []
+    # the additive key differing, alone, is not a regression
+    flipped = {"KXNFLGAME": dict(base["KXNFLGAME"], provisional=True)}
+    assert series_differences(base, flipped) == []
+    absent = {"KXNFLGAME": _without(base["KXNFLGAME"], {"provisional"})}
+    assert series_differences(base, absent) == [] and series_differences(absent, base) == []
+    # every existing value is still compared exactly
+    for key, bad in (("n", 17), ("complete", False), ("tier", "LIGHT"),
+                     ("observed_at", "2026-09-13T16:31:00+00:00")):
+        changed = {"KXNFLGAME": dict(base["KXNFLGAME"], **{key: bad})}
+        assert series_differences(base, changed) == [
+            f"series.KXNFLGAME.{key} changed: {base['KXNFLGAME'][key]!r} -> {bad!r}"], key
+    # and a genuinely new non-additive key, or a lost one, is still caught
+    gained = {"KXNFLGAME": dict(base["KXNFLGAME"], surprise=1)}
+    assert series_differences(base, gained) == ["series.KXNFLGAME gained non-additive key(s): ['surprise']"]
+    lost = {"KXNFLGAME": _without(base["KXNFLGAME"], {"tier"})}
+    assert series_differences(base, lost) == ["series.KXNFLGAME lost key(s): ['tier']"]
+    # a different series set is a structural change, reported before any value comparison
+    assert series_differences(base, {"KXNFLSEASON": base["KXNFLGAME"]})[0].startswith("series set changed")
+
+
+def test_the_v2_capture_gate_is_default_off_on_the_real_path(pair):
+    """The isolation claim that does NOT depend on a baseline revision.
+
+    `pair`'s baseline comes from `git merge-base HEAD origin/main`. That was a genuine cross-revision diff
+    while the v2 work sat on a branch; now that it is merged the merge base is HEAD, so the pair comparisons
+    above run the SAME file twice and prove self-consistency rather than non-regression. This assertion and
+    `test_the_gate_is_load_bearing_on_the_real_path` are the two that still bite regardless: with the gate
+    off the run declares itself INCUMBENT, and turning it on demonstrably changes the real path.
+    """
+    man = pair["head"]["manifest"]
+    assert man.get("v2_capture") is False, "the v2 capture must be OFF unless explicitly enabled"
+    assert man.get("capture_mode") == "INCUMBENT"
+    assert man.get("schema_version") == "capture-1.0.0", "the incumbent schema version, not the v2 one"
 
 
 def test_the_exit_code_is_unchanged(pair):
