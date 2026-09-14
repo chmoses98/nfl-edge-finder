@@ -90,9 +90,46 @@ SIGNING_KEY = ("test-preflight-signing-key-0123456789abcdef" * 2).encode()
 APPROVAL_AT = (AB._parse_ts("createdTime", CREATED) + timedelta(minutes=8)).isoformat()
 
 
+# WHICH APPROVAL FORMAT THESE TESTS USE, AND WHY
+# ----------------------------------------------
+# `preflight-approval/1` -- the LEGACY format, which this importer still verifies and still archives.
+#
+# That is deliberate, not laziness. This file tests TRANSPORT: atomicity, idempotency, conflict detection,
+# timestamp provenance, and signature forgery. Every one of those is version-independent -- the two formats
+# differ by exactly one signed field -- and the fixtures here gate against synthetic `_FreshIndex` /
+# `_DeepBook` stand-ins rather than real market files, because the point is that a real recommendation
+# cannot land WITHOUT a gate context, not what the gates decide.
+#
+# `preflight-approval/2` binds an approval to the live market documents it was computed from, and a v2 row
+# is archived against those documents or not at all. Testing that needs REAL evidence on disk, a real store
+# and a real replay, so it lives in tests/test_preflight_evidence.py where all three exist. The v2 cases
+# that belong HERE -- that the bridge demands the evidence and refuses to substitute the capture stream --
+# are at the end of this file, against a real evidence document.
+LEGACY_SCHEMA = "preflight-approval/1"
+
+
+def _sign_block(*, key, rid, run_id, candidate_text, approved_text, approval_at, schema,
+                evidence_manifest=None):
+    """The signed block, in either approval format. v2 goes through the production issuer."""
+    if schema == APPROVAL.APPROVAL_SCHEMA:
+        return APPROVAL.issue(
+            key=key, airtable_record_id=rid, run_id=run_id, candidate_payload=candidate_text,
+            approved_payload=approved_text, approval_as_of=approval_at,
+            evidence_manifest_sha256=evidence_manifest)
+    message = APPROVAL.canonical_message(
+        airtable_record_id=rid, run_id=run_id,
+        candidate_payload_sha256=APPROVAL.sha256_text(candidate_text),
+        approved_payload_sha256=APPROVAL.sha256_text(approved_text),
+        approval_as_of=approval_at, schema=schema)
+    return {"approval_schema": schema,
+            "approval_signature_algorithm": APPROVAL.SIGNATURE_ALGORITHM,
+            "approval_signature": APPROVAL.sign(key, message)}
+
+
 def approved_row(records, *, rid="recE2E00000000001", verdict="APPROVED", tamper=False,
                  run_id=RUN_ID, approval_at=None, sign_as_row=None, sign_as_run=None,
-                 sign=True, key=None, candidate=None, **kw):
+                 sign=True, key=None, candidate=None, schema=LEGACY_SCHEMA,
+                 evidence=None, evidence_manifest=None, **kw):
     """A row carrying the AUTHENTICATED preflight approval a real recommendation now needs.
 
     `Payload` stays the candidate request; `Approved Payload` is the exact approved batch, whose hash and
@@ -100,6 +137,8 @@ def approved_row(records, *, rid="recE2E00000000001", verdict="APPROVED", tamper
 
     The knobs are the attacks: `tamper` edits the approved batch after signing, `sign=False` fabricates a
     self-consistent but unsigned approval, and `sign_as_row` / `sign_as_run` sign for a different request.
+
+    `schema` selects the approval format; `evidence` is the result body's evidence block for a v2 row.
     """
     approval_at = approval_at or APPROVAL_AT
     stamped = [dict(r, created_at=approval_at) for r in records]
@@ -113,11 +152,13 @@ def approved_row(records, *, rid="recE2E00000000001", verdict="APPROVED", tamper
         "candidate_payload_sha256": AB.payload_sha(candidate_text),
         "approved_payload_sha256": AB.payload_sha(approved_text),
     }
+    if evidence is not None:
+        body["evidence"] = evidence
     if sign:
-        body.update(APPROVAL.issue(
-            key=key or SIGNING_KEY, airtable_record_id=sign_as_row or rid,
-            run_id=sign_as_run or run_id, candidate_payload=candidate_text,
-            approved_payload=approved_text, approval_as_of=approval_at))
+        body.update(_sign_block(
+            key=key or SIGNING_KEY, rid=sign_as_row or rid, run_id=sign_as_run or run_id,
+            candidate_text=candidate_text, approved_text=approved_text, approval_at=approval_at,
+            schema=schema, evidence_manifest=evidence_manifest))
     if tamper:
         edited = [dict(r) for r in stamped]
         edited[0]["recommended_stake"] = 500
@@ -700,20 +741,29 @@ def test_idle_polling_stays_inside_a_modest_monthly_api_budget():
         "status updates, retries and E2E testing on the free tier")
 
 
-def test_workflow_checks_out_code_ledger_and_market_data_separately():
-    """Three checkouts, one writable.
+def test_workflow_checks_out_code_ledger_market_data_and_evidence_separately():
+    """Four checkouts, one writable.
 
-    `market-data` is now checked out deliberately: the decision-time price gate resolves the freshest
-    CONFIRMED executable quote from the capture stream, and without it every real recommendation would fail
-    the gate for a reason that is really a missing checkout. It is READ-ONLY here -- the next test pins that.
+    `market-data` is checked out deliberately: the decision-time price gate resolves the freshest CONFIRMED
+    executable quote from the capture stream, and without it every real recommendation would fail the gate
+    for a reason that is really a missing checkout. It is READ-ONLY here -- the next test pins that.
+
+    `preflight-evidence` is the pre-trade half. When a row's approval names live market evidence, the replay
+    reads THOSE documents -- the ones the decision was actually made on, seconds before it -- rather than a
+    bulk capture of the same contract that may be ten minutes older and at a different price. It is a few KB
+    per request, and also read-only.
     """
     doc = _workflow()
     steps = doc["jobs"]["sync"]["steps"]
     checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout")]
     paths = {s["with"]["path"] for s in checkouts}
-    assert paths == {"code", "ledger", "market-data"}, "code, ledger and market-data must be separate"
+    assert paths == {"code", "ledger", "market-data", "preflight-evidence"}
     ledger_step = next(s for s in checkouts if s["with"]["path"] == "ledger")
     assert ledger_step["with"]["ref"] == store.BRANCH
+    ev = next(s for s in checkouts if s["with"]["path"] == "preflight-evidence")
+    assert ev["with"]["ref"] == "preflight-evidence"
+    # Missing branch (nothing preflighted yet) must not stop archival transport.
+    assert ev.get("continue-on-error") is True
 
 
 def test_the_workflow_never_writes_to_the_collector_branch():
@@ -1253,10 +1303,10 @@ def test_E_a_record_not_dated_at_the_signed_approval_is_rejected(ledger):
     approved_text = AB.canonical_payload(off)
     body = json.loads(r["fields"][AB.F_PREFLIGHT_RESULT])
     body["approved_payload_sha256"] = AB.payload_sha(approved_text)
-    body.update(APPROVAL.issue(
-        key=SIGNING_KEY, airtable_record_id=r["id"], run_id=RUN_ID,
-        candidate_payload=r["fields"][AB.F_PAYLOAD], approved_payload=approved_text,
-        approval_as_of=approval_at))
+    body.update(_sign_block(
+        key=SIGNING_KEY, rid=r["id"], run_id=RUN_ID,
+        candidate_text=r["fields"][AB.F_PAYLOAD], approved_text=approved_text,
+        approval_at=approval_at, schema=LEGACY_SCHEMA))
     r["fields"][AB.F_APPROVED_PAYLOAD] = approved_text
     r["fields"][AB.F_PREFLIGHT_RESULT] = json.dumps(body)
     _expect_error(ledger, [r], contains="but the signed approval is for")
@@ -1283,3 +1333,110 @@ def test_the_candidate_request_is_still_held_to_the_anti_backfill_rule(ledger):
     backfilled = _real(rec, created_at=(created - timedelta(days=3)).isoformat())
     r = approved_row([backfilled])
     _expect_error(ledger, [r], contains="does not accept backfilled recommendations")
+
+
+# ---- preflight-approval/2: the importer demands the evidence the approval names ----------------------
+#
+# The rest of this file uses the LEGACY format on purpose (see the note beside `approved_row`). These are
+# the v2 cases that belong at the bridge rather than in tests/test_preflight_evidence.py: whether the
+# IMPORTER insists on the evidence, and what it does when the evidence is not there. The evidence document
+# is a real one, written to a real directory and named by its real hash.
+
+def _v2_row_with_evidence(tmp_path, records, *, rid="recE2E00000000001", store_it=True):
+    """An approved v2 row whose evidence block names a genuine document on disk."""
+    from nfl_edge.handicap import live_evidence as LE                # noqa: PLC0415
+
+    doc = {
+        "schema": LE.SCHEMA, "evidence_run_id": "20260905T052000Z",
+        "market_ticker": records[0].get("market_ticker") or "KXNFLGAME-TEST-X",
+        "series_ticker": "KXNFLGAME", "side_requested": "YES", "kickoff_utc": None,
+        "request": {"airtable_record_id": rid, "run_id": RUN_ID, "workflow_run_id": ""},
+        "source": {"api_base": "https://api.elections.kalshi.test/trade-api/v2",
+                   "market_url": "markets/x", "orderbook_url": "markets/x/orderbook",
+                   "access": "public read-only GET; no account, no credentials, no positions, no fills"},
+        "market": {"retrieved_at": DECISION_AT.isoformat(), "latency_ms": 10, "status": "active",
+                   "tradable": True, "yes_bid": 0.60, "yes_ask": 0.62, "no_bid": 0.36, "no_ask": 0.38,
+                   "raw_sha256": "0" * 64, "raw": {}},
+        "orderbook": {"retrieved_at": DECISION_AT.isoformat(), "latency_ms": 10, "depth_requested": 10,
+                      "levels_yes": 1, "levels_no": 1, "raw_sha256": "0" * 64,
+                      "raw": {"no_dollars": [["0.3800", "100000"]], "yes_dollars": [["0.5000", "10"]]}},
+        "quote_row": {"run_id": "20260905T052000Z", "observed_at": DECISION_AT.isoformat(),
+                      "ticker": records[0].get("market_ticker") or "KXNFLGAME-TEST-X",
+                      "series_ticker": "KXNFLGAME", "status": "active",
+                      "yes_bid_dollars": 0.60, "yes_ask_dollars": 0.62,
+                      "no_bid_dollars": 0.36, "no_ask_dollars": 0.38, "source": "live_preflight"},
+        "book_row": {"run_id": "20260905T052000Z", "observed_at": DECISION_AT.isoformat(),
+                     "ticker": records[0].get("market_ticker") or "KXNFLGAME-TEST-X",
+                     "orderbook_fp": {"no_dollars": [["0.3800", "100000"]],
+                                      "yes_dollars": [["0.5000", "10"]]},
+                     "error": None, "source": "live_preflight"},
+    }
+    text = LE.canonical_json(doc)
+    sha = LE.sha256_text(text)
+    rel = LE.evidence_relpath(season=2026, week=1, airtable_record_id=rid,
+                              ticker=doc["market_ticker"], retrieved_at=DECISION_AT)
+    root = tmp_path / "evidence"
+    if store_it:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    entries = [{"path": rel, "sha256": sha}]
+    manifest = LE.manifest_sha256(entries, storage="git", commit="c" * 40)
+    block = {"source": "kalshi public read-only", "evidence_run_id": doc["evidence_run_id"],
+             "storage": "git", "commit": "c" * 40, "manifest_sha256": manifest, "documents": entries}
+    r = approved_row(records, rid=rid, schema=APPROVAL.APPROVAL_SCHEMA,
+                     evidence=block, evidence_manifest=manifest)
+    return r, str(root)
+
+
+def test_a_v2_approval_imports_when_its_evidence_is_present(ledger, tmp_path):
+    records = [_real(rec)]
+    r, root = _v2_row_with_evidence(tmp_path, records)
+    ctx = gate_ctx(anchor=DECISION_AT)
+    ctx.ledger_root = ledger
+    plan = AB.plan_run(r, ledger, now=NOW,
+                       gate_context=sync_airtable._context_for(ctx, records),
+                       signing_key=SIGNING_KEY, evidence_root=root)
+    assert len(plan.to_write) == 1
+    assert plan.payload_source.startswith("approved payload")
+    # And the gates ran against the EVIDENCE, not the synthetic capture stand-in this fixture also supplies.
+    gate_record = plan.gate_records[0][1]
+    assert gate_record["decision_quote"]["confirmation_basis"] == "LIVE_TICKER_FETCH"
+
+
+def test_a_v2_approval_is_REFUSED_when_no_evidence_checkout_was_supplied(ledger, tmp_path):
+    """The hole: this used to fall through to the capture stream and archive the bet anyway."""
+    r, _root = _v2_row_with_evidence(tmp_path, [_real(rec)])
+    with pytest.raises(AB.ConfigurationError) as e:
+        AB.plan_run(r, ledger, now=NOW, gate_context=gate_ctx(anchor=DECISION_AT),
+                    signing_key=SIGNING_KEY, evidence_root=None)
+    assert "no preflight-evidence checkout was supplied" in str(e.value)
+
+
+def test_a_v2_approval_is_refused_when_the_named_document_is_absent(ledger, tmp_path):
+    r, root = _v2_row_with_evidence(tmp_path, [_real(rec)], store_it=False)
+    with pytest.raises(AB.ConfigurationError) as e:
+        AB.plan_run(r, ledger, now=NOW, gate_context=gate_ctx(anchor=DECISION_AT),
+                    signing_key=SIGNING_KEY, evidence_root=root)
+    assert "not present at" in str(e.value)
+
+
+def test_a_v2_row_refused_for_missing_evidence_writes_nothing_and_keeps_its_status(ledger, tmp_path):
+    """End to end through `sync`: deferred, not ERROR, and not one file on disk."""
+    r, _root = _v2_row_with_evidence(tmp_path, [_real(rec)])
+    fake = FakeAirtable([{"records": [r]}])
+    code, pushes, _c = run_sync(fake, ledger, gate_context=gate_ctx(anchor=DECISION_AT))
+    assert code == 2, "a runner that cannot reach the evidence is a CONFIGURATION failure"
+    assert ledger_recs(ledger) == [], "nothing may be archived without the evidence it was approved on"
+    assert pushes == []
+    assert fake.status_updates == {}, "the row keeps READY_FOR_SYNC and imports once the checkout is right"
+
+
+def test_a_v2_row_imports_through_sync_when_the_evidence_root_is_wired(ledger, tmp_path):
+    r, root = _v2_row_with_evidence(tmp_path, [_real(rec)])
+    fake = FakeAirtable([{"records": [r]}])
+    code, pushes, _c = run_sync(fake, ledger, gate_context=gate_ctx(anchor=DECISION_AT),
+                                evidence_root=root)
+    assert code == 0, "with the evidence present the same row archives normally"
+    assert len(ledger_recs(ledger)) == 1 and pushes
+    assert set(fake.status_updates.values()) == {AB.STATUS_SYNCED}

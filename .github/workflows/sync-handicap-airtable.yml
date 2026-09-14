@@ -91,6 +91,45 @@ jobs:
           path: market-data
           fetch-depth: 1
 
+      # READ-ONLY, and tiny. When a row's approval names live pre-trade market evidence, the gate REPLAY
+      # reads those documents -- the ones the decision was actually made on -- instead of the capture
+      # stream, and re-verifies every hash. Preflight prices a candidate from a fetch made seconds before
+      # the decision; the conductor's capture of the same contract may be ten minutes older and at a
+      # different price, so replaying against it would ask a different question. The branch holds a few KB
+      # per request.
+      # `continue-on-error` here covers exactly ONE legitimate case: the branch does not exist yet because
+      # no v2 approval has ever been issued. The step after it tells that case apart from "the branch exists
+      # and we could not get it", which is a hard failure -- and the importer itself refuses to archive a v2
+      # approval without its evidence regardless of what this workflow decides, so neither of these steps is
+      # the control. They exist so the run is RED for the right reason instead of quietly deferring.
+      - name: Checkout pre-trade evidence (preflight-evidence)
+        id: evidence_checkout
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: preflight-evidence
+          path: preflight-evidence
+          fetch-depth: 1
+
+      - name: Distinguish "no evidence branch yet" from "evidence branch unreachable"
+        id: evidence
+        working-directory: code
+        run: |
+          if [ "${{ steps.evidence_checkout.outcome }}" = "success" ] && [ -d ../preflight-evidence ]; then
+            echo "root=../preflight-evidence" >> "$GITHUB_OUTPUT"
+            echo "pre-trade evidence checked out."
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin preflight-evidence >/dev/null 2>&1; then
+            echo "::error::the preflight-evidence branch EXISTS but could not be checked out. Any"
+            echo "::error::preflight-approval/2 row would be deferred rather than archived, because it is"
+            echo "::error::never replayed against the bulk capture stream as a substitute. Failing loudly."
+            exit 1
+          fi
+          echo "::notice::no preflight-evidence branch exists yet, so no v2 approval has been issued."
+          echo "::notice::Legacy preflight-approval/1 rows and PASS batches import normally."
+          echo "root=" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -157,9 +196,14 @@ jobs:
           AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
           PREFLIGHT_SIGNING_KEY: ${{ secrets.PREFLIGHT_SIGNING_KEY }}
         run: |
+          EVIDENCE=""
+          if [ -n "${{ steps.evidence.outputs.root }}" ]; then
+            EVIDENCE="--preflight-evidence ${{ steps.evidence.outputs.root }}"
+          fi
           python3 scripts/handicap/sync_airtable.py \
             --handicap-root ../ledger \
             --market-data ../market-data \
+            $EVIDENCE \
             ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
 
       - name: Ledger state after sync

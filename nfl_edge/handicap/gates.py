@@ -71,6 +71,7 @@ BLOCKING = (FAIL, UNAVAILABLE)
 
 # Gate names, stable so the scorecard can count them over time.
 G_DECISION_TIME = "decision_timestamp_resolved"
+G_PRE_KICKOFF = "decision_before_kickoff"
 G_QUOTE_FRESHNESS = "decision_time_quote_freshness"
 G_CEILING = "executable_price_within_ceiling"
 G_IDENTITY = "player_identity_resolved"
@@ -210,6 +211,13 @@ def evaluate_gates(rec: dict, ctx: GateContext) -> GateReport:
     ticker = rec.get("market_ticker")
     series = _series_of(ticker)
 
+    # ---- 0. the decision happened BEFORE kickoff -------------------------------------------------
+    # First, and on its own, because it is the one thing no amount of market evidence can repair. On
+    # 2026-09-13 a preflight answered at 17:01:30Z for a 17:00:00Z kickoff; the verdict happened to be
+    # BLOCKED because the quote was 17.1 min stale, which is luck, not a control. Quote freshness answers
+    # "was this price real?" and it would have PASSED a minute earlier with the same post-kickoff clock.
+    report.gates[G_PRE_KICKOFF] = pre_kickoff_gate(rec, as_of)
+
     # ---- 1. decision-time executable price -------------------------------------------------------
     dq = None
     if ctx.capture_index is None:
@@ -317,6 +325,66 @@ def evaluate_gates(rec: dict, ctx: GateContext) -> GateReport:
                                if g.status in BLOCKING]
     report.overall = FAIL if report.blocking_reasons else PASS
     return report
+
+
+def pre_kickoff_gate(rec: dict, as_of: datetime) -> GateResult:
+    """The decision instant must be STRICTLY before kickoff. Everything else about it is a market question.
+
+    PUBLIC, and called from two places on purpose. `evaluate_gates` runs it as gate 0 so the importer
+    replays it; `preflight._one` runs it BEFORE structural validation so a post-kickoff request comes back
+    named -- `decision_before_kickoff: ...` -- rather than as a schema exception about `minutes_to_kickoff`.
+    The two callers share this one function, so there is no second implementation to drift.
+
+    `as_of` is the decision timestamp -- the candidate's `created_at` on a replay, and the pre-trade
+    worker's `approval_as_of` when it is first evaluated, which is the same field because preflight stamps
+    the approved record at the approval instant. So this gate replays byte for byte: the importer re-reads
+    the archived record's own `created_at` and reaches the same verdict hours later.
+
+    WHY THIS IS NOT LEFT TO FRESHNESS. A stale quote and a kicked-off game are different failures with
+    different cures. Quote freshness asks whether the price was real; it is satisfied by a capture four
+    minutes old, and a capture four minutes old is perfectly compatible with a game that started two minutes
+    ago. Relying on one to catch the other means the post-kickoff case is blocked only by coincidence.
+
+    WHY IT IS NOT LEFT TO `minutes_to_kickoff` EITHER. That field is arithmetic the REQUESTER supplies, and
+    preflight only recomputes it when a fresh quote could be confirmed -- so the one case that matters most,
+    a request whose market state could not be refreshed, is exactly the case where the stale self-reported
+    number survives into the gates. This reads `kickoff_utc` and the decision clock and computes it here.
+
+    FAIL CLOSED. A missing or unparseable `kickoff_utc` is UNAVAILABLE, which blocks a RECOMMENDED record
+    exactly as FAIL does. `kickoff_utc` is required for RECOMMENDED by the schema, so reaching this with
+    nothing usable means the deadline the decision had to beat is unknown -- and an unknown deadline is never
+    treated as a distant one.
+    """
+    raw = rec.get("kickoff_utc")
+    if not raw:
+        return GateResult(
+            UNAVAILABLE,
+            "the record carries no kickoff_utc, so it cannot be shown that this decision was made before "
+            "kickoff; a pregame position is never authorised against an unknown deadline")
+    try:
+        ko = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return GateResult(
+            UNAVAILABLE,
+            f"kickoff_utc {raw!r} is not an ISO-8601 timestamp, so the pre-kickoff deadline cannot be "
+            "established and a pregame position is not authorised against a deadline we cannot read")
+    if ko.tzinfo is None:
+        ko = ko.replace(tzinfo=timezone.utc)
+    ko = ko.astimezone(timezone.utc)
+
+    minutes = round((ko - as_of).total_seconds() / 60.0, 2)
+    evidence = {"as_of": as_of.isoformat(), "kickoff_utc": ko.isoformat(),
+                "minutes_to_kickoff": minutes}
+    if as_of >= ko:
+        # STRICTLY before. At exactly kickoff the market is no longer pregame, and "the same second" is not
+        # a tie we resolve in favour of the bet.
+        return GateResult(
+            FAIL,
+            "approval occurred at or after kickoff; a pregame position can no longer be authorized "
+            f"(decision {as_of.isoformat()}, kickoff {ko.isoformat()}, {abs(minutes):.2f} min past)",
+            evidence)
+    return GateResult(
+        PASS, f"decided {minutes:.2f} min before kickoff {ko.isoformat()}", evidence)
 
 
 def _availability_gate(rec: dict, as_of: datetime) -> GateResult:

@@ -99,6 +99,11 @@ NO_QUOTE = "NO_QUOTE"              # confirmed open, but the book has no usable 
 
 CONFIRM_TICKER = "TICKER_LAST_SEEN"
 CONFIRM_SERIES = "SERIES_COMPLETE"
+# The pre-trade path asks the venue about ONE contract and records when the answer arrived. That is the
+# strongest confirmation available -- this ticker, this request, this timestamp -- and it is named so a
+# reader of a gate report can see that the confirmation came from a focused live fetch rather than from a
+# bulk capture pass. See nfl_edge/handicap/live_evidence.py.
+CONFIRM_LIVE = "LIVE_TICKER_FETCH"
 
 
 @dataclass

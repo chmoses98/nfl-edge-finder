@@ -18,14 +18,19 @@ that changes the meaning fails even when it keeps the words.
 """
 import os
 import re
+import sys
 
 import pytest
 import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from nfl_edge.handicap import preflight_trigger as T   # noqa: E402
+
 PREFLIGHT = os.path.join(ROOT, ".github", "workflows", "preflight.yml")
 OWNER = "chmoses98"
 PREFIX = "[PREFLIGHT NFL]"
+BARE = "PREFLIGHT NFL"
 
 
 def doc():
@@ -147,7 +152,13 @@ class _Eval:
         return cur
 
 
-def eligible(*, event_name, author=None, title=None, body=None):
+def eligible(*, event_name, author=None, title=None, body=None, action=None):
+    """Evaluate the WORKFLOW'S OWN expression, then assert the Python copy of the rule agrees.
+
+    Two copies of a security guard that can disagree is worse than one, so every case in this file is run
+    through both. `nfl_edge/handicap/preflight_trigger.py` exists because the 2026-09-13 failure was a
+    routing bug living only in a YAML string, where nothing could test it.
+    """
     ctx = {
         "github": {
             "event_name": event_name,
@@ -155,7 +166,13 @@ def eligible(*, event_name, author=None, title=None, body=None):
             "event": {"issue": {"user": {"login": author}, "title": title, "body": body}},
         }
     }
-    return bool(_Eval(_lex(job()["if"]), ctx).parse())
+    from_yaml = bool(_Eval(_lex(job()["if"]), ctx).parse())
+    from_python = T.may_start_worker(event_name=event_name, action=action, author=author,
+                                     repository_owner=OWNER, title=title)
+    assert from_yaml == from_python, (
+        f"the workflow guard and preflight_trigger.may_start_worker disagree on "
+        f"event={event_name!r} author={author!r} title={title!r}: {from_yaml} vs {from_python}")
+    return from_yaml
 
 
 def test_the_evaluator_rejects_syntax_it_does_not_understand():
@@ -176,14 +193,33 @@ def test_B_an_outsider_with_a_perfect_looking_trigger_is_refused():
         assert eligible(event_name="issues", author=outsider, title=f"{PREFIX} run it") is False, outsider
 
 
+def test_A2_the_owner_with_the_BARE_prefix_starts_the_worker():
+    """The 2026-09-13 incident, pinned.
+
+    The owner opened `PREFLIGHT NFL`. The guard wanted `[PREFLIGHT NFL]`, the job was silently SKIPPED, and
+    the manual run that followed answered a 17:00:00Z kickoff at 17:01:30Z. Both forms now route.
+    """
+    assert eligible(event_name="issues", author=OWNER, title=BARE) is True
+    assert eligible(event_name="issues", author=OWNER, title="PREFLIGHT NFL 2026-09-13 BAL/IND") is True
+
+
 def test_C_the_owner_with_the_wrong_title_is_refused():
     for title in ("Bug: packet renders oddly",
-                  "PREFLIGHT NFL without the brackets",
                   "please run [PREFLIGHT NFL]",          # prefix, but not at the start
+                  "please run PREFLIGHT NFL",
                   "[PREFLIGHT] NFL",
                   "[PREFLIGHT MLB] wrong sport",
+                  "PREFLIGHT MLB",
+                  "NFL PREFLIGHT",                       # the words, in the wrong order
                   ""):
         assert eligible(event_name="issues", author=OWNER, title=title) is False, title
+
+
+def test_relaxing_the_title_gives_an_outsider_nothing():
+    """Routing was relaxed; AUTHORISATION was not. This is the test that says so."""
+    for outsider in ("attacker", "chmoses", "chmoses981", "notchmoses98", "github-actions[bot]"):
+        for title in (PREFIX + " x", BARE, BARE.lower(), "[preflight nfl] x"):
+            assert eligible(event_name="issues", author=outsider, title=title) is False, (outsider, title)
 
 
 def test_the_prefix_match_is_case_insensitive_and_that_is_deliberate():
@@ -216,9 +252,38 @@ def test_an_unlisted_event_cannot_start_the_worker():
         assert eligible(event_name=ev, author=OWNER, title=f"{PREFIX} x") is False, ev
 
 
-def test_the_workflow_only_listens_for_opened_issues():
-    """`edited` would let anyone rename an old issue into a trigger."""
-    assert triggers()["issues"] == {"types": ["opened"]}
+def test_the_workflow_listens_for_opened_and_edited_issues():
+    """`edited` exists because a silently-skipped trigger is invisible to the person who rang the doorbell.
+
+    On 2026-09-13 the owner's malformed title produced a skipped job and no feedback; correcting the title
+    did nothing, and the repair was a manual dispatch that answered after kickoff. Editing a title must be
+    able to start the worker.
+
+    It widens nothing. `github.event.issue.user.login` is the issue's AUTHOR, not whoever edited it, so an
+    outsider renaming an old owner issue -- which GitHub does not permit them to do anyway -- would still be
+    measured against the author check, and an outsider's own issue is refused whatever it is renamed to.
+    """
+    assert triggers()["issues"] == {"types": ["opened", "edited"]}
+    assert set(T.ISSUE_ACTIONS) == {"opened", "edited"}
+
+
+def test_D2_a_corrected_title_on_an_edit_starts_the_worker():
+    assert eligible(event_name="issues", action="edited", author=OWNER, title=PREFIX + " fixed") is True
+    assert eligible(event_name="issues", action="edited", author=OWNER, title=BARE) is True
+    assert eligible(event_name="issues", action="edited", author=OWNER, title="still wrong") is False
+
+
+def test_an_edit_by_anyone_does_not_change_who_the_author_is():
+    """The only identity the guard reads is the issue's author, on `opened` and on `edited` alike."""
+    assert eligible(event_name="issues", action="edited", author="attacker", title=PREFIX) is False
+    src = open(PREFLIGHT).read()
+    assert "github.event.sender" not in src, "the editor's identity must not become an input"
+
+
+def test_an_issue_action_the_workflow_does_not_listen_for_is_refused_by_the_helper():
+    for action in ("reopened", "closed", "labeled", "assigned", "transferred"):
+        assert T.may_start_worker(event_name="issues", action=action, author=OWNER,
+                                  repository_owner=OWNER, title=PREFIX) is False, action
 
 
 def test_the_dispatch_triggers_are_still_declared():
@@ -230,14 +295,27 @@ def test_the_dispatch_triggers_are_still_declared():
 
 # ------------------------------------------------------------------ F-G: permissions
 
-def test_F_contents_remains_read_only():
-    assert doc()["permissions"]["contents"] == "read"
+def test_F_contents_write_exists_only_to_publish_append_only_public_evidence():
+    """`contents: write` is a real widening and it buys a real property, so it is pinned to its reason.
+
+    A pre-trade approval must be replayable after the runner is gone, which means the market evidence it was
+    computed from has to be committed somewhere. `evidence_store.GitBranchEvidenceStore` refuses every
+    branch but `preflight-evidence`, so this grant cannot reach main, market-data or handicap-data.
+    """
+    from nfl_edge.handicap import evidence_store as ES   # noqa: PLC0415
+    assert doc()["permissions"]["contents"] == "write"
+    assert ES.ALLOWED_BRANCHES == ("preflight-evidence",)
+    with pytest.raises(ES.EvidenceStoreError):
+        ES.GitBranchEvidenceStore(ROOT, branch="main")
+    for branch in ("market-data", "handicap-data", "main"):
+        with pytest.raises(ES.EvidenceStoreError):
+            ES.GitBranchEvidenceStore(ROOT, branch=branch)
 
 
 def test_G_only_issues_write_is_added():
     perms = doc()["permissions"]
-    assert perms == {"contents": "read", "issues": "write"}, (
-        f"preflight.yml permissions are {perms}; the issue trigger needs exactly one more grant")
+    assert perms == {"contents": "write", "issues": "write"}, (
+        f"preflight.yml permissions are {perms}; nothing beyond contents and issues is granted")
     for forbidden in ("pull-requests", "actions", "packages", "id-token", "deployments"):
         assert forbidden not in perms
 
@@ -321,12 +399,18 @@ def test_the_issue_number_is_used_only_for_cleanup():
 
 # ------------------------------------------------------------------ J-K: nothing else moved
 
-def test_J_the_worker_invocation_is_unchanged():
+def test_J_the_worker_invocation_reads_the_ledger_and_the_fees_and_not_the_capture_stream():
+    """FIX 4, pinned: the live decision path must not ask for a full market-data checkout again.
+
+    On 2026-09-13 that checkout fetched for ~57s and wrote ~17,491 files for another ~43s, to answer a
+    question about ONE ticker. The worker now fetches that ticker from the venue directly.
+    """
     step = next(s for s in job()["steps"] if "preflight_airtable.py" in (s.get("run") or ""))
     run = step["run"]
     assert "python3 scripts/handicap/preflight_airtable.py" in run
-    assert "--market-data ../market-data" in run
     assert "--handicap-root ../ledger" in run
+    assert "--fee-observations ../fees" in run
+    assert "--market-data" not in run, "the live path no longer reads the capture stream"
     assert step["working-directory"] == "code"
     # dry-run stays a workflow_dispatch-only affordance; an issue can never ask for --no-write, and it
     # could not weaken anything if it did.
@@ -335,7 +419,9 @@ def test_J_the_worker_invocation_is_unchanged():
 
 def test_K_the_secret_wiring_is_unchanged():
     step = next(s for s in job()["steps"] if "preflight_airtable.py" in (s.get("run") or ""))
-    assert set(step["env"]) == {"AIRTABLE_TOKEN", "PREFLIGHT_SIGNING_KEY"}
+    # PREFLIGHT_TRIGGER is which event fired -- a string GitHub already puts in the public log. The two
+    # secrets are still the only secrets.
+    assert set(step["env"]) == {"AIRTABLE_TOKEN", "PREFLIGHT_SIGNING_KEY", "PREFLIGHT_TRIGGER"}
     src = open(PREFLIGHT).read()
     assert "AIRTABLE_TOKEN is not configured" in src
     assert "PREFLIGHT_SIGNING_KEY is not configured" in src
@@ -361,7 +447,9 @@ def test_two_triggers_arriving_together_stay_serialised():
     assert c["cancel-in-progress"] is False
 
 
-def test_the_workflow_still_never_writes_a_ledger_branch():
+def test_the_workflow_still_never_writes_a_ledger_or_market_data_branch():
     src = open(PREFLIGHT).read()
-    assert "publish_market_data" not in src
-    assert "git push" not in src
+    assert "publish_market_data" not in src, "preflight does not publish captures"
+    assert "git push" not in src, "the workflow never pushes; the evidence store does, to its own branch"
+    for branch in ("handicap-data", "market-data"):
+        assert f"origin {branch}" not in src and f"origin/{branch}" not in src

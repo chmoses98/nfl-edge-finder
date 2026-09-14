@@ -68,6 +68,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from time import monotonic as _monotonic
 
 from nfl_edge.execution import depth as D
 from nfl_edge.execution import fees as F
@@ -111,6 +112,10 @@ class PreflightResult:
     fee_schedule: dict | None = None
     risk: dict | None = None
     outstanding: dict | None = None
+    # The DELIVERY check, kept deliberately out of `gates`. See `authorize_issuance`: it is a statement
+    # about the moment the answer was handed over, not about the decision, so it must never appear in the
+    # gate report the importer replays.
+    issuance: dict | None = None
 
     @property
     def may_be_shown_as_a_bet(self) -> bool:
@@ -126,19 +131,37 @@ class PreflightResult:
 
 def build_context(market_data_root: str | None, *, root: str, risk_report=None,
                   max_quote_age_minutes: float = Q.DEFAULT_MAX_QUOTE_AGE_MIN,
-                  max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN) -> G.GateContext:
+                  max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN,
+                  capture_index=None, book_index=None,
+                  fee_observations_root: str | None = None) -> G.GateContext:
     """The gate context, assembled identically for the pre-trade path and the import path.
 
     Note again what is absent: a `now`. Preflight runs minutes after the decision and the importer runs hours
     after it, and neither may consult a wall clock -- otherwise the two would be answering different
     questions and the replay would prove nothing.
+
+    TWO SOURCES OF MARKET EVIDENCE, ONE SET OF GATES
+    ------------------------------------------------
+    `market_data_root` is the capture stream: immutable, point-in-time, and the right evidence for the
+    ARCHIVAL replay, which is asking what the market was hours ago. Reading it costs a full checkout of a
+    branch that held ~17,491 files on 2026-09-13, which is the wrong price to pay for a live pre-trade
+    question about ONE contract.
+
+    So `capture_index` and `book_index` may be supplied directly. The live path passes indexes over
+    candidate-specific evidence fetched seconds earlier (see nfl_edge/handicap/live_evidence.py); the
+    importer passes nothing and gets the capture stream. Either way `evaluate_gates` is the same function
+    reading the same two interfaces, which is what keeps the replay meaningful.
+
+    `fee_observations_root` splits the fee-observation read off from the quote read, so the live path can
+    take a SPARSE checkout holding only `data/kalshi/fees/` and still answer the fee-schedule gate properly.
     """
     md = os.path.abspath(market_data_root) if market_data_root else None
+    fees_root = os.path.abspath(fee_observations_root) if fee_observations_root else md
     ctx = G.GateContext(
-        capture_index=Q.CaptureIndex(md) if md else None,
-        book_index=D.BookIndex(md) if md else None,
+        capture_index=capture_index if capture_index is not None else (Q.CaptureIndex(md) if md else None),
+        book_index=book_index if book_index is not None else (D.BookIndex(md) if md else None),
         fee_schedule=F.load_fee_schedule(root),
-        fee_observations=F.FeeObservations(md),
+        fee_observations=F.FeeObservations(fees_root),
         max_quote_age_minutes=max_quote_age_minutes,
         max_book_age_minutes=max_book_age_minutes,
     )
@@ -198,7 +221,10 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
                     max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN,
                     max_request_age_minutes: float = MAX_REQUEST_AGE_MIN,
                     request_id: str | None = None, request_created_at: datetime | None = None,
-                    bankroll_snapshot: float | None = None) -> list:
+                    bankroll_snapshot: float | None = None,
+                    capture_index=None, book_index=None,
+                    fee_observations_root: str | None = None,
+                    phase=None) -> list:
     """Preflight a slate of candidates together, AS OF the moment approval is being evaluated.
 
     Together, not one at a time, because the portfolio limits are statements about a SET of positions: three
@@ -228,7 +254,9 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
 
     ctx = build_context(market_data_root, root=root,
                         max_quote_age_minutes=max_quote_age_minutes,
-                        max_book_age_minutes=max_book_age_minutes)
+                        max_book_age_minutes=max_book_age_minutes,
+                        capture_index=capture_index, book_index=book_index,
+                        fee_observations_root=fee_observations_root)
 
     # Every candidate is evaluated as the RECOMMENDED record it would become, at the APPROVAL time, with its
     # market state re-priced to that moment. A candidate is by definition not yet recommended, and
@@ -254,7 +282,14 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
             p["preflight_request_airtable_id"] = request_id
         provisional.append(p)
 
+    # `phase(name, seconds)` is OBSERVATION ONLY and is never consulted for anything. The 2026-09-13
+    # incident was a latency failure nobody could see the shape of without reading raw runner logs
+    # afterwards, and reading the committed ledger is a genuinely separate cost from running the gates --
+    # reporting them as one number would hide whichever of the two was actually slow.
+    _t0 = _monotonic()
     report = R.report_for_batch(provisional, policy, ledger_root, bankroll_snapshot)
+    if phase is not None:
+        phase("ledger_load", _monotonic() - _t0)
     ctx.risk_report = report
     outstanding = getattr(report, "outstanding", None) or {}
 
@@ -316,6 +351,23 @@ def _one(original: dict, provisional: dict, ctx, report, outstanding, *,
             "Submit a fresh request rather than approving a thesis nobody has revisited.")
         return res
 
+    # 0.5 PRE-KICKOFF. Before the schema, so a post-kickoff request comes back with the gate's own name on
+    #     it. The schema also refuses `minutes_to_kickoff <= 0`, but that is a number the REQUESTER supplies
+    #     and preflight only recomputes when a fresh quote could be confirmed -- so the case that matters
+    #     most, a request whose market state could not be refreshed, is exactly the one where the stale
+    #     self-reported figure survives. This reads `kickoff_utc` against the approval clock. It is the same
+    #     function `evaluate_gates` runs, so the importer's replay reaches the identical verdict.
+    if not provisional.get("test_only"):
+        as_of_dt = _ts(provisional.get("created_at"))
+        pk = (G.pre_kickoff_gate(provisional, as_of_dt) if as_of_dt is not None else
+              G.GateResult(G.UNAVAILABLE,
+                           "the approval carries no usable timestamp, so it cannot be shown to predate "
+                           "kickoff"))
+        res.gates[G.G_PRE_KICKOFF] = pk.to_dict()
+        if pk.status in G.BLOCKING:
+            res.blocking_reasons.append(f"{G.G_PRE_KICKOFF}: {pk.reason}")
+            return res
+
     # 1. STRUCTURAL. The same schema the importer will apply. A candidate that could not be filed as a
     #    recommendation must not be shown as one either; discovering that twelve hours later is the whole
     #    class of problem this module exists to move forward in time.
@@ -346,6 +398,132 @@ def _one(original: dict, provisional: dict, ctx, report, outstanding, *,
     res.approved_record = provisional
     res.verdict, res.surface_as = APPROVED, S.RECOMMENDED
     return res
+
+
+# The name that appears on a refusal, stable so a reader can tell an ISSUANCE refusal from a GATE failure
+# at a glance. Deliberately not a `G_*` gate constant: see below.
+ISSUANCE = "issuance_temporal_authorization"
+
+# The two moments this check is made at. They are different questions with the same rule:
+#
+#   FORMATION  just before the approved payload is built and signed. Stops a dead approval from being
+#              assembled and signed at all.
+#   DELIVERY   immediately before the outbound Airtable request that makes the row visible. THIS is the
+#              binding one: an approval nobody can see has authorised nothing, so the moment that matters
+#              is the moment it becomes readable, not the moment it was computed.
+#
+# Formation alone is not enough, because a worker answering several rows holds the first row's approval in
+# memory while it fetches, stores and gates the rest -- an interval bounded only by how many rows are
+# pending. See `preflight_airtable.deliver`.
+STAGE_FORMATION = "formation"
+STAGE_DELIVERY = "delivery"
+
+
+def authorize_issuance(results: list, *, issued_at: datetime, stage: str = STAGE_FORMATION,
+                       max_quote_age_minutes: float = Q.DEFAULT_MAX_QUOTE_AGE_MIN,
+                       max_book_age_minutes: float = D.DEFAULT_MAX_BOOK_AGE_MIN) -> list:
+    """The last thing before an approval is handed over: is it STILL authorised, right now?
+
+    THE RACE THIS CLOSES
+    --------------------
+    Every gate is evaluated at `approval_as_of`, the decision instant -- correctly, because that is what
+    makes the verdict replayable. But the worker then keeps working: it builds the canonical payload, signs
+    it, and writes Airtable. Time passes between the decision and the delivery, and two things can expire in
+    that window:
+
+        decision at T-1s, kickoff at T        ->  the gates pass, and the owner is told to bet on a game
+                                                  that has already started by the time they read it
+        quote confirmed 14.9 min before the   ->  the gates pass, and the price the approval authorises is
+        decision                                  over the fifteen-minute line before the row is written
+
+    Neither is a defect in the gates. The gates answered the question they were asked, at the moment they
+    were asked it. This asks the OTHER question -- may this still be delivered? -- and it can only be asked
+    at delivery time.
+
+    WHY THIS IS NOT A GATE, AND MUST NOT BECOME ONE
+    -----------------------------------------------
+    `decision_before_kickoff` and the freshness gates are pure functions of the record and its evidence, and
+    that is what lets the importer reproduce the verdict hours later and get the same answer. This check
+    reads a clock that will never exist again. Putting it in `gates` would make the gate report
+    irreproducible and quietly break the replay -- so the refusal is recorded on `issuance`, and in
+    `blocking_reasons` where the owner will read it, and nowhere else.
+
+    `decision_before_kickoff` therefore stays exactly as it was. This is an ADDITIONAL refusal, never a
+    replacement, and it can only ever turn an APPROVED into a BLOCKED.
+
+    FAIL CLOSED
+    -----------
+    Only candidates that would otherwise be approved are examined -- there is nothing to withdraw from one
+    already blocked. For those, a missing or unreadable kickoff, quote timestamp or book timestamp is a
+    refusal: at the point of authorising real money, "I cannot tell whether this is still valid" is not a
+    yes. Refused candidates lose their approved record, so no payload is built and nothing is signed.
+
+    Returns the refusals as `(candidate_id, reason)`, and mutates the results in place.
+    """
+    if issued_at.tzinfo is None:
+        issued_at = issued_at.replace(tzinfo=timezone.utc)
+    refusals = []
+    for r in results:
+        if not r.may_be_shown_as_a_bet:
+            continue
+        rec = r.approved_record or {}
+        checks = {"issued_at": issued_at.isoformat(), "stage": stage}
+        reason = None
+
+        # 1. STILL PREGAME. Strictly before, exactly as the gate requires of the decision.
+        ko = _ts(rec.get("kickoff_utc"))
+        if ko is None:
+            reason = ("the approved record carries no readable kickoff_utc, so it cannot be shown to be "
+                      "still pregame at the moment of issue")
+        else:
+            checks["kickoff_utc"] = ko.isoformat()
+            checks["minutes_to_kickoff_at_issue"] = round((ko - issued_at).total_seconds() / 60.0, 2)
+            if issued_at >= ko:
+                reason = (
+                    f"kickoff passed while this approval was being prepared: the gates were evaluated at "
+                    f"{r.as_of} and the answer was issued at {issued_at.isoformat()}, at or after kickoff "
+                    f"{ko.isoformat()}. A pregame position can no longer be authorized.")
+
+        # 2. THE QUOTE IS STILL INSIDE ITS WINDOW, measured from the same confirmation the gate used.
+        if reason is None:
+            confirmed = _ts((r.decision_quote or {}).get("confirmed_at"))
+            if confirmed is None:
+                reason = ("the approved record carries no readable quote confirmation time, so its age at "
+                          "issue cannot be established")
+            else:
+                age = round((issued_at - confirmed).total_seconds() / 60.0, 2)
+                checks["quote_age_minutes_at_issue"] = age
+                if age > max_quote_age_minutes:
+                    reason = (
+                        f"the confirmed quote went stale while this approval was being prepared: "
+                        f"{age:.1f} min old at issue, beyond the {max_quote_age_minutes:.0f} min window. "
+                        "The price this approval authorises is no longer one we have seen.")
+
+        # 3. AND SO IS THE BOOK. Its own clock, because books are fetched after quotes and age separately.
+        if reason is None:
+            observed = _ts((r.depth or {}).get("book_observed_at"))
+            if observed is None:
+                reason = ("the approved record carries no readable order-book timestamp, so its age at "
+                          "issue cannot be established")
+            else:
+                age = round((issued_at - observed).total_seconds() / 60.0, 2)
+                checks["book_age_minutes_at_issue"] = age
+                if age > max_book_age_minutes:
+                    reason = (
+                        f"the order book went stale while this approval was being prepared: {age:.1f} min "
+                        f"old at issue, beyond the {max_book_age_minutes:.0f} min window. The depth this "
+                        "approval rests on is no longer observed.")
+
+        checks["authorized"] = reason is None
+        if reason is not None:
+            checks["refusal"] = reason
+            r.verdict, r.surface_as = BLOCKED, CANDIDATE
+            # The record goes with it. Nothing downstream may build a payload from a withdrawn approval.
+            r.approved_record = None
+            r.blocking_reasons.append(f"{ISSUANCE}: {reason}")
+            refusals.append((r.candidate_id, reason))
+        r.issuance = checks
+    return refusals
 
 
 def summarise(results: list) -> str:

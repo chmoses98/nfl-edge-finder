@@ -53,7 +53,17 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-APPROVAL_SCHEMA = "preflight-approval/1"
+# v2 adds ONE signed field: the hash of the evidence manifest -- every live market/order-book document this
+# approval was computed from, with the commit it was published in. Before it, the approval authenticated
+# WHAT was approved and WHEN; it said nothing about the market evidence, which lived only in a runner that
+# was deleted minutes later. Binding the evidence is what makes the delayed replay a check rather than a
+# restatement: the importer re-reads the documents at those paths, re-hashes them, and a single altered
+# digit anywhere fails the signature rather than merely looking different.
+APPROVAL_SCHEMA = "preflight-approval/2"
+# v1 still VERIFIES. Rows signed before this change carry real approvals from the same key, and refusing them
+# would destroy sound recommendations to punish a schema bump. It is not a weaker path: forging either
+# version needs the signing key. New approvals are only ever issued as v2.
+LEGACY_APPROVAL_SCHEMAS = ("preflight-approval/1",)
 SIGNATURE_ALGORITHM = "HMAC-SHA256"
 SIGNING_KEY_ENV = "PREFLIGHT_SIGNING_KEY"
 
@@ -69,8 +79,9 @@ CLOCK_SKEW = timedelta(minutes=5)
 # The fields the signature covers, in the order the canonical message lists them. Adding a field here is a
 # breaking change and must come with a new APPROVAL_SCHEMA, or old signatures would silently verify against
 # a message that no longer means the same thing.
-SIGNED_FIELDS = ("schema", "airtable_record_id", "run_id",
-                 "candidate_payload_sha256", "approved_payload_sha256", "approval_as_of")
+SIGNED_FIELDS_V1 = ("schema", "airtable_record_id", "run_id",
+                    "candidate_payload_sha256", "approved_payload_sha256", "approval_as_of")
+SIGNED_FIELDS = SIGNED_FIELDS_V1 + ("evidence_manifest_sha256",)
 
 
 class ApprovalError(ValueError):
@@ -104,21 +115,33 @@ def signing_key(env=None) -> bytes:
 
 
 def canonical_message(*, airtable_record_id: str, run_id: str, candidate_payload_sha256: str,
-                      approved_payload_sha256: str, approval_as_of: str) -> str:
+                      approved_payload_sha256: str, approval_as_of: str,
+                      evidence_manifest_sha256: str | None = None,
+                      schema: str = APPROVAL_SCHEMA) -> str:
     """The exact bytes that are signed and verified.
 
     Compact separators and sorted keys, so the message is a function of its VALUES and not of how any
     particular json.dumps was configured on either side.
+
+    `schema` selects the field set, and a v1 message is byte-identical to the one that version always
+    produced -- it does not carry an empty evidence field, because an absent key and a key set to "" are
+    different messages and old signatures were made over the former.
     """
     body = {
-        "schema": APPROVAL_SCHEMA,
+        "schema": schema,
         "airtable_record_id": airtable_record_id,
         "run_id": run_id,
         "candidate_payload_sha256": candidate_payload_sha256,
         "approved_payload_sha256": approved_payload_sha256,
         "approval_as_of": approval_as_of,
     }
-    missing = [k for k in SIGNED_FIELDS if not body.get(k)]
+    fields = SIGNED_FIELDS_V1
+    if schema == APPROVAL_SCHEMA:
+        body["evidence_manifest_sha256"] = evidence_manifest_sha256
+        fields = SIGNED_FIELDS
+    elif schema not in LEGACY_APPROVAL_SCHEMAS:
+        raise ApprovalError(f"cannot build an approval message for unknown schema {schema!r}")
+    missing = [k for k in fields if not body.get(k)]
     if missing:
         raise ApprovalError(f"cannot build an approval message without {missing}")
     return json.dumps(body, sort_keys=True, separators=(",", ":"))
@@ -129,17 +152,29 @@ def sign(key: bytes, message: str) -> str:
 
 
 def issue(*, key: bytes, airtable_record_id: str, run_id: str, candidate_payload: str,
-          approved_payload: str, approval_as_of: str) -> dict:
-    """The signed block the worker embeds in `Preflight Result`."""
+          approved_payload: str, approval_as_of: str, evidence_manifest_sha256: str) -> dict:
+    """The signed block the worker embeds in `Preflight Result`.
+
+    `evidence_manifest_sha256` is REQUIRED and has no default. A default would be the one line of code that
+    turned "this approval names the market evidence it rests on" back into "this approval says it was
+    approved", and the whole point of the pre-trade rebuild is that the evidence outlives the runner.
+    """
+    if not evidence_manifest_sha256:
+        raise ApprovalError(
+            "cannot issue an approval without an evidence manifest hash. A pre-trade approval names the "
+            "live market evidence it was computed from, so a later replay can re-read exactly that evidence "
+            "and reach the verdict again independently.")
     message = canonical_message(
         airtable_record_id=airtable_record_id, run_id=run_id,
         candidate_payload_sha256=sha256_text(candidate_payload),
         approved_payload_sha256=sha256_text(approved_payload),
-        approval_as_of=approval_as_of)
+        approval_as_of=approval_as_of,
+        evidence_manifest_sha256=evidence_manifest_sha256)
     return {
         "approval_schema": APPROVAL_SCHEMA,
         "approval_signature_algorithm": SIGNATURE_ALGORITHM,
         "approval_signature": sign(key, message),
+        "evidence_manifest_sha256": evidence_manifest_sha256,
     }
 
 
@@ -151,10 +186,14 @@ class VerifiedApproval:
     candidate_payload_sha256: str
     approved_payload_sha256: str
     approval_as_of: datetime
+    # None only for a legacy v1 approval, which predates evidence binding. A v2 approval always names one.
+    evidence_manifest_sha256: str | None = None
+    approval_schema: str = APPROVAL_SCHEMA
 
 
 def verify(result: dict, *, key: bytes, airtable_record_id: str, run_id: str,
-           candidate_payload: str, approved_payload: str) -> VerifiedApproval:
+           candidate_payload: str, approved_payload: str,
+           evidence_manifest_sha256: str | None = None) -> VerifiedApproval:
     """Authenticate an approval against the ROW'S OWN FACTS.
 
     The message is rebuilt from what the importer can see for itself -- this row's id, this row's Run ID, the
@@ -165,15 +204,21 @@ def verify(result: dict, *, key: bytes, airtable_record_id: str, run_id: str,
 
     They get separate rules anyway, first, because "signature mismatch" is a useless thing to read at 01:00
     when what actually happened is that somebody edited the payload.
+
+    `evidence_manifest_sha256`, when supplied, is what the CALLER independently recomputed from the evidence
+    branch. Passing it turns the check from "the approval names some evidence" into "the approval names THIS
+    evidence, and this evidence is still byte-for-byte what it was", which is the property the delayed
+    replay exists to establish.
     """
     if not isinstance(result, dict):
         raise ApprovalError("`Preflight Result` is not an object")
 
     schema = result.get("approval_schema")
-    if schema != APPROVAL_SCHEMA:
+    if schema != APPROVAL_SCHEMA and schema not in LEGACY_APPROVAL_SCHEMAS:
         raise ApprovalError(
-            f"unknown approval schema {schema!r}; this importer authenticates {APPROVAL_SCHEMA!r} only. An "
-            "approval whose format we do not recognise is not an approval we can check.")
+            f"unknown approval schema {schema!r}; this importer authenticates "
+            f"{(APPROVAL_SCHEMA, *LEGACY_APPROVAL_SCHEMAS)}. An approval whose format we do not recognise is "
+            "not an approval we can check.")
     algorithm = result.get("approval_signature_algorithm")
     if algorithm != SIGNATURE_ALGORITHM:
         raise ApprovalError(f"unknown signature algorithm {algorithm!r}; expected {SIGNATURE_ALGORITHM}")
@@ -216,18 +261,42 @@ def verify(result: dict, *, key: bytes, airtable_record_id: str, run_id: str,
     if parsed is None:
         raise ApprovalError(f"approval_as_of {as_of!r} is not an ISO-8601 timestamp")
 
+    claimed_evidence = result.get("evidence_manifest_sha256")
+    if schema == APPROVAL_SCHEMA:
+        if not claimed_evidence or not isinstance(claimed_evidence, str):
+            raise ApprovalError(
+                f"a {APPROVAL_SCHEMA} approval must name the evidence manifest it was computed from; this "
+                "one does not, so there is nothing for a replay to re-read")
+        if evidence_manifest_sha256 is not None and evidence_manifest_sha256 != claimed_evidence:
+            raise ApprovalError(
+                "the preflight evidence has changed since the approval was issued: the approval was made "
+                f"against manifest {claimed_evidence}, and the stored evidence now hashes to "
+                f"{evidence_manifest_sha256}. An approval is bound to the exact market evidence that "
+                "produced it.")
+    elif claimed_evidence:
+        # A legacy row that has grown an evidence field is not a legacy row, and refusing it is cheaper than
+        # guessing which of the two shapes was meant.
+        raise ApprovalError(
+            f"approval schema {schema!r} does not sign an evidence manifest, but this result carries one. "
+            "Re-request preflight rather than mixing two approval formats on one row.")
+
     message = canonical_message(
         airtable_record_id=airtable_record_id, run_id=run_id,
         candidate_payload_sha256=candidate_sha, approved_payload_sha256=approved_sha,
-        approval_as_of=as_of)
+        approval_as_of=as_of,
+        evidence_manifest_sha256=(claimed_evidence if schema == APPROVAL_SCHEMA else None),
+        schema=schema)
     if not hmac.compare_digest(sign(key, message), signature):
         raise ApprovalError(
             "the approval signature does not verify. The pre-trade worker did not issue this approval for "
             "this row, and a recommendation is not archived on an unauthenticated one.")
 
     return VerifiedApproval(airtable_record_id=airtable_record_id, run_id=run_id,
-                           candidate_payload_sha256=candidate_sha,
-                           approved_payload_sha256=approved_sha, approval_as_of=parsed)
+                            candidate_payload_sha256=candidate_sha,
+                            approved_payload_sha256=approved_sha, approval_as_of=parsed,
+                            evidence_manifest_sha256=(claimed_evidence
+                                                      if schema == APPROVAL_SCHEMA else None),
+                            approval_schema=schema)
 
 
 def check_approval_window(approval_as_of: datetime, airtable_created: datetime, *,

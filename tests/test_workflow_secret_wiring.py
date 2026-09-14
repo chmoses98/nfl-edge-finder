@@ -132,6 +132,13 @@ def test_every_secret_the_script_reads_is_declared_on_the_step_that_runs_it(path
     # The signing key is read one level down, in approval.signing_key(); the script calls it by name.
     if f"{APPROVAL.__name__.split('.')[-1].upper()}.signing_key()" in src or "signing_key()" in src:
         read.add(KEY_ENV)
+    # `GITHUB_*` is set by the RUNNER on every step, by definition -- GITHUB_STEP_SUMMARY cannot even be
+    # re-declared, because there is no context expression for the file the runner allocates. This check
+    # exists to catch a SECRET or a configuration value a step forgot to pass, and a runner-provided
+    # variable is neither. Nothing here relaxes what happens to AIRTABLE_TOKEN or PREFLIGHT_SIGNING_KEY:
+    # both are still derived from the script and still asserted below.
+    read = {name for name in read if not name.startswith("GITHUB_")}
+    assert KEY_ENV in read and "AIRTABLE_TOKEN" in read, "the two real secrets must still be derived"
     env = _env_of(_step_calling(_doc(path), script))
     missing = sorted(name for name in read if name not in env)
     assert not missing, (

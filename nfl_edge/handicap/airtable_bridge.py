@@ -36,6 +36,7 @@ written. A batch that is partly in the ledger is a batch nobody can score.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -48,6 +49,7 @@ from datetime import datetime, timedelta, timezone
 
 from nfl_edge.handicap import approval as APPROVAL
 from nfl_edge.handicap import gates as G
+from nfl_edge.handicap import live_evidence as LE
 from nfl_edge.handicap import schema as S
 from nfl_edge.handicap import store
 
@@ -493,9 +495,119 @@ class RunPlan:
         return not self.to_write and self.receipt is None
 
 
+def read_preflight_evidence(fields: dict, evidence_root: str | None) -> tuple:
+    """The market evidence this row's approval was computed from, re-read and re-hashed here.
+
+    Returns `(documents, manifest_sha256)`, or `(None, None)` only for a row that genuinely has no
+    evidence to read: a plain PASS batch, or a legacy `preflight-approval/1` approval issued before evidence
+    binding existed.
+
+    NO SILENT FALLBACK. A `preflight-approval/2` approval NAMES the market documents it was computed from,
+    and it is archived against those documents or it is not archived. "The evidence checkout is missing, so
+    replay from the capture stream instead" is precisely the substitution this whole mechanism exists to
+    prevent -- it would archive a bet by re-deciding it against different, older evidence and call that a
+    reproduction.
+
+    WHY THE CAPTURE STREAM IS NOT A SUBSTITUTE. Preflight prices a candidate from a live fetch made seconds
+    before the decision. The conductor's own capture of the same contract may be ten minutes older and at a
+    different price, so replaying the approved record against it asks a DIFFERENT question -- it could refuse
+    a sound recommendation, or pass one whose real evidence has since been deleted.
+
+    THE TWO FAILURE CLASSES ARE DIFFERENT AND ARE KEPT APART:
+
+      ConfigurationError  the evidence cannot be REACHED -- no `--preflight-evidence` root, or a root that
+                          does not hold this document. That is a property of the RUNNER, not the row, so the
+                          row stays READY_FOR_SYNC and imports unchanged once the checkout is right. Marking
+                          it ERROR would destroy a valid signed recommendation to punish a misconfiguration.
+      BridgeError         the evidence is THERE and WRONG -- a hash mismatch, a substituted document, a
+                          manifest that does not reconstruct. Nothing about that is a configuration problem.
+
+    Neither archives anything. Both are loud.
+    """
+    result_raw = fields.get(F_PREFLIGHT_RESULT)
+    if not isinstance(result_raw, str) or not result_raw.strip():
+        return None, None
+    try:
+        result = json.loads(result_raw)
+    except (ValueError, TypeError):
+        return None, None                     # `_canonical_records` reports the malformed result properly
+    ev = (result or {}).get("evidence") or {}
+    entries = ev.get("documents") or []
+
+    # Does this approval REQUIRE its evidence? A v2 approval always names a manifest -- `APPROVAL.issue`
+    # refuses to mint one without it -- so the SCHEMA is the authority, not the presence of a field an
+    # attacker could simply delete.
+    #
+    # Scoped to rows that actually present an `Approved Payload`, because that is the only thing an approval
+    # is ever used FOR. This is not a way out: a row with a real RECOMMENDED record and no `Approved
+    # Payload` is refused outright by `_canonical_records` below, and a batch with no real record has no bet
+    # to protect. What it avoids is a PASS-only row carrying a leftover approval being deferred forever for
+    # evidence nothing was going to be archived against.
+    approved_raw = fields.get(F_APPROVED_PAYLOAD)
+    requires_evidence = ((result or {}).get("approval_schema") == APPROVAL.APPROVAL_SCHEMA
+                         and isinstance(approved_raw, str) and bool(approved_raw.strip()))
+    if not requires_evidence:
+        return None, None
+
+    if not entries:
+        raise BridgeError(
+            f"this row carries a {APPROVAL.APPROVAL_SCHEMA} approval but names no evidence documents. A v2 "
+            "approval is issued against live market evidence and cannot be archived without naming it; "
+            "re-request preflight rather than importing a bet nothing can reproduce.")
+    if not evidence_root:
+        raise ConfigurationError(
+            f"this row carries a {APPROVAL.APPROVAL_SCHEMA} approval naming {len(entries)} evidence "
+            "document(s), but no preflight-evidence checkout was supplied to read them from. The approval "
+            "is archived against the evidence it was computed on or not at all -- replaying it against the "
+            "capture stream would re-decide the bet on different, older market data and call that a "
+            "reproduction. Pass --preflight-evidence with a checkout of the preflight-evidence branch. This "
+            f"is a RUNNER problem, not a row problem: the row stays {STATUS_READY} and imports unchanged "
+            "once the checkout is present.")
+
+    documents = []
+    for e in entries:
+        rel = str(e.get("path") or "").lstrip("/")
+        path = os.path.join(evidence_root, rel)
+        try:
+            with open(path, "rb") as f:
+                text = f.read().decode("utf-8")
+        except OSError as exc:
+            raise ConfigurationError(
+                f"the preflight evidence this approval cites is not present at {rel} under "
+                f"{evidence_root} ({exc}). Either the evidence checkout is stale or wrong, or the document "
+                "has been removed from the branch -- and this importer cannot tell those apart, so it "
+                f"refuses to archive and leaves the row {STATUS_READY}. Nothing is written. If the checkout "
+                "is correct and current, the evidence is genuinely gone and the row must be re-requested.")
+        try:
+            documents.append(LE.load_document(text, expected_sha256=e.get("sha256")))
+        except LE.EvidenceError as exc:
+            raise BridgeError(str(exc)) from None
+
+    recomputed = LE.manifest_sha256(
+        [{"path": e.get("path"), "sha256": e.get("sha256")} for e in entries],
+        storage=ev.get("storage") or "", commit=ev.get("commit"))
+    return documents, recomputed
+
+
+def _context_with_evidence(gate_context, documents):
+    """A shallow copy of the gate context reading the preflight evidence instead of the capture stream.
+
+    Shallow, so the fee schedule and the risk report are shared and only the two market indexes move. The
+    gate FUNCTION is untouched: `evaluate_gates` reads the same two interfaces either way, which is what
+    makes this a replay rather than a second opinion.
+    """
+    if gate_context is None or not documents:
+        return gate_context
+    ctx = copy.copy(gate_context)
+    ctx.capture_index = LE.EvidenceQuoteIndex(documents)
+    ctx.book_index = LE.EvidenceBookIndex(documents)
+    return ctx
+
+
 def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
              base_id: str = BASE_ID, table_id: str = TABLE_ID,
-             gate_context: "G.GateContext | None" = None, signing_key=None) -> RunPlan:
+             gate_context: "G.GateContext | None" = None, signing_key=None,
+             evidence_root: str | None = None) -> RunPlan:
     """Validate one row and work out the exact file operations, without performing any of them.
 
     Planning before writing is what makes a batch atomic: every reason to refuse -- schema, coherence,
@@ -518,8 +630,12 @@ def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
     # archived from `Approved Payload` -- the exact batch the pre-trade worker approved -- and only after its
     # hash is re-derived here and matched against the hash recorded in `Preflight Result`. Without that, a
     # row could be written straight to READY_FOR_SYNC and walk a bet into the ledger having passed nothing.
+    # Read the approval's own market evidence FIRST, so the manifest hash goes into the signature check and
+    # the same documents then drive the gate replay below. Both halves fail closed.
+    evidence_documents, evidence_manifest = read_preflight_evidence(fields, evidence_root)
     records, source, approved_sha, verified = _canonical_records(
-        fields, candidate_records, airtable_id, run_id, airtable_created, signing_key)
+        fields, candidate_records, airtable_id, run_id, airtable_created, signing_key,
+        evidence_manifest_sha256=evidence_manifest)
     # The CANDIDATE request is still judged by the old anti-backfill discipline -- that clock did not change,
     # and a request that claims to predate its own row by a day is still not prospective evidence. What the
     # approval clock replaces is only the rule about the machine-approved record.
@@ -556,7 +672,7 @@ def plan_run(row: dict, ledger_root: str, *, now: datetime | None = None,
                 "overwrite one. To revise a decision, submit a NEW row whose records carry `amends` set to "
                 "the original recommendation_id.")
 
-    _plan_gates(plan, ledger_root, gate_context, now)
+    _plan_gates(plan, ledger_root, _context_with_evidence(gate_context, evidence_documents), now)
     plan.receipt = _plan_receipt(plan, ledger_root, records, base_id, table_id, now)
     return plan
 
@@ -567,7 +683,8 @@ def _needs_preflight(records: list) -> bool:
 
 
 def _canonical_records(fields: dict, candidate_records: list, airtable_id: str, run_id: str,
-                      airtable_created: datetime, signing_key) -> tuple:
+                      airtable_created: datetime, signing_key,
+                      evidence_manifest_sha256: str | None = None) -> tuple:
     """The records this row actually archives, and the AUTHENTICATED proof it is allowed to.
 
     A batch with no real RECOMMENDED record keeps the simple path: a PASS is scientifically valuable, costs
@@ -627,7 +744,8 @@ def _canonical_records(fields: dict, candidate_records: list, airtable_id: str, 
         verified = APPROVAL.verify(
             result, key=signing_key, airtable_record_id=airtable_id, run_id=run_id,
             candidate_payload=candidate_raw if isinstance(candidate_raw, str) else "",
-            approved_payload=approved_raw)
+            approved_payload=approved_raw,
+            evidence_manifest_sha256=evidence_manifest_sha256)
         APPROVAL.check_approval_window(verified.approval_as_of, airtable_created)
     except APPROVAL.ApprovalError as e:
         raise BridgeError(str(e)) from None

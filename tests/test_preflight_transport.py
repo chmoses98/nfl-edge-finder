@@ -31,6 +31,9 @@ from nfl_edge.handicap import risk as R                   # noqa: E402
 from nfl_edge.handicap import schema as S                 # noqa: E402
 
 import preflight_airtable as W                            # noqa: E402
+import replay_preflight_evidence as RP                    # noqa: E402
+from nfl_edge.handicap import live_evidence as LE         # noqa: E402
+from preflight_fakes import DEEP, FakeKalshiClient, evidence_dir, fresh_client  # noqa: E402,F401
 from test_preflight import candidate, ledger, market_data  # noqa: E402,F401
 
 NOW = datetime(2026, 9, 9, 13, 5, tzinfo=timezone.utc)
@@ -73,11 +76,23 @@ def row(candidates, rid="recPF0000000001", status=AB.STATUS_PREFLIGHT_REQUESTED,
                        AB.F_PAYLOAD: json.dumps(candidates)}}
 
 
-def go(tmp_path, rows, *, md=None, led=None, **kw):
+def live(tmp_path, now, *, client=None, name="evidence", **kw):
+    """The LIVE pre-trade wiring: a venue that answers two GETs, and somewhere durable to keep the answer.
+
+    This is the production path, not a shortcut around it. `main()` always builds a collector and a store,
+    so a test that ran without them would be testing a mode nobody ships.
+    """
+    store, root = evidence_dir(tmp_path, name)
+    return {"evidence_collector": W.LiveEvidenceCollector(client or fresh_client(now, **kw)),
+            "evidence_store": store}, root
+
+
+def go(tmp_path, rows, *, client=None, led=None, **kw):
     fake = FakeAirtable(rows)
     kw.setdefault("signing_key", SIGNING_KEY)
-    code = W.run(fake, market_data_root=md or market_data(tmp_path),
-                 ledger_root=led or ledger(tmp_path), now=NOW, **kw)
+    now = kw.pop("now", NOW)
+    wiring, _root = live(tmp_path, now, client=client)
+    code = W.run(fake, ledger_root=led or ledger(tmp_path), now=now, **wiring, **kw)
     return code, fake
 
 
@@ -119,8 +134,8 @@ def test_the_approved_stake_is_the_policy_stake_not_the_proposal(tmp_path):
 # ---- blocked is an ANSWER, and it is not an approval --------------------------------------------------
 
 def test_a_thin_book_comes_back_blocked_with_reasons(tmp_path):
-    md = market_data(tmp_path, ladder=[(0.56, 2.0)])
-    code, fake = go(tmp_path, [row([candidate(proposed_stake=50, recommended_stake=50)])], md=md)
+    client = fresh_client(NOW, ladder=[(0.56, 2.0)])
+    code, fake = go(tmp_path, [row([candidate(proposed_stake=50, recommended_stake=50)])], client=client)
     assert code == 0, "a blocked candidate is the pipeline working, not a failure"
     assert fake.written["recPF0000000001"][AB.F_STATUS] == AB.STATUS_PREFLIGHT_BLOCKED
     body = result_of(fake)
@@ -154,13 +169,15 @@ def test_an_unusable_payload_is_an_error_never_an_approval(tmp_path):
 
 def test_an_unreachable_airtable_leaves_the_row_unanswered(tmp_path):
     fake = FakeAirtable([row([candidate()])], fail_list=True)
-    code = W.run(fake, market_data_root=market_data(tmp_path), ledger_root=ledger(tmp_path), now=NOW)
+    wiring, _ = live(tmp_path, NOW)
+    code = W.run(fake, ledger_root=ledger(tmp_path), now=NOW, **wiring)
     assert code == 3 and fake.written == {}, "an unanswered request stays REQUESTED, which is not approved"
 
 
 def test_a_failed_writeback_leaves_the_row_unanswered(tmp_path):
     fake = FakeAirtable([row([candidate()])], fail_write=True)
-    code = W.run(fake, market_data_root=market_data(tmp_path), ledger_root=ledger(tmp_path), now=NOW)
+    wiring, _ = live(tmp_path, NOW)
+    code = W.run(fake, ledger_root=ledger(tmp_path), now=NOW, signing_key=SIGNING_KEY, **wiring)
     assert code == 3, "a verdict that never reached Airtable has not been delivered"
 
 
@@ -208,15 +225,26 @@ def test_the_archival_cadence_is_untouched():
     pre = yaml.safe_load(open(os.path.join(ROOT, ".github/workflows/preflight.yml")))
     assert "schedule" not in pre[True], "the pre-trade leg is event-driven; a cron here would be polling"
     assert "workflow_dispatch" in pre[True] and "repository_dispatch" in pre[True]
-    assert pre["permissions"]["contents"] == "read", "preflight never writes a branch"
+    # `contents: write` publishes append-only PUBLIC market evidence to `preflight-evidence`, and the
+    # evidence store refuses every other branch. See test_preflight_evidence.py.
+    assert pre["permissions"]["contents"] == "write"
+    assert "git push" not in open(os.path.join(ROOT, ".github/workflows/preflight.yml")).read(), \
+        "the workflow itself never pushes; only the evidence store does, and only to its own branch"
 
 
 def test_the_preflight_workflow_reads_both_branches_it_needs():
     import yaml                                                     # noqa: PLC0415
     wf = yaml.safe_load(open(os.path.join(ROOT, ".github/workflows/preflight.yml")))
     refs = [s.get("with", {}).get("ref") for s in wf["jobs"]["preflight"]["steps"]]
-    assert "market-data" in refs, "the quote and depth gates need the capture stream"
+    assert "market-data" in refs, "the fee-schedule gate needs the committed fee observations"
     assert "handicap-data" in refs, "cumulative exposure needs the committed ledger"
+    md_step = next(s for s in wf["jobs"]["preflight"]["steps"]
+                   if (s.get("with") or {}).get("ref") == "market-data")
+    # SPARSE, and only the fees. The full branch held ~17,491 files on 2026-09-13 and cost ~100s of
+    # checkout to answer a question about one ticker.
+    assert "data/kalshi/fees" in (md_step["with"].get("sparse-checkout") or "")
+    assert md_step["with"].get("sparse-checkout-cone-mode") is False
+    assert "capture" not in (md_step["with"].get("sparse-checkout") or "")
 
 
 def test_the_worker_does_not_reimplement_preflight():
@@ -262,7 +290,9 @@ def test_a_test_only_candidate_round_trips_without_touching_a_live_market(tmp_pa
     """
     probe = candidate(recommendation_id="rec_test000000000001", test_only=True,
                       market_ticker="KXNFLGAME-99DEC31TSTTST-TST")
-    code, fake = go(tmp_path, [row([probe], run_id="E2E-PREFLIGHT")], md=str(tmp_path / "empty-md"))
+    client = fresh_client(NOW, fail_market=True)   # the venue is never asked; a fetch here would raise
+    code, fake = go(tmp_path, [row([probe], run_id="E2E-PREFLIGHT")], client=client)
+    assert client.calls == [], "a TEST_ONLY probe must not touch the live market"
     assert code == 0
     body = result_of(fake)
     assert body["run_id"] == "E2E-PREFLIGHT"
@@ -285,8 +315,10 @@ def at(minutes):
 def go_at(tmp_path, rows, minutes, **kw):
     fake = FakeAirtable(rows)
     kw.setdefault("signing_key", SIGNING_KEY)
-    code = W.run(fake, market_data_root=kw.pop("md", None) or market_data(tmp_path),
-                 ledger_root=kw.pop("led", None) or ledger(tmp_path), now=at(minutes), **kw)
+    now = at(minutes)
+    wiring, root = live(tmp_path, now, client=kw.pop("client", None))
+    code = W.run(fake, ledger_root=kw.pop("led", None) or ledger(tmp_path), now=now, **wiring, **kw)
+    fake.evidence_root = root
     return code, fake
 
 
@@ -314,9 +346,8 @@ def test_B_a_request_delayed_past_its_window_expires(tmp_path):
 
 def test_C_the_market_state_used_is_the_one_at_approval_not_at_draft(tmp_path):
     """Two captures: 0.56 near the draft, 0.58 just before approval. The approved record must say 0.58."""
-    md = market_data(tmp_path, ask=0.56, minutes_before=4.0)
-    market_data(tmp_path, ask=0.58, minutes_before=-18.0, name="md")   # 18 min AFTER the draft
-    code, fake = go_at(tmp_path, [row([candidate()])], 20, md=md)
+    code, fake = go_at(tmp_path, [row([candidate()])], 20,
+                       client=fresh_client(at(20), ask=0.58))
     assert code == 0
     approved = json.loads(fake.written["recPF0000000001"][AB.F_APPROVED_PAYLOAD])[0]
     assert approved["yes_ask"] == pytest.approx(0.58), "the record must carry the approval-time ask"
@@ -328,10 +359,8 @@ def test_C_the_market_state_used_is_the_one_at_approval_not_at_draft(tmp_path):
 
 def test_D_a_worse_current_ask_above_the_ceiling_blocks(tmp_path):
     """The candidate's ceiling is 0.59. If the market has moved to 0.61 by approval time, it is not a bet."""
-    md = market_data(tmp_path, ask=0.56, minutes_before=4.0)
-    market_data(tmp_path, ask=0.61, minutes_before=-18.0, name="md",
-                ladder=[(0.61, 100000.0)])
-    code, fake = go_at(tmp_path, [row([candidate()])], 20, md=md)
+    code, fake = go_at(tmp_path, [row([candidate()])], 20,
+                       client=fresh_client(at(20), ask=0.61, ladder=[(0.61, 100000.0)]))
     assert code == 0
     assert fake.written["recPF0000000001"][AB.F_STATUS] == AB.STATUS_PREFLIGHT_BLOCKED
     c = result_of(fake)["candidates"][0]
@@ -341,9 +370,8 @@ def test_D_a_worse_current_ask_above_the_ceiling_blocks(tmp_path):
 
 
 def test_E_depth_that_thinned_out_by_approval_time_blocks(tmp_path):
-    md = market_data(tmp_path, ask=0.56, minutes_before=4.0)
-    market_data(tmp_path, ask=0.56, minutes_before=-18.0, name="md", ladder=[(0.56, 2.0)])
-    code, fake = go_at(tmp_path, [row([candidate(proposed_stake=50, recommended_stake=50)])], 20, md=md)
+    code, fake = go_at(tmp_path, [row([candidate(proposed_stake=50, recommended_stake=50)])], 20,
+                       client=fresh_client(at(20), ladder=[(0.56, 2.0)]))
     assert code == 0
     c = result_of(fake)["candidates"][0]
     assert c["may_be_shown_as_a_bet"] is False
@@ -353,9 +381,8 @@ def test_E_depth_that_thinned_out_by_approval_time_blocks(tmp_path):
 
 def test_F_an_improved_market_is_recorded_at_the_approval_price(tmp_path):
     """A better price is fine. What is not fine is a record that claims the price it was drafted at."""
-    md = market_data(tmp_path, ask=0.56, minutes_before=4.0)
-    market_data(tmp_path, ask=0.54, minutes_before=-18.0, name="md")
-    code, fake = go_at(tmp_path, [row([candidate()])], 20, md=md)
+    code, fake = go_at(tmp_path, [row([candidate()])], 20,
+                       client=fresh_client(at(20), ask=0.54))
     assert code == 0
     approved = json.loads(fake.written["recPF0000000001"][AB.F_APPROVED_PAYLOAD])[0]
     assert approved["yes_ask"] == pytest.approx(0.54)
@@ -363,18 +390,28 @@ def test_F_an_improved_market_is_recorded_at_the_approval_price(tmp_path):
 
 
 def test_G_the_delayed_archival_replay_reproduces_the_approval(tmp_path):
-    """The importer replays the APPROVED record at ITS created_at -- which is the approval time."""
-    md, led = market_data(tmp_path), ledger(tmp_path)
-    _code, fake = go_at(tmp_path, [row([candidate()])], 2, md=md, led=led)
-    approved = json.loads(fake.written["recPF0000000001"][AB.F_APPROVED_PAYLOAD])
+    """The importer replays the APPROVED record at ITS created_at, against the STORED evidence.
 
+    This is the property the evidence branch exists for. Nothing here asks the worker what it decided or
+    trusts the signature: the documents are re-read off disk, re-hashed against what the approval recorded,
+    and `evaluate_gates` -- the same function, not a second implementation -- is run again.
+    """
+    led = ledger(tmp_path)
+    _code, fake = go_at(tmp_path, [row([candidate()])], 2, led=led)
+    approved = json.loads(fake.written["recPF0000000001"][AB.F_APPROVED_PAYLOAD])
+    result = result_of(fake)
+
+    documents, entries = RP.load_evidence(fake.evidence_root, result)
+    assert entries, "the approval must name the evidence it was computed from"
     report = R.report_for_batch(approved, R.RiskPolicy.load(ROOT), led)
-    ctx = P.build_context(md, root=ROOT, risk_report=report)
+    ctx = P.build_context(None, root=ROOT, risk_report=report,
+                          capture_index=LE.EvidenceQuoteIndex(documents),
+                          book_index=LE.EvidenceBookIndex(documents))
     replayed = G.evaluate_gates(approved[0], ctx)
     assert replayed.overall == G.PASS
     assert replayed.as_of == at(2).isoformat(), "the replay judges at the approval timestamp"
     assert replayed.decision_quote["executable_price"] == pytest.approx(
-        result_of(fake)["candidates"][0]["executable_price"])
+        result["candidates"][0]["executable_price"])
 
 
 def test_the_handicap_is_carried_forward_untouched(tmp_path):
@@ -431,11 +468,15 @@ def test_an_approval_is_signed_with_the_worker_key(tmp_path):
         candidate_payload=json.dumps([candidate()]), approved_payload=written[AB.F_APPROVED_PAYLOAD])
     assert verified.approval_as_of == at(2)
 
+    # The signature covers the EVIDENCE too, so an approval names the market documents it rests on.
+    assert body["evidence_manifest_sha256"] == body["evidence"]["manifest_sha256"]
+    assert verified.evidence_manifest_sha256 == body["evidence"]["manifest_sha256"]
+
 
 def test_a_blocked_row_carries_no_signature(tmp_path):
     """Nothing to authenticate: there is no approved batch."""
-    md = market_data(tmp_path, ladder=[(0.56, 2.0)])
-    _code, fake = go_at(tmp_path, [row([candidate(proposed_stake=50, recommended_stake=50)])], 2, md=md)
+    _code, fake = go_at(tmp_path, [row([candidate(proposed_stake=50, recommended_stake=50)])], 2,
+                        client=fresh_client(at(2), ladder=[(0.56, 2.0)]))
     body = json.loads(fake.written["recPF0000000001"][AB.F_PREFLIGHT_RESULT])
     assert "approval_signature" not in body
 
@@ -443,8 +484,8 @@ def test_a_blocked_row_carries_no_signature(tmp_path):
 def test_the_worker_refuses_to_issue_an_unsigned_approval(tmp_path):
     """An approval the importer would refuse is not issued at all."""
     fake = FakeAirtable([row([candidate()])])
-    code = W.run(fake, market_data_root=market_data(tmp_path), ledger_root=ledger(tmp_path),
-                 now=at(2), signing_key=None)
+    wiring, _ = live(tmp_path, at(2))
+    code = W.run(fake, ledger_root=ledger(tmp_path), now=at(2), signing_key=None, **wiring)
     assert code == 1
     assert fake.written["recPF0000000001"][AB.F_STATUS] == AB.STATUS_PREFLIGHT_ERROR
     assert AB.F_APPROVED_PAYLOAD not in fake.written["recPF0000000001"]
@@ -481,16 +522,32 @@ def test_the_age_basis_is_reported_so_the_two_clocks_cannot_be_confused(tmp_path
     assert c["request_age_minutes"] == pytest.approx(2.0)
 
 
+def stepping(start, step_seconds=1):
+    """A clock that advances on every read, like the real one does while work is being done."""
+    state = {"n": 0}
+
+    def read():
+        t = start + timedelta(seconds=step_seconds * state["n"])
+        state["n"] += 1
+        return t
+    return read
+
+
 def test_each_row_is_stamped_when_its_own_preflight_runs(tmp_path):
     """A batch takes time to work through; the last row must not be dated as though it were the first."""
-    stamps = iter([at(1), at(9)])
     fake = FakeAirtable([row([candidate()], rid="recPF0000000001"),
                          row([candidate(recommendation_id="rec_pf0000000000000002")],
                              rid="recPF0000000002")])
-    code = W.run(fake, market_data_root=market_data(tmp_path), ledger_root=ledger(tmp_path),
-                 signing_key=SIGNING_KEY, clock=lambda: next(stamps))
+    # The venue answered a minute before the batch started, so every row's evidence predates its decision.
+    wiring, _ = live(tmp_path, at(0), client=fresh_client(at(-1)))
+    code = W.run(fake, ledger_root=ledger(tmp_path), signing_key=SIGNING_KEY,
+                 clock=stepping(at(1), step_seconds=4), **wiring)
     assert code == 0
-    first = json.loads(fake.written["recPF0000000001"][AB.F_PREFLIGHT_RESULT])["approval_as_of"]
-    second = json.loads(fake.written["recPF0000000002"][AB.F_PREFLIGHT_RESULT])["approval_as_of"]
-    assert first == at(1).isoformat() and second == at(9).isoformat()
-    assert first != second, "one global stamp would date the whole batch at the workflow start"
+    first = json.loads(fake.written["recPF0000000001"][AB.F_PREFLIGHT_RESULT])
+    second = json.loads(fake.written["recPF0000000002"][AB.F_PREFLIGHT_RESULT])
+    assert first["approval_as_of"] != second["approval_as_of"], \
+        "one global stamp would date the whole batch at the workflow start"
+    assert first["approval_as_of"] < second["approval_as_of"], "and they must be in the order they ran"
+    for body in (first, second):
+        assert body["answered_at"] > body["approval_as_of"], \
+            "answered_at is a later, separate read; the decision is not stamped when the answer is written"
