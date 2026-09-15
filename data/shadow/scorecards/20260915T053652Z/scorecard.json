@@ -1,0 +1,4842 @@
+{
+ "evaluation_version": "eval-1.0.0",
+ "primary_sample_unit": "latest_pregame",
+ "sample_units": {
+  "raw": {
+   "n_observations": 158197,
+   "n_unique_contracts": 6613,
+   "n_games": 15,
+   "note": "every immutable pregame snapshot. These are REPEATED, CORRELATED observations of the same contracts -- diagnostics only. The contract count, not the observation count, is the sample size."
+  },
+  "latest_pregame": {
+   "n_observations": 6613,
+   "n_unique_contracts": 6613,
+   "n_games": 15,
+   "selection_rule": "one row per (game, ticker): the smallest positive minutes_to_kickoff, ties broken on (observed_at, prediction_id)",
+   "rows_not_provably_pregame_excluded": 0,
+   "actual_minutes_to_kickoff": {
+    "n": 6613,
+    "min": 0.1,
+    "median": 43.5,
+    "max": 2750.9,
+    "mean": 78.1
+   },
+   "note": "one row per (game, ticker); the primary contract-level view"
+  }
+ },
+ "counts": {
+  "by_settlement_status": {
+   "REFUSED_PARTICIPATION_UNPROVEN": 3225,
+   "SETTLED": 154972
+  },
+  "by_settlement_kind": {
+   "binary": 154972
+  },
+  "by_close_status": {
+   "OK": 154201,
+   "OK_STALE": 3996
+  },
+  "by_family": {
+   "BOTH_TEAMS_SCORE_N": 2301,
+   "GAME_WINNER": 1154,
+   "PLAYER_STAT": 123504,
+   "SPREAD": 14540,
+   "TEAM_TOTAL": 5762,
+   "TOTAL": 10936
+  },
+  "by_support_state": {
+   "SUPPORTED": 158197
+  },
+  "by_model_version": {
+   "shadow-0.1.0": 1303,
+   "shadow-0.2.0": 1261,
+   "shadow-0.3.0": 1261,
+   "shadow-0.4.0": 154372
+  },
+  "by_exact_payout_known": {
+   "True": 154972
+  }
+ },
+ "views": {
+  "raw": {
+   "n_observations": 158197,
+   "n_unique_contracts": 6613,
+   "n_games": 15,
+   "event_calibration": {
+    "n_event_realisations": 154972,
+    "model_event_probability": {
+     "n": 154972,
+     "brier": 0.176838,
+     "log_loss": 0.534314,
+     "mean_predicted": 0.295194,
+     "actual_rate": 0.363324,
+     "mean_signed_error": -0.068129
+    },
+    "market_where_spaces_coincide": {
+     "n_contracts": 33539,
+     "note": "market midpoint scored against the event, restricted to contracts whose value equals their event probability (no participation branch); elsewhere a price is not an event probability",
+     "n": 33539,
+     "brier": 0.18628,
+     "log_loss": 0.555054,
+     "mean_predicted": 0.390942,
+     "actual_rate": 0.432362,
+     "mean_signed_error": -0.04142
+    },
+    "calibration_by_event_probability": [
+     {
+      "band": "0.00-0.10",
+      "n": 46700,
+      "mean_event_probability": 0.042644,
+      "actual_event_rate": 0.095161
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 26387,
+      "mean_event_probability": 0.146546,
+      "actual_event_rate": 0.249365
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 18035,
+      "mean_event_probability": 0.245804,
+      "actual_event_rate": 0.345162
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 15181,
+      "mean_event_probability": 0.348169,
+      "actual_event_rate": 0.43976
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 13468,
+      "mean_event_probability": 0.448039,
+      "actual_event_rate": 0.503564
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 11365,
+      "mean_event_probability": 0.546987,
+      "actual_event_rate": 0.616454
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 9253,
+      "mean_event_probability": 0.650069,
+      "actual_event_rate": 0.720307
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 7225,
+      "mean_event_probability": 0.747681,
+      "actual_event_rate": 0.747543
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 4536,
+      "mean_event_probability": 0.843776,
+      "actual_event_rate": 0.856922
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 2822,
+      "mean_event_probability": 0.947818,
+      "actual_event_rate": 0.935152
+     }
+    ],
+    "excluded": {
+     "no_binary_event_realisation": 3225
+    }
+   },
+   "contract_payout_quality": {
+    "n_exact_payouts": 154972,
+    "by_settlement_kind": {
+     "binary": 154972
+    },
+    "model_contract_value": {
+     "n": 154972,
+     "mean_squared_payout_error": 0.177544,
+     "mean_absolute_payout_error": 0.320786,
+     "mean_signed_payout_error": -0.072944,
+     "mean_predicted_payout": 0.290379,
+     "mean_actual_payout": 0.363324
+    },
+    "market_at_snapshot": {
+     "n": 154972,
+     "mean_squared_payout_error": 0.169529,
+     "mean_absolute_payout_error": 0.323701,
+     "mean_signed_payout_error": -0.056314,
+     "mean_predicted_payout": 0.30701,
+     "mean_actual_payout": 0.363324
+    },
+    "on_rows_with_a_usable_close": {
+     "n": 153060,
+     "model_contract_value": {
+      "n": 153060,
+      "mean_squared_payout_error": 0.177497,
+      "mean_absolute_payout_error": 0.320907,
+      "mean_signed_payout_error": -0.073042,
+      "mean_predicted_payout": 0.290384,
+      "mean_actual_payout": 0.363426
+     },
+     "market_at_snapshot": {
+      "n": 153060,
+      "mean_squared_payout_error": 0.169306,
+      "mean_absolute_payout_error": 0.323552,
+      "mean_signed_payout_error": -0.05609,
+      "mean_predicted_payout": 0.307336,
+      "mean_actual_payout": 0.363426
+     },
+     "market_at_close": {
+      "n": 153060,
+      "mean_squared_payout_error": 0.160371,
+      "mean_absolute_payout_error": 0.312443,
+      "mean_signed_payout_error": -0.034966,
+      "mean_predicted_payout": 0.32846,
+      "mean_actual_payout": 0.363426
+     }
+    },
+    "excluded": {
+     "settled_without_an_exact_payout": 0,
+     "settled_without_an_exact_payout_reasons": {},
+     "not_settled": 3225
+    }
+   },
+   "clv": {
+    "n": 154201,
+    "excluded_no_usable_close": 3996,
+    "mean_signed_clv_mid": 0.016811,
+    "mean_signed_clv_executable": -0.030627,
+    "positive_clv_share": 0.506209,
+    "mean_width_change": -0.094877,
+    "mean_liquidity_change": 0.0,
+    "counts": {
+     "away": 56173,
+     "no_view": 15,
+     "toward": 77309,
+     "unchanged": 20704
+    },
+    "toward_share_of_directional": 0.579172,
+    "n_directional": 133482,
+    "on_stale_closes": {
+     "n": 3996,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.028515,
+     "mean_signed_clv_executable": -0.029199,
+     "positive_clv_share": 0.46972,
+     "mean_width_change": -0.115428,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1161,
+      "toward": 1868,
+      "unchanged": 967
+     },
+     "toward_share_of_directional": 0.616705,
+     "n_directional": 3029
+    }
+   }
+  },
+  "latest_pregame": {
+   "n_observations": 6613,
+   "n_unique_contracts": 6613,
+   "n_games": 15,
+   "event_calibration": {
+    "n_event_realisations": 6486,
+    "model_event_probability": {
+     "n": 6486,
+     "brier": 0.174211,
+     "log_loss": 0.525667,
+     "mean_predicted": 0.292323,
+     "actual_rate": 0.357077,
+     "mean_signed_error": -0.064754
+    },
+    "market_where_spaces_coincide": {
+     "n_contracts": 1135,
+     "note": "market midpoint scored against the event, restricted to contracts whose value equals their event probability (no participation branch); elsewhere a price is not an event probability",
+     "n": 1135,
+     "brier": 0.176288,
+     "log_loss": 0.528929,
+     "mean_predicted": 0.413498,
+     "actual_rate": 0.45815,
+     "mean_signed_error": -0.044652
+    },
+    "calibration_by_event_probability": [
+     {
+      "band": "0.00-0.10",
+      "n": 1959,
+      "mean_event_probability": 0.042636,
+      "actual_event_rate": 0.0878
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 1114,
+      "mean_event_probability": 0.146657,
+      "actual_event_rate": 0.237882
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 780,
+      "mean_event_probability": 0.2455,
+      "actual_event_rate": 0.353846
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 642,
+      "mean_event_probability": 0.347929,
+      "actual_event_rate": 0.442368
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 553,
+      "mean_event_probability": 0.447756,
+      "actual_event_rate": 0.500904
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 476,
+      "mean_event_probability": 0.547397,
+      "actual_event_rate": 0.613445
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 376,
+      "mean_event_probability": 0.651231,
+      "actual_event_rate": 0.704787
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 282,
+      "mean_event_probability": 0.74835,
+      "actual_event_rate": 0.755319
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 174,
+      "mean_event_probability": 0.842077,
+      "actual_event_rate": 0.862069
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 130,
+      "mean_event_probability": 0.951217,
+      "actual_event_rate": 0.938462
+     }
+    ],
+    "excluded": {
+     "no_binary_event_realisation": 127
+    }
+   },
+   "contract_payout_quality": {
+    "n_exact_payouts": 6486,
+    "by_settlement_kind": {
+     "binary": 6486
+    },
+    "model_contract_value": {
+     "n": 6486,
+     "mean_squared_payout_error": 0.174656,
+     "mean_absolute_payout_error": 0.317269,
+     "mean_signed_payout_error": -0.06901,
+     "mean_predicted_payout": 0.288067,
+     "mean_actual_payout": 0.357077
+    },
+    "market_at_snapshot": {
+     "n": 6486,
+     "mean_squared_payout_error": 0.158352,
+     "mean_absolute_payout_error": 0.309647,
+     "mean_signed_payout_error": -0.030188,
+     "mean_predicted_payout": 0.326889,
+     "mean_actual_payout": 0.357077
+    },
+    "on_rows_with_a_usable_close": {
+     "n": 6375,
+     "model_contract_value": {
+      "n": 6375,
+      "mean_squared_payout_error": 0.174438,
+      "mean_absolute_payout_error": 0.317204,
+      "mean_signed_payout_error": -0.06902,
+      "mean_predicted_payout": 0.287999,
+      "mean_actual_payout": 0.35702
+     },
+     "market_at_snapshot": {
+      "n": 6375,
+      "mean_squared_payout_error": 0.158131,
+      "mean_absolute_payout_error": 0.309786,
+      "mean_signed_payout_error": -0.029006,
+      "mean_predicted_payout": 0.328013,
+      "mean_actual_payout": 0.35702
+     },
+     "market_at_close": {
+      "n": 6375,
+      "mean_squared_payout_error": 0.158754,
+      "mean_absolute_payout_error": 0.310569,
+      "mean_signed_payout_error": -0.030863,
+      "mean_predicted_payout": 0.326157,
+      "mean_actual_payout": 0.35702
+     }
+    },
+    "excluded": {
+     "settled_without_an_exact_payout": 0,
+     "settled_without_an_exact_payout_reasons": {},
+     "not_settled": 127
+    }
+   },
+   "clv": {
+    "n": 6437,
+    "excluded_no_usable_close": 176,
+    "mean_signed_clv_mid": 0.000985,
+    "mean_signed_clv_executable": 0.00435,
+    "positive_clv_share": 0.268293,
+    "mean_width_change": 0.00673,
+    "mean_liquidity_change": 0.0,
+    "counts": {
+     "away": 1494,
+     "toward": 1708,
+     "unchanged": 3235
+    },
+    "toward_share_of_directional": 0.533417,
+    "n_directional": 3202,
+    "on_stale_closes": {
+     "n": 176,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.000312,
+     "mean_signed_clv_executable": 0.00017,
+     "positive_clv_share": 0.051136,
+     "mean_width_change": -0.000284,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1,
+      "toward": 9,
+      "unchanged": 166
+     },
+     "toward_share_of_directional": 0.9,
+     "n_directional": 10
+    }
+   }
+  }
+ },
+ "horizons": {
+  "T-24h": {
+   "target_minutes": 1440.0,
+   "tolerance_minutes": 120.0,
+   "selection_rule": "freshest snapshot at or before the horizon, within the tolerance; ties broken on (observed_at, prediction_id)",
+   "n_selected": 563,
+   "n_unavailable": 6050,
+   "n_contracts_considered": 6613,
+   "actual_minutes_to_kickoff": {
+    "n": 563,
+    "min": 1447.9,
+    "median": 1455.2,
+    "max": 1538.1,
+    "mean": 1461.7
+   },
+   "unavailable_examples": [
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLBOTH-26SEP13ARILAC-14"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 3228.9,
+     "gap_minutes": 1788.9
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLBOTH-26SEP13ARILAC-35"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 2321.3,
+     "gap_minutes": 881.3
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLGAME-26SEP13ARILAC-ARI"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 3413.3,
+     "gap_minutes": 1973.3
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLGAME-26SEP13ARILAC-LAC"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 3413.3,
+     "gap_minutes": 1973.3
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-30"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 3413.2,
+     "gap_minutes": 1973.2
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-31"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 3488.8,
+     "gap_minutes": 2048.8
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-32"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 3575.9,
+     "gap_minutes": 2135.9
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-33"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 3488.8,
+     "gap_minutes": 2048.8
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-34"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 3575.9,
+     "gap_minutes": 2135.9
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-35"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 3413.2,
+     "gap_minutes": 1973.2
+    }
+   ],
+   "n_observations": 563,
+   "n_unique_contracts": 563,
+   "n_games": 7,
+   "event_calibration": {
+    "n_event_realisations": 538,
+    "model_event_probability": {
+     "n": 538,
+     "brier": 0.166266,
+     "log_loss": 0.497832,
+     "mean_predicted": 0.305942,
+     "actual_rate": 0.280669,
+     "mean_signed_error": 0.025273
+    },
+    "market_where_spaces_coincide": {
+     "n_contracts": 93,
+     "note": "market midpoint scored against the event, restricted to contracts whose value equals their event probability (no participation branch); elsewhere a price is not an event probability",
+     "n": 93,
+     "brier": 0.246248,
+     "log_loss": 0.714021,
+     "mean_predicted": 0.428495,
+     "actual_rate": 0.311828,
+     "mean_signed_error": 0.116667
+    },
+    "calibration_by_event_probability": [
+     {
+      "band": "0.00-0.10",
+      "n": 162,
+      "mean_event_probability": 0.041844,
+      "actual_event_rate": 0.04321
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 80,
+      "mean_event_probability": 0.150171,
+      "actual_event_rate": 0.225
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 66,
+      "mean_event_probability": 0.244001,
+      "actual_event_rate": 0.257576
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 54,
+      "mean_event_probability": 0.347294,
+      "actual_event_rate": 0.351852
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 51,
+      "mean_event_probability": 0.450528,
+      "actual_event_rate": 0.372549
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 40,
+      "mean_event_probability": 0.552723,
+      "actual_event_rate": 0.45
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 25,
+      "mean_event_probability": 0.650611,
+      "actual_event_rate": 0.6
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 28,
+      "mean_event_probability": 0.744663,
+      "actual_event_rate": 0.5
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 17,
+      "mean_event_probability": 0.840493,
+      "actual_event_rate": 0.705882
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 15,
+      "mean_event_probability": 0.963745,
+      "actual_event_rate": 0.8
+     }
+    ],
+    "excluded": {
+     "no_binary_event_realisation": 25
+    }
+   },
+   "contract_payout_quality": {
+    "n_exact_payouts": 538,
+    "by_settlement_kind": {
+     "binary": 538
+    },
+    "model_contract_value": {
+     "n": 538,
+     "mean_squared_payout_error": 0.166125,
+     "mean_absolute_payout_error": 0.30919,
+     "mean_signed_payout_error": 0.020667,
+     "mean_predicted_payout": 0.301336,
+     "mean_actual_payout": 0.280669
+    },
+    "market_at_snapshot": {
+     "n": 538,
+     "mean_squared_payout_error": 0.160072,
+     "mean_absolute_payout_error": 0.308727,
+     "mean_signed_payout_error": 0.024638,
+     "mean_predicted_payout": 0.305307,
+     "mean_actual_payout": 0.280669
+    },
+    "on_rows_with_a_usable_close": {
+     "n": 536,
+     "model_contract_value": {
+      "n": 536,
+      "mean_squared_payout_error": 0.165405,
+      "mean_absolute_payout_error": 0.308367,
+      "mean_signed_payout_error": 0.02179,
+      "mean_predicted_payout": 0.30164,
+      "mean_actual_payout": 0.279851
+     },
+     "market_at_snapshot": {
+      "n": 536,
+      "mean_squared_payout_error": 0.159176,
+      "mean_absolute_payout_error": 0.30805,
+      "mean_signed_payout_error": 0.026222,
+      "mean_predicted_payout": 0.306073,
+      "mean_actual_payout": 0.279851
+     },
+     "market_at_close": {
+      "n": 536,
+      "mean_squared_payout_error": 0.153662,
+      "mean_absolute_payout_error": 0.301511,
+      "mean_signed_payout_error": 0.064851,
+      "mean_predicted_payout": 0.344701,
+      "mean_actual_payout": 0.279851
+     }
+    },
+    "excluded": {
+     "settled_without_an_exact_payout": 0,
+     "settled_without_an_exact_payout_reasons": {},
+     "not_settled": 25
+    }
+   },
+   "clv": {
+    "n": 537,
+    "excluded_no_usable_close": 26,
+    "mean_signed_clv_mid": 0.015968,
+    "mean_signed_clv_executable": -0.045214,
+    "positive_clv_share": 0.523277,
+    "mean_width_change": -0.122365,
+    "mean_liquidity_change": 0.0,
+    "counts": {
+     "away": 193,
+     "toward": 280,
+     "unchanged": 64
+    },
+    "toward_share_of_directional": 0.591966,
+    "n_directional": 473,
+    "on_stale_closes": {
+     "n": 26,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.0,
+     "mean_signed_clv_executable": 0.0,
+     "positive_clv_share": 0.0,
+     "mean_width_change": 0.0,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 0,
+      "toward": 0,
+      "unchanged": 26
+     },
+     "toward_share_of_directional": null,
+     "n_directional": 0
+    }
+   }
+  },
+  "T-6h": {
+   "target_minutes": 360.0,
+   "tolerance_minutes": 120.0,
+   "selection_rule": "freshest snapshot at or before the horizon, within the tolerance; ties broken on (observed_at, prediction_id)",
+   "n_selected": 672,
+   "n_unavailable": 5941,
+   "n_contracts_considered": 6613,
+   "actual_minutes_to_kickoff": {
+    "n": 672,
+    "min": 363.3,
+    "median": 457.2,
+    "max": 477.3,
+    "mean": 434.1
+   },
+   "unavailable_examples": [
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLBOTH-26SEP13ARILAC-14"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 636.4,
+     "gap_minutes": 276.4
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLBOTH-26SEP13ARILAC-28"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 555.3,
+     "gap_minutes": 195.3
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLGAME-26SEP13ARILAC-ARI"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 513.4,
+     "gap_minutes": 153.4
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLGAME-26SEP13ARILAC-LAC"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 513.4,
+     "gap_minutes": 153.4
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-30"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 582.1,
+     "gap_minutes": 222.1
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-31"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 513.3,
+     "gap_minutes": 153.3
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-32"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 513.3,
+     "gap_minutes": 153.3
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-33"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 513.3,
+     "gap_minutes": 153.3
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-34"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 513.3,
+     "gap_minutes": 153.3
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSATT-26SEP13ARILAC-ARIJBRISSETT7-35"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 513.3,
+     "gap_minutes": 153.3
+    }
+   ],
+   "n_observations": 672,
+   "n_unique_contracts": 672,
+   "n_games": 15,
+   "event_calibration": {
+    "n_event_realisations": 669,
+    "model_event_probability": {
+     "n": 669,
+     "brier": 0.141952,
+     "log_loss": 0.437633,
+     "mean_predicted": 0.270481,
+     "actual_rate": 0.267564,
+     "mean_signed_error": 0.002917
+    },
+    "market_where_spaces_coincide": {
+     "n_contracts": 137,
+     "note": "market midpoint scored against the event, restricted to contracts whose value equals their event probability (no participation branch); elsewhere a price is not an event probability",
+     "n": 137,
+     "brier": 0.141393,
+     "log_loss": 0.440315,
+     "mean_predicted": 0.460949,
+     "actual_rate": 0.328467,
+     "mean_signed_error": 0.132482
+    },
+    "calibration_by_event_probability": [
+     {
+      "band": "0.00-0.10",
+      "n": 275,
+      "mean_event_probability": 0.039185,
+      "actual_event_rate": 0.061818
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 100,
+      "mean_event_probability": 0.142763,
+      "actual_event_rate": 0.18
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 58,
+      "mean_event_probability": 0.247492,
+      "actual_event_rate": 0.275862
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 48,
+      "mean_event_probability": 0.346036,
+      "actual_event_rate": 0.354167
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 40,
+      "mean_event_probability": 0.447797,
+      "actual_event_rate": 0.425
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 43,
+      "mean_event_probability": 0.554759,
+      "actual_event_rate": 0.511628
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 30,
+      "mean_event_probability": 0.642793,
+      "actual_event_rate": 0.566667
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 29,
+      "mean_event_probability": 0.751438,
+      "actual_event_rate": 0.586207
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 17,
+      "mean_event_probability": 0.847827,
+      "actual_event_rate": 0.705882
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 29,
+      "mean_event_probability": 0.954493,
+      "actual_event_rate": 0.896552
+     }
+    ],
+    "excluded": {
+     "no_binary_event_realisation": 3
+    }
+   },
+   "contract_payout_quality": {
+    "n_exact_payouts": 669,
+    "by_settlement_kind": {
+     "binary": 669
+    },
+    "model_contract_value": {
+     "n": 669,
+     "mean_squared_payout_error": 0.14199,
+     "mean_absolute_payout_error": 0.261389,
+     "mean_signed_payout_error": -0.000674,
+     "mean_predicted_payout": 0.266889,
+     "mean_actual_payout": 0.267564
+    },
+    "market_at_snapshot": {
+     "n": 669,
+     "mean_squared_payout_error": 0.122959,
+     "mean_absolute_payout_error": 0.251054,
+     "mean_signed_payout_error": 0.033117,
+     "mean_predicted_payout": 0.30068,
+     "mean_actual_payout": 0.267564
+    },
+    "on_rows_with_a_usable_close": {
+     "n": 661,
+     "model_contract_value": {
+      "n": 661,
+      "mean_squared_payout_error": 0.140726,
+      "mean_absolute_payout_error": 0.260314,
+      "mean_signed_payout_error": 3.9e-05,
+      "mean_predicted_payout": 0.267816,
+      "mean_actual_payout": 0.267776
+     },
+     "market_at_snapshot": {
+      "n": 661,
+      "mean_squared_payout_error": 0.122314,
+      "mean_absolute_payout_error": 0.250885,
+      "mean_signed_payout_error": 0.034924,
+      "mean_predicted_payout": 0.3027,
+      "mean_actual_payout": 0.267776
+     },
+     "market_at_close": {
+      "n": 661,
+      "mean_squared_payout_error": 0.119442,
+      "mean_absolute_payout_error": 0.247799,
+      "mean_signed_payout_error": 0.043336,
+      "mean_predicted_payout": 0.311112,
+      "mean_actual_payout": 0.267776
+     }
+    },
+    "excluded": {
+     "settled_without_an_exact_payout": 0,
+     "settled_without_an_exact_payout_reasons": {},
+     "not_settled": 3
+    }
+   },
+   "clv": {
+    "n": 664,
+    "excluded_no_usable_close": 8,
+    "mean_signed_clv_mid": 0.004307,
+    "mean_signed_clv_executable": -0.002907,
+    "positive_clv_share": 0.432229,
+    "mean_width_change": -0.014428,
+    "mean_liquidity_change": 0.0,
+    "counts": {
+     "away": 182,
+     "toward": 285,
+     "unchanged": 197
+    },
+    "toward_share_of_directional": 0.610278,
+    "n_directional": 467,
+    "on_stale_closes": {
+     "n": 8,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.00875,
+     "mean_signed_clv_executable": -0.005,
+     "positive_clv_share": 0.375,
+     "mean_width_change": -0.0275,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1,
+      "toward": 3,
+      "unchanged": 4
+     },
+     "toward_share_of_directional": 0.75,
+     "n_directional": 4
+    }
+   }
+  },
+  "T-90m": {
+   "target_minutes": 90.0,
+   "tolerance_minutes": 120.0,
+   "selection_rule": "freshest snapshot at or before the horizon, within the tolerance; ties broken on (observed_at, prediction_id)",
+   "n_selected": 2546,
+   "n_unavailable": 4067,
+   "n_contracts_considered": 6613,
+   "actual_minutes_to_kickoff": {
+    "n": 2546,
+    "min": 99.0,
+    "median": 109.1,
+    "max": 206.9,
+    "mean": 129.0
+   },
+   "unavailable_examples": [
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLBOTH-26SEP13ARILAC-35"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 388.0,
+     "gap_minutes": 298.0
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSCOMP-26SEP13ARILAC-ARIJBRISSETT7-27"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 318.0,
+     "gap_minutes": 228.0
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLREC-26SEP13ARILAC-ARIKBOURNE17-7"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 443.8,
+     "gap_minutes": 353.8
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLREC-26SEP13ARILAC-ARIMHARRISON18-10"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 443.8,
+     "gap_minutes": 353.8
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLRSHATT-26SEP13ARILAC-LACJHERBERT10-9"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 415.2,
+     "gap_minutes": 325.2
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLRSHYDS-26SEP13ARILAC-ARIJBRISSETT7-20"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 345.7,
+     "gap_minutes": 255.7
+    },
+    {
+     "contract": [
+      "2026_01_ATL_PIT",
+      "KXNFLBOTH-26SEP13ATLPIT-14"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 350.3,
+     "gap_minutes": 260.3
+    },
+    {
+     "contract": [
+      "2026_01_ATL_PIT",
+      "KXNFLBOTH-26SEP13ATLPIT-21"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 322.6,
+     "gap_minutes": 232.6
+    },
+    {
+     "contract": [
+      "2026_01_ATL_PIT",
+      "KXNFLBOTH-26SEP13ATLPIT-28"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 350.3,
+     "gap_minutes": 260.3
+    },
+    {
+     "contract": [
+      "2026_01_ATL_PIT",
+      "KXNFLBOTH-26SEP13ATLPIT-35"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 513.4,
+     "gap_minutes": 423.4
+    }
+   ],
+   "n_observations": 2546,
+   "n_unique_contracts": 2546,
+   "n_games": 14,
+   "event_calibration": {
+    "n_event_realisations": 2507,
+    "model_event_probability": {
+     "n": 2507,
+     "brier": 0.176332,
+     "log_loss": 0.528355,
+     "mean_predicted": 0.296927,
+     "actual_rate": 0.350618,
+     "mean_signed_error": -0.053691
+    },
+    "market_where_spaces_coincide": {
+     "n_contracts": 448,
+     "note": "market midpoint scored against the event, restricted to contracts whose value equals their event probability (no participation branch); elsewhere a price is not an event probability",
+     "n": 448,
+     "brier": 0.173391,
+     "log_loss": 0.527502,
+     "mean_predicted": 0.413114,
+     "actual_rate": 0.399554,
+     "mean_signed_error": 0.01356
+    },
+    "calibration_by_event_probability": [
+     {
+      "band": "0.00-0.10",
+      "n": 748,
+      "mean_event_probability": 0.04142,
+      "actual_event_rate": 0.078877
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 421,
+      "mean_event_probability": 0.147095,
+      "actual_event_rate": 0.23753
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 286,
+      "mean_event_probability": 0.244523,
+      "actual_event_rate": 0.367133
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 265,
+      "mean_event_probability": 0.348306,
+      "actual_event_rate": 0.445283
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 218,
+      "mean_event_probability": 0.449119,
+      "actual_event_rate": 0.463303
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 188,
+      "mean_event_probability": 0.548587,
+      "actual_event_rate": 0.606383
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 146,
+      "mean_event_probability": 0.651296,
+      "actual_event_rate": 0.678082
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 109,
+      "mean_event_probability": 0.748367,
+      "actual_event_rate": 0.678899
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 77,
+      "mean_event_probability": 0.841366,
+      "actual_event_rate": 0.818182
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 49,
+      "mean_event_probability": 0.954356,
+      "actual_event_rate": 0.938776
+     }
+    ],
+    "excluded": {
+     "no_binary_event_realisation": 39
+    }
+   },
+   "contract_payout_quality": {
+    "n_exact_payouts": 2507,
+    "by_settlement_kind": {
+     "binary": 2507
+    },
+    "model_contract_value": {
+     "n": 2507,
+     "mean_squared_payout_error": 0.176675,
+     "mean_absolute_payout_error": 0.320233,
+     "mean_signed_payout_error": -0.057887,
+     "mean_predicted_payout": 0.292732,
+     "mean_actual_payout": 0.350618
+    },
+    "market_at_snapshot": {
+     "n": 2507,
+     "mean_squared_payout_error": 0.159827,
+     "mean_absolute_payout_error": 0.316029,
+     "mean_signed_payout_error": -0.015523,
+     "mean_predicted_payout": 0.335096,
+     "mean_actual_payout": 0.350618
+    },
+    "on_rows_with_a_usable_close": {
+     "n": 2435,
+     "model_contract_value": {
+      "n": 2435,
+      "mean_squared_payout_error": 0.175792,
+      "mean_absolute_payout_error": 0.319469,
+      "mean_signed_payout_error": -0.055792,
+      "mean_predicted_payout": 0.292052,
+      "mean_actual_payout": 0.347844
+     },
+     "market_at_snapshot": {
+      "n": 2435,
+      "mean_squared_payout_error": 0.159059,
+      "mean_absolute_payout_error": 0.31562,
+      "mean_signed_payout_error": -0.011468,
+      "mean_predicted_payout": 0.336376,
+      "mean_actual_payout": 0.347844
+     },
+     "market_at_close": {
+      "n": 2435,
+      "mean_squared_payout_error": 0.158562,
+      "mean_absolute_payout_error": 0.315004,
+      "mean_signed_payout_error": -0.011916,
+      "mean_predicted_payout": 0.335928,
+      "mean_actual_payout": 0.347844
+     }
+    },
+    "excluded": {
+     "settled_without_an_exact_payout": 0,
+     "settled_without_an_exact_payout_reasons": {},
+     "not_settled": 39
+    }
+   },
+   "clv": {
+    "n": 2474,
+    "excluded_no_usable_close": 72,
+    "mean_signed_clv_mid": 0.001892,
+    "mean_signed_clv_executable": 0.005457,
+    "positive_clv_share": 0.35287,
+    "mean_width_change": 0.00713,
+    "mean_liquidity_change": 0.0,
+    "counts": {
+     "away": 754,
+     "toward": 866,
+     "unchanged": 854
+    },
+    "toward_share_of_directional": 0.534568,
+    "n_directional": 1620,
+    "on_stale_closes": {
+     "n": 72,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.000694,
+     "mean_signed_clv_executable": 0.000278,
+     "positive_clv_share": 0.111111,
+     "mean_width_change": -0.000833,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1,
+      "toward": 8,
+      "unchanged": 63
+     },
+     "toward_share_of_directional": 0.888889,
+     "n_directional": 9
+    }
+   }
+  },
+  "T-30m": {
+   "target_minutes": 30.0,
+   "tolerance_minutes": 120.0,
+   "selection_rule": "freshest snapshot at or before the horizon, within the tolerance; ties broken on (observed_at, prediction_id)",
+   "n_selected": 5466,
+   "n_unavailable": 1147,
+   "n_contracts_considered": 6613,
+   "actual_minutes_to_kickoff": {
+    "n": 5466,
+    "min": 31.6,
+    "median": 43.6,
+    "max": 150.0,
+    "mean": 72.4
+   },
+   "unavailable_examples": [
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLBOTH-26SEP13ARILAC-21"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 165.4,
+     "gap_minutes": 135.4
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLBOTH-26SEP13ARILAC-28"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 165.4,
+     "gap_minutes": 135.4
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLBOTH-26SEP13ARILAC-35"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 388.0,
+     "gap_minutes": 358.0
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSCOMP-26SEP13ARILAC-ARIJBRISSETT7-27"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 318.0,
+     "gap_minutes": 288.0
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLPASSINT-26SEP13ARILAC-LACJHERBERT10-3"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 165.0,
+     "gap_minutes": 135.0
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLREC-26SEP13ARILAC-ARIKBOURNE17-7"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 443.8,
+     "gap_minutes": 413.8
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLREC-26SEP13ARILAC-ARIMHARRISON18-10"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 443.8,
+     "gap_minutes": 413.8
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLREC-26SEP13ARILAC-ARITMCBRIDE85-11"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 192.8,
+     "gap_minutes": 162.8
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLREC-26SEP13ARILAC-ARITMCBRIDE85-12"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 192.8,
+     "gap_minutes": 162.8
+    },
+    {
+     "contract": [
+      "2026_01_ARI_LAC",
+      "KXNFLREC-26SEP13ARILAC-LACLMCCONKEY15-9"
+     ],
+     "reason": "nearest snapshot is too far from the horizon",
+     "nearest_minutes_to_kickoff": 192.8,
+     "gap_minutes": 162.8
+    }
+   ],
+   "n_observations": 5466,
+   "n_unique_contracts": 5466,
+   "n_games": 15,
+   "event_calibration": {
+    "n_event_realisations": 5420,
+    "model_event_probability": {
+     "n": 5420,
+     "brier": 0.178802,
+     "log_loss": 0.538778,
+     "mean_predicted": 0.295802,
+     "actual_rate": 0.379705,
+     "mean_signed_error": -0.083902
+    },
+    "market_where_spaces_coincide": {
+     "n_contracts": 954,
+     "note": "market midpoint scored against the event, restricted to contracts whose value equals their event probability (no participation branch); elsewhere a price is not an event probability",
+     "n": 954,
+     "brier": 0.171879,
+     "log_loss": 0.515023,
+     "mean_predicted": 0.413564,
+     "actual_rate": 0.497904,
+     "mean_signed_error": -0.08434
+    },
+    "calibration_by_event_probability": [
+     {
+      "band": "0.00-0.10",
+      "n": 1585,
+      "mean_event_probability": 0.042923,
+      "actual_event_rate": 0.09653
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 944,
+      "mean_event_probability": 0.146449,
+      "actual_event_rate": 0.247881
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 655,
+      "mean_event_probability": 0.246022,
+      "actual_event_rate": 0.377099
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 544,
+      "mean_event_probability": 0.34854,
+      "actual_event_rate": 0.470588
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 471,
+      "mean_event_probability": 0.448375,
+      "actual_event_rate": 0.52017
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 405,
+      "mean_event_probability": 0.547387,
+      "actual_event_rate": 0.644444
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 326,
+      "mean_event_probability": 0.651135,
+      "actual_event_rate": 0.726994
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 242,
+      "mean_event_probability": 0.748468,
+      "actual_event_rate": 0.793388
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 146,
+      "mean_event_probability": 0.842331,
+      "actual_event_rate": 0.910959
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 102,
+      "mean_event_probability": 0.950618,
+      "actual_event_rate": 0.980392
+     }
+    ],
+    "excluded": {
+     "no_binary_event_realisation": 46
+    }
+   },
+   "contract_payout_quality": {
+    "n_exact_payouts": 5420,
+    "by_settlement_kind": {
+     "binary": 5420
+    },
+    "model_contract_value": {
+     "n": 5420,
+     "mean_squared_payout_error": 0.179384,
+     "mean_absolute_payout_error": 0.323896,
+     "mean_signed_payout_error": -0.08817,
+     "mean_predicted_payout": 0.291534,
+     "mean_actual_payout": 0.379705
+    },
+    "market_at_snapshot": {
+     "n": 5420,
+     "mean_squared_payout_error": 0.161568,
+     "mean_absolute_payout_error": 0.315254,
+     "mean_signed_payout_error": -0.049851,
+     "mean_predicted_payout": 0.329853,
+     "mean_actual_payout": 0.379705
+    },
+    "on_rows_with_a_usable_close": {
+     "n": 5334,
+     "model_contract_value": {
+      "n": 5334,
+      "mean_squared_payout_error": 0.179198,
+      "mean_absolute_payout_error": 0.323686,
+      "mean_signed_payout_error": -0.088541,
+      "mean_predicted_payout": 0.290724,
+      "mean_actual_payout": 0.379265
+     },
+     "market_at_snapshot": {
+      "n": 5334,
+      "mean_squared_payout_error": 0.161353,
+      "mean_absolute_payout_error": 0.315076,
+      "mean_signed_payout_error": -0.049169,
+      "mean_predicted_payout": 0.330097,
+      "mean_actual_payout": 0.379265
+     },
+     "market_at_close": {
+      "n": 5334,
+      "mean_squared_payout_error": 0.161881,
+      "mean_absolute_payout_error": 0.315457,
+      "mean_signed_payout_error": -0.05138,
+      "mean_predicted_payout": 0.327885,
+      "mean_actual_payout": 0.379265
+     }
+    },
+    "excluded": {
+     "settled_without_an_exact_payout": 0,
+     "settled_without_an_exact_payout_reasons": {},
+     "not_settled": 46
+    }
+   },
+   "clv": {
+    "n": 5379,
+    "excluded_no_usable_close": 87,
+    "mean_signed_clv_mid": 0.001587,
+    "mean_signed_clv_executable": 0.005404,
+    "positive_clv_share": 0.311396,
+    "mean_width_change": 0.007635,
+    "mean_liquidity_change": 0.0,
+    "counts": {
+     "away": 1399,
+     "toward": 1659,
+     "unchanged": 2321
+    },
+    "toward_share_of_directional": 0.542511,
+    "n_directional": 3058,
+    "on_stale_closes": {
+     "n": 87,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.000575,
+     "mean_signed_clv_executable": 0.00023,
+     "positive_clv_share": 0.091954,
+     "mean_width_change": -0.00069,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1,
+      "toward": 8,
+      "unchanged": 78
+     },
+     "toward_share_of_directional": 0.888889,
+     "n_directional": 9
+    }
+   }
+  },
+  "latest pregame": {
+   "selection_rule": "one row per (game, ticker): the smallest positive minutes_to_kickoff, ties broken on (observed_at, prediction_id)",
+   "rows_not_provably_pregame_excluded": 0,
+   "actual_minutes_to_kickoff": {
+    "n": 6613,
+    "min": 0.1,
+    "median": 43.5,
+    "max": 2750.9,
+    "mean": 78.1
+   },
+   "n_observations": 6613,
+   "n_unique_contracts": 6613,
+   "n_games": 15,
+   "event_calibration": {
+    "n_event_realisations": 6486,
+    "model_event_probability": {
+     "n": 6486,
+     "brier": 0.174211,
+     "log_loss": 0.525667,
+     "mean_predicted": 0.292323,
+     "actual_rate": 0.357077,
+     "mean_signed_error": -0.064754
+    },
+    "market_where_spaces_coincide": {
+     "n_contracts": 1135,
+     "note": "market midpoint scored against the event, restricted to contracts whose value equals their event probability (no participation branch); elsewhere a price is not an event probability",
+     "n": 1135,
+     "brier": 0.176288,
+     "log_loss": 0.528929,
+     "mean_predicted": 0.413498,
+     "actual_rate": 0.45815,
+     "mean_signed_error": -0.044652
+    },
+    "calibration_by_event_probability": [
+     {
+      "band": "0.00-0.10",
+      "n": 1959,
+      "mean_event_probability": 0.042636,
+      "actual_event_rate": 0.0878
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 1114,
+      "mean_event_probability": 0.146657,
+      "actual_event_rate": 0.237882
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 780,
+      "mean_event_probability": 0.2455,
+      "actual_event_rate": 0.353846
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 642,
+      "mean_event_probability": 0.347929,
+      "actual_event_rate": 0.442368
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 553,
+      "mean_event_probability": 0.447756,
+      "actual_event_rate": 0.500904
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 476,
+      "mean_event_probability": 0.547397,
+      "actual_event_rate": 0.613445
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 376,
+      "mean_event_probability": 0.651231,
+      "actual_event_rate": 0.704787
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 282,
+      "mean_event_probability": 0.74835,
+      "actual_event_rate": 0.755319
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 174,
+      "mean_event_probability": 0.842077,
+      "actual_event_rate": 0.862069
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 130,
+      "mean_event_probability": 0.951217,
+      "actual_event_rate": 0.938462
+     }
+    ],
+    "excluded": {
+     "no_binary_event_realisation": 127
+    }
+   },
+   "contract_payout_quality": {
+    "n_exact_payouts": 6486,
+    "by_settlement_kind": {
+     "binary": 6486
+    },
+    "model_contract_value": {
+     "n": 6486,
+     "mean_squared_payout_error": 0.174656,
+     "mean_absolute_payout_error": 0.317269,
+     "mean_signed_payout_error": -0.06901,
+     "mean_predicted_payout": 0.288067,
+     "mean_actual_payout": 0.357077
+    },
+    "market_at_snapshot": {
+     "n": 6486,
+     "mean_squared_payout_error": 0.158352,
+     "mean_absolute_payout_error": 0.309647,
+     "mean_signed_payout_error": -0.030188,
+     "mean_predicted_payout": 0.326889,
+     "mean_actual_payout": 0.357077
+    },
+    "on_rows_with_a_usable_close": {
+     "n": 6375,
+     "model_contract_value": {
+      "n": 6375,
+      "mean_squared_payout_error": 0.174438,
+      "mean_absolute_payout_error": 0.317204,
+      "mean_signed_payout_error": -0.06902,
+      "mean_predicted_payout": 0.287999,
+      "mean_actual_payout": 0.35702
+     },
+     "market_at_snapshot": {
+      "n": 6375,
+      "mean_squared_payout_error": 0.158131,
+      "mean_absolute_payout_error": 0.309786,
+      "mean_signed_payout_error": -0.029006,
+      "mean_predicted_payout": 0.328013,
+      "mean_actual_payout": 0.35702
+     },
+     "market_at_close": {
+      "n": 6375,
+      "mean_squared_payout_error": 0.158754,
+      "mean_absolute_payout_error": 0.310569,
+      "mean_signed_payout_error": -0.030863,
+      "mean_predicted_payout": 0.326157,
+      "mean_actual_payout": 0.35702
+     }
+    },
+    "excluded": {
+     "settled_without_an_exact_payout": 0,
+     "settled_without_an_exact_payout_reasons": {},
+     "not_settled": 127
+    }
+   },
+   "clv": {
+    "n": 6437,
+    "excluded_no_usable_close": 176,
+    "mean_signed_clv_mid": 0.000985,
+    "mean_signed_clv_executable": 0.00435,
+    "positive_clv_share": 0.268293,
+    "mean_width_change": 0.00673,
+    "mean_liquidity_change": 0.0,
+    "counts": {
+     "away": 1494,
+     "toward": 1708,
+     "unchanged": 3235
+    },
+    "toward_share_of_directional": 0.533417,
+    "n_directional": 3202,
+    "on_stale_closes": {
+     "n": 176,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.000312,
+     "mean_signed_clv_executable": 0.00017,
+     "positive_clv_share": 0.051136,
+     "mean_width_change": -0.000284,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1,
+      "toward": 9,
+      "unchanged": 166
+     },
+     "toward_share_of_directional": 0.9,
+     "n_directional": 10
+    }
+   },
+   "note": "the same rows as the primary contract view"
+  }
+ },
+ "segments": {
+  "family": {
+   "BOTH_TEAMS_SCORE_N": {
+    "n_contracts": 60,
+    "n_event_realisations": 60,
+    "n_exact_payouts": 60,
+    "event_brier": 0.163865,
+    "model_payout_mse": 0.163865,
+    "market_payout_mse": 0.160137,
+    "clv": {
+     "n": 57,
+     "excluded_no_usable_close": 3,
+     "mean_signed_clv_mid": -0.010789,
+     "mean_signed_clv_executable": 0.031579,
+     "positive_clv_share": 0.315789,
+     "mean_width_change": 0.084737,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 19,
+      "toward": 18,
+      "unchanged": 20
+     },
+     "toward_share_of_directional": 0.486486,
+     "n_directional": 37,
+     "on_stale_closes": {
+      "n": 3,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 3
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "GAME_WINNER": {
+    "n_contracts": 30,
+    "n_event_realisations": 30,
+    "n_exact_payouts": 30,
+    "event_brier": 0.211238,
+    "model_payout_mse": 0.211237,
+    "market_payout_mse": 0.211958,
+    "clv": {
+     "n": 30,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": -0.000667,
+     "mean_signed_clv_executable": -0.000667,
+     "positive_clv_share": 0.1,
+     "mean_width_change": -0.0,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 5,
+      "toward": 3,
+      "unchanged": 22
+     },
+     "toward_share_of_directional": 0.375,
+     "n_directional": 8
+    }
+   },
+   "PLAYER_STAT": {
+    "n_contracts": 5448,
+    "n_event_realisations": 5321,
+    "n_exact_payouts": 5321,
+    "event_brier": 0.173391,
+    "model_payout_mse": 0.173933,
+    "market_payout_mse": 0.154223,
+    "clv": {
+     "n": 5284,
+     "excluded_no_usable_close": 164,
+     "mean_signed_clv_mid": 0.001199,
+     "mean_signed_clv_executable": 0.004881,
+     "positive_clv_share": 0.286525,
+     "mean_width_change": 0.007364,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1331,
+      "toward": 1496,
+      "unchanged": 2457
+     },
+     "toward_share_of_directional": 0.529183,
+     "n_directional": 2827,
+     "on_stale_closes": {
+      "n": 164,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000335,
+      "mean_signed_clv_executable": 0.000305,
+      "positive_clv_share": 0.04878,
+      "mean_width_change": -6.1e-05,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 8,
+       "unchanged": 156
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 8
+     }
+    }
+   },
+   "SPREAD": {
+    "n_contracts": 379,
+    "n_event_realisations": 379,
+    "n_exact_payouts": 379,
+    "event_brier": 0.207996,
+    "model_payout_mse": 0.207996,
+    "market_payout_mse": 0.205706,
+    "clv": {
+     "n": 379,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.000409,
+     "mean_signed_clv_executable": 0.00066,
+     "positive_clv_share": 0.134565,
+     "mean_width_change": 0.000501,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 35,
+      "toward": 50,
+      "unchanged": 294
+     },
+     "toward_share_of_directional": 0.588235,
+     "n_directional": 85
+    }
+   },
+   "TEAM_TOTAL": {
+    "n_contracts": 411,
+    "n_event_realisations": 411,
+    "n_exact_payouts": 411,
+    "event_brier": 0.147754,
+    "model_payout_mse": 0.147754,
+    "market_payout_mse": 0.148582,
+    "clv": {
+     "n": 402,
+     "excluded_no_usable_close": 9,
+     "mean_signed_clv_mid": 0.001231,
+     "mean_signed_clv_executable": 0.000473,
+     "positive_clv_share": 0.281095,
+     "mean_width_change": -0.001517,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 78,
+      "toward": 113,
+      "unchanged": 211
+     },
+     "toward_share_of_directional": 0.591623,
+     "n_directional": 191,
+     "on_stale_closes": {
+      "n": 9,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": -0.0,
+      "mean_signed_clv_executable": -0.002222,
+      "positive_clv_share": 0.111111,
+      "mean_width_change": -0.004444,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 1,
+       "unchanged": 7
+      },
+      "toward_share_of_directional": 0.5,
+      "n_directional": 2
+     }
+    }
+   },
+   "TOTAL": {
+    "n_contracts": 285,
+    "n_event_realisations": 285,
+    "n_exact_payouts": 285,
+    "event_brier": 0.181033,
+    "model_payout_mse": 0.181033,
+    "market_payout_mse": 0.180523,
+    "clv": {
+     "n": 285,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": -3.5e-05,
+     "mean_signed_clv_executable": -3.5e-05,
+     "positive_clv_share": 0.098246,
+     "mean_width_change": -0.0,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 26,
+      "toward": 28,
+      "unchanged": 231
+     },
+     "toward_share_of_directional": 0.518519,
+     "n_directional": 54
+    }
+   }
+  },
+  "player statistic": {
+   "None": {
+    "n_contracts": 30,
+    "n_event_realisations": 30,
+    "n_exact_payouts": 30,
+    "event_brier": 0.211238,
+    "model_payout_mse": 0.211237,
+    "market_payout_mse": 0.211958,
+    "clv": {
+     "n": 30,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": -0.000667,
+     "mean_signed_clv_executable": -0.000667,
+     "positive_clv_share": 0.1,
+     "mean_width_change": -0.0,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 5,
+      "toward": 3,
+      "unchanged": 22
+     },
+     "toward_share_of_directional": 0.375,
+     "n_directional": 8
+    }
+   },
+   "attempts": {
+    "n_contracts": 341,
+    "n_event_realisations": 330,
+    "n_exact_payouts": 330,
+    "event_brier": 0.230368,
+    "model_payout_mse": 0.228355,
+    "market_payout_mse": 0.216801,
+    "clv": {
+     "n": 320,
+     "excluded_no_usable_close": 21,
+     "mean_signed_clv_mid": 0.002281,
+     "mean_signed_clv_executable": 0.020219,
+     "positive_clv_share": 0.365625,
+     "mean_width_change": 0.035875,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 80,
+      "toward": 117,
+      "unchanged": 123
+     },
+     "toward_share_of_directional": 0.593909,
+     "n_directional": 197,
+     "on_stale_closes": {
+      "n": 21,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000238,
+      "mean_signed_clv_executable": 0.000476,
+      "positive_clv_share": 0.047619,
+      "mean_width_change": 0.000476,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 20
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "carries": {
+    "n_contracts": 437,
+    "n_event_realisations": 437,
+    "n_exact_payouts": 437,
+    "event_brier": 0.280314,
+    "model_payout_mse": 0.282354,
+    "market_payout_mse": 0.226739,
+    "clv": {
+     "n": 399,
+     "excluded_no_usable_close": 38,
+     "mean_signed_clv_mid": 0.010551,
+     "mean_signed_clv_executable": 0.027419,
+     "positive_clv_share": 0.338346,
+     "mean_width_change": 0.033734,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 120,
+      "toward": 134,
+      "unchanged": 145
+     },
+     "toward_share_of_directional": 0.527559,
+     "n_directional": 254,
+     "on_stale_closes": {
+      "n": 38,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000132,
+      "mean_signed_clv_executable": 0.000263,
+      "positive_clv_share": 0.026316,
+      "mean_width_change": 0.000263,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 37
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "completions": {
+    "n_contracts": 341,
+    "n_event_realisations": 330,
+    "n_exact_payouts": 330,
+    "event_brier": 0.188189,
+    "model_payout_mse": 0.187927,
+    "market_payout_mse": 0.194789,
+    "clv": {
+     "n": 309,
+     "excluded_no_usable_close": 32,
+     "mean_signed_clv_mid": 0.00534,
+     "mean_signed_clv_executable": 0.034337,
+     "positive_clv_share": 0.343042,
+     "mean_width_change": 0.057994,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 91,
+      "toward": 105,
+      "unchanged": 113
+     },
+     "toward_share_of_directional": 0.535714,
+     "n_directional": 196,
+     "on_stale_closes": {
+      "n": 32,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 32
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "interceptions": {
+    "n_contracts": 93,
+    "n_event_realisations": 90,
+    "n_exact_payouts": 90,
+    "event_brier": 0.130567,
+    "model_payout_mse": 0.130378,
+    "market_payout_mse": 0.132949,
+    "clv": {
+     "n": 90,
+     "excluded_no_usable_close": 3,
+     "mean_signed_clv_mid": 0.013056,
+     "mean_signed_clv_executable": 0.002667,
+     "positive_clv_share": 0.377778,
+     "mean_width_change": -0.020778,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 15,
+      "toward": 33,
+      "unchanged": 42
+     },
+     "toward_share_of_directional": 0.6875,
+     "n_directional": 48,
+     "on_stale_closes": {
+      "n": 3,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 3
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "margin": {
+    "n_contracts": 379,
+    "n_event_realisations": 379,
+    "n_exact_payouts": 379,
+    "event_brier": 0.207996,
+    "model_payout_mse": 0.207996,
+    "market_payout_mse": 0.205706,
+    "clv": {
+     "n": 379,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.000409,
+     "mean_signed_clv_executable": 0.00066,
+     "positive_clv_share": 0.134565,
+     "mean_width_change": 0.000501,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 35,
+      "toward": 50,
+      "unchanged": 294
+     },
+     "toward_share_of_directional": 0.588235,
+     "n_directional": 85
+    }
+   },
+   "min_team_points": {
+    "n_contracts": 60,
+    "n_event_realisations": 60,
+    "n_exact_payouts": 60,
+    "event_brier": 0.163865,
+    "model_payout_mse": 0.163865,
+    "market_payout_mse": 0.160137,
+    "clv": {
+     "n": 57,
+     "excluded_no_usable_close": 3,
+     "mean_signed_clv_mid": -0.010789,
+     "mean_signed_clv_executable": 0.031579,
+     "positive_clv_share": 0.315789,
+     "mean_width_change": 0.084737,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 19,
+      "toward": 18,
+      "unchanged": 20
+     },
+     "toward_share_of_directional": 0.486486,
+     "n_directional": 37,
+     "on_stale_closes": {
+      "n": 3,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 3
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "passing_tds": {
+    "n_contracts": 124,
+    "n_event_realisations": 121,
+    "n_exact_payouts": 121,
+    "event_brier": 0.150398,
+    "model_payout_mse": 0.151114,
+    "market_payout_mse": 0.150333,
+    "clv": {
+     "n": 121,
+     "excluded_no_usable_close": 3,
+     "mean_signed_clv_mid": -0.0,
+     "mean_signed_clv_executable": -0.001736,
+     "positive_clv_share": 0.31405,
+     "mean_width_change": -0.003471,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 37,
+      "toward": 36,
+      "unchanged": 48
+     },
+     "toward_share_of_directional": 0.493151,
+     "n_directional": 73,
+     "on_stale_closes": {
+      "n": 3,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 3
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "passing_yards": {
+    "n_contracts": 269,
+    "n_event_realisations": 262,
+    "n_exact_payouts": 262,
+    "event_brier": 0.176375,
+    "model_payout_mse": 0.175438,
+    "market_payout_mse": 0.172778,
+    "clv": {
+     "n": 262,
+     "excluded_no_usable_close": 7,
+     "mean_signed_clv_mid": 0.000725,
+     "mean_signed_clv_executable": 0.000191,
+     "positive_clv_share": 0.301527,
+     "mean_width_change": -0.001069,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 68,
+      "toward": 79,
+      "unchanged": 115
+     },
+     "toward_share_of_directional": 0.537415,
+     "n_directional": 147,
+     "on_stale_closes": {
+      "n": 7,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 7
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "receiving_yards": {
+    "n_contracts": 1304,
+    "n_event_realisations": 1282,
+    "n_exact_payouts": 1282,
+    "event_brier": 0.1712,
+    "model_payout_mse": 0.171866,
+    "market_payout_mse": 0.153546,
+    "clv": {
+     "n": 1288,
+     "excluded_no_usable_close": 16,
+     "mean_signed_clv_mid": 0.000264,
+     "mean_signed_clv_executable": 3.1e-05,
+     "positive_clv_share": 0.306677,
+     "mean_width_change": -0.000466,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 320,
+      "toward": 390,
+      "unchanged": 578
+     },
+     "toward_share_of_directional": 0.549296,
+     "n_directional": 710,
+     "on_stale_closes": {
+      "n": 16,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000313,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0625,
+      "mean_width_change": -0.000625,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 15
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "receptions": {
+    "n_contracts": 1148,
+    "n_event_realisations": 1131,
+    "n_exact_payouts": 1131,
+    "event_brier": 0.158071,
+    "model_payout_mse": 0.158912,
+    "market_payout_mse": 0.130996,
+    "clv": {
+     "n": 1118,
+     "excluded_no_usable_close": 30,
+     "mean_signed_clv_mid": 0.000107,
+     "mean_signed_clv_executable": -0.000125,
+     "positive_clv_share": 0.277281,
+     "mean_width_change": -0.000465,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 310,
+      "toward": 308,
+      "unchanged": 500
+     },
+     "toward_share_of_directional": 0.498382,
+     "n_directional": 618,
+     "on_stale_closes": {
+      "n": 30,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000167,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.033333,
+      "mean_width_change": -0.000333,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 29
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "rushing_yards": {
+    "n_contracts": 749,
+    "n_event_realisations": 729,
+    "n_exact_payouts": 729,
+    "event_brier": 0.171288,
+    "model_payout_mse": 0.172573,
+    "market_payout_mse": 0.144949,
+    "clv": {
+     "n": 744,
+     "excluded_no_usable_close": 5,
+     "mean_signed_clv_mid": -0.003085,
+     "mean_signed_clv_executable": -0.003199,
+     "positive_clv_share": 0.284946,
+     "mean_width_change": -0.000228,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 220,
+      "toward": 207,
+      "unchanged": 317
+     },
+     "toward_share_of_directional": 0.484778,
+     "n_directional": 427,
+     "on_stale_closes": {
+      "n": 5,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 5
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "team_points": {
+    "n_contracts": 411,
+    "n_event_realisations": 411,
+    "n_exact_payouts": 411,
+    "event_brier": 0.147754,
+    "model_payout_mse": 0.147754,
+    "market_payout_mse": 0.148582,
+    "clv": {
+     "n": 402,
+     "excluded_no_usable_close": 9,
+     "mean_signed_clv_mid": 0.001231,
+     "mean_signed_clv_executable": 0.000473,
+     "positive_clv_share": 0.281095,
+     "mean_width_change": -0.001517,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 78,
+      "toward": 113,
+      "unchanged": 211
+     },
+     "toward_share_of_directional": 0.591623,
+     "n_directional": 191,
+     "on_stale_closes": {
+      "n": 9,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": -0.0,
+      "mean_signed_clv_executable": -0.002222,
+      "positive_clv_share": 0.111111,
+      "mean_width_change": -0.004444,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 1,
+       "unchanged": 7
+      },
+      "toward_share_of_directional": 0.5,
+      "n_directional": 2
+     }
+    }
+   },
+   "total_points": {
+    "n_contracts": 285,
+    "n_event_realisations": 285,
+    "n_exact_payouts": 285,
+    "event_brier": 0.181033,
+    "model_payout_mse": 0.181033,
+    "market_payout_mse": 0.180523,
+    "clv": {
+     "n": 285,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": -3.5e-05,
+     "mean_signed_clv_executable": -3.5e-05,
+     "positive_clv_share": 0.098246,
+     "mean_width_change": -0.0,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 26,
+      "toward": 28,
+      "unchanged": 231
+     },
+     "toward_share_of_directional": 0.518519,
+     "n_directional": 54
+    }
+   },
+   "touchdowns": {
+    "n_contracts": 642,
+    "n_event_realisations": 609,
+    "n_exact_payouts": 609,
+    "event_brier": 0.102967,
+    "model_payout_mse": 0.103264,
+    "market_payout_mse": 0.097896,
+    "clv": {
+     "n": 633,
+     "excluded_no_usable_close": 9,
+     "mean_signed_clv_mid": 0.00034,
+     "mean_signed_clv_executable": 0.000269,
+     "positive_clv_share": 0.139021,
+     "mean_width_change": -0.000142,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 70,
+      "toward": 87,
+      "unchanged": 476
+     },
+     "toward_share_of_directional": 0.55414,
+     "n_directional": 157,
+     "on_stale_closes": {
+      "n": 9,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.003889,
+      "mean_signed_clv_executable": 0.003333,
+      "positive_clv_share": 0.444444,
+      "mean_width_change": -0.001111,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 4,
+       "unchanged": 5
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 4
+     }
+    }
+   }
+  },
+  "contract value band": {
+   "0.00-0.10": {
+    "n_contracts": 2101,
+    "n_event_realisations": 1991,
+    "n_exact_payouts": 1991,
+    "event_brier": 0.080219,
+    "model_payout_mse": 0.080254,
+    "market_payout_mse": 0.075672,
+    "clv": {
+     "n": 2001,
+     "excluded_no_usable_close": 100,
+     "mean_signed_clv_mid": 0.000415,
+     "mean_signed_clv_executable": 0.000365,
+     "positive_clv_share": 0.26037,
+     "mean_width_change": -0.0001,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 371,
+      "toward": 515,
+      "unchanged": 1115
+     },
+     "toward_share_of_directional": 0.581264,
+     "n_directional": 886,
+     "on_stale_closes": {
+      "n": 100,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.00045,
+      "mean_signed_clv_executable": 0.0003,
+      "positive_clv_share": 0.06,
+      "mean_width_change": -0.0003,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 6,
+       "unchanged": 94
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 6
+     }
+    }
+   },
+   "0.10-0.20": {
+    "n_contracts": 1130,
+    "n_event_realisations": 1123,
+    "n_exact_payouts": 1123,
+    "event_brier": 0.192723,
+    "model_payout_mse": 0.192954,
+    "market_payout_mse": 0.168466,
+    "clv": {
+     "n": 1117,
+     "excluded_no_usable_close": 13,
+     "mean_signed_clv_mid": 0.001392,
+     "mean_signed_clv_executable": 0.001764,
+     "positive_clv_share": 0.264996,
+     "mean_width_change": 0.000743,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 265,
+      "toward": 289,
+      "unchanged": 563
+     },
+     "toward_share_of_directional": 0.521661,
+     "n_directional": 554,
+     "on_stale_closes": {
+      "n": 13,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000385,
+      "mean_signed_clv_executable": 0.000769,
+      "positive_clv_share": 0.076923,
+      "mean_width_change": 0.000769,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 12
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "0.20-0.30": {
+    "n_contracts": 786,
+    "n_event_realisations": 782,
+    "n_exact_payouts": 782,
+    "event_brier": 0.241629,
+    "model_payout_mse": 0.242287,
+    "market_payout_mse": 0.208514,
+    "clv": {
+     "n": 769,
+     "excluded_no_usable_close": 17,
+     "mean_signed_clv_mid": 0.001736,
+     "mean_signed_clv_executable": 0.006164,
+     "positive_clv_share": 0.248375,
+     "mean_width_change": 0.008856,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 214,
+      "toward": 187,
+      "unchanged": 368
+     },
+     "toward_share_of_directional": 0.466334,
+     "n_directional": 401,
+     "on_stale_closes": {
+      "n": 17,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 17
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.30-0.40": {
+    "n_contracts": 642,
+    "n_event_realisations": 640,
+    "n_exact_payouts": 640,
+    "event_brier": 0.250304,
+    "model_payout_mse": 0.251127,
+    "market_payout_mse": 0.218313,
+    "clv": {
+     "n": 626,
+     "excluded_no_usable_close": 16,
+     "mean_signed_clv_mid": 0.002069,
+     "mean_signed_clv_executable": 0.006134,
+     "positive_clv_share": 0.265176,
+     "mean_width_change": 0.008131,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 148,
+      "toward": 166,
+      "unchanged": 312
+     },
+     "toward_share_of_directional": 0.528662,
+     "n_directional": 314,
+     "on_stale_closes": {
+      "n": 16,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000312,
+      "mean_signed_clv_executable": 0.000625,
+      "positive_clv_share": 0.0625,
+      "mean_width_change": 0.000625,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 15
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "0.40-0.50": {
+    "n_contracts": 556,
+    "n_event_realisations": 554,
+    "n_exact_payouts": 554,
+    "event_brier": 0.253185,
+    "model_payout_mse": 0.253847,
+    "market_payout_mse": 0.229056,
+    "clv": {
+     "n": 548,
+     "excluded_no_usable_close": 8,
+     "mean_signed_clv_mid": 0.002664,
+     "mean_signed_clv_executable": 0.007318,
+     "positive_clv_share": 0.277372,
+     "mean_width_change": 0.009307,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 135,
+      "toward": 151,
+      "unchanged": 262
+     },
+     "toward_share_of_directional": 0.527972,
+     "n_directional": 286,
+     "on_stale_closes": {
+      "n": 8,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 8
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.50-0.60": {
+    "n_contracts": 464,
+    "n_event_realisations": 463,
+    "n_exact_payouts": 463,
+    "event_brier": 0.240119,
+    "model_payout_mse": 0.240982,
+    "market_payout_mse": 0.218815,
+    "clv": {
+     "n": 460,
+     "excluded_no_usable_close": 4,
+     "mean_signed_clv_mid": 0.000424,
+     "mean_signed_clv_executable": 0.00537,
+     "positive_clv_share": 0.269565,
+     "mean_width_change": 0.009891,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 130,
+      "toward": 123,
+      "unchanged": 207
+     },
+     "toward_share_of_directional": 0.486166,
+     "n_directional": 253,
+     "on_stale_closes": {
+      "n": 4,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 4
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.60-0.70": {
+    "n_contracts": 381,
+    "n_event_realisations": 380,
+    "n_exact_payouts": 380,
+    "event_brier": 0.209339,
+    "model_payout_mse": 0.21073,
+    "market_payout_mse": 0.207756,
+    "clv": {
+     "n": 378,
+     "excluded_no_usable_close": 3,
+     "mean_signed_clv_mid": 0.000437,
+     "mean_signed_clv_executable": 0.011085,
+     "positive_clv_share": 0.291005,
+     "mean_width_change": 0.021296,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 100,
+      "toward": 110,
+      "unchanged": 168
+     },
+     "toward_share_of_directional": 0.52381,
+     "n_directional": 210,
+     "on_stale_closes": {
+      "n": 3,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 3
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.70-0.80": {
+    "n_contracts": 282,
+    "n_event_realisations": 282,
+    "n_exact_payouts": 282,
+    "event_brier": 0.180583,
+    "model_payout_mse": 0.180973,
+    "market_payout_mse": 0.188066,
+    "clv": {
+     "n": 273,
+     "excluded_no_usable_close": 9,
+     "mean_signed_clv_mid": -0.000733,
+     "mean_signed_clv_executable": 0.017619,
+     "positive_clv_share": 0.344322,
+     "mean_width_change": 0.036703,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 85,
+      "toward": 94,
+      "unchanged": 94
+     },
+     "toward_share_of_directional": 0.52514,
+     "n_directional": 179,
+     "on_stale_closes": {
+      "n": 9,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 9
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.80-0.90": {
+    "n_contracts": 148,
+    "n_event_realisations": 148,
+    "n_exact_payouts": 148,
+    "event_brier": 0.109257,
+    "model_payout_mse": 0.109939,
+    "market_payout_mse": 0.118955,
+    "clv": {
+     "n": 146,
+     "excluded_no_usable_close": 2,
+     "mean_signed_clv_mid": -0.001747,
+     "mean_signed_clv_executable": 0.008904,
+     "positive_clv_share": 0.349315,
+     "mean_width_change": 0.021301,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 22,
+      "toward": 51,
+      "unchanged": 73
+     },
+     "toward_share_of_directional": 0.69863,
+     "n_directional": 73,
+     "on_stale_closes": {
+      "n": 2,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.005,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.5,
+      "mean_width_change": -0.01,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 1
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "0.90-1.00": {
+    "n_contracts": 123,
+    "n_event_realisations": 123,
+    "n_exact_payouts": 123,
+    "event_brier": 0.053324,
+    "model_payout_mse": 0.053406,
+    "market_payout_mse": 0.054013,
+    "clv": {
+     "n": 119,
+     "excluded_no_usable_close": 4,
+     "mean_signed_clv_mid": -0.000336,
+     "mean_signed_clv_executable": -0.000504,
+     "positive_clv_share": 0.184874,
+     "mean_width_change": -0.000336,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 24,
+      "toward": 22,
+      "unchanged": 73
+     },
+     "toward_share_of_directional": 0.478261,
+     "n_directional": 46,
+     "on_stale_closes": {
+      "n": 4,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": -0.0025,
+      "mean_signed_clv_executable": -0.005,
+      "positive_clv_share": 0.0,
+      "mean_width_change": -0.005,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 0,
+       "unchanged": 3
+      },
+      "toward_share_of_directional": 0.0,
+      "n_directional": 1
+     }
+    }
+   }
+  },
+  "event probability band": {
+   "0.00-0.10": {
+    "n_contracts": 2005,
+    "n_event_realisations": 1959,
+    "n_exact_payouts": 1959,
+    "event_brier": 0.080545,
+    "model_payout_mse": 0.080592,
+    "market_payout_mse": 0.075894,
+    "clv": {
+     "n": 1951,
+     "excluded_no_usable_close": 54,
+     "mean_signed_clv_mid": 0.001174,
+     "mean_signed_clv_executable": 0.000354,
+     "positive_clv_share": 0.261917,
+     "mean_width_change": -0.00164,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 357,
+      "toward": 505,
+      "unchanged": 1089
+     },
+     "toward_share_of_directional": 0.585847,
+     "n_directional": 862,
+     "on_stale_closes": {
+      "n": 54,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000833,
+      "mean_signed_clv_executable": 0.000556,
+      "positive_clv_share": 0.111111,
+      "mean_width_change": -0.000556,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 6,
+       "unchanged": 48
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 6
+     }
+    }
+   },
+   "0.10-0.20": {
+    "n_contracts": 1133,
+    "n_event_realisations": 1114,
+    "n_exact_payouts": 1114,
+    "event_brier": 0.188074,
+    "model_payout_mse": 0.188298,
+    "market_payout_mse": 0.165863,
+    "clv": {
+     "n": 1113,
+     "excluded_no_usable_close": 20,
+     "mean_signed_clv_mid": 0.000961,
+     "mean_signed_clv_executable": 0.00168,
+     "positive_clv_share": 0.260557,
+     "mean_width_change": 0.001438,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 262,
+      "toward": 283,
+      "unchanged": 568
+     },
+     "toward_share_of_directional": 0.519266,
+     "n_directional": 545,
+     "on_stale_closes": {
+      "n": 20,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.00025,
+      "mean_signed_clv_executable": 0.0005,
+      "positive_clv_share": 0.05,
+      "mean_width_change": 0.0005,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 19
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "0.20-0.30": {
+    "n_contracts": 797,
+    "n_event_realisations": 780,
+    "n_exact_payouts": 780,
+    "event_brier": 0.238342,
+    "model_payout_mse": 0.238974,
+    "market_payout_mse": 0.20555,
+    "clv": {
+     "n": 769,
+     "excluded_no_usable_close": 28,
+     "mean_signed_clv_mid": 0.001391,
+     "mean_signed_clv_executable": 0.00606,
+     "positive_clv_share": 0.254876,
+     "mean_width_change": 0.009337,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 210,
+      "toward": 192,
+      "unchanged": 367
+     },
+     "toward_share_of_directional": 0.477612,
+     "n_directional": 402,
+     "on_stale_closes": {
+      "n": 28,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 28
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.30-0.40": {
+    "n_contracts": 655,
+    "n_event_realisations": 642,
+    "n_exact_payouts": 642,
+    "event_brier": 0.25341,
+    "model_payout_mse": 0.254345,
+    "market_payout_mse": 0.221094,
+    "clv": {
+     "n": 632,
+     "excluded_no_usable_close": 23,
+     "mean_signed_clv_mid": 0.001551,
+     "mean_signed_clv_executable": 0.006171,
+     "positive_clv_share": 0.262658,
+     "mean_width_change": 0.009241,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 158,
+      "toward": 166,
+      "unchanged": 308
+     },
+     "toward_share_of_directional": 0.512346,
+     "n_directional": 324,
+     "on_stale_closes": {
+      "n": 23,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000217,
+      "mean_signed_clv_executable": 0.000435,
+      "positive_clv_share": 0.043478,
+      "mean_width_change": 0.000435,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 22
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "0.40-0.50": {
+    "n_contracts": 563,
+    "n_event_realisations": 553,
+    "n_exact_payouts": 553,
+    "event_brier": 0.251752,
+    "model_payout_mse": 0.252199,
+    "market_payout_mse": 0.223273,
+    "clv": {
+     "n": 549,
+     "excluded_no_usable_close": 14,
+     "mean_signed_clv_mid": 0.002058,
+     "mean_signed_clv_executable": 0.006794,
+     "positive_clv_share": 0.275046,
+     "mean_width_change": 0.009472,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 135,
+      "toward": 151,
+      "unchanged": 263
+     },
+     "toward_share_of_directional": 0.527972,
+     "n_directional": 286,
+     "on_stale_closes": {
+      "n": 14,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 14
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.50-0.60": {
+    "n_contracts": 486,
+    "n_event_realisations": 476,
+    "n_exact_payouts": 476,
+    "event_brier": 0.241569,
+    "model_payout_mse": 0.24247,
+    "market_payout_mse": 0.222675,
+    "clv": {
+     "n": 477,
+     "excluded_no_usable_close": 9,
+     "mean_signed_clv_mid": 0.000524,
+     "mean_signed_clv_executable": 0.005241,
+     "positive_clv_share": 0.274633,
+     "mean_width_change": 0.009434,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 126,
+      "toward": 129,
+      "unchanged": 222
+     },
+     "toward_share_of_directional": 0.505882,
+     "n_directional": 255,
+     "on_stale_closes": {
+      "n": 9,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 9
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.60-0.70": {
+    "n_contracts": 386,
+    "n_event_realisations": 376,
+    "n_exact_payouts": 376,
+    "event_brier": 0.211704,
+    "model_payout_mse": 0.21311,
+    "market_payout_mse": 0.205464,
+    "clv": {
+     "n": 375,
+     "excluded_no_usable_close": 11,
+     "mean_signed_clv_mid": 9.3e-05,
+     "mean_signed_clv_executable": 0.012107,
+     "positive_clv_share": 0.288,
+     "mean_width_change": 0.024027,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 105,
+      "toward": 108,
+      "unchanged": 162
+     },
+     "toward_share_of_directional": 0.507042,
+     "n_directional": 213,
+     "on_stale_closes": {
+      "n": 11,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 11
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.70-0.80": {
+    "n_contracts": 284,
+    "n_event_realisations": 282,
+    "n_exact_payouts": 282,
+    "event_brier": 0.184279,
+    "model_payout_mse": 0.184802,
+    "market_payout_mse": 0.192458,
+    "clv": {
+     "n": 275,
+     "excluded_no_usable_close": 9,
+     "mean_signed_clv_mid": -0.000218,
+     "mean_signed_clv_executable": 0.016691,
+     "positive_clv_share": 0.323636,
+     "mean_width_change": 0.033818,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 83,
+      "toward": 89,
+      "unchanged": 103
+     },
+     "toward_share_of_directional": 0.517442,
+     "n_directional": 172,
+     "on_stale_closes": {
+      "n": 9,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 9
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "0.80-0.90": {
+    "n_contracts": 174,
+    "n_event_realisations": 174,
+    "n_exact_payouts": 174,
+    "event_brier": 0.119779,
+    "model_payout_mse": 0.120348,
+    "market_payout_mse": 0.131191,
+    "clv": {
+     "n": 170,
+     "excluded_no_usable_close": 4,
+     "mean_signed_clv_mid": -0.002765,
+     "mean_signed_clv_executable": 0.008529,
+     "positive_clv_share": 0.341176,
+     "mean_width_change": 0.022588,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 33,
+      "toward": 58,
+      "unchanged": 79
+     },
+     "toward_share_of_directional": 0.637363,
+     "n_directional": 91,
+     "on_stale_closes": {
+      "n": 4,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0025,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.25,
+      "mean_width_change": -0.005,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 3
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "0.90-1.00": {
+    "n_contracts": 130,
+    "n_event_realisations": 130,
+    "n_exact_payouts": 130,
+    "event_brier": 0.057095,
+    "model_payout_mse": 0.057093,
+    "market_payout_mse": 0.057925,
+    "clv": {
+     "n": 126,
+     "excluded_no_usable_close": 4,
+     "mean_signed_clv_mid": 0.000357,
+     "mean_signed_clv_executable": 0.000556,
+     "positive_clv_share": 0.214286,
+     "mean_width_change": 0.000397,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 25,
+      "toward": 27,
+      "unchanged": 74
+     },
+     "toward_share_of_directional": 0.519231,
+     "n_directional": 52,
+     "on_stale_closes": {
+      "n": 4,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": -0.0025,
+      "mean_signed_clv_executable": -0.005,
+      "positive_clv_share": 0.0,
+      "mean_width_change": -0.005,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 0,
+       "unchanged": 3
+      },
+      "toward_share_of_directional": 0.0,
+      "n_directional": 1
+     }
+    }
+   }
+  },
+  "disagreement band": {
+   "10-20%": {
+    "n_contracts": 1102,
+    "n_event_realisations": 1081,
+    "n_exact_payouts": 1081,
+    "event_brier": 0.219072,
+    "model_payout_mse": 0.219732,
+    "market_payout_mse": 0.194945,
+    "clv": {
+     "n": 1060,
+     "excluded_no_usable_close": 42,
+     "mean_signed_clv_mid": -0.000962,
+     "mean_signed_clv_executable": 0.001915,
+     "positive_clv_share": 0.299057,
+     "mean_width_change": 0.005755,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 321,
+      "toward": 315,
+      "unchanged": 424
+     },
+     "toward_share_of_directional": 0.495283,
+     "n_directional": 636,
+     "on_stale_closes": {
+      "n": 42,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 42
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "20%+": {
+    "n_contracts": 882,
+    "n_event_realisations": 825,
+    "n_exact_payouts": 825,
+    "event_brier": 0.296637,
+    "model_payout_mse": 0.298583,
+    "market_payout_mse": 0.213675,
+    "clv": {
+     "n": 817,
+     "excluded_no_usable_close": 65,
+     "mean_signed_clv_mid": 0.008341,
+     "mean_signed_clv_executable": 0.016536,
+     "positive_clv_share": 0.339045,
+     "mean_width_change": 0.016389,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 197,
+      "toward": 274,
+      "unchanged": 346
+     },
+     "toward_share_of_directional": 0.581741,
+     "n_directional": 471,
+     "on_stale_closes": {
+      "n": 65,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 7.7e-05,
+      "mean_signed_clv_executable": 0.000154,
+      "positive_clv_share": 0.015385,
+      "mean_width_change": 0.000154,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 64
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "3-5%": {
+    "n_contracts": 778,
+    "n_event_realisations": 766,
+    "n_exact_payouts": 766,
+    "event_brier": 0.143881,
+    "model_payout_mse": 0.143991,
+    "market_payout_mse": 0.140919,
+    "clv": {
+     "n": 773,
+     "excluded_no_usable_close": 5,
+     "mean_signed_clv_mid": -0.000446,
+     "mean_signed_clv_executable": 0.002613,
+     "positive_clv_share": 0.306598,
+     "mean_width_change": 0.006119,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 185,
+      "toward": 237,
+      "unchanged": 351
+     },
+     "toward_share_of_directional": 0.561611,
+     "n_directional": 422,
+     "on_stale_closes": {
+      "n": 5,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.001,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.2,
+      "mean_width_change": -0.002,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 4
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "5-10%": {
+    "n_contracts": 1107,
+    "n_event_realisations": 1090,
+    "n_exact_payouts": 1090,
+    "event_brier": 0.169533,
+    "model_payout_mse": 0.169713,
+    "market_payout_mse": 0.164992,
+    "clv": {
+     "n": 1085,
+     "excluded_no_usable_close": 22,
+     "mean_signed_clv_mid": 0.000687,
+     "mean_signed_clv_executable": 0.003558,
+     "positive_clv_share": 0.306912,
+     "mean_width_change": 0.005742,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 271,
+      "toward": 327,
+      "unchanged": 487
+     },
+     "toward_share_of_directional": 0.546823,
+     "n_directional": 598,
+     "on_stale_closes": {
+      "n": 22,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 22
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "<3%": {
+    "n_contracts": 2744,
+    "n_event_realisations": 2724,
+    "n_exact_payouts": 2724,
+    "event_brier": 0.129731,
+    "model_payout_mse": 0.129837,
+    "market_payout_mse": 0.129319,
+    "clv": {
+     "n": 2702,
+     "excluded_no_usable_close": 42,
+     "mean_signed_clv_mid": 5.4e-05,
+     "mean_signed_clv_executable": 0.002435,
+     "positive_clv_share": 0.208364,
+     "mean_width_change": 0.004763,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 520,
+      "toward": 555,
+      "unchanged": 1627
+     },
+     "toward_share_of_directional": 0.516279,
+     "n_directional": 1075,
+     "on_stale_closes": {
+      "n": 42,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.001071,
+      "mean_signed_clv_executable": 0.000476,
+      "positive_clv_share": 0.166667,
+      "mean_width_change": -0.00119,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 7,
+       "unchanged": 34
+      },
+      "toward_share_of_directional": 0.875,
+      "n_directional": 8
+     }
+    }
+   }
+  },
+  "model direction": {
+   "no": {
+    "n_contracts": 4157,
+    "n_event_realisations": 4055,
+    "n_exact_payouts": 4055,
+    "event_brier": 0.1847,
+    "model_payout_mse": 0.185712,
+    "market_payout_mse": 0.159447,
+    "clv": {
+     "n": 4039,
+     "excluded_no_usable_close": 118,
+     "mean_signed_clv_mid": 0.002051,
+     "mean_signed_clv_executable": 0.004721,
+     "positive_clv_share": 0.27284,
+     "mean_width_change": 0.00534,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 913,
+      "toward": 1092,
+      "unchanged": 2034
+     },
+     "toward_share_of_directional": 0.544638,
+     "n_directional": 2005,
+     "on_stale_closes": {
+      "n": 118,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000466,
+      "mean_signed_clv_executable": 0.000254,
+      "positive_clv_share": 0.059322,
+      "mean_width_change": -0.000424,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 7,
+       "unchanged": 111
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 7
+     }
+    }
+   },
+   "none": {
+    "n_contracts": 1,
+    "n_event_realisations": 1,
+    "n_exact_payouts": 1,
+    "event_brier": 0.018225,
+    "model_payout_mse": 0.018225,
+    "market_payout_mse": 0.018225,
+    "clv": {
+     "n": 1,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.0,
+     "mean_signed_clv_executable": 0.0,
+     "positive_clv_share": 0.0,
+     "mean_width_change": 0.0,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 0,
+      "toward": 0,
+      "unchanged": 1
+     },
+     "toward_share_of_directional": null,
+     "n_directional": 0
+    }
+   },
+   "yes": {
+    "n_contracts": 2455,
+    "n_event_realisations": 2430,
+    "n_exact_payouts": 2430,
+    "event_brier": 0.156773,
+    "model_payout_mse": 0.156272,
+    "market_payout_mse": 0.156581,
+    "clv": {
+     "n": 2397,
+     "excluded_no_usable_close": 58,
+     "mean_signed_clv_mid": -0.000811,
+     "mean_signed_clv_executable": 0.003725,
+     "positive_clv_share": 0.260743,
+     "mean_width_change": 0.009074,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 581,
+      "toward": 616,
+      "unchanged": 1200
+     },
+     "toward_share_of_directional": 0.51462,
+     "n_directional": 1197,
+     "on_stale_closes": {
+      "n": 58,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": -0.0,
+      "mean_signed_clv_executable": -0.0,
+      "positive_clv_share": 0.034483,
+      "mean_width_change": -0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 2,
+       "unchanged": 55
+      },
+      "toward_share_of_directional": 0.666667,
+      "n_directional": 3
+     }
+    }
+   }
+  },
+  "time to kickoff": {
+   "30-90m": {
+    "n_contracts": 3360,
+    "n_event_realisations": 3336,
+    "n_exact_payouts": 3336,
+    "event_brier": 0.178409,
+    "model_payout_mse": 0.179093,
+    "market_payout_mse": 0.160316,
+    "clv": {
+     "n": 3338,
+     "excluded_no_usable_close": 22,
+     "mean_signed_clv_mid": 0.001318,
+     "mean_signed_clv_executable": 0.004964,
+     "positive_clv_share": 0.2858,
+     "mean_width_change": 0.007292,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 776,
+      "toward": 945,
+      "unchanged": 1617
+     },
+     "toward_share_of_directional": 0.549099,
+     "n_directional": 1721,
+     "on_stale_closes": {
+      "n": 22,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 22
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "6-24h": {
+    "n_contracts": 48,
+    "n_event_realisations": 12,
+    "n_exact_payouts": 12,
+    "event_brier": 0.101307,
+    "model_payout_mse": 0.100425,
+    "market_payout_mse": 0.083973,
+    "clv": {
+     "n": 7,
+     "excluded_no_usable_close": 41,
+     "mean_signed_clv_mid": 0.008571,
+     "mean_signed_clv_executable": 0.018571,
+     "positive_clv_share": 0.428571,
+     "mean_width_change": 0.02,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 0,
+      "toward": 3,
+      "unchanged": 4
+     },
+     "toward_share_of_directional": 1.0,
+     "n_directional": 3,
+     "on_stale_closes": {
+      "n": 41,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 41
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "90m-6h": {
+    "n_contracts": 1895,
+    "n_event_realisations": 1870,
+    "n_exact_payouts": 1870,
+    "event_brier": 0.177358,
+    "model_payout_mse": 0.177719,
+    "market_payout_mse": 0.160074,
+    "clv": {
+     "n": 1811,
+     "excluded_no_usable_close": 84,
+     "mean_signed_clv_mid": -0.000699,
+     "mean_signed_clv_executable": 0.002032,
+     "positive_clv_share": 0.308117,
+     "mean_width_change": 0.005461,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 535,
+      "toward": 551,
+      "unchanged": 725
+     },
+     "toward_share_of_directional": 0.507366,
+     "n_directional": 1086,
+     "on_stale_closes": {
+      "n": 84,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000655,
+      "mean_signed_clv_executable": 0.000357,
+      "positive_clv_share": 0.107143,
+      "mean_width_change": -0.000595,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 9,
+       "unchanged": 74
+      },
+      "toward_share_of_directional": 0.9,
+      "n_directional": 10
+     }
+    }
+   },
+   "<30m": {
+    "n_contracts": 1272,
+    "n_event_realisations": 1267,
+    "n_exact_payouts": 1267,
+    "event_brier": 0.15929,
+    "model_payout_mse": 0.159247,
+    "market_payout_mse": 0.151458,
+    "clv": {
+     "n": 1272,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.00364,
+     "mean_signed_clv_executable": 0.005967,
+     "positive_clv_share": 0.166667,
+     "mean_width_change": 0.004654,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 176,
+      "toward": 209,
+      "unchanged": 887
+     },
+     "toward_share_of_directional": 0.542857,
+     "n_directional": 385
+    }
+   },
+   ">24h": {
+    "n_contracts": 38,
+    "n_event_realisations": 1,
+    "n_exact_payouts": 1,
+    "event_brier": 0.065284,
+    "model_payout_mse": 0.062285,
+    "market_payout_mse": 0.0081,
+    "clv": {
+     "n": 9,
+     "excluded_no_usable_close": 29,
+     "mean_signed_clv_mid": -0.165,
+     "mean_signed_clv_executable": 0.003333,
+     "positive_clv_share": 0.0,
+     "mean_width_change": 0.336667,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 7,
+      "toward": 0,
+      "unchanged": 2
+     },
+     "toward_share_of_directional": 0.0,
+     "n_directional": 7,
+     "on_stale_closes": {
+      "n": 29,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 29
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   }
+  },
+  "model version": {
+   "shadow-0.4.0": {
+    "n_contracts": 6613,
+    "n_event_realisations": 6486,
+    "n_exact_payouts": 6486,
+    "event_brier": 0.174211,
+    "model_payout_mse": 0.174656,
+    "market_payout_mse": 0.158352,
+    "clv": {
+     "n": 6437,
+     "excluded_no_usable_close": 176,
+     "mean_signed_clv_mid": 0.000985,
+     "mean_signed_clv_executable": 0.00435,
+     "positive_clv_share": 0.268293,
+     "mean_width_change": 0.00673,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1494,
+      "toward": 1708,
+      "unchanged": 3235
+     },
+     "toward_share_of_directional": 0.533417,
+     "n_directional": 3202,
+     "on_stale_closes": {
+      "n": 176,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000312,
+      "mean_signed_clv_executable": 0.00017,
+      "positive_clv_share": 0.051136,
+      "mean_width_change": -0.000284,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 9,
+       "unchanged": 166
+      },
+      "toward_share_of_directional": 0.9,
+      "n_directional": 10
+     }
+    }
+   }
+  },
+  "week": {
+   "1": {
+    "n_contracts": 6613,
+    "n_event_realisations": 6486,
+    "n_exact_payouts": 6486,
+    "event_brier": 0.174211,
+    "model_payout_mse": 0.174656,
+    "market_payout_mse": 0.158352,
+    "clv": {
+     "n": 6437,
+     "excluded_no_usable_close": 176,
+     "mean_signed_clv_mid": 0.000985,
+     "mean_signed_clv_executable": 0.00435,
+     "positive_clv_share": 0.268293,
+     "mean_width_change": 0.00673,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1494,
+      "toward": 1708,
+      "unchanged": 3235
+     },
+     "toward_share_of_directional": 0.533417,
+     "n_directional": 3202,
+     "on_stale_closes": {
+      "n": 176,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000312,
+      "mean_signed_clv_executable": 0.00017,
+      "positive_clv_share": 0.051136,
+      "mean_width_change": -0.000284,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 9,
+       "unchanged": 166
+      },
+      "toward_share_of_directional": 0.9,
+      "n_directional": 10
+     }
+    }
+   }
+  },
+  "game": {
+   "2026_01_ARI_LAC": {
+    "n_contracts": 411,
+    "n_event_realisations": 411,
+    "n_exact_payouts": 411,
+    "event_brier": 0.188052,
+    "model_payout_mse": 0.18873,
+    "market_payout_mse": 0.182282,
+    "clv": {
+     "n": 404,
+     "excluded_no_usable_close": 7,
+     "mean_signed_clv_mid": -0.000285,
+     "mean_signed_clv_executable": 0.00245,
+     "positive_clv_share": 0.331683,
+     "mean_width_change": 0.00547,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 118,
+      "toward": 132,
+      "unchanged": 154
+     },
+     "toward_share_of_directional": 0.528,
+     "n_directional": 250,
+     "on_stale_closes": {
+      "n": 7,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000714,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.142857,
+      "mean_width_change": -0.001429,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 6
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "2026_01_ATL_PIT": {
+    "n_contracts": 454,
+    "n_event_realisations": 416,
+    "n_exact_payouts": 416,
+    "event_brier": 0.151209,
+    "model_payout_mse": 0.151128,
+    "market_payout_mse": 0.139771,
+    "clv": {
+     "n": 411,
+     "excluded_no_usable_close": 43,
+     "mean_signed_clv_mid": 0.002153,
+     "mean_signed_clv_executable": 0.005669,
+     "positive_clv_share": 0.296837,
+     "mean_width_change": 0.007032,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 91,
+      "toward": 121,
+      "unchanged": 199
+     },
+     "toward_share_of_directional": 0.570755,
+     "n_directional": 212,
+     "on_stale_closes": {
+      "n": 43,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 43
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_BAL_IND": {
+    "n_contracts": 430,
+    "n_event_realisations": 425,
+    "n_exact_payouts": 425,
+    "event_brier": 0.175588,
+    "model_payout_mse": 0.176148,
+    "market_payout_mse": 0.161814,
+    "clv": {
+     "n": 424,
+     "excluded_no_usable_close": 6,
+     "mean_signed_clv_mid": 0.003019,
+     "mean_signed_clv_executable": 0.005472,
+     "positive_clv_share": 0.330189,
+     "mean_width_change": 0.004906,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 91,
+      "toward": 139,
+      "unchanged": 194
+     },
+     "toward_share_of_directional": 0.604348,
+     "n_directional": 230,
+     "on_stale_closes": {
+      "n": 6,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 6
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_BUF_HOU": {
+    "n_contracts": 440,
+    "n_event_realisations": 440,
+    "n_exact_payouts": 440,
+    "event_brier": 0.184453,
+    "model_payout_mse": 0.185991,
+    "market_payout_mse": 0.164152,
+    "clv": {
+     "n": 434,
+     "excluded_no_usable_close": 6,
+     "mean_signed_clv_mid": -0.000841,
+     "mean_signed_clv_executable": 0.002396,
+     "positive_clv_share": 0.271889,
+     "mean_width_change": 0.006475,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 101,
+      "toward": 118,
+      "unchanged": 215
+     },
+     "toward_share_of_directional": 0.538813,
+     "n_directional": 219,
+     "on_stale_closes": {
+      "n": 6,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 6
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_CHI_CAR": {
+    "n_contracts": 458,
+    "n_event_realisations": 454,
+    "n_exact_payouts": 454,
+    "event_brier": 0.248651,
+    "model_payout_mse": 0.250569,
+    "market_payout_mse": 0.24317,
+    "clv": {
+     "n": 440,
+     "excluded_no_usable_close": 18,
+     "mean_signed_clv_mid": -0.000239,
+     "mean_signed_clv_executable": 0.00175,
+     "positive_clv_share": 0.279545,
+     "mean_width_change": 0.003977,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 119,
+      "toward": 123,
+      "unchanged": 198
+     },
+     "toward_share_of_directional": 0.508264,
+     "n_directional": 242,
+     "on_stale_closes": {
+      "n": 18,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 18
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_CLE_JAX": {
+    "n_contracts": 403,
+    "n_event_realisations": 403,
+    "n_exact_payouts": 403,
+    "event_brier": 0.153281,
+    "model_payout_mse": 0.152648,
+    "market_payout_mse": 0.130441,
+    "clv": {
+     "n": 388,
+     "excluded_no_usable_close": 15,
+     "mean_signed_clv_mid": -0.000515,
+     "mean_signed_clv_executable": 0.003196,
+     "positive_clv_share": 0.255155,
+     "mean_width_change": 0.007423,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 91,
+      "toward": 97,
+      "unchanged": 200
+     },
+     "toward_share_of_directional": 0.515957,
+     "n_directional": 188,
+     "on_stale_closes": {
+      "n": 15,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 15
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_DAL_NYG": {
+    "n_contracts": 450,
+    "n_event_realisations": 427,
+    "n_exact_payouts": 427,
+    "event_brier": 0.159292,
+    "model_payout_mse": 0.159706,
+    "market_payout_mse": 0.151663,
+    "clv": {
+     "n": 450,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.006067,
+     "mean_signed_clv_executable": 0.015867,
+     "positive_clv_share": 0.271111,
+     "mean_width_change": 0.0196,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 119,
+      "toward": 120,
+      "unchanged": 211
+     },
+     "toward_share_of_directional": 0.502092,
+     "n_directional": 239
+    }
+   },
+   "2026_01_GB_MIN": {
+    "n_contracts": 446,
+    "n_event_realisations": 445,
+    "n_exact_payouts": 445,
+    "event_brier": 0.218111,
+    "model_payout_mse": 0.217767,
+    "market_payout_mse": 0.18373,
+    "clv": {
+     "n": 441,
+     "excluded_no_usable_close": 5,
+     "mean_signed_clv_mid": 0.000737,
+     "mean_signed_clv_executable": 0.002404,
+     "positive_clv_share": 0.321995,
+     "mean_width_change": 0.003333,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 139,
+      "toward": 140,
+      "unchanged": 162
+     },
+     "toward_share_of_directional": 0.501792,
+     "n_directional": 279,
+     "on_stale_closes": {
+      "n": 5,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 5
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_MIA_LV": {
+    "n_contracts": 420,
+    "n_event_realisations": 385,
+    "n_exact_payouts": 385,
+    "event_brier": 0.169285,
+    "model_payout_mse": 0.170169,
+    "market_payout_mse": 0.144756,
+    "clv": {
+     "n": 383,
+     "excluded_no_usable_close": 37,
+     "mean_signed_clv_mid": -0.001606,
+     "mean_signed_clv_executable": 0.002585,
+     "positive_clv_share": 0.32376,
+     "mean_width_change": 0.008381,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 104,
+      "toward": 122,
+      "unchanged": 157
+     },
+     "toward_share_of_directional": 0.539823,
+     "n_directional": 226,
+     "on_stale_closes": {
+      "n": 37,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.001081,
+      "mean_signed_clv_executable": 0.000541,
+      "positive_clv_share": 0.189189,
+      "mean_width_change": -0.001081,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 7,
+       "unchanged": 29
+      },
+      "toward_share_of_directional": 0.875,
+      "n_directional": 8
+     }
+    }
+   },
+   "2026_01_NE_SEA": {
+    "n_contracts": 451,
+    "n_event_realisations": 451,
+    "n_exact_payouts": 451,
+    "event_brier": 0.163332,
+    "model_payout_mse": 0.163253,
+    "market_payout_mse": 0.14665,
+    "clv": {
+     "n": 451,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": 0.000111,
+     "mean_signed_clv_executable": 0.000177,
+     "positive_clv_share": 0.055432,
+     "mean_width_change": 0.000133,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 18,
+      "toward": 25,
+      "unchanged": 408
+     },
+     "toward_share_of_directional": 0.581395,
+     "n_directional": 43
+    }
+   },
+   "2026_01_NO_DET": {
+    "n_contracts": 422,
+    "n_event_realisations": 420,
+    "n_exact_payouts": 420,
+    "event_brier": 0.215687,
+    "model_payout_mse": 0.217606,
+    "market_payout_mse": 0.181338,
+    "clv": {
+     "n": 407,
+     "excluded_no_usable_close": 15,
+     "mean_signed_clv_mid": 0.003133,
+     "mean_signed_clv_executable": 0.007641,
+     "positive_clv_share": 0.272727,
+     "mean_width_change": 0.009017,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 92,
+      "toward": 109,
+      "unchanged": 206
+     },
+     "toward_share_of_directional": 0.542289,
+     "n_directional": 201,
+     "on_stale_closes": {
+      "n": 15,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 15
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_NYJ_TEN": {
+    "n_contracts": 429,
+    "n_event_realisations": 427,
+    "n_exact_payouts": 427,
+    "event_brier": 0.155183,
+    "model_payout_mse": 0.154995,
+    "market_payout_mse": 0.131175,
+    "clv": {
+     "n": 421,
+     "excluded_no_usable_close": 8,
+     "mean_signed_clv_mid": 0.000333,
+     "mean_signed_clv_executable": 0.007078,
+     "positive_clv_share": 0.311164,
+     "mean_width_change": 0.013492,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 105,
+      "toward": 129,
+      "unchanged": 187
+     },
+     "toward_share_of_directional": 0.551282,
+     "n_directional": 234,
+     "on_stale_closes": {
+      "n": 8,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 8
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_SF_LA": {
+    "n_contracts": 510,
+    "n_event_realisations": 508,
+    "n_exact_payouts": 508,
+    "event_brier": 0.151695,
+    "model_payout_mse": 0.151291,
+    "market_payout_mse": 0.15228,
+    "clv": {
+     "n": 509,
+     "excluded_no_usable_close": 1,
+     "mean_signed_clv_mid": 0.000776,
+     "mean_signed_clv_executable": 0.000864,
+     "positive_clv_share": 0.178782,
+     "mean_width_change": 0.000177,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 68,
+      "toward": 90,
+      "unchanged": 351
+     },
+     "toward_share_of_directional": 0.56962,
+     "n_directional": 158,
+     "on_stale_closes": {
+      "n": 1,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 1
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_TB_CIN": {
+    "n_contracts": 442,
+    "n_event_realisations": 440,
+    "n_exact_payouts": 440,
+    "event_brier": 0.14089,
+    "model_payout_mse": 0.141343,
+    "market_payout_mse": 0.130299,
+    "clv": {
+     "n": 431,
+     "excluded_no_usable_close": 11,
+     "mean_signed_clv_mid": 0.002947,
+     "mean_signed_clv_executable": 0.007796,
+     "positive_clv_share": 0.273782,
+     "mean_width_change": 0.009698,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 93,
+      "toward": 117,
+      "unchanged": 221
+     },
+     "toward_share_of_directional": 0.557143,
+     "n_directional": 210,
+     "on_stale_closes": {
+      "n": 11,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 11
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "2026_01_WAS_PHI": {
+    "n_contracts": 447,
+    "n_event_realisations": 434,
+    "n_exact_payouts": 434,
+    "event_brier": 0.137048,
+    "model_payout_mse": 0.137196,
+    "market_payout_mse": 0.126236,
+    "clv": {
+     "n": 443,
+     "excluded_no_usable_close": 4,
+     "mean_signed_clv_mid": -0.001377,
+     "mean_signed_clv_executable": 0.000339,
+     "positive_clv_share": 0.286682,
+     "mean_width_change": 0.003431,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 145,
+      "toward": 126,
+      "unchanged": 172
+     },
+     "toward_share_of_directional": 0.464945,
+     "n_directional": 271,
+     "on_stale_closes": {
+      "n": 4,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0025,
+      "mean_signed_clv_executable": 0.0025,
+      "positive_clv_share": 0.25,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 3
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   }
+  },
+  "quote width band": {
+   "3-5c": {
+    "n_contracts": 2187,
+    "n_event_realisations": 2160,
+    "n_exact_payouts": 2160,
+    "event_brier": 0.160441,
+    "model_payout_mse": 0.160895,
+    "market_payout_mse": 0.140559,
+    "clv": {
+     "n": 2156,
+     "excluded_no_usable_close": 31,
+     "mean_signed_clv_mid": 0.000835,
+     "mean_signed_clv_executable": 0.002231,
+     "positive_clv_share": 0.367347,
+     "mean_width_change": 0.002792,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 666,
+      "toward": 784,
+      "unchanged": 706
+     },
+     "toward_share_of_directional": 0.54069,
+     "n_directional": 1450,
+     "on_stale_closes": {
+      "n": 31,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000161,
+      "mean_signed_clv_executable": -0.000645,
+      "positive_clv_share": 0.064516,
+      "mean_width_change": -0.001613,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 2,
+       "unchanged": 28
+      },
+      "toward_share_of_directional": 0.666667,
+      "n_directional": 3
+     }
+    }
+   },
+   "6-10c": {
+    "n_contracts": 643,
+    "n_event_realisations": 621,
+    "n_exact_payouts": 621,
+    "event_brier": 0.174965,
+    "model_payout_mse": 0.175614,
+    "market_payout_mse": 0.155394,
+    "clv": {
+     "n": 621,
+     "excluded_no_usable_close": 22,
+     "mean_signed_clv_mid": 0.000926,
+     "mean_signed_clv_executable": 0.017407,
+     "positive_clv_share": 0.37037,
+     "mean_width_change": 0.032963,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 233,
+      "toward": 226,
+      "unchanged": 162
+     },
+     "toward_share_of_directional": 0.492375,
+     "n_directional": 459,
+     "on_stale_closes": {
+      "n": 22,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000227,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.045455,
+      "mean_width_change": -0.000455,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 1,
+       "unchanged": 21
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 1
+     }
+    }
+   },
+   "<=2c": {
+    "n_contracts": 3138,
+    "n_event_realisations": 3103,
+    "n_exact_payouts": 3103,
+    "event_brier": 0.177452,
+    "model_payout_mse": 0.177756,
+    "market_payout_mse": 0.164207,
+    "clv": {
+     "n": 3116,
+     "excluded_no_usable_close": 22,
+     "mean_signed_clv_mid": 0.000159,
+     "mean_signed_clv_executable": 0.001313,
+     "positive_clv_share": 0.166239,
+     "mean_width_change": 0.002307,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 460,
+      "toward": 513,
+      "unchanged": 2143
+     },
+     "toward_share_of_directional": 0.527235,
+     "n_directional": 973,
+     "on_stale_closes": {
+      "n": 22,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.001591,
+      "mean_signed_clv_executable": 0.001364,
+      "positive_clv_share": 0.181818,
+      "mean_width_change": -0.000455,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 4,
+       "unchanged": 18
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 4
+     }
+    }
+   },
+   ">10c": {
+    "n_contracts": 645,
+    "n_event_realisations": 602,
+    "n_exact_payouts": 602,
+    "event_brier": 0.206137,
+    "model_payout_mse": 0.207069,
+    "market_payout_mse": 0.195059,
+    "clv": {
+     "n": 544,
+     "excluded_no_usable_close": 101,
+     "mean_signed_clv_mid": 0.006379,
+     "mean_signed_clv_executable": 0.015239,
+     "positive_clv_share": 0.34375,
+     "mean_width_change": 0.017721,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 135,
+      "toward": 185,
+      "unchanged": 224
+     },
+     "toward_share_of_directional": 0.578125,
+     "n_directional": 320,
+     "on_stale_closes": {
+      "n": 101,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 9.9e-05,
+      "mean_signed_clv_executable": 0.000198,
+      "positive_clv_share": 0.019802,
+      "mean_width_change": 0.000198,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 2,
+       "unchanged": 99
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 2
+     }
+    }
+   }
+  },
+  "liquidity band": {
+   "none": {
+    "n_contracts": 6613,
+    "n_event_realisations": 6486,
+    "n_exact_payouts": 6486,
+    "event_brier": 0.174211,
+    "model_payout_mse": 0.174656,
+    "market_payout_mse": 0.158352,
+    "clv": {
+     "n": 6437,
+     "excluded_no_usable_close": 176,
+     "mean_signed_clv_mid": 0.000985,
+     "mean_signed_clv_executable": 0.00435,
+     "positive_clv_share": 0.268293,
+     "mean_width_change": 0.00673,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1494,
+      "toward": 1708,
+      "unchanged": 3235
+     },
+     "toward_share_of_directional": 0.533417,
+     "n_directional": 3202,
+     "on_stale_closes": {
+      "n": 176,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000312,
+      "mean_signed_clv_executable": 0.00017,
+      "positive_clv_share": 0.051136,
+      "mean_width_change": -0.000284,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 9,
+       "unchanged": 166
+      },
+      "toward_share_of_directional": 0.9,
+      "n_directional": 10
+     }
+    }
+   }
+  },
+  "availability state": {
+   "EXPECTED_ACTIVE": {
+    "n_contracts": 5349,
+    "n_event_realisations": 5321,
+    "n_exact_payouts": 5321,
+    "event_brier": 0.173391,
+    "model_payout_mse": 0.173933,
+    "market_payout_mse": 0.154223,
+    "clv": {
+     "n": 5250,
+     "excluded_no_usable_close": 99,
+     "mean_signed_clv_mid": 0.001493,
+     "mean_signed_clv_executable": 0.004909,
+     "positive_clv_share": 0.288381,
+     "mean_width_change": 0.00683,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 1322,
+      "toward": 1496,
+      "unchanged": 2432
+     },
+     "toward_share_of_directional": 0.530873,
+     "n_directional": 2818,
+     "on_stale_closes": {
+      "n": 99,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.000556,
+      "mean_signed_clv_executable": 0.000505,
+      "positive_clv_share": 0.080808,
+      "mean_width_change": -0.000101,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 8,
+       "unchanged": 91
+      },
+      "toward_share_of_directional": 1.0,
+      "n_directional": 8
+     }
+    }
+   },
+   "EXPECTED_OUT": {
+    "n_contracts": 9,
+    "n_event_realisations": 0,
+    "n_exact_payouts": 0,
+    "event_brier": null,
+    "model_payout_mse": null,
+    "market_payout_mse": null,
+    "clv": {
+     "n": 9,
+     "excluded_no_usable_close": 0,
+     "mean_signed_clv_mid": -0.165,
+     "mean_signed_clv_executable": 0.003333,
+     "positive_clv_share": 0.0,
+     "mean_width_change": 0.336667,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 7,
+      "toward": 0,
+      "unchanged": 2
+     },
+     "toward_share_of_directional": 0.0,
+     "n_directional": 7
+    }
+   },
+   "None": {
+    "n_contracts": 1165,
+    "n_event_realisations": 1165,
+    "n_exact_payouts": 1165,
+    "event_brier": 0.177958,
+    "model_payout_mse": 0.177958,
+    "market_payout_mse": 0.177207,
+    "clv": {
+     "n": 1153,
+     "excluded_no_usable_close": 12,
+     "mean_signed_clv_mid": 4e-06,
+     "mean_signed_clv_executable": 0.001917,
+     "positive_clv_share": 0.184735,
+     "mean_width_change": 0.003825,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 163,
+      "toward": 212,
+      "unchanged": 778
+     },
+     "toward_share_of_directional": 0.565333,
+     "n_directional": 375,
+     "on_stale_closes": {
+      "n": 12,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": -0.0,
+      "mean_signed_clv_executable": -0.001667,
+      "positive_clv_share": 0.083333,
+      "mean_width_change": -0.003333,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 1,
+       "toward": 1,
+       "unchanged": 10
+      },
+      "toward_share_of_directional": 0.5,
+      "n_directional": 2
+     }
+    }
+   },
+   "OUT": {
+    "n_contracts": 89,
+    "n_event_realisations": 0,
+    "n_exact_payouts": 0,
+    "event_brier": null,
+    "model_payout_mse": null,
+    "market_payout_mse": null,
+    "clv": {
+     "n": 25,
+     "excluded_no_usable_close": 64,
+     "mean_signed_clv_mid": -0.0008,
+     "mean_signed_clv_executable": -0.0004,
+     "positive_clv_share": 0.0,
+     "mean_width_change": 0.0008,
+     "mean_liquidity_change": 0.0,
+     "counts": {
+      "away": 2,
+      "toward": 0,
+      "unchanged": 23
+     },
+     "toward_share_of_directional": 0.0,
+     "n_directional": 2,
+     "on_stale_closes": {
+      "n": 64,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 64
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   },
+   "UNKNOWN": {
+    "n_contracts": 1,
+    "n_event_realisations": 0,
+    "n_exact_payouts": 0,
+    "event_brier": null,
+    "model_payout_mse": null,
+    "market_payout_mse": null,
+    "clv": {
+     "n": 0,
+     "excluded_no_usable_close": 1,
+     "on_stale_closes": {
+      "n": 1,
+      "excluded_no_usable_close": 0,
+      "mean_signed_clv_mid": 0.0,
+      "mean_signed_clv_executable": 0.0,
+      "positive_clv_share": 0.0,
+      "mean_width_change": 0.0,
+      "mean_liquidity_change": 0.0,
+      "counts": {
+       "away": 0,
+       "toward": 0,
+       "unchanged": 1
+      },
+      "toward_share_of_directional": null,
+      "n_directional": 0
+     }
+    }
+   }
+  }
+ },
+ "bands": {
+  "disagreement": [
+   "<3%",
+   "3-5%",
+   "5-10%",
+   "10-20%",
+   "20%+"
+  ],
+  "horizon": [
+   "<30m",
+   "30-90m",
+   "90m-6h",
+   "6-24h",
+   ">24h"
+  ],
+  "width": [
+   "<=2c",
+   "3-5c",
+   "6-10c",
+   ">10c"
+  ],
+  "liquidity": [
+   "none",
+   "<$100",
+   "$100-1k",
+   ">$1k"
+  ]
+ }
+}
