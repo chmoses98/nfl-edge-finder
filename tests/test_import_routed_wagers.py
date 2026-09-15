@@ -15,8 +15,12 @@ importer and asserts the numbers survive is what would have caught it.
 from __future__ import annotations
 
 import os
+import sys
 
 import pytest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "scripts", "handicap"))
 
 from nfl_edge.handicap import store
 from nfl_edge.handicap.import_routed_wagers import (
@@ -196,3 +200,154 @@ def test_the_record_lands_in_its_own_week_directory(tmp_path):
     expected = store.week_dir(str(tmp_path), "imported_wagers", 2026, 2)
     assert os.path.isdir(expected)
     assert len(os.listdir(expected)) == 1
+
+
+# ------------------------------------------ the script the router actually runs
+
+class TestPayloadEnvelope:
+    """The batch label appears twice, so the two copies must be made unable to
+    disagree quietly.
+
+    MLB's importer reads `importBatchId` from the payload ENVELOPE; this ledger
+    reads `import_batch_id` from the ROW. The router emits both. A row that
+    named a different batch than its envelope would be written under one label
+    while the delivery reported the other, and the identity of a row downstream
+    depends on that label.
+    """
+
+    def envelope(self, **overrides):
+        row = dict(ROUTER_ROW)
+        row.update(overrides.pop("row", {}))
+        payload = {"importBatchId": ROUTER_ROW["import_batch_id"], "rows": [row]}
+        payload.update(overrides)
+        return payload
+
+    def write(self, tmp_path, payload):
+        import json
+
+        path = tmp_path / "NFL.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return str(path)
+
+    def test_the_routers_own_payload_is_accepted(self, tmp_path):
+        """The positive control. Without it, every refusal test below would
+        pass just as happily against a reader that rejects everything."""
+        from import_routed_wagers import read_payload
+
+        batch, rows = read_payload(self.write(tmp_path, self.envelope()))
+
+        assert batch == ROUTER_ROW["import_batch_id"]
+        assert rows == [ROUTER_ROW]
+
+    def test_a_row_naming_a_different_batch_is_refused(self, tmp_path):
+        from import_routed_wagers import read_payload
+
+        payload = self.envelope(row={"import_batch_id": "some-other-batch"})
+
+        with pytest.raises(ValueError, match="different import batch"):
+            read_payload(self.write(tmp_path, payload))
+
+    def test_an_envelope_without_a_batch_label_is_refused(self, tmp_path):
+        from import_routed_wagers import read_payload
+
+        payload = self.envelope()
+        del payload["importBatchId"]
+
+        with pytest.raises(ValueError, match="no importBatchId"):
+            read_payload(self.write(tmp_path, payload))
+
+    def test_a_payload_that_is_not_an_envelope_is_refused(self, tmp_path):
+        """A bare list of rows is the shape somebody writes by hand. Accepting
+        it would mean accepting a batch with no label at all."""
+        from import_routed_wagers import read_payload
+
+        with pytest.raises(ValueError, match="not an object"):
+            read_payload(self.write(tmp_path, [ROUTER_ROW]))
+
+
+def test_the_script_fails_rather_than_importing_under_a_guessed_week(tmp_path, monkeypatch):
+    """No schedule means no week, and no week means no import.
+
+    Returning zero games instead would read as "the season is over" and import
+    nothing while exiting 0 -- a silent skip of the owner's real wagers.
+    """
+    import import_routed_wagers as script
+
+    payload = tmp_path / "NFL.json"
+    payload.write_text(
+        '{"importBatchId": "%s", "rows": []}' % ROUTER_ROW["import_batch_id"],
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        script.nfl_calendar, "load_schedule",
+        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("no schedule on disk")),
+    )
+
+    code = script.main([
+        "--payload", str(payload), "--handicap-root", str(tmp_path / "ledger"),
+    ])
+
+    assert code == script.EXIT_BAD_INPUT
+    assert not (tmp_path / "ledger").exists()
+
+
+def test_a_refused_row_fails_the_script(tmp_path):
+    """Unlike the router's health annotation, where a refusal is normal.
+
+    A payload that reached this script has already been classified, reconciled
+    and judged importable. A row this ledger will not take means the two
+    repositories disagree about what is valid, and that is a failure to look at
+    rather than a count to notice.
+    """
+    import json
+
+    import import_routed_wagers as script
+
+    payload = tmp_path / "NFL.json"
+    payload.write_text(json.dumps({
+        "importBatchId": ROUTER_ROW["import_batch_id"],
+        "rows": [dict(ROUTER_ROW, game_date="2026-12-25")],
+    }), encoding="utf-8")
+    schedule = tmp_path / "games.csv"
+    schedule.write_text(
+        "game_id,season,game_type,week,gameday,gametime,away_team,home_team,result\n"
+        "2026_02_KC_BUF,2026,REG,2,2026-09-14,20:15,KC,BUF,\n",
+        encoding="utf-8",
+    )
+
+    code = script.main([
+        "--payload", str(payload), "--handicap-root", str(tmp_path / "ledger"),
+        "--schedule", str(schedule),
+    ])
+
+    assert code == script.EXIT_REFUSED
+
+
+def test_the_script_prints_no_wager(tmp_path, capsys):
+    """This repository's Actions logs are public and a payload row carries
+    market, side, contracts, price, stake and fees."""
+    import json
+
+    import import_routed_wagers as script
+
+    payload = tmp_path / "NFL.json"
+    payload.write_text(json.dumps({
+        "importBatchId": ROUTER_ROW["import_batch_id"], "rows": [ROUTER_ROW],
+    }), encoding="utf-8")
+    schedule = tmp_path / "games.csv"
+    schedule.write_text(
+        "game_id,season,game_type,week,gameday,gametime,away_team,home_team,result\n"
+        "2026_02_KC_BUF,2026,REG,2,2026-09-14,20:15,KC,BUF,\n",
+        encoding="utf-8",
+    )
+
+    assert script.main([
+        "--payload", str(payload), "--handicap-root", str(tmp_path / "ledger"),
+        "--schedule", str(schedule),
+    ]) == script.EXIT_OK
+
+    printed = capsys.readouterr().out
+    assert "written:         1" in printed
+    for sensitive in (ROUTER_ROW["market_ticker"], "0.61", "24.68", "40.0",
+                      ROUTER_ROW["source_bet_key"]):
+        assert sensitive not in printed, printed
