@@ -79,11 +79,27 @@ class ImportedWagerSummary:
         return self.wagers > 0 and self.profit_loss_unestablished == 0
 
 
-def summarize(records: list, season: int) -> ImportedWagerSummary:
-    """One season of imported wagers, added up. Records are raw dicts."""
+def summarize(records: list, season: int, settlements: list = ()) -> ImportedWagerSummary:
+    """One season of imported wagers, added up. Records are raw dicts.
+
+    SETTLEMENT IS A SEPARATE RECORD, JOINED HERE ON ``source_bet_key``.
+    `imported_wagers` is immutable, so a settlement is recorded beside a wager
+    rather than edited into it. A wager with no settlement record is unsettled
+    -- that absence IS the record, which is why no PENDING record is written.
+
+    A wager carrying its own settlement fields is honoured as a fallback. The
+    router never sends one, but the fields exist on the record, and silently
+    ignoring a populated field is the same class of defect as silently dropping
+    one.
+    """
     summary = ImportedWagerSummary(season=season)
+    by_key = {
+        s.get("source_bet_key"): s for s in settlements
+        if isinstance(s, dict) and s.get("source_bet_key")
+    }
 
     for record in records:
+        settlement = by_key.get(record.get("source_bet_key")) or record
         summary.wagers += 1
         summary.contracts += _number(record.get("contracts"))
         summary.staked += _number(record.get("stake"))
@@ -97,9 +113,9 @@ def summarize(records: list, season: int) -> ImportedWagerSummary:
         key = (record.get("market_ticker"), record.get("side"))
         summary.markets[key] = summary.markets.get(key, 0) + 1
 
-        if record.get("settlement_status") == SETTLED:
+        if settlement.get("settlement_status") == SETTLED:
             summary.settled += 1
-            result = record.get("result")
+            result = settlement.get("result")
             if result == "WON":
                 summary.won += 1
             elif result == "LOST":
@@ -109,7 +125,7 @@ def summarize(records: list, season: int) -> ImportedWagerSummary:
         else:
             summary.unsettled += 1
 
-        profit_loss = record.get("net_profit_loss")
+        profit_loss = settlement.get("net_profit_loss")
         if isinstance(profit_loss, (int, float)) and not isinstance(profit_loss, bool):
             summary.realized_profit_loss += float(profit_loss)
             summary.profit_loss_established += 1

@@ -39,7 +39,11 @@ def main(argv=None) -> int:
 
     records = store.read_kind(args.handicap_root, "imported_wagers",
                               season=args.season, week=args.week)
-    print(render(summarize(records, args.season)))
+    # Settlements are their own kind. Absent is the record for "not settled
+    # yet", so a kind that was never written to is a legitimate empty list.
+    settlements = store.read_kind(args.handicap_root, "wager_settlements",
+                                  season=args.season, week=args.week)
+    print(render(summarize(records, args.season, settlements=settlements)))
     return 0
 
 
