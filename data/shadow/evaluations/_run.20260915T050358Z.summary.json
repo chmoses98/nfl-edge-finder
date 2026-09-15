@@ -1,0 +1,1556 @@
+{
+ "batch_id": "20260915T050358Z",
+ "evaluation_version": "eval-1.0.0",
+ "games_ready": 15,
+ "games_deferred": 1,
+ "written": 214,
+ "unchanged": 157903,
+ "conflicts": 0,
+ "ready_games": [
+  "2026_01_ARI_LAC",
+  "2026_01_ATL_PIT",
+  "2026_01_BAL_IND",
+  "2026_01_BUF_HOU",
+  "2026_01_CHI_CAR",
+  "2026_01_CLE_JAX",
+  "2026_01_DAL_NYG",
+  "2026_01_GB_MIN",
+  "2026_01_MIA_LV",
+  "2026_01_NE_SEA",
+  "2026_01_NO_DET",
+  "2026_01_NYJ_TEN",
+  "2026_01_SF_LA",
+  "2026_01_TB_CIN",
+  "2026_01_WAS_PHI"
+ ],
+ "deferred": [
+  {
+   "game_id": "2026_01_DEN_KC",
+   "state": "DEFER_SNAPS_PENDING",
+   "reason": "snap counts for 2026_01_DEN_KC have not been published yet",
+   "observations": 14587
+  }
+ ],
+ "per_game": [
+  {
+   "game_id": "2026_01_ARI_LAC",
+   "evaluated": 10206,
+   "tickers": 411,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T20:25:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 132004,
+   "settlement_counts": {
+    "SETTLED": 10206
+   },
+   "close_counts": {
+    "OK": 10065,
+    "OK_STALE": 141
+   },
+   "written": 3,
+   "unchanged": 10203,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "WRITTEN",
+    "game_id": "2026_01_ARI_LAC",
+    "evaluation_version": "eval-1.0.0",
+    "batch_id": "20260915T050358Z",
+    "schema_version": "1.0.0",
+    "written_at": "2026-09-15T05:04:22.167910+00:00",
+    "written": 3,
+    "unchanged": 10203,
+    "evaluations_file": "eval-1.0.0.20260915T050358Z.evaluations.jsonl.gz",
+    "evaluations_sha256": "c0e61660a98e8e1d894e4254ea734cd81760f0d6a9f195df69f6fc857c004d94",
+    "prediction_ids_sha256": "1d1b72bff0b9dbfc76116f06b683c181a519e45756e0df4cfb4b5c800dc8c226",
+    "content_hashes_sha256": "a446085cede7d675c403f7911074b93a1b75910ded2d31563c7faf744b4b9a84",
+    "by_settlement_status": {
+     "SETTLED": 3
+    },
+    "by_settlement_kind": {
+     "binary": 3
+    },
+    "by_close_status": {
+     "OK": 3
+    },
+    "by_family": {
+     "PLAYER_STAT": 3
+    },
+    "by_model_version": {
+     "shadow-0.4.0": 3
+    },
+    "kickoff_utc": "2026-09-13T20:25:00+00:00",
+    "kickoff_source": "schedule",
+    "game_evidence": {
+     "game_id": "2026_01_ARI_LAC",
+     "game_status": "FINAL",
+     "home_team": "LAC",
+     "away_team": "ARI",
+     "home_score": 14.0,
+     "away_score": 26.0,
+     "total_points": 40.0,
+     "margin_home": -12.0,
+     "overtime": 0,
+     "kickoff_utc": "2026-09-13T20:25:00+00:00",
+     "source": "nflverse/schedules/games.csv",
+     "final_proofs": [
+      "postgame_tables",
+      "espn_scoreboard"
+     ]
+    },
+    "result_sources": {
+     "schedules": "data/raw/nflverse/schedules/games.csv",
+     "pfr_crosswalk": "nflverse/players/players.parquet",
+     "missing": [
+      "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+      "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+     ],
+     "espn_final_status": [
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260910",
+       "status": 200,
+       "bytes": 13689,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.339939+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.405627+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260913",
+       "status": 200,
+       "bytes": 234099,
+       "events": 13,
+       "retrieved_at": "2026-09-15T05:04:13.461008+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260914",
+       "status": 200,
+       "bytes": 23124,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.532242+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260915",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.613789+00:00"
+      }
+     ]
+    },
+    "ledger_snapshots": [
+     "20260904T165925Z",
+     "20260904T174955Z",
+     "20260905T024946Z",
+     "20260905T065948Z",
+     "20260905T153002Z",
+     "20260905T183014Z",
+     "20260905T204016Z",
+     "20260906T000030Z",
+     "20260906T050056Z",
+     "20260906T111041Z",
+     "20260906T154104Z",
+     "20260906T183123Z",
+     "20260906T204120Z",
+     "20260907T001216Z",
+     "20260907T050405Z",
+     "20260907T125402Z",
+     "20260907T184423Z",
+     "20260907T225438Z",
+     "20260908T050826Z",
+     "20260908T113858Z",
+     "20260908T164905Z",
+     "20260908T211936Z",
+     "20260909T002920Z",
+     "20260909T050946Z",
+     "20260909T165052Z",
+     "20260909T210309Z",
+     "20260910T002848Z",
+     "20260910T050820Z",
+     "20260910T113803Z",
+     "20260910T163901Z",
+     "20260910T205648Z",
+     "20260911T002400Z",
+     "20260911T051059Z",
+     "20260911T114336Z",
+     "20260913T035013Z",
+     "20260913T051312Z",
+     "20260913T120416Z",
+     "20260913T162858Z",
+     "20260913T184825Z",
+     "20260913T223043Z",
+     "20260914T001817Z",
+     "20260914T051744Z",
+     "20260914T124805Z",
+     "20260914T193414Z",
+     "20260914T232436Z"
+    ],
+    "tickers": 411,
+    "quote_rows_scanned": 132004,
+    "capture_days_scanned": [
+     "2026-09-04",
+     "2026-09-05",
+     "2026-09-06",
+     "2026-09-07",
+     "2026-09-08",
+     "2026-09-09",
+     "2026-09-10",
+     "2026-09-11",
+     "2026-09-12",
+     "2026-09-13"
+    ],
+    "by_settlement_reason": {},
+    "kalshi_crosscheck": {},
+    "exchange_evidence": {
+     "scalar_dependent_tickers": [],
+     "terminal_records_held": 0,
+     "snapshot_pinned_this_batch": false,
+     "sources": []
+    }
+   }
+  },
+  {
+   "game_id": "2026_01_ATL_PIT",
+   "evaluated": 10258,
+   "tickers": 454,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T17:00:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 130647,
+   "settlement_counts": {
+    "SETTLED": 9184,
+    "REFUSED_PARTICIPATION_UNPROVEN": 1074
+   },
+   "close_counts": {
+    "OK": 9096,
+    "OK_STALE": 1162
+   },
+   "written": 114,
+   "unchanged": 10144,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "WRITTEN",
+    "game_id": "2026_01_ATL_PIT",
+    "evaluation_version": "eval-1.0.0",
+    "batch_id": "20260915T050358Z",
+    "schema_version": "1.0.0",
+    "written_at": "2026-09-15T05:04:30.766919+00:00",
+    "written": 114,
+    "unchanged": 10144,
+    "evaluations_file": "eval-1.0.0.20260915T050358Z.evaluations.jsonl.gz",
+    "evaluations_sha256": "f2895bbb4b268ebace909605dab2e4a04d8cd594066d0914b80fd5a985744277",
+    "prediction_ids_sha256": "f9afc63031067aa4565e1ac98944dcd96efb29d895b9bd2dcaa281e0ddf22e1b",
+    "content_hashes_sha256": "9e02f963e340e33495f03c5faa968dab9e799ebc3f74666227871cf414580922",
+    "by_settlement_status": {
+     "REFUSED_PARTICIPATION_UNPROVEN": 114
+    },
+    "by_settlement_kind": {
+     "None": 114
+    },
+    "by_close_status": {
+     "OK_STALE": 114
+    },
+    "by_family": {
+     "PLAYER_STAT": 114
+    },
+    "by_model_version": {
+     "shadow-0.4.0": 114
+    },
+    "kickoff_utc": "2026-09-13T17:00:00+00:00",
+    "kickoff_source": "schedule",
+    "game_evidence": {
+     "game_id": "2026_01_ATL_PIT",
+     "game_status": "FINAL",
+     "home_team": "PIT",
+     "away_team": "ATL",
+     "home_score": 20.0,
+     "away_score": 13.0,
+     "total_points": 33.0,
+     "margin_home": 7.0,
+     "overtime": 0,
+     "kickoff_utc": "2026-09-13T17:00:00+00:00",
+     "source": "nflverse/schedules/games.csv",
+     "final_proofs": [
+      "postgame_tables",
+      "espn_scoreboard"
+     ]
+    },
+    "result_sources": {
+     "schedules": "data/raw/nflverse/schedules/games.csv",
+     "pfr_crosswalk": "nflverse/players/players.parquet",
+     "missing": [
+      "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+      "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+     ],
+     "espn_final_status": [
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260910",
+       "status": 200,
+       "bytes": 13689,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.339939+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.405627+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260913",
+       "status": 200,
+       "bytes": 234099,
+       "events": 13,
+       "retrieved_at": "2026-09-15T05:04:13.461008+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260914",
+       "status": 200,
+       "bytes": 23124,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.532242+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260915",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.613789+00:00"
+      }
+     ]
+    },
+    "ledger_snapshots": [
+     "20260904T165925Z",
+     "20260904T174955Z",
+     "20260905T024946Z",
+     "20260905T065948Z",
+     "20260905T153002Z",
+     "20260905T183014Z",
+     "20260905T204016Z",
+     "20260906T000030Z",
+     "20260906T050056Z",
+     "20260906T111041Z",
+     "20260906T154104Z",
+     "20260906T183123Z",
+     "20260906T204120Z",
+     "20260907T001216Z",
+     "20260907T050405Z",
+     "20260907T125402Z",
+     "20260907T184423Z",
+     "20260907T225438Z",
+     "20260908T050826Z",
+     "20260908T113858Z",
+     "20260908T164905Z",
+     "20260908T211936Z",
+     "20260909T002920Z",
+     "20260909T050946Z",
+     "20260909T165052Z",
+     "20260909T210309Z",
+     "20260910T002848Z",
+     "20260910T050820Z",
+     "20260910T113803Z",
+     "20260910T163901Z",
+     "20260910T205648Z",
+     "20260911T002400Z",
+     "20260911T051059Z",
+     "20260911T114336Z",
+     "20260913T035013Z",
+     "20260913T051312Z",
+     "20260913T120416Z",
+     "20260913T162858Z",
+     "20260913T184825Z",
+     "20260913T223043Z",
+     "20260914T001817Z",
+     "20260914T051744Z",
+     "20260914T124805Z",
+     "20260914T193414Z",
+     "20260914T232436Z"
+    ],
+    "tickers": 454,
+    "quote_rows_scanned": 130647,
+    "capture_days_scanned": [
+     "2026-09-04",
+     "2026-09-05",
+     "2026-09-06",
+     "2026-09-07",
+     "2026-09-08",
+     "2026-09-09",
+     "2026-09-10",
+     "2026-09-11",
+     "2026-09-12",
+     "2026-09-13"
+    ],
+    "by_settlement_reason": {
+     "player is absent from a complete snap table, so he took no snap; whether he was INACTIVE (settles $0.00) or ACTIVE-but-never-played (settles at the pregame fair price) is not provable from free data, and those settle differently": 1074
+    },
+    "kalshi_crosscheck": {},
+    "exchange_evidence": {
+     "scalar_dependent_tickers": [],
+     "terminal_records_held": 0,
+     "snapshot_pinned_this_batch": false,
+     "sources": []
+    }
+   }
+  },
+  {
+   "game_id": "2026_01_BAL_IND",
+   "evaluated": 10087,
+   "tickers": 430,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T17:00:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 133912,
+   "settlement_counts": {
+    "SETTLED": 9919,
+    "REFUSED_PARTICIPATION_UNPROVEN": 168
+   },
+   "close_counts": {
+    "OK": 9934,
+    "OK_STALE": 153
+   },
+   "written": 6,
+   "unchanged": 10081,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "WRITTEN",
+    "game_id": "2026_01_BAL_IND",
+    "evaluation_version": "eval-1.0.0",
+    "batch_id": "20260915T050358Z",
+    "schema_version": "1.0.0",
+    "written_at": "2026-09-15T05:04:39.362232+00:00",
+    "written": 6,
+    "unchanged": 10081,
+    "evaluations_file": "eval-1.0.0.20260915T050358Z.evaluations.jsonl.gz",
+    "evaluations_sha256": "b11cf76065234cf6dc15cca538bea9da98798a12459470d2f25cd54ab1f17bae",
+    "prediction_ids_sha256": "8a1b03e01ea0380853d27ad28e673e5a724f94741110a837e30b210cee103362",
+    "content_hashes_sha256": "73cab5ece0a86f17c33335f84061cd7387291d98517b8ff0b74097d609781cd9",
+    "by_settlement_status": {
+     "REFUSED_PARTICIPATION_UNPROVEN": 6
+    },
+    "by_settlement_kind": {
+     "None": 6
+    },
+    "by_close_status": {
+     "OK": 6
+    },
+    "by_family": {
+     "PLAYER_STAT": 6
+    },
+    "by_model_version": {
+     "shadow-0.4.0": 6
+    },
+    "kickoff_utc": "2026-09-13T17:00:00+00:00",
+    "kickoff_source": "schedule",
+    "game_evidence": {
+     "game_id": "2026_01_BAL_IND",
+     "game_status": "FINAL",
+     "home_team": "IND",
+     "away_team": "BAL",
+     "home_score": 23.0,
+     "away_score": 41.0,
+     "total_points": 64.0,
+     "margin_home": -18.0,
+     "overtime": 0,
+     "kickoff_utc": "2026-09-13T17:00:00+00:00",
+     "source": "nflverse/schedules/games.csv",
+     "final_proofs": [
+      "postgame_tables",
+      "espn_scoreboard"
+     ]
+    },
+    "result_sources": {
+     "schedules": "data/raw/nflverse/schedules/games.csv",
+     "pfr_crosswalk": "nflverse/players/players.parquet",
+     "missing": [
+      "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+      "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+     ],
+     "espn_final_status": [
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260910",
+       "status": 200,
+       "bytes": 13689,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.339939+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.405627+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260913",
+       "status": 200,
+       "bytes": 234099,
+       "events": 13,
+       "retrieved_at": "2026-09-15T05:04:13.461008+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260914",
+       "status": 200,
+       "bytes": 23124,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.532242+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260915",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.613789+00:00"
+      }
+     ]
+    },
+    "ledger_snapshots": [
+     "20260904T165925Z",
+     "20260904T174955Z",
+     "20260905T024946Z",
+     "20260905T065948Z",
+     "20260905T153002Z",
+     "20260905T183014Z",
+     "20260905T204016Z",
+     "20260906T000030Z",
+     "20260906T050056Z",
+     "20260906T111041Z",
+     "20260906T154104Z",
+     "20260906T183123Z",
+     "20260906T204120Z",
+     "20260907T001216Z",
+     "20260907T050405Z",
+     "20260907T125402Z",
+     "20260907T184423Z",
+     "20260907T225438Z",
+     "20260908T050826Z",
+     "20260908T113858Z",
+     "20260908T164905Z",
+     "20260908T211936Z",
+     "20260909T002920Z",
+     "20260909T050946Z",
+     "20260909T165052Z",
+     "20260909T210309Z",
+     "20260910T002848Z",
+     "20260910T050820Z",
+     "20260910T113803Z",
+     "20260910T163901Z",
+     "20260910T205648Z",
+     "20260911T002400Z",
+     "20260911T051059Z",
+     "20260911T114336Z",
+     "20260913T035013Z",
+     "20260913T051312Z",
+     "20260913T120416Z",
+     "20260913T162858Z",
+     "20260913T184825Z",
+     "20260913T223043Z",
+     "20260914T001817Z",
+     "20260914T051744Z",
+     "20260914T124805Z",
+     "20260914T193414Z",
+     "20260914T232436Z"
+    ],
+    "tickers": 430,
+    "quote_rows_scanned": 133912,
+    "capture_days_scanned": [
+     "2026-09-04",
+     "2026-09-05",
+     "2026-09-06",
+     "2026-09-07",
+     "2026-09-08",
+     "2026-09-09",
+     "2026-09-10",
+     "2026-09-11",
+     "2026-09-12",
+     "2026-09-13"
+    ],
+    "by_settlement_reason": {
+     "player is absent from a complete snap table, so he took no snap; whether he was INACTIVE (settles $0.00) or ACTIVE-but-never-played (settles at the pregame fair price) is not provable from free data, and those settle differently": 168
+    },
+    "kalshi_crosscheck": {},
+    "exchange_evidence": {
+     "scalar_dependent_tickers": [],
+     "terminal_records_held": 0,
+     "snapshot_pinned_this_batch": false,
+     "sources": []
+    }
+   }
+  },
+  {
+   "game_id": "2026_01_BUF_HOU",
+   "evaluated": 10990,
+   "tickers": 440,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T17:00:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 150064,
+   "settlement_counts": {
+    "SETTLED": 10990
+   },
+   "close_counts": {
+    "OK": 10896,
+    "OK_STALE": 94
+   },
+   "written": 0,
+   "unchanged": 10990,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "NO_OP",
+    "game_id": "2026_01_BUF_HOU",
+    "evaluation_version": "eval-1.0.0",
+    "written": 0,
+    "unchanged": 10990
+   }
+  },
+  {
+   "game_id": "2026_01_CHI_CAR",
+   "evaluated": 9512,
+   "tickers": 458,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T17:00:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 135415,
+   "settlement_counts": {
+    "SETTLED": 9376,
+    "REFUSED_PARTICIPATION_UNPROVEN": 136
+   },
+   "close_counts": {
+    "OK": 9268,
+    "OK_STALE": 244
+   },
+   "written": 0,
+   "unchanged": 9512,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "NO_OP",
+    "game_id": "2026_01_CHI_CAR",
+    "evaluation_version": "eval-1.0.0",
+    "written": 0,
+    "unchanged": 9512
+   }
+  },
+  {
+   "game_id": "2026_01_CLE_JAX",
+   "evaluated": 9838,
+   "tickers": 403,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T17:00:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 131050,
+   "settlement_counts": {
+    "SETTLED": 9838
+   },
+   "close_counts": {
+    "OK": 9629,
+    "OK_STALE": 209
+   },
+   "written": 0,
+   "unchanged": 9838,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "NO_OP",
+    "game_id": "2026_01_CLE_JAX",
+    "evaluation_version": "eval-1.0.0",
+    "written": 0,
+    "unchanged": 9838
+   }
+  },
+  {
+   "game_id": "2026_01_DAL_NYG",
+   "evaluated": 11942,
+   "tickers": 450,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-14T00:20:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 148054,
+   "settlement_counts": {
+    "SETTLED": 11587,
+    "REFUSED_PARTICIPATION_UNPROVEN": 355
+   },
+   "close_counts": {
+    "OK": 11942
+   },
+   "written": 36,
+   "unchanged": 11906,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "WRITTEN",
+    "game_id": "2026_01_DAL_NYG",
+    "evaluation_version": "eval-1.0.0",
+    "batch_id": "20260915T050358Z",
+    "schema_version": "1.0.0",
+    "written_at": "2026-09-15T05:05:13.970724+00:00",
+    "written": 36,
+    "unchanged": 11906,
+    "evaluations_file": "eval-1.0.0.20260915T050358Z.evaluations.jsonl.gz",
+    "evaluations_sha256": "66ff5d92f1ffd18ba399577904e9f407e7dcd6232c8887ef1742fda684e6732a",
+    "prediction_ids_sha256": "86aa8571b21bb64c08ed698b2721b0c93abebe1710e70c49489cbb7e14e38dd7",
+    "content_hashes_sha256": "2009815982854772c84c8b4975db5d3cef076ecde8a4cf44da9e71c69d5f0fcd",
+    "by_settlement_status": {
+     "REFUSED_PARTICIPATION_UNPROVEN": 36
+    },
+    "by_settlement_kind": {
+     "None": 36
+    },
+    "by_close_status": {
+     "OK": 36
+    },
+    "by_family": {
+     "PLAYER_STAT": 36
+    },
+    "by_model_version": {
+     "shadow-0.4.0": 36
+    },
+    "kickoff_utc": "2026-09-14T00:20:00+00:00",
+    "kickoff_source": "schedule",
+    "game_evidence": {
+     "game_id": "2026_01_DAL_NYG",
+     "game_status": "FINAL",
+     "home_team": "NYG",
+     "away_team": "DAL",
+     "home_score": 28.0,
+     "away_score": 20.0,
+     "total_points": 48.0,
+     "margin_home": 8.0,
+     "overtime": 0,
+     "kickoff_utc": "2026-09-14T00:20:00+00:00",
+     "source": "nflverse/schedules/games.csv",
+     "final_proofs": [
+      "postgame_tables",
+      "espn_scoreboard"
+     ]
+    },
+    "result_sources": {
+     "schedules": "data/raw/nflverse/schedules/games.csv",
+     "pfr_crosswalk": "nflverse/players/players.parquet",
+     "missing": [
+      "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+      "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+     ],
+     "espn_final_status": [
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260910",
+       "status": 200,
+       "bytes": 13689,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.339939+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.405627+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260913",
+       "status": 200,
+       "bytes": 234099,
+       "events": 13,
+       "retrieved_at": "2026-09-15T05:04:13.461008+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260914",
+       "status": 200,
+       "bytes": 23124,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.532242+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260915",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.613789+00:00"
+      }
+     ]
+    },
+    "ledger_snapshots": [
+     "20260904T165756Z",
+     "20260904T165925Z",
+     "20260904T174955Z",
+     "20260905T024946Z",
+     "20260905T065948Z",
+     "20260905T153002Z",
+     "20260905T183014Z",
+     "20260905T204016Z",
+     "20260906T000030Z",
+     "20260906T050056Z",
+     "20260906T111041Z",
+     "20260906T154104Z",
+     "20260906T183123Z",
+     "20260906T204120Z",
+     "20260907T001216Z",
+     "20260907T050405Z",
+     "20260907T125402Z",
+     "20260907T184423Z",
+     "20260907T225438Z",
+     "20260908T050826Z",
+     "20260908T113858Z",
+     "20260908T164905Z",
+     "20260908T211936Z",
+     "20260909T002920Z",
+     "20260909T050946Z",
+     "20260909T165052Z",
+     "20260909T210309Z",
+     "20260910T002848Z",
+     "20260910T050820Z",
+     "20260910T113803Z",
+     "20260910T163901Z",
+     "20260910T205648Z",
+     "20260911T002400Z",
+     "20260911T051059Z",
+     "20260911T114336Z",
+     "20260913T035013Z",
+     "20260913T051312Z",
+     "20260913T120416Z",
+     "20260913T162858Z",
+     "20260913T184825Z",
+     "20260913T223043Z",
+     "20260914T001817Z",
+     "20260914T051744Z",
+     "20260914T124805Z",
+     "20260914T193414Z",
+     "20260914T232436Z"
+    ],
+    "tickers": 450,
+    "quote_rows_scanned": 148054,
+    "capture_days_scanned": [
+     "2026-09-04",
+     "2026-09-05",
+     "2026-09-06",
+     "2026-09-07",
+     "2026-09-08",
+     "2026-09-09",
+     "2026-09-10",
+     "2026-09-11",
+     "2026-09-12",
+     "2026-09-13",
+     "2026-09-14"
+    ],
+    "by_settlement_reason": {
+     "player is absent from a complete snap table, so he took no snap; whether he was INACTIVE (settles $0.00) or ACTIVE-but-never-played (settles at the pregame fair price) is not provable from free data, and those settle differently": 355
+    },
+    "kalshi_crosscheck": {},
+    "exchange_evidence": {
+     "scalar_dependent_tickers": [],
+     "terminal_records_held": 0,
+     "snapshot_pinned_this_batch": false,
+     "sources": []
+    }
+   }
+  },
+  {
+   "game_id": "2026_01_GB_MIN",
+   "evaluated": 13096,
+   "tickers": 446,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T20:25:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 164227,
+   "settlement_counts": {
+    "SETTLED": 13077,
+    "REFUSED_PARTICIPATION_UNPROVEN": 19
+   },
+   "close_counts": {
+    "OK": 12986,
+    "OK_STALE": 110
+   },
+   "written": 0,
+   "unchanged": 13096,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "NO_OP",
+    "game_id": "2026_01_GB_MIN",
+    "evaluation_version": "eval-1.0.0",
+    "written": 0,
+    "unchanged": 13096
+   }
+  },
+  {
+   "game_id": "2026_01_MIA_LV",
+   "evaluated": 9599,
+   "tickers": 420,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T20:25:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 132653,
+   "settlement_counts": {
+    "SETTLED": 8644,
+    "REFUSED_PARTICIPATION_UNPROVEN": 955
+   },
+   "close_counts": {
+    "OK": 8520,
+    "OK_STALE": 1079
+   },
+   "written": 48,
+   "unchanged": 9551,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "WRITTEN",
+    "game_id": "2026_01_MIA_LV",
+    "evaluation_version": "eval-1.0.0",
+    "batch_id": "20260915T050358Z",
+    "schema_version": "1.0.0",
+    "written_at": "2026-09-15T05:05:31.919964+00:00",
+    "written": 48,
+    "unchanged": 9551,
+    "evaluations_file": "eval-1.0.0.20260915T050358Z.evaluations.jsonl.gz",
+    "evaluations_sha256": "20c37bf819bfd35fe7dbcea147be15cdf063e44a8426d32f8d6cd32b804d21a2",
+    "prediction_ids_sha256": "b72f1c03ab19238d8be73debcc3a92c4d2965c12033e16d8354f76bcfe2df768",
+    "content_hashes_sha256": "851aaa7acd5f16b89e79707c2984369288639eb5cdfa2b1e021e79c1f70d8493",
+    "by_settlement_status": {
+     "REFUSED_PARTICIPATION_UNPROVEN": 48
+    },
+    "by_settlement_kind": {
+     "None": 48
+    },
+    "by_close_status": {
+     "OK_STALE": 48
+    },
+    "by_family": {
+     "PLAYER_STAT": 48
+    },
+    "by_model_version": {
+     "shadow-0.4.0": 48
+    },
+    "kickoff_utc": "2026-09-13T20:25:00+00:00",
+    "kickoff_source": "schedule",
+    "game_evidence": {
+     "game_id": "2026_01_MIA_LV",
+     "game_status": "FINAL",
+     "home_team": "LV",
+     "away_team": "MIA",
+     "home_score": 27.0,
+     "away_score": 13.0,
+     "total_points": 40.0,
+     "margin_home": 14.0,
+     "overtime": 0,
+     "kickoff_utc": "2026-09-13T20:25:00+00:00",
+     "source": "nflverse/schedules/games.csv",
+     "final_proofs": [
+      "postgame_tables",
+      "espn_scoreboard"
+     ]
+    },
+    "result_sources": {
+     "schedules": "data/raw/nflverse/schedules/games.csv",
+     "pfr_crosswalk": "nflverse/players/players.parquet",
+     "missing": [
+      "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+      "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+     ],
+     "espn_final_status": [
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260910",
+       "status": 200,
+       "bytes": 13689,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.339939+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.405627+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260913",
+       "status": 200,
+       "bytes": 234099,
+       "events": 13,
+       "retrieved_at": "2026-09-15T05:04:13.461008+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260914",
+       "status": 200,
+       "bytes": 23124,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.532242+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260915",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.613789+00:00"
+      }
+     ]
+    },
+    "ledger_snapshots": [
+     "20260904T165925Z",
+     "20260904T174955Z",
+     "20260905T024946Z",
+     "20260905T065948Z",
+     "20260905T153002Z",
+     "20260905T183014Z",
+     "20260905T204016Z",
+     "20260906T000030Z",
+     "20260906T050056Z",
+     "20260906T111041Z",
+     "20260906T154104Z",
+     "20260906T183123Z",
+     "20260906T204120Z",
+     "20260907T001216Z",
+     "20260907T050405Z",
+     "20260907T125402Z",
+     "20260907T184423Z",
+     "20260907T225438Z",
+     "20260908T050826Z",
+     "20260908T113858Z",
+     "20260908T164905Z",
+     "20260908T211936Z",
+     "20260909T002920Z",
+     "20260909T050946Z",
+     "20260909T165052Z",
+     "20260909T210309Z",
+     "20260910T002848Z",
+     "20260910T050820Z",
+     "20260910T113803Z",
+     "20260910T163901Z",
+     "20260910T205648Z",
+     "20260911T002400Z",
+     "20260911T051059Z",
+     "20260911T114336Z",
+     "20260913T035013Z",
+     "20260913T051312Z",
+     "20260913T120416Z",
+     "20260913T162858Z",
+     "20260913T184825Z",
+     "20260914T193414Z",
+     "20260914T232436Z"
+    ],
+    "tickers": 420,
+    "quote_rows_scanned": 132653,
+    "capture_days_scanned": [
+     "2026-09-04",
+     "2026-09-05",
+     "2026-09-06",
+     "2026-09-07",
+     "2026-09-08",
+     "2026-09-09",
+     "2026-09-10",
+     "2026-09-11",
+     "2026-09-12",
+     "2026-09-13"
+    ],
+    "by_settlement_reason": {
+     "player is absent from a complete snap table, so he took no snap; whether he was INACTIVE (settles $0.00) or ACTIVE-but-never-played (settles at the pregame fair price) is not provable from free data, and those settle differently": 955
+    },
+    "kalshi_crosscheck": {},
+    "exchange_evidence": {
+     "scalar_dependent_tickers": [],
+     "terminal_records_held": 0,
+     "snapshot_pinned_this_batch": false,
+     "sources": []
+    }
+   }
+  },
+  {
+   "game_id": "2026_01_NE_SEA",
+   "evaluated": 10628,
+   "tickers": 451,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-10T00:20:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 139606,
+   "settlement_counts": {
+    "SETTLED": 10628
+   },
+   "close_counts": {
+    "OK": 10628
+   },
+   "written": 0,
+   "unchanged": 10628,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "NO_OP",
+    "game_id": "2026_01_NE_SEA",
+    "evaluation_version": "eval-1.0.0",
+    "written": 0,
+    "unchanged": 10628
+   }
+  },
+  {
+   "game_id": "2026_01_NO_DET",
+   "evaluated": 10290,
+   "tickers": 422,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T17:00:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 146134,
+   "settlement_counts": {
+    "SETTLED": 10226,
+    "REFUSED_PARTICIPATION_UNPROVEN": 64
+   },
+   "close_counts": {
+    "OK": 10002,
+    "OK_STALE": 288
+   },
+   "written": 4,
+   "unchanged": 10286,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "WRITTEN",
+    "game_id": "2026_01_NO_DET",
+    "evaluation_version": "eval-1.0.0",
+    "batch_id": "20260915T050358Z",
+    "schema_version": "1.0.0",
+    "written_at": "2026-09-15T05:05:48.021313+00:00",
+    "written": 4,
+    "unchanged": 10286,
+    "evaluations_file": "eval-1.0.0.20260915T050358Z.evaluations.jsonl.gz",
+    "evaluations_sha256": "52ffb8e6aa5d53154e5089a17f67e2d38f9f4258786f95eb088d081aed4dabff",
+    "prediction_ids_sha256": "450a0de342ade415c573c6b9565ecf9481e5770ea036d29c91811180bae76f10",
+    "content_hashes_sha256": "985f18bf17d9cbe34131354b1c8fd9365dd89fef3b9874ef1a544c6d02c31164",
+    "by_settlement_status": {
+     "REFUSED_PARTICIPATION_UNPROVEN": 4
+    },
+    "by_settlement_kind": {
+     "None": 4
+    },
+    "by_close_status": {
+     "OK_STALE": 4
+    },
+    "by_family": {
+     "PLAYER_STAT": 4
+    },
+    "by_model_version": {
+     "shadow-0.4.0": 4
+    },
+    "kickoff_utc": "2026-09-13T17:00:00+00:00",
+    "kickoff_source": "schedule",
+    "game_evidence": {
+     "game_id": "2026_01_NO_DET",
+     "game_status": "FINAL",
+     "home_team": "DET",
+     "away_team": "NO",
+     "home_score": 31.0,
+     "away_score": 30.0,
+     "total_points": 61.0,
+     "margin_home": 1.0,
+     "overtime": 1,
+     "kickoff_utc": "2026-09-13T17:00:00+00:00",
+     "source": "nflverse/schedules/games.csv",
+     "final_proofs": [
+      "postgame_tables",
+      "espn_scoreboard"
+     ]
+    },
+    "result_sources": {
+     "schedules": "data/raw/nflverse/schedules/games.csv",
+     "pfr_crosswalk": "nflverse/players/players.parquet",
+     "missing": [
+      "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+      "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+     ],
+     "espn_final_status": [
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260910",
+       "status": 200,
+       "bytes": 13689,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.339939+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.405627+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260913",
+       "status": 200,
+       "bytes": 234099,
+       "events": 13,
+       "retrieved_at": "2026-09-15T05:04:13.461008+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260914",
+       "status": 200,
+       "bytes": 23124,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.532242+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260915",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.613789+00:00"
+      }
+     ]
+    },
+    "ledger_snapshots": [
+     "20260904T165925Z",
+     "20260904T174955Z",
+     "20260905T024946Z",
+     "20260905T065948Z",
+     "20260905T153002Z",
+     "20260905T183014Z",
+     "20260905T204016Z",
+     "20260906T000030Z",
+     "20260906T050056Z",
+     "20260906T111041Z",
+     "20260906T154104Z",
+     "20260906T183123Z",
+     "20260906T204120Z",
+     "20260907T001216Z",
+     "20260907T050405Z",
+     "20260907T125402Z",
+     "20260907T184423Z",
+     "20260907T225438Z",
+     "20260908T050826Z",
+     "20260908T113858Z",
+     "20260908T164905Z",
+     "20260908T211936Z",
+     "20260909T002920Z",
+     "20260909T050946Z",
+     "20260909T165052Z",
+     "20260909T210309Z",
+     "20260910T002848Z",
+     "20260910T050820Z",
+     "20260910T113803Z",
+     "20260910T163901Z",
+     "20260910T205648Z",
+     "20260911T002400Z",
+     "20260911T051059Z",
+     "20260911T114336Z",
+     "20260913T035013Z",
+     "20260913T051312Z",
+     "20260913T120416Z",
+     "20260913T162858Z",
+     "20260914T193414Z",
+     "20260914T232436Z"
+    ],
+    "tickers": 422,
+    "quote_rows_scanned": 146134,
+    "capture_days_scanned": [
+     "2026-09-04",
+     "2026-09-05",
+     "2026-09-06",
+     "2026-09-07",
+     "2026-09-08",
+     "2026-09-09",
+     "2026-09-10",
+     "2026-09-11",
+     "2026-09-12",
+     "2026-09-13"
+    ],
+    "by_settlement_reason": {
+     "player is absent from a complete snap table, so he took no snap; whether he was INACTIVE (settles $0.00) or ACTIVE-but-never-played (settles at the pregame fair price) is not provable from free data, and those settle differently": 64
+    },
+    "kalshi_crosscheck": {},
+    "exchange_evidence": {
+     "scalar_dependent_tickers": [],
+     "terminal_records_held": 0,
+     "snapshot_pinned_this_batch": false,
+     "sources": []
+    }
+   }
+  },
+  {
+   "game_id": "2026_01_NYJ_TEN",
+   "evaluated": 8417,
+   "tickers": 429,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T17:00:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 116165,
+   "settlement_counts": {
+    "SETTLED": 8349,
+    "REFUSED_PARTICIPATION_UNPROVEN": 68
+   },
+   "close_counts": {
+    "OK": 8264,
+    "OK_STALE": 153
+   },
+   "written": 0,
+   "unchanged": 8417,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "NO_OP",
+    "game_id": "2026_01_NYJ_TEN",
+    "evaluation_version": "eval-1.0.0",
+    "written": 0,
+    "unchanged": 8417
+   }
+  },
+  {
+   "game_id": "2026_01_SF_LA",
+   "evaluated": 12238,
+   "tickers": 510,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-11T00:35:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 150855,
+   "settlement_counts": {
+    "SETTLED": 12164,
+    "REFUSED_PARTICIPATION_UNPROVEN": 74
+   },
+   "close_counts": {
+    "OK": 12197,
+    "OK_STALE": 41
+   },
+   "written": 3,
+   "unchanged": 12235,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "WRITTEN",
+    "game_id": "2026_01_SF_LA",
+    "evaluation_version": "eval-1.0.0",
+    "batch_id": "20260915T050358Z",
+    "schema_version": "1.0.0",
+    "written_at": "2026-09-15T05:06:04.243995+00:00",
+    "written": 3,
+    "unchanged": 12235,
+    "evaluations_file": "eval-1.0.0.20260915T050358Z.evaluations.jsonl.gz",
+    "evaluations_sha256": "94d2efd5316830f6d798077da2ba7514e3b6bdbf9a7940b55e3a7bed749cd1f8",
+    "prediction_ids_sha256": "15d7023d2b2243ed6d104476ae8de659a1d172ffb3b705e71f6aa3231cae2a97",
+    "content_hashes_sha256": "1b5ce59daad267ddd52e906eb537e239ed8b1a73b82024171e0e4342254d821d",
+    "by_settlement_status": {
+     "REFUSED_PARTICIPATION_UNPROVEN": 3
+    },
+    "by_settlement_kind": {
+     "None": 3
+    },
+    "by_close_status": {
+     "OK_STALE": 3
+    },
+    "by_family": {
+     "PLAYER_STAT": 3
+    },
+    "by_model_version": {
+     "shadow-0.4.0": 3
+    },
+    "kickoff_utc": "2026-09-11T00:35:00+00:00",
+    "kickoff_source": "schedule",
+    "game_evidence": {
+     "game_id": "2026_01_SF_LA",
+     "game_status": "FINAL",
+     "home_team": "LA",
+     "away_team": "SF",
+     "home_score": 7.0,
+     "away_score": 27.0,
+     "total_points": 34.0,
+     "margin_home": -20.0,
+     "overtime": 0,
+     "kickoff_utc": "2026-09-11T00:35:00+00:00",
+     "source": "nflverse/schedules/games.csv",
+     "final_proofs": [
+      "postgame_tables",
+      "espn_scoreboard"
+     ]
+    },
+    "result_sources": {
+     "schedules": "data/raw/nflverse/schedules/games.csv",
+     "pfr_crosswalk": "nflverse/players/players.parquet",
+     "missing": [
+      "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+      "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+     ],
+     "espn_final_status": [
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260910",
+       "status": 200,
+       "bytes": 13689,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.339939+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.405627+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260913",
+       "status": 200,
+       "bytes": 234099,
+       "events": 13,
+       "retrieved_at": "2026-09-15T05:04:13.461008+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260914",
+       "status": 200,
+       "bytes": 23124,
+       "events": 1,
+       "retrieved_at": "2026-09-15T05:04:13.532242+00:00"
+      },
+      {
+       "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260915",
+       "status": 200,
+       "bytes": 5193,
+       "events": 0,
+       "retrieved_at": "2026-09-15T05:04:13.613789+00:00"
+      }
+     ]
+    },
+    "ledger_snapshots": [
+     "20260904T165925Z",
+     "20260904T174955Z",
+     "20260905T024946Z",
+     "20260905T065948Z",
+     "20260905T153002Z",
+     "20260905T183014Z",
+     "20260905T204016Z",
+     "20260906T000030Z",
+     "20260906T050056Z",
+     "20260906T111041Z",
+     "20260906T154104Z",
+     "20260906T183123Z",
+     "20260906T204120Z",
+     "20260907T001216Z",
+     "20260907T050405Z",
+     "20260907T125402Z",
+     "20260907T184423Z",
+     "20260907T225438Z",
+     "20260908T050826Z",
+     "20260908T113858Z",
+     "20260908T164905Z",
+     "20260908T211936Z",
+     "20260909T002920Z",
+     "20260909T050946Z",
+     "20260909T165052Z",
+     "20260909T210309Z",
+     "20260910T002848Z",
+     "20260910T050820Z",
+     "20260910T113803Z",
+     "20260910T163901Z",
+     "20260910T205648Z",
+     "20260911T002400Z",
+     "20260911T051059Z",
+     "20260911T114336Z",
+     "20260913T035013Z",
+     "20260913T051312Z",
+     "20260913T120416Z",
+     "20260913T162858Z",
+     "20260913T184825Z",
+     "20260913T223043Z",
+     "20260914T001817Z",
+     "20260914T051744Z",
+     "20260914T124805Z",
+     "20260914T193414Z",
+     "20260914T232436Z"
+    ],
+    "tickers": 510,
+    "quote_rows_scanned": 150855,
+    "capture_days_scanned": [
+     "2026-09-04",
+     "2026-09-05",
+     "2026-09-06",
+     "2026-09-07",
+     "2026-09-08",
+     "2026-09-09",
+     "2026-09-10",
+     "2026-09-11"
+    ],
+    "by_settlement_reason": {
+     "player is absent from a complete snap table, so he took no snap; whether he was INACTIVE (settles $0.00) or ACTIVE-but-never-played (settles at the pregame fair price) is not provable from free data, and those settle differently": 74
+    },
+    "kalshi_crosscheck": {},
+    "exchange_evidence": {
+     "scalar_dependent_tickers": [],
+     "terminal_records_held": 0,
+     "snapshot_pinned_this_batch": false,
+     "sources": []
+    }
+   }
+  },
+  {
+   "game_id": "2026_01_TB_CIN",
+   "evaluated": 10151,
+   "tickers": 442,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T17:00:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 132597,
+   "settlement_counts": {
+    "SETTLED": 10083,
+    "REFUSED_PARTICIPATION_UNPROVEN": 68
+   },
+   "close_counts": {
+    "OK": 9963,
+    "OK_STALE": 188
+   },
+   "written": 0,
+   "unchanged": 10151,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "NO_OP",
+    "game_id": "2026_01_TB_CIN",
+    "evaluation_version": "eval-1.0.0",
+    "written": 0,
+    "unchanged": 10151
+   }
+  },
+  {
+   "game_id": "2026_01_WAS_PHI",
+   "evaluated": 10865,
+   "tickers": 447,
+   "kalshi_crosscheck": {},
+   "kickoff_utc": "2026-09-13T20:25:00+00:00",
+   "kickoff_source": "schedule",
+   "kickoff_problem": null,
+   "quote_rows_scanned": 143416,
+   "settlement_counts": {
+    "SETTLED": 10700,
+    "REFUSED_PARTICIPATION_UNPROVEN": 165
+   },
+   "close_counts": {
+    "OK": 10796,
+    "OK_STALE": 69
+   },
+   "written": 0,
+   "unchanged": 10865,
+   "conflicts": 0,
+   "conflict_detail": [],
+   "manifest": {
+    "status": "NO_OP",
+    "game_id": "2026_01_WAS_PHI",
+    "evaluation_version": "eval-1.0.0",
+    "written": 0,
+    "unchanged": 10865
+   }
+  }
+ ],
+ "scorecard": "data/shadow/scorecards/20260915T050358Z",
+ "dry_run": false,
+ "seconds": 160.440887
+}
