@@ -10,6 +10,7 @@ same file:
       postmortems/<season>/week_<NN>/<postmortem_id>.json
       runs/<season>/week_<NN>/<handicap_run_id>.json      packet provenance for a run
       import_receipts/<season>/week_<NN>/<airtable_record_id>.json   transport provenance for a bridged run
+      imported_wagers/<season>/week_<NN>/<imported_wager_id>.json    wagers EXECUTED but never recommended
       decision_gates/<season>/week_<NN>/<gates_id>.json    what the real-money gates saw at import time
 
 Batching is supported at the level of a COMMIT, not a file: a handicap run writes many single-record files in
@@ -30,8 +31,15 @@ BRANCH = "handicap-data"
 # batch and what its payload hashed to. It shares the layout so there is one place that knows where a
 # season/week file lives, but nothing in the scorecard reads it and a receipt never stands in for a
 # recommendation.
+# `imported_wagers` is ACCOUNTING, not judgement: a wager reconstructed from an
+# exchange receipt, which proves the owner placed a bet and proves nothing about
+# what recommended it. It is a separate kind rather than a flag on `executions`
+# because the scorecard and the risk ledger both READ executions, and a flag
+# would put these rows in front of both and rely on every future reader to check
+# it. Same reasoning as `import_receipts` above, and the same rule: nothing that
+# measures model performance may read it.
 KINDS = ("recommendations", "executions", "evaluations", "postmortems", "runs", "import_receipts",
-         "decision_gates")
+         "decision_gates", "imported_wagers")
 
 
 def week_dir(root: str, kind: str, season: int, week: int) -> str:

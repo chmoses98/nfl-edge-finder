@@ -41,8 +41,12 @@ sys.path.insert(0, ROOT)
 
 # Kinds whose records are evidence and must never change after they are written. `runs` is included: it is
 # the packet provenance a decision points at, and rewriting it would change what the decision was made from.
+# `imported_wagers` belongs here for the same reason as the rest: it is a
+# record of a wager the owner actually placed, and a bet that can be edited
+# after the fact is not evidence of anything. It is accounting rather than
+# judgement, which changes who may READ it -- not whether it may be rewritten.
 IMMUTABLE_KINDS = ("recommendations", "executions", "evaluations", "postmortems", "import_receipts",
-                   "decision_gates", "runs")
+                   "decision_gates", "runs", "imported_wagers")
 
 
 def git(args, cwd):
