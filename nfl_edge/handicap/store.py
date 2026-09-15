@@ -38,8 +38,12 @@ BRANCH = "handicap-data"
 # would put these rows in front of both and rely on every future reader to check
 # it. Same reasoning as `import_receipts` above, and the same rule: nothing that
 # measures model performance may read it.
+# `wager_settlements` is the SETTLEMENT of an imported wager, and it is a
+# separate kind rather than an edit to the wager for the reason the whole branch
+# exists: a record of money that already moved may not be rewritten. A
+# settlement is a LATER and SEPARATE observation, so it gets its own row.
 KINDS = ("recommendations", "executions", "evaluations", "postmortems", "runs", "import_receipts",
-         "decision_gates", "imported_wagers")
+         "decision_gates", "imported_wagers", "wager_settlements")
 
 
 def week_dir(root: str, kind: str, season: int, week: int) -> str:
