@@ -232,3 +232,13 @@ def test_touchdown_relocation_is_poisson_not_a_stretched_lattice():
     out, attr = R.reconcile_distribution(d, 0.046, 0.6, stat="any_td")
     assert out.mean() == pytest.approx(0.046 + 0.6 * (d.mean() - 0.046), abs=1e-3)
     assert 0.0 < out.survival(1) < 0.05
+
+
+def test_yardage_relocation_never_uses_a_poisson():
+    rng = np.random.default_rng(1)
+    d = LatticeDistribution.from_samples(rng.gamma(2, 2.2, 20000), 300)      # football mean ~4.4 yards
+    out = R.relocate(d, 37.2, stat="rec_yards")
+    assert out.mean() == pytest.approx(37.2, rel=0.05)
+    assert 0.6 < out.survival(15) < 0.95, "a 37-yard mean must leave real mass below 15 yards"
+    near = R.relocate(d, 6.0, stat="rec_yards")
+    assert near.meta.get("shift", "").startswith("scale"), "within the scale limit the football shape is kept"

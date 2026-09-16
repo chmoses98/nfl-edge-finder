@@ -42,14 +42,33 @@ def _poisson_lattice(mean: float, n: int) -> LatticeDistribution:
     return LatticeDistribution(pmf / pmf.sum(), meta={"family": "poisson", "loc": lam})
 
 
+KIND_OF_STAT = {"rush_yards": "yards", "rec_yards": "yards", "pass_yards": "yards", "rushing_yards": "yards",
+                "receiving_yards": "yards", "passing_yards": "yards", "receptions": "count", "carries": "count",
+                "attempts": "count", "completions": "count", "targets": "count"}
+MAX_SCALE = 4.0
+
+
 def relocate(football: LatticeDistribution, target: float, stat: str | None = None) -> LatticeDistribution:
-    """Move a football distribution to a target mean.  Yardage and count families keep their SHAPE (support
-    scaled); touchdown families -- small integer counts whose lattice cannot be stretched without breaking
-    (a 0.0005-mean lattice scaled 40x is nonsense) -- are re-located as a Poisson at the target mean, which
-    is what the allocation step produces to a good approximation anyway."""
+    """Move a football distribution to a target mean.
+
+    * Touchdown families (small integer counts): a Poisson at the target mean -- an integer lattice with a
+      0.0005 mean cannot be stretched 40x, and the allocation step is Poisson-like anyway.
+    * Yardage and count families within a factor of MAX_SCALE of the target: the football SHAPE, support
+      scaled (`LatticeDistribution.shifted_to_mean`).
+    * Yardage and count families further away than that (the simulation gave a player a fraction of the role
+      the market did): the football shape carries no information about a role it did not model, so the
+      market's own two-parameter family (gamma / negative binomial with the stat-level dispersion prior of
+      `engines.player.market_dist`) is used at the target mean.  A Poisson is never used for yards."""
     fm = football.mean()
-    if stat in TD_STATS or fm < 0.5 or target / max(fm, 1e-9) > 4.0 or target / max(fm, 1e-9) < 0.25:
+    if stat in TD_STATS or (stat not in KIND_OF_STAT and fm < 0.5):
         return _poisson_lattice(target, football.n)
+    ratio = target / max(fm, 1e-9)
+    if ratio > MAX_SCALE or ratio < 1.0 / MAX_SCALE:
+        from nfl_edge.engines.player.market_dist import DISPERSION_PRIOR, _survival_family
+        kind = KIND_OF_STAT.get(stat, "yards")
+        grid = np.arange(0, football.n)
+        S = _survival_family(kind, grid, float(target), DISPERSION_PRIOR[kind]); S[0] = 1.0
+        return LatticeDistribution.from_survival(S, meta={"family": "market_prior_family", "loc": float(target)})
     return football.shifted_to_mean(target, method="scale")
 
 
