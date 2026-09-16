@@ -38,10 +38,10 @@ nothing at all (b_football < 0).
 | statistic | w (weeks 1–9) | n (weeks 1–9) | confirmation weeks 10–22: reconciled − market Brier (z) | w (all 2025) | **deployed** | why |
 |---|---|---|---|---|---|---|
 | any_td | 0.25 | 1,670 | 0.15118 vs 0.15140 (z −1.10) | 0.35 | **0.25** | confirmed; smaller optimum |
-| rush_yards | 0.25 | 599 | 0.20702 vs 0.20511 (z +1.16) | 0.20 | **0** | later weeks worse than the market beyond z = 1 |
+| rush_yards | 0.25 | 599 | 0.20688 vs 0.20511 (z +1.05) | 0.20 | **0** | later weeks worse than the market beyond z = 1 |
 | rec_yards | 0.00 | 1,395 | +0.0014 (z +1.61) at w = 0 | 0.05 | **0** | early optimum was 0 |
-| receptions | 0.00 | 32 | — | 0.25 | **0** | too few identified ladders early in 2025 to confirm |
-| pass_yards | 0.00 | 554 | +0.0004 (z +0.47) at w = 0 | 0.00 | **0** | early optimum was 0 |
+| receptions | 0.00 | 32 | — | 0.15 | **0** | too few identified ladders early in 2025 to confirm |
+| pass_yards | 0.00 | 554 | +0.0010 (z +1.12) at w = 0 | 0.00 | **0** | early optimum was 0 |
 | pass_td | — | 0 | — | 1.00 | **0** | no early-week rows; **the top candidate for a preregistered follow-up** |
 
 Touchdown families are re-located as a Poisson at the target mean (`reconcile.relocate`); a first pass that
