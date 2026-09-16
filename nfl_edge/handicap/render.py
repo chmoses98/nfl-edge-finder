@@ -413,6 +413,33 @@ def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = Fa
       f"an untraded book). {drb.get('note')}_")
     a("")
 
+    # the simulation layer (shadow): football-only, market and reconciled side by side
+    sv = g.get("simulation") or {}
+    a("### SIMULATION LAYER (shadow, sim-1.x)")
+    a("")
+    if sv.get("run_id"):
+        c = sv.get("center") or {}
+        a(f"_run {sv.get('run_id')} · generated {sv.get('generated_at')} · centre {c.get('source')} "
+          f"(home {c.get('spread_home')}, total {c.get('total')}) · "
+          f"{', '.join(f'{k} {v}' for k, v in sorted((sv.get('counts_by_support_state') or {}).items()))}_")
+        a("")
+        a(sv.get("note") or "")
+        a("")
+        rd = sv.get("largest_reconciled_disagreements") or []
+        if rd:
+            a("| market | line | mkt mid | football | reconciled | w | vs mid | football mean | market mean | final mean |")
+            a("|---|---|---|---|---|---|---|---|---|---|")
+            for x in rd[:15]:
+                a(f"| `{x['ticker']}` | {x.get('stat') or ''} {x.get('threshold') if x.get('threshold') is not None else ''} | "
+                  f"{_num(x.get('mid'))} | {_num(x.get('p_football'))} | {_num(x.get('p_reconciled'))} | {_num(x.get('reconcile_weight'))} | "
+                  f"{_sign(x.get('disagreement_vs_mid'))} | {_num(x.get('football_mean'),1)} | {_num(x.get('market_mean'),1)} | "
+                  f"{_num(x.get('final_mean'),1)} |")
+        else:
+            a("_No reconciled (validated-weight) disagreement in this game; football-only probabilities are on the board rows._")
+    else:
+        a("_No simulation projections at or before this build; the board carries the incumbent only._")
+    a("")
+
     # ranked disagreements -- the same numbers as the board, ordered, and labelled for what they are
     dis = g.get("largest_disagreements") or []
     a("### LARGEST MODEL/MARKET DISAGREEMENTS")
