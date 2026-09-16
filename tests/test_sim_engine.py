@@ -410,3 +410,33 @@ def test_an_incoherent_game_is_never_published_as_priced(bundle_and_frames, bank
                         generated_at=datetime(2026, 9, 16, tzinfo=timezone.utc), player_map={"K1": pid},
                         verbose=lambda *a: None)
     assert any(r["support_state"] in PR.COHERENCE_DEPENDENT_STATES for r in ok)
+
+
+def test_a_gap_that_contradicts_its_own_football_view_is_not_ranked():
+    """The reconciled probability sits on the market's ESTIMATED mean, which on a thin ladder can
+    contradict the market's own mid.  The top-ranked Thursday row of the first live Week 2 slate was
+    +0.096 above the mid on a football view of -0.029.  That is the estimator, not a football opinion."""
+    from nfl_edge.handicap import sim_block
+    rows = _sim_rows([("any_td", 0.25, 0.30), ("any_td", 0.25, 0.04)])
+    rows[0]["football_disagreement_vs_mid"] = -0.03      # reconciled says +0.30, football says -0.03
+    view = sim_block.game_view(rows, {})
+    ranked = view["largest_reconciled_disagreements"]
+    assert [r["disagreement_vs_mid"] for r in ranked] == [0.04], \
+        "the larger gap contradicts its own football view and must not be ranked"
+    flipped = view["earned_but_contradicts_football_view"]
+    assert len(flipped) == 1 and flipped[0]["disagreement_vs_mid"] == 0.30
+    assert "opposite" in view["ranking_basis"].lower()
+
+
+def test_the_ranking_filters_can_only_remove_rows_never_invent_one():
+    from nfl_edge.handicap import sim_block
+    rows = _sim_rows([("any_td", 0.25, 0.20), ("receptions", 0.0, -0.30), ("any_td", 0.25, 0.05)])
+    rows[0]["football_disagreement_vs_mid"] = -0.10
+    view = sim_block.game_view(rows, {})
+    tickers = {r["ticker"] for r in view["largest_reconciled_disagreements"]}
+    assert tickers <= {r["ticker"] for r in rows}
+    # every priced row lands in exactly one of the three lists, so nothing is silently dropped
+    everywhere = (tickers
+                  | {r["ticker"] for r in view["unranked_zero_weight_disagreements"]}
+                  | {r["ticker"] for r in view["earned_but_contradicts_football_view"]})
+    assert everywhere == {r["ticker"] for r in rows}

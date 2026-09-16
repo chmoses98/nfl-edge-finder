@@ -122,7 +122,7 @@ MARKET RECONCILIATION
 
   zero-weight rows whose FINAL MEAN is not the market mean: 17 within 1-10% (lattice granularity), 0 beyond 10%
   zero-weight rows whose |p_reconciled - mid| >= 0.05: 492 of 1300 (the untested shape substitution; reported, and they must not be ranked)
-  packet ranking over these rows: 194 ranked, 204 diverted as zero-weight; families ranked = ['touchdowns']
+  packet ranking over these rows: 190 ranked, 204 diverted as zero-weight; families ranked = ['touchdowns']
 
 ====================================================================================================
 GAME MARKETS

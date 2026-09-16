@@ -592,7 +592,7 @@ def render_md(man: dict, F: Findings, transcript: str) -> str:
          f"| rows / games | {man.get('n_rows')} / {len(man.get('games') or {})} |",
          "",
          "## Contracts by family and support state", "",
-         "| family \| support_state | n |", "|---|---|"]
+         r"| family \| support_state | n |", "|---|---|"]
     for k, v in sorted((man.get("counts") or {}).items()):
         L.append(f"| {str(k).replace('|', ' / ')} | {v} |")
     L += ["", "## Findings", ""]

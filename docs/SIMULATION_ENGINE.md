@@ -126,6 +126,14 @@ market to 0.003 while their *reconciled* probability sat 0.035 away. `sim_block.
 only `reconcile_weight > 0` and lists the rest under `unranked_zero_weight_disagreements`, which is
 reported and carries no authority.
 
+**A gap that contradicts its own football view is also not ranked.** The reconciled probability sits on
+the market's *estimated* mean, and on a thin ladder that estimate can contradict the market's own mid:
+the top-ranked Thursday row of the first live slate was +0.096 above the mid on a football view of
+−0.029, because the market's fitted mean (0.235) implied 0.209 at the rung while its own mid said 0.075.
+Those rows go to `earned_but_contradicts_football_view` — 72 of the live slate's 262 earned rows. Both
+filters can only ever *remove* rows from the ranking, and every priced row lands in exactly one of the
+three lists, so nothing is silently dropped (`tests/test_sim_engine.py`).
+
 `scripts/sim/slate_audit.py` audits a published slate: provenance and injury vintage, probabilities
 finite and in [0,1], ladder monotonicity, the zero-weight invariants above, role and availability
 anomalies, and — with `--reconstruct` — the team-level football (plays, pass/rush split, dropbacks, team
