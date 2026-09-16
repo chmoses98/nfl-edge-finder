@@ -440,3 +440,34 @@ def test_the_ranking_filters_can_only_remove_rows_never_invent_one():
                   | {r["ticker"] for r in view["unranked_zero_weight_disagreements"]}
                   | {r["ticker"] for r in view["earned_but_contradicts_football_view"]})
     assert everywhere == {r["ticker"] for r in rows}
+
+
+def test_the_latest_sim_artifact_is_chosen_by_run_stamp_not_by_root_path(tmp_path):
+    """The packet passes (market_data_root, repo_root).  Sorting full paths made the root whose name
+    sorts last win: on the runner "/tmp/md" sorts after "/home/runner/work/...", and the market-data
+    clone is fetched before this cycle's projections are published, so the live packet of 2026-09-16
+    22:19Z read sim run 20260916T213544Z while 20260916T215549Z sat in the repo -- two hours stale
+    against the ledger it was pricing."""
+    from nfl_edge.handicap import sim_block
+
+    def write(root, run_id):
+        d = tmp_path / root / "data" / "shadow" / "sim" / "2026-09-16"
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / f"{run_id}.sim-1.0.0.projections.jsonl.gz"
+        with gzip.open(p, "wt") as f:
+            f.write(json.dumps({"ticker": "T", "run_id": run_id}) + "\n")
+        (d / f"{run_id}.sim-1.0.0.manifest.json").write_text(json.dumps({"run_id": run_id}))
+        return str(tmp_path / root)
+
+    repo = write("home_runner_work", "20260916T215549Z")   # this cycle, sorts FIRST by path
+    md = write("tmp_md", "20260916T213544Z")               # last cycle, sorts LAST by path
+    at = datetime(2026, 9, 16, 22, 19, 39, tzinfo=timezone.utc)
+    rows, man = sim_block.load_latest((md, repo), at_or_before=at)
+    assert man["run_id"] == "20260916T215549Z", "the newest RUN STAMP must win, whatever root it is in"
+    # order of the roots must not matter
+    rows2, man2 = sim_block.load_latest((repo, md), at_or_before=at)
+    assert man2["run_id"] == "20260916T215549Z"
+    # and the cutoff still binds: at 21:40 only the 21:35:44 run is eligible, never the 21:55:49 one
+    _, man3 = sim_block.load_latest((md, repo), at_or_before=datetime(2026, 9, 16, 21, 40, tzinfo=timezone.utc))
+    assert man3["run_id"] == "20260916T213544Z", "an artifact stamped after the instant may not be selected"
+    assert sim_block.load_latest((md, repo), at_or_before=datetime(2026, 9, 16, 21, 0, tzinfo=timezone.utc)) == (None, None)
