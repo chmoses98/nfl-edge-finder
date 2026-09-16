@@ -263,3 +263,180 @@ def test_the_deployment_rule_can_only_remove_weights_never_invent_one():
     fitted_fit = {"s": {"weight": 0.0, "n": 9999}}
     conf = {"s": {"z": -5.0, "diff_vs_market": -1.0, "n": 9999}}
     assert R.deploy_weights(fitted_all, fitted_fit, conf)["s"]["weight"] == 0.0
+
+
+# ------------------------------------------------- Week 2 2026 production blockers (first live slate)
+def _one_qb_game(tf, pf):
+    """The fixture teams already carry exactly one quarterback -- which is precisely why the suite did not
+    catch this: the synthetic bundle's qb_share is 1.0 everywhere, so the remainder was always zero."""
+    gi = FX.game_input(tf, pf)
+    assert int((gi.home.players["position"] == "QB").sum()) == 1
+    return gi
+
+
+def _two_qb_game(tf, pf):
+    """The same game with a backup added behind the starter."""
+    gi = FX.game_input(tf, pf)
+    hp = gi.home.players
+    j = int(np.flatnonzero((hp["position"] == "QB").to_numpy())[0])
+    backup = hp.iloc[[j]].copy()                      # a one-row frame keeps every column's dtype
+    backup.loc[backup.index[0], "player_id"] = str(hp["player_id"].iloc[j]) + "-QB2"
+    if "dc_rank" in hp.columns:
+        backup.loc[backup.index[0], "dc_rank"] = 2.0
+    gi.home.players = pd.concat([hp, backup], ignore_index=True)
+    assert int((gi.home.players["position"] == "QB").sum()) == 2
+    return gi
+
+
+def _bundle_with_a_starter_tail(b):
+    """A qb_share with a real left tail, so the starter genuinely gives volume up on some rows.
+
+    Without this the synthetic bundle's default share is 1.0 everywhere, the remainder is always zero and
+    the identity would close for the wrong reason.
+    """
+    q = np.ones(201)
+    q[:40] = np.linspace(0.05, 0.99, 40)
+    return dict(b, qb_share={"quantiles": q.tolist()})
+
+
+def test_a_team_with_one_available_quarterback_still_closes_the_passing_identity(bundle_and_frames, bank):
+    """JAX and SEA, week 2 2026: the only two teams with one available QB and the only two games whose
+    coherence failed.  The starter's fitted tail gave up volume that was credited to nobody."""
+    b, tf, pf = bundle_and_frames
+    b = _bundle_with_a_starter_tail(b)
+    gi = _one_qb_game(tf, pf)
+    res = S.simulate(gi, b, n=4000, bank=bank)
+    rep = S.coherence_report(res)
+    broken = {k: v for k, v in rep.items() if k != "ok" and v}
+    assert rep["ok"], f"a single-quarterback team must still conserve the team's passing: {broken}"
+
+    # ... and the teeth: the remainder is real, non-zero, and lands on the OTHER bucket
+    other = res.player[f"OTHER:{gi.home.team}"]
+    assert "attempts" in other, "the unclaimed attempts must be credited somewhere"
+    assert other["attempts"].sum() > 0, "the starter tail never fired, so the identity closed trivially"
+    assert (other["attempts"] < 0).sum() == 0
+    qb = res.player[gi.home.qb1]
+    assert np.all(qb["attempts"] + other["attempts"] == res.team[gi.home.team]["pass_att"])
+
+    # why the existing suite never saw it: with the default share of 1.0 there is no remainder at all
+    flat = S.simulate(gi, dict(b, qb_share={"quantiles": [1.0] * 201}), n=1500, bank=bank)
+    assert flat.player[f"OTHER:{gi.home.team}"]["attempts"].sum() == 0
+
+
+def test_the_starters_own_distribution_does_not_depend_on_having_a_backup(bundle_and_frames, bank):
+    """The fix must not move the starter: only the destination of the remainder changes."""
+    b, tf, pf = bundle_and_frames
+    b = _bundle_with_a_starter_tail(b)
+    two = _two_qb_game(tf, pf)
+    one = _one_qb_game(tf, pf)
+    a = S.simulate(two, b, n=4000, bank=bank).player[two.home.qb1]["attempts"]
+    c = S.simulate(one, b, n=4000, bank=bank).player[one.home.qb1]["attempts"]
+    assert abs(float(a.mean()) - float(c.mean())) < 0.75, "the starter's own volume must be unchanged"
+
+
+def _sim_rows(weights_and_gaps):
+    """One priced sim row per (stat, weight, reconciled gap against a 0.50 mid)."""
+    out = []
+    for i, (stat, w, gap) in enumerate(weights_and_gaps):
+        out.append({"ticker": f"T{i}", "stat": stat, "threshold": 1, "player_id": f"p{i}", "game_id": "g",
+                    "family": "PLAYER_STAT", "support_state": "PRICED", "mid": 0.50, "p_market": 0.50,
+                    "p_football": 0.50 + gap, "p_reconciled": 0.50 + gap, "reconcile_weight": w,
+                    "football_mean": 1.0, "market_mean": 1.0, "final_mean": 1.0, "football_sd": 1.0,
+                    "p_active": 1.0, "center_source": "test", "center_spread_home": -1.0, "center_total": 44.0,
+                    "football_disagreement_vs_mid": gap})
+    return out
+
+
+def test_the_reconciled_ranking_admits_only_families_with_a_deployed_weight():
+    """Week 2 2026: zero-weight families supplied 41% of the top-15 reconciled disagreements and three of
+    the four priority boosts.  At weight 0 the mean IS the market's, so the gap is the untested shape."""
+    from nfl_edge.handicap import sim_block
+    rows = _sim_rows([("receptions", 0.0, -0.12), ("rec_yards", 0.0, 0.10), ("any_td", 0.25, 0.02)])
+    view = sim_block.game_view(rows, {"sim_version": "sim-1.0.0", "run_id": "r"})
+    ranked = view["largest_reconciled_disagreements"]
+    assert [r["stat"] for r in ranked] == ["any_td"], "only a family with a deployed weight may be ranked"
+    assert all((r["reconcile_weight"] or 0) > 0 for r in ranked)
+    # the information is kept, it just carries no authority
+    unranked = {r["stat"] for r in view["unranked_zero_weight_disagreements"]}
+    assert unranked == {"receptions", "rec_yards"}
+    assert "no authority" in view["ranking_basis"] or "carry no authority" in view["ranking_basis"]
+
+
+def test_a_zero_weight_disagreement_cannot_move_the_review_priority():
+    from nfl_edge.handicap import packet as PK
+    from nfl_edge.handicap import sim_block
+    base = {"game_id": "g", "kickoff_utc": None, "injuries": {"records": []}, "weather": {},
+            "largest_moves": [], "markets": [], "data_health": [], "largest_disagreements": []}
+    zero = sim_block.game_view(_sim_rows([("receptions", 0.0, -0.30)]), {})
+    earned = sim_block.game_view(_sim_rows([("any_td", 0.25, 0.30)]), {})
+    pz = PK.game_priority([dict(base, simulation=zero)])[0]
+    pe = PK.game_priority([dict(base, simulation=earned)])[0]
+    assert pz["priority_score"] == 0.0, "a 0.30 gap on a zero-weight family must add nothing"
+    assert not any("reconciled simulation disagreement" in r for r in pz["reasons"])
+    assert pe["priority_score"] > 0.0, "a family that earned a weight must still be able to raise priority"
+
+
+def test_an_incoherent_game_is_never_published_as_priced(bundle_and_frames, bank, monkeypatch):
+    """The backtest raises on a coherence failure; the prospective path used to publish the rows as PRICED
+    with coherence_ok=false beside them.  206 contracts of the first live Week 2 slate were in that state."""
+    from nfl_edge.sim import prospective as PR
+    b, tf, pf = bundle_and_frames
+    gi = FX.game_input(tf, pf)
+    monkeypatch.setattr(PR.I, "historical_bank", lambda season: bank)
+    monkeypatch.setattr(PR.S, "coherence_report", lambda res, tol=0: {"ok": False, "X:carries==rush_att": 7})
+    pid = gi.home.players[gi.home.players["position"] == "QB"]["player_id"].iloc[0]
+    ledger = [
+        {"game_id": gi.game_id, "family": "TOTAL", "period": "FULL", "threshold": 44.0, "ticker": "TOT-44",
+         "yes_bid": 0.48, "yes_ask": 0.52, "mid": 0.50, "operator": ">="},
+        {"game_id": gi.game_id, "family": "PLAYER_STAT", "period": "FULL", "stat": "passing_yards",
+         "player_kalshi_id": "K1", "threshold": 200.0, "ticker": "PY-200", "yes_bid": 0.48, "yes_ask": 0.52,
+         "mid": 0.50, "operator": ">="},
+        {"game_id": gi.game_id, "family": "PLAYER_STAT", "period": "FULL", "stat": "passing_yards",
+         "player_kalshi_id": "K1", "threshold": 250.0, "ticker": "PY-250", "yes_bid": 0.28, "yes_ask": 0.32,
+         "mid": 0.30, "operator": ">="},
+    ]
+    slate = {"games": {gi.game_id: {"input": gi, "kickoff": None, "center_diag": {}}}}
+    rows = PR.price_slate(slate, ledger, b, None, n_sims=1500, run_id="r", observed_at="2026-09-16T00:00:00Z",
+                          generated_at=datetime(2026, 9, 16, tzinfo=timezone.utc), player_map={"K1": pid},
+                          verbose=lambda *a: None)
+    assert rows, "the fixture must produce rows for the assertion to mean anything"
+    assert not any(r["support_state"] in PR.COHERENCE_DEPENDENT_STATES for r in rows), \
+        "no row of an incoherent game may claim a support state that asserts the identities held"
+    assert any(r["support_state"] == "UNSUPPORTED_COHERENCE" for r in rows)
+    assert all(r["coherence_ok"] is False for r in rows)
+    # and the negative control: coherent again, and the same rows price
+    monkeypatch.setattr(PR.S, "coherence_report", lambda res, tol=0: {"ok": True})
+    ok = PR.price_slate(slate, ledger, b, None, n_sims=1500, run_id="r", observed_at="2026-09-16T00:00:00Z",
+                        generated_at=datetime(2026, 9, 16, tzinfo=timezone.utc), player_map={"K1": pid},
+                        verbose=lambda *a: None)
+    assert any(r["support_state"] in PR.COHERENCE_DEPENDENT_STATES for r in ok)
+
+
+def test_a_gap_that_contradicts_its_own_football_view_is_not_ranked():
+    """The reconciled probability sits on the market's ESTIMATED mean, which on a thin ladder can
+    contradict the market's own mid.  The top-ranked Thursday row of the first live Week 2 slate was
+    +0.096 above the mid on a football view of -0.029.  That is the estimator, not a football opinion."""
+    from nfl_edge.handicap import sim_block
+    rows = _sim_rows([("any_td", 0.25, 0.30), ("any_td", 0.25, 0.04)])
+    rows[0]["football_disagreement_vs_mid"] = -0.03      # reconciled says +0.30, football says -0.03
+    view = sim_block.game_view(rows, {})
+    ranked = view["largest_reconciled_disagreements"]
+    assert [r["disagreement_vs_mid"] for r in ranked] == [0.04], \
+        "the larger gap contradicts its own football view and must not be ranked"
+    flipped = view["earned_but_contradicts_football_view"]
+    assert len(flipped) == 1 and flipped[0]["disagreement_vs_mid"] == 0.30
+    assert "opposite" in view["ranking_basis"].lower()
+
+
+def test_the_ranking_filters_can_only_remove_rows_never_invent_one():
+    from nfl_edge.handicap import sim_block
+    rows = _sim_rows([("any_td", 0.25, 0.20), ("receptions", 0.0, -0.30), ("any_td", 0.25, 0.05)])
+    rows[0]["football_disagreement_vs_mid"] = -0.10
+    view = sim_block.game_view(rows, {})
+    tickers = {r["ticker"] for r in view["largest_reconciled_disagreements"]}
+    assert tickers <= {r["ticker"] for r in rows}
+    # every priced row lands in exactly one of the three lists, so nothing is silently dropped
+    everywhere = (tickers
+                  | {r["ticker"] for r in view["unranked_zero_weight_disagreements"]}
+                  | {r["ticker"] for r in view["earned_but_contradicts_football_view"]})
+    assert everywhere == {r["ticker"] for r in rows}

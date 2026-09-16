@@ -59,6 +59,11 @@ def market_view(row: dict | None) -> dict | None:
             "reconciled_disagreement_vs_mid": (round(row["p_reconciled"] - row["mid"], 5)
                                                if row.get("p_reconciled") is not None and row.get("mid") is not None else None),
             "football_disagreement_vs_mid": row.get("football_disagreement_vs_mid"),
+            # at weight 0 the reconciled MEAN is the market's, so whatever gap is left at this rung is the
+            # football SHAPE, which has never been confirmed out of sample.  Say so on the row itself.
+            "reconciled_disagreement_is_shape_only": (row.get("p_reconciled") is not None
+                                                      and not (row.get("reconcile_weight") or 0) > 0),
+            "ranked": bool((row.get("reconcile_weight") or 0) > 0),
             "center_source": row.get("center_source"), "label": "DISAGREEMENT ONLY -- REQUIRES HANDICAP"}
 
 
@@ -69,7 +74,36 @@ def game_view(game_rows: list, manifest: dict | None) -> dict:
     for r in game_rows:
         counts[r.get("support_state")] = counts.get(r.get("support_state"), 0) + 1
     priced = [r for r in game_rows if r.get("support_state") in PRICED_STATES and r.get("p_reconciled") is not None and r.get("mid") is not None]
-    ranked = sorted(priced, key=lambda r: -abs(r["p_reconciled"] - r["mid"]))
+    # ONLY a family that earned a non-zero deployed weight may be ranked.  At weight 0 the mean is the
+    # market's, so the only thing left that can move p_reconciled away from the mid is the SHAPE
+    # substitution -- and no shape claim has ever been confirmed out of sample (RECONCILIATION.md carries
+    # it as an untested caveat).  Ranking that gap presents an unearned disagreement as the model's view:
+    # on the first live Week 2 slate it put zero-weight families in 41% of the top-15 lists and supplied
+    # three of the four reconciled-disagreement priority boosts, with rows whose FOOTBALL probability
+    # agreed with the market to 0.003 showing a 0.035 "reconciled disagreement".
+    def _earned(r):
+        return (r.get("reconcile_weight") or 0) > 0
+
+    def _sign_flip(r):
+        """The ranked gap points the opposite way to the model's own football view.
+
+        The reconciled probability re-locates the football shape onto the market's ESTIMATED mean, and on
+        a thin ladder that estimate can contradict the market's own quoted mid: the top-ranked Thursday
+        row of the first live Week 2 slate sat +0.096 above the mid on a football view of -0.029, because
+        the market's fitted mean (0.235) implied 0.209 at the rung while its own mid said 0.075.  A gap
+        that disagrees with the model's own direction is not the model's disagreement, so it is reported
+        and not ranked.  This can only ever REMOVE rows from the ranking.
+        """
+        fbd = r.get("football_disagreement_vs_mid")
+        return fbd is not None and (r["p_reconciled"] - r["mid"]) * fbd < 0
+
+    rankable = [r for r in priced if _earned(r) and not _sign_flip(r)]
+    ranked = sorted(rankable, key=lambda r: -abs(r["p_reconciled"] - r["mid"]))
+    # reported, never ranked -- the information is kept, it just carries no authority
+    unranked = sorted((r for r in priced if not _earned(r)),
+                      key=lambda r: -abs(r["p_reconciled"] - r["mid"]))
+    contradicts = sorted((r for r in priced if _earned(r) and _sign_flip(r)),
+                         key=lambda r: -abs(r["p_reconciled"] - r["mid"]))
     centre = None
     if game_rows:
         r0 = game_rows[0]
@@ -95,7 +129,37 @@ def game_view(game_rows: list, manifest: dict | None) -> dict:
                  "mid": r.get("mid"), "p_football": r.get("p_football"), "p_reconciled": r.get("p_reconciled"),
                  "reconcile_weight": r.get("reconcile_weight"), "disagreement_vs_mid": round(r["p_reconciled"] - r["mid"], 5),
                  "football_mean": r.get("football_mean"), "market_mean": r.get("market_mean"), "final_mean": r.get("final_mean"),
+                 # How much of the ranked gap is a football opinion at all.  The reconciled probability is
+                 # the football distribution re-shaped and re-located onto the market's own ESTIMATED mean,
+                 # and that estimate is poorly identified on a thin ladder, so the two can disagree about
+                 # the market itself.  On the first live Week 2 slate the mean ranked any_td gap was +0.0115
+                 # against a football view of +0.0056, and 9.3% of ranked rows pointed the opposite way to
+                 # the football view.  A reader ranking these must see both numbers.
+                 "football_disagreement_vs_mid": r.get("football_disagreement_vs_mid"),
+                 "disagrees_with_own_football_view": (
+                     r.get("football_disagreement_vs_mid") is not None
+                     and (r["p_reconciled"] - r["mid"]) * r["football_disagreement_vs_mid"] < 0),
                  "label": "DISAGREEMENT ONLY -- REQUIRES HANDICAP"} for r in ranked[:15]],
+            "unranked_zero_weight_disagreements": [
+                {"ticker": r["ticker"], "stat": r.get("stat"), "threshold": r.get("threshold"), "player_id": r.get("player_id"),
+                 "mid": r.get("mid"), "p_football": r.get("p_football"), "p_reconciled": r.get("p_reconciled"),
+                 "reconcile_weight": r.get("reconcile_weight"), "disagreement_vs_mid": round(r["p_reconciled"] - r["mid"], 5),
+                 "label": "NOT RANKED -- this family earned no weight; the gap is the untested shape substitution"}
+                for r in unranked[:15]],
+            "earned_but_contradicts_football_view": [
+                {"ticker": r["ticker"], "stat": r.get("stat"), "threshold": r.get("threshold"), "player_id": r.get("player_id"),
+                 "mid": r.get("mid"), "p_football": r.get("p_football"), "p_reconciled": r.get("p_reconciled"),
+                 "reconcile_weight": r.get("reconcile_weight"), "disagreement_vs_mid": round(r["p_reconciled"] - r["mid"], 5),
+                 "football_disagreement_vs_mid": r.get("football_disagreement_vs_mid"),
+                 "label": "NOT RANKED -- the reconciled gap points the opposite way to the football view"}
+                for r in contradicts[:15]],
+            "ranking_basis": ("Only families with a non-zero DEPLOYED reconciliation weight are ranked. At weight 0 the "
+                              "reconciled mean IS the market mean, so any remaining gap against the mid comes from the "
+                              "football shape, which has never been confirmed out of sample; those rows are listed "
+                              "under unranked_zero_weight_disagreements and carry no authority. A row whose reconciled "
+                              "gap points the OPPOSITE way to its own football view is also not ranked -- the "
+                              "relocation crossed the mid, so the gap is the market-mean estimator rather than the "
+                              "model's opinion -- and is listed under earned_but_contradicts_football_view."),
             "note": ("The simulation's football-only probability is shown for every priced market; only the RECONCILED "
                      "probability -- the football distribution shrunk toward the market by a weight fitted out of sample "
                      "on the 2025 archive -- is ranked, and only where such a weight exists.")}

@@ -44,6 +44,8 @@ GRID_MAX = {"pass_yards": 600, "rush_yards": 300, "rec_yards": 300, "receptions"
             "carries": 50, "attempts": 75, "completions": 55}
 GAME_FAMILIES = ("GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL")
 SLEEPER_OUT = {"Out", "IR", "PUP", "Sus", "COV", "NFI"}
+# support states that assert the simulated game's identities held; an incoherent game may not carry them
+COHERENCE_DEPENDENT_STATES = ("PRICED", "MARKET_CENTRED_GAME", "FOOTBALL_ONLY_NO_RECONCILIATION")
 
 
 # ------------------------------------------------------------------------------------- ledger read
@@ -346,6 +348,14 @@ def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dic
                     rec["football_disagreement_vs_mid"] = round(float(rec["p_football"] - r["mid"]), 5)
             except Exception as exc:  # noqa: BLE001
                 rec.update(support_state="ERROR", support_reason=f"{type(exc).__name__}: {exc}")
+            # Fail CLOSED on an incoherent game, as the backtest already does by raising.  A game whose
+            # own identities do not hold is a game the engine cannot price, and publishing its rows as
+            # PRICED with coherence_ok=false beside them invites a reader to use them anyway.  The
+            # probabilities stay on the row for diagnosis; the support state refuses them.
+            if not coh["ok"] and rec.get("support_state") in COHERENCE_DEPENDENT_STATES:
+                broken = "; ".join(f"{k}={v}" for k, v in coh.items() if k != "ok" and v)
+                rec.update(support_state="UNSUPPORTED_COHERENCE",
+                           support_reason=f"simulated game violates an engine identity: {broken}"[:400])
             out.append(rec)
         verbose(f"{gid}: {len(rows)} contracts, centre {gi.center_source} ({gi.spread_home:+.1f}, {gi.total_line:.1f}), coherence {coh['ok']}")
     return out
