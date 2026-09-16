@@ -328,9 +328,25 @@ def fit_td_weights(pf: pd.DataFrame) -> dict:
     return out
 
 
+# ------------------------------------------------------------------------------------ QB starter
+def fit_qb_share(elig: pd.DataFrame) -> dict:
+    """The share of a team's pass attempts taken by its depth-chart QB1 on the training rows: mostly 1.0,
+    with a real left tail (benched, hurt in game, the chart was stale).  Stored as quantiles and drawn per
+    simulated row, so a starter's attempt / yardage distributions carry that tail instead of pretending
+    he throws every pass in every world."""
+    q = elig[(elig["position"] == "QB") & (elig["dc_rank"] == 1)].copy()
+    q = q[(q["team_pass_att"].fillna(0) > 0) & (q["attempts"].fillna(0) > 0)]   # he played: absence is the availability layer's job
+    share = (q["attempts"].fillna(0) / q["team_pass_att"]).clip(0, 1).to_numpy(float)
+    if len(share) < 100:
+        share = np.ones(100)
+    return {"quantiles": np.quantile(share, np.linspace(0, 1, 201)).tolist(), "n": int(len(share)),
+            "p_below_half": float(np.mean(share < 0.5))}
+
+
 # ----------------------------------------------------------------------------------------- bundle
 def bundle(game_env: dict, carry_share: dict, target_share: dict, carry: dict, target: dict, td: dict,
-           *, train_seasons, feature_config: dict, other_share: dict) -> dict:
+           *, train_seasons, feature_config: dict, other_share: dict, qb_share: dict | None = None) -> dict:
     return {"sim_version": SIM_VERSION, "models_version": MODELS_VERSION, "train_seasons": list(train_seasons),
             "feature_config": feature_config, "game_env": game_env, "carry_share": carry_share,
-            "target_share": target_share, "carry": carry, "target": target, "td": td, "other_share": other_share}
+            "target_share": target_share, "carry": carry, "target": target, "td": td, "other_share": other_share,
+            "qb_share": qb_share or {"quantiles": [1.0] * 201, "n": 0, "p_below_half": 0.0}}

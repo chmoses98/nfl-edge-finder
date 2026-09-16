@@ -134,7 +134,8 @@ def fit_bundle(target_season: int, frames: dict | None = None, history_start: in
     o = frames["outside"]; o = o[o["game_id"].str[:4].astype(int).isin(train)]
     other_share = {"carry": float(1 - o["elig_carries"].sum() / max(1, o["team_designed_rush"].sum())),
                    "target": float(1 - o["elig_targets"].sum() / max(1, o["team_targets"].sum()))}
+    qb_share = M.fit_qb_share(e)
     b = M.bundle(game_env, carry_share, target_share, carry, target, td, train_seasons=train,
-                 feature_config=cfg.to_dict(), other_share=other_share)
+                 feature_config=cfg.to_dict(), other_share=other_share, qb_share=qb_share)
     b["target_season"] = target_season
     return b

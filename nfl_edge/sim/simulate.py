@@ -339,9 +339,21 @@ def _simulate_players(rng, ti: TeamInput, T: dict, bundle: dict, res: SimResult,
     T["pass_yards"] = team_rec_yards; T["completions"] = team_receptions
     T["rush_yards"] = sum(v["rush_yards"] for v in res.player.values() if v["team"] == ti.team)
     if qb_idx is not None:
+        # the starter's share of the team's passing on this row: 1.0 on most rows, a fitted left tail on the rest
+        qs = np.asarray(bundle.get("qb_share", {}).get("quantiles", [1.0] * 201), float)
+        share = _interp_quantiles(qs, rng.random(n))
         qb = res.player[ids[qb_idx]]
-        qb["attempts"] = T["pass_att"]; qb["completions"] = team_receptions; qb["pass_yards"] = team_rec_yards
-        qb["pass_td"] = T["pass_td"]
+        qb["attempts"] = np.round(share * T["pass_att"]).astype(np.int64)
+        qb["completions"] = np.minimum(np.round(share * team_receptions).astype(np.int64), qb["attempts"])
+        qb["pass_yards"] = np.round(share * team_rec_yards); qb["pass_td"] = rng.binomial(T["pass_td"], share)
+        qb["starter_share"] = share
+        # the remainder goes to the next quarterback on the chart, if he is in the eligible set
+        others = [j for j, pid in enumerate(ids[:m]) if P.loc[j, "position"] == "QB" and j != qb_idx]
+        if others:
+            j2 = min(others, key=lambda j: (P.loc[j, "dc_rank"] if np.isfinite(P.loc[j, "dc_rank"]) else 99))
+            q2 = res.player[ids[j2]]
+            q2["attempts"] = T["pass_att"] - qb["attempts"]; q2["completions"] = team_receptions - qb["completions"]
+            q2["pass_yards"] = team_rec_yards - qb["pass_yards"]; q2["pass_td"] = T["pass_td"] - qb["pass_td"]
     # touchdown allocation
     td = bundle["td"]
     gam_r, gam_p = td["rush"]["gamma"], td["pass"]["gamma"]
@@ -377,6 +389,10 @@ def coherence_report(res: SimResult, tol: int = 0) -> dict:
         out[f"{team}:dropbacks+rush_plays==plays"] = int(np.abs(T["dropbacks"] + T["designed_rush"] + T["kneels"] - T["plays"]).max())
         out[f"{team}:negative_counts"] = int(sum(int((v[c] < 0).sum()) for v in pl for c in ("carries", "targets", "receptions", "rush_td", "rec_td")))
         out[f"{team}:receptions<=targets"] = int(sum(int((v["receptions"] > v["targets"]).sum()) for v in pl))
+        qbs = [v for v in pl if "attempts" in v]
+        if qbs:
+            out[f"{team}:qb_attempts==pass_att"] = int(np.abs(sum(v["attempts"] for v in qbs) - T["pass_att"]).max())
+            out[f"{team}:qb_pass_yards==pass_yards"] = float(np.abs(sum(v["pass_yards"] for v in qbs) - T["pass_yards"]).max())
     out["home+away==total"] = float(np.abs(res.home_points + res.away_points - res.total).max())
     out["home-away==margin"] = float(np.abs(res.home_points - res.away_points - res.margin).max())
     out["ok"] = all(v <= max(tol, 1e-9) for k, v in out.items() if k != "ok")

@@ -393,3 +393,27 @@
     reject a non-finite standard error: a candidate was published with `effect_size: nan, uncertainty: nan`.
     Finiteness is now asserted explicitly on both the effect and its standard error. Legitimate tiny-but-finite
     standard errors are unaffected. `tests/test_hypothesis_miner_denominator.py`.
+
+81. **The simulation layer (sim-1.0.0) is shadow research with zero prospective evidence.** Its walk-forward
+    evidence (`research/simulation_engine/RESULTS.md`) uses the nflverse consensus closing line as the game centre
+    for every historical game, which is a slightly later market than the T-24h quotes its 2025 rung comparison is
+    also scored at; the reconciliation weights are fitted on 2025 and first evaluated prospectively on 2026. The
+    Week-1 2026 diagnostic is development evidence, not validation. No family is promoted; `game_priority`
+    reads only the reconciled disagreement and caps it below the injury and weather signals.
+
+82. **The simulation's prospective injury state is thinner than the backtest's.** Historically the eligible set uses
+    the week's final designations; prospectively it reads the nflverse file for the week only if it exists (it does
+    not until the first report is filed) plus the newest Sleeper capture at or before the cutoff. It does not yet
+    consume the content-addressed injury vintages of `shadow_v2`, and a Questionable player is kept with the
+    incumbent's 0.78 play probability rather than a fitted one. A stale depth chart (the 2016–2024 weekly files in
+    the backtest) is the main reason the QB1 attempt-share distribution carries a left tail.
+
+83. **The simulation claims no football deviation on game families.** Winner, spread, total and team-total rows are
+    priced from the market-implied centre through the incumbent's residual bank and are labelled
+    `MARKET_CENTRED_GAME`; whether football data earns a game-level deviation is `H-20260910-026`'s question and is
+    not re-asked here.
+
+84. **Unsupported player families are passed, not guessed.** Longest reception/rush, fantasy points, interceptions,
+    field goals, first-TD scorer, period props and any operator other than `>=` are `UNSUPPORTED_STAT` /
+    `UNSUPPORTED_RULES` in `data/shadow/sim`; the packet shows them with no simulation probability.
+
