@@ -1,0 +1,6714 @@
+{
+ "funnel_version": "funnel-1.0.0",
+ "run_id": "20260916T181533Z",
+ "as_of": "2026-09-16T18:15:33.925816+00:00",
+ "authority": "NONE: an accounting of existing gates over the model's own number; not a recommendation",
+ "n_markets": 27386,
+ "stages": [
+  {
+   "stage": "discovered",
+   "n": 27386
+  },
+  {
+   "stage": "mapped",
+   "n": 19423
+  },
+  {
+   "stage": "supported",
+   "n": 2785
+  },
+  {
+   "stage": "priced",
+   "n": 2785
+  },
+  {
+   "stage": "raw_disagreement",
+   "n": 1680
+  },
+  {
+   "stage": "tradable_book",
+   "n": 1412
+  },
+  {
+   "stage": "data_quality",
+   "n": 1410
+  },
+  {
+   "stage": "executable_price",
+   "n": 788
+  },
+  {
+   "stage": "liquidity",
+   "n": 263
+  }
+ ],
+ "terminal_states": {
+  "PASS": 26502,
+  "WATCH": 621,
+  "BET": 263
+ },
+ "by_family": {
+  "AWARD": {
+   "PASS": 865
+  },
+  "BOTH_TEAMS_SCORE": {
+   "PASS": 68
+  },
+  "BOTH_TEAMS_SCORE_N": {
+   "WATCH": 1,
+   "PASS": 66,
+   "BET": 1
+  },
+  "COACH_EVENT": {
+   "PASS": 64
+  },
+  "CONFERENCE_WINNER": {
+   "PASS": 32
+  },
+  "DIVISION_WINNER": {
+   "PASS": 32
+  },
+  "DRAFT": {
+   "PASS": 40
+  },
+  "FIRST_TD_SCORER": {
+   "PASS": 614
+  },
+  "FIRST_TD_TEAM": {
+   "PASS": 496
+  },
+  "GAME_EVENT": {
+   "PASS": 85
+  },
+  "GAME_STAT": {
+   "PASS": 5
+  },
+  "GAME_WINNER": {
+   "PASS": 73,
+   "WATCH": 23
+  },
+  "HALF_FULL_RESULT": {
+   "PASS": 279
+  },
+  "MAKE_PLAYOFFS": {
+   "PASS": 33
+  },
+  "NFL_BUSINESS_EVENT": {
+   "PASS": 5
+  },
+  "NOT_NFL_OR_UNKNOWN": {
+   "PASS": 2
+  },
+  "PERIOD_WINNER": {
+   "PASS": 558
+  },
+  "PLAYER_AVAILABILITY": {
+   "PASS": 23
+  },
+  "PLAYER_ROLE_EVENT": {
+   "PASS": 177
+  },
+  "PLAYER_STAT": {
+   "PASS": 7816,
+   "BET": 247,
+   "WATCH": 176
+  },
+  "RACE_TO_N": {
+   "PASS": 300
+  },
+  "SEASON_DIVISION_ORDER": {
+   "PASS": 192
+  },
+  "SEASON_DIVISION_STAT": {
+   "PASS": 80
+  },
+  "SEASON_FANTASY": {
+   "PASS": 937
+  },
+  "SEASON_LEADER": {
+   "PASS": 592
+  },
+  "SEASON_MATCHUP": {
+   "PASS": 496
+  },
+  "SEASON_PLAYER_SPECIAL": {
+   "PASS": 306
+  },
+  "SEASON_PLAYER_STAT": {
+   "PASS": 1129
+  },
+  "SEASON_SEED": {
+   "PASS": 224
+  },
+  "SEASON_SPECIAL": {
+   "PASS": 63
+  },
+  "SEASON_TEAM_EVENT": {
+   "PASS": 390
+  },
+  "SEASON_TEAM_H2H": {
+   "PASS": 22
+  },
+  "SEASON_TEAM_LEADER": {
+   "PASS": 96
+  },
+  "SEASON_WINS": {
+   "PASS": 547
+  },
+  "SPREAD": {
+   "PASS": 3055,
+   "WATCH": 194,
+   "BET": 7
+  },
+  "SUPER_BOWL_EVENT": {
+   "PASS": 234
+  },
+  "SUPER_BOWL_WINNER": {
+   "PASS": 32
+  },
+  "TEAM_STAT": {
+   "PASS": 530
+  },
+  "TEAM_TOTAL": {
+   "PASS": 1470,
+   "WATCH": 94,
+   "BET": 4
+  },
+  "TEAM_WINS_BY_WEEK": {
+   "PASS": 728
+  },
+  "TOTAL": {
+   "PASS": 2581,
+   "WATCH": 133,
+   "BET": 4
+  },
+  "TOTAL_TD": {
+   "PASS": 113
+  },
+  "TRANSACTION_EVENT": {
+   "PASS": 277
+  },
+  "UNKNOWN_NEEDS_CLASSIFICATION": {
+   "PASS": 386
+  },
+  "WEEK_EVENT": {
+   "PASS": 32
+  },
+  "WEEK_LEADER": {
+   "PASS": 238
+  },
+  "WIN_MARGIN_BUCKET": {
+   "PASS": 119
+  }
+ },
+ "top_rejection_reasons": [
+  {
+   "reason": "POST_KICKOFF_EXCLUDED",
+   "n": 11994
+  },
+  {
+   "reason": "unmapped",
+   "n": 7963
+  },
+  {
+   "reason": "UNSUPPORTED_MODEL",
+   "n": 3454
+  },
+  {
+   "reason": "UNSUPPORTED_RULES",
+   "n": 1181
+  },
+  {
+   "reason": "no positive disagreement against either executable ask",
+   "n": 1105
+  },
+  {
+   "reason": "no order book observed for this ticker (books are captured i",
+   "n": 525
+  },
+  {
+   "reason": "book not tradable for ranking",
+   "n": 268
+  },
+  {
+   "reason": "ask 0.99 above the zero-net-EV ceiling 0.98",
+   "n": 54
+  },
+  {
+   "reason": "ask 0.98 above the zero-net-EV ceiling 0.97",
+   "n": 27
+  },
+  {
+   "reason": "ask 0.08 above the zero-net-EV ceiling 0.07",
+   "n": 15
+  },
+  {
+   "reason": "ask 0.07 above the zero-net-EV ceiling 0.06",
+   "n": 11
+  },
+  {
+   "reason": "ask 0.13 above the zero-net-EV ceiling 0.12",
+   "n": 10
+  },
+  {
+   "reason": "ask 0.88 above the zero-net-EV ceiling 0.87",
+   "n": 10
+  },
+  {
+   "reason": "UNSUPPORTED_IDENTITY",
+   "n": 9
+  },
+  {
+   "reason": "ask 0.63 above the zero-net-EV ceiling 0.61",
+   "n": 9
+  },
+  {
+   "reason": "ask 0.09 above the zero-net-EV ceiling 0.08",
+   "n": 9
+  },
+  {
+   "reason": "ask 0.66 above the zero-net-EV ceiling 0.64",
+   "n": 8
+  },
+  {
+   "reason": "ask 0.43 above the zero-net-EV ceiling 0.41",
+   "n": 8
+  },
+  {
+   "reason": "ask 0.95 above the zero-net-EV ceiling 0.94",
+   "n": 8
+  },
+  {
+   "reason": "ask 0.06 above the zero-net-EV ceiling 0.05",
+   "n": 8
+  },
+  {
+   "reason": "ask 0.52 above the zero-net-EV ceiling 0.50",
+   "n": 8
+  },
+  {
+   "reason": "ask 0.93 above the zero-net-EV ceiling 0.92",
+   "n": 7
+  },
+  {
+   "reason": "ask 0.05 above the zero-net-EV ceiling 0.04",
+   "n": 7
+  },
+  {
+   "reason": "ask 0.15 above the zero-net-EV ceiling 0.14",
+   "n": 7
+  },
+  {
+   "reason": "ask 0.18 above the zero-net-EV ceiling 0.17",
+   "n": 7
+  }
+ ],
+ "not_replayed": [
+  "portfolio_risk_policy (needs a stake and bankroll)",
+  "decision_time_quote_freshness (needs a decision timestamp; the snapshot's own confirmation is the STALE_DATA support state)"
+ ],
+ "watch": [
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20INDKC-IND18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.58 above the zero-net-EV ceiling 0.57"
+   ],
+   "side": "YES",
+   "executable_ask": 0.58,
+   "fair": 0.5997,
+   "raw_disagreement": 0.01970000000000005,
+   "watch_ceiling": 0.57,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20SEAARI-SEA14",
+   "family": "SPREAD",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.76 above the zero-net-EV ceiling 0.75"
+   ],
+   "side": "NO",
+   "executable_ask": 0.76,
+   "fair": 0.77965,
+   "raw_disagreement": 0.019649999999999945,
+   "watch_ceiling": 0.75,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP17DETBUF-DETJGOFF16-250",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.43 above the zero-net-EV ceiling 0.42"
+   ],
+   "side": "NO",
+   "executable_ask": 0.43,
+   "fair": 0.449544147413658,
+   "raw_disagreement": 0.01954414741365801,
+   "watch_ceiling": 0.42,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP20JACDEN-JACTLAWRENCE16-200",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.65 above the zero-net-EV ceiling 0.64"
+   ],
+   "side": "YES",
+   "executable_ask": 0.65,
+   "fair": 0.6692534611707879,
+   "raw_disagreement": 0.019253461170787856,
+   "watch_ceiling": 0.64,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20SEAARI-SEA6",
+   "family": "SPREAD",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.44 above the zero-net-EV ceiling 0.43"
+   ],
+   "side": "YES",
+   "executable_ask": 0.44,
+   "fair": 0.459225,
+   "raw_disagreement": 0.019224999999999992,
+   "watch_ceiling": 0.43,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20PHITEN-TEN21",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.29 above the zero-net-EV ceiling 0.28"
+   ],
+   "side": "YES",
+   "executable_ask": 0.29,
+   "fair": 0.3092,
+   "raw_disagreement": 0.019199999999999995,
+   "watch_ceiling": 0.28,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP20NOBAL-NOCOLAVE12-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.72 above the zero-net-EV ceiling 0.71"
+   ],
+   "side": "NO",
+   "executable_ask": 0.72,
+   "fair": 0.7391884348704747,
+   "raw_disagreement": 0.019188434870474724,
+   "watch_ceiling": 0.71,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PHITEN-PHI7",
+   "family": "SPREAD",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.46 above the zero-net-EV ceiling 0.45"
+   ],
+   "side": "NO",
+   "executable_ask": 0.46,
+   "fair": 0.479125,
+   "raw_disagreement": 0.019125000000000003,
+   "watch_ceiling": 0.45,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSINT-26SEP17DETBUF-DETJGOFF16-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.48 above the zero-net-EV ceiling 0.47"
+   ],
+   "side": "YES",
+   "executable_ask": 0.48,
+   "fair": 0.49862290725551384,
+   "raw_disagreement": 0.018622907255513854,
+   "watch_ceiling": 0.47,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PITNE-PIT3",
+   "family": "SPREAD",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.74 above the zero-net-EV ceiling 0.73"
+   ],
+   "side": "NO",
+   "executable_ask": 0.74,
+   "fair": 0.7585,
+   "raw_disagreement": 0.01849999999999996,
+   "watch_ceiling": 0.73,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20PHITEN-47",
+   "family": "TOTAL",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.29 above the zero-net-EV ceiling 0.28"
+   ],
+   "side": "YES",
+   "executable_ask": 0.29,
+   "fair": 0.308225,
+   "raw_disagreement": 0.018225000000000047,
+   "watch_ceiling": 0.28,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PHITEN-PHI10",
+   "family": "SPREAD",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.57 above the zero-net-EV ceiling 0.56"
+   ],
+   "side": "NO",
+   "executable_ask": 0.57,
+   "fair": 0.58815,
+   "raw_disagreement": 0.01815,
+   "watch_ceiling": 0.56,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20NOBAL-BAL21",
+   "family": "SPREAD",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.80 above the zero-net-EV ceiling 0.79"
+   ],
+   "side": "NO",
+   "executable_ask": 0.8,
+   "fair": 0.8181499999999999,
+   "raw_disagreement": 0.01814999999999989,
+   "watch_ceiling": 0.79,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20GBNYJ-NYJ5",
+   "family": "SPREAD",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.23 above the zero-net-EV ceiling 0.22"
+   ],
+   "side": "YES",
+   "executable_ask": 0.23,
+   "fair": 0.24795,
+   "raw_disagreement": 0.017949999999999994,
+   "watch_ceiling": 0.22,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP20MINCHI-CHIRODUNZE15-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.74 above the zero-net-EV ceiling 0.73"
+   ],
+   "side": "NO",
+   "executable_ask": 0.74,
+   "fair": 0.7578323076086226,
+   "raw_disagreement": 0.017832307608622644,
+   "watch_ceiling": 0.73,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20LVLAC-LAC10",
+   "family": "SPREAD",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.62 above the zero-net-EV ceiling 0.61"
+   ],
+   "side": "NO",
+   "executable_ask": 0.62,
+   "fair": 0.637825,
+   "raw_disagreement": 0.01782499999999998,
+   "watch_ceiling": 0.61,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20SEAARI-ARI4",
+   "family": "SPREAD",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.74 above the zero-net-EV ceiling 0.73"
+   ],
+   "side": "NO",
+   "executable_ask": 0.74,
+   "fair": 0.7576499999999999,
+   "raw_disagreement": 0.017649999999999944,
+   "watch_ceiling": 0.73,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20JACDEN-41",
+   "family": "TOTAL",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.64 above the zero-net-EV ceiling 0.63"
+   ],
+   "side": "YES",
+   "executable_ask": 0.64,
+   "fair": 0.657575,
+   "raw_disagreement": 0.017575000000000007,
+   "watch_ceiling": 0.63,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP20MINCHI-MINCWENTZ11-175",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.75 above the zero-net-EV ceiling 0.74"
+   ],
+   "side": "YES",
+   "executable_ask": 0.75,
+   "fair": 0.7675456188437063,
+   "raw_disagreement": 0.017545618843706312,
+   "watch_ceiling": 0.74,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PITNE-NE17",
+   "family": "SPREAD",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.82 above the zero-net-EV ceiling 0.81"
+   ],
+   "side": "NO",
+   "executable_ask": 0.82,
+   "fair": 0.83745,
+   "raw_disagreement": 0.017450000000000077,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20JACDEN-JAC6",
+   "family": "SPREAD",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.24 above the zero-net-EV ceiling 0.23"
+   ],
+   "side": "YES",
+   "executable_ask": 0.24,
+   "fair": 0.257375,
+   "raw_disagreement": 0.01737500000000003,
+   "watch_ceiling": 0.23,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP20MINCHI-CHICLOVELAND84-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.79 above the zero-net-EV ceiling 0.78"
+   ],
+   "side": "NO",
+   "executable_ask": 0.79,
+   "fair": 0.8073454371632192,
+   "raw_disagreement": 0.017345437163219124,
+   "watch_ceiling": 0.78,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20MIASF-SF11",
+   "family": "SPREAD",
+   "game_id": "2026_02_MIA_SF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.57 above the zero-net-EV ceiling 0.56"
+   ],
+   "side": "YES",
+   "executable_ask": 0.57,
+   "fair": 0.587325,
+   "raw_disagreement": 0.017325000000000035,
+   "watch_ceiling": 0.56,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20NOBAL-BAL15",
+   "family": "SPREAD",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.34 above the zero-net-EV ceiling 0.33"
+   ],
+   "side": "YES",
+   "executable_ask": 0.34,
+   "fair": 0.357275,
+   "raw_disagreement": 0.017274999999999985,
+   "watch_ceiling": 0.33,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20JACDEN-JAC18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.66 above the zero-net-EV ceiling 0.65"
+   ],
+   "side": "YES",
+   "executable_ask": 0.66,
+   "fair": 0.6772,
+   "raw_disagreement": 0.017199999999999993,
+   "watch_ceiling": 0.65,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20SEAARI-41",
+   "family": "TOTAL",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.47 above the zero-net-EV ceiling 0.46"
+   ],
+   "side": "NO",
+   "executable_ask": 0.47,
+   "fair": 0.48719999999999997,
+   "raw_disagreement": 0.017199999999999993,
+   "watch_ceiling": 0.46,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20JACDEN-45",
+   "family": "TOTAL",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.51 above the zero-net-EV ceiling 0.50"
+   ],
+   "side": "YES",
+   "executable_ask": 0.51,
+   "fair": 0.527175,
+   "raw_disagreement": 0.01717499999999994,
+   "watch_ceiling": 0.5,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20LVLAC-LAC18",
+   "family": "SPREAD",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.82 above the zero-net-EV ceiling 0.81"
+   ],
+   "side": "NO",
+   "executable_ask": 0.82,
+   "fair": 0.8371,
+   "raw_disagreement": 0.017100000000000004,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20INDKC-IND4",
+   "family": "SPREAD",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.19 above the zero-net-EV ceiling 0.18"
+   ],
+   "side": "YES",
+   "executable_ask": 0.19,
+   "fair": 0.206775,
+   "raw_disagreement": 0.016774999999999984,
+   "watch_ceiling": 0.18,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20NOBAL-37",
+   "family": "TOTAL",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.77 above the zero-net-EV ceiling 0.76"
+   ],
+   "side": "YES",
+   "executable_ask": 0.77,
+   "fair": 0.786775,
+   "raw_disagreement": 0.016774999999999984,
+   "watch_ceiling": 0.76,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20MIASF-MIA15",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_MIA_SF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.56 above the zero-net-EV ceiling 0.55"
+   ],
+   "side": "YES",
+   "executable_ask": 0.56,
+   "fair": 0.576725,
+   "raw_disagreement": 0.01672499999999999,
+   "watch_ceiling": 0.55,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20CLETB-50",
+   "family": "TOTAL",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.72 above the zero-net-EV ceiling 0.71"
+   ],
+   "side": "NO",
+   "executable_ask": 0.72,
+   "fair": 0.7367,
+   "raw_disagreement": 0.016700000000000048,
+   "watch_ceiling": 0.71,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20PITNE-NE32",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.78 above the zero-net-EV ceiling 0.77"
+   ],
+   "side": "NO",
+   "executable_ask": 0.78,
+   "fair": 0.79665,
+   "raw_disagreement": 0.016649999999999943,
+   "watch_ceiling": 0.77,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20WASDAL-DAL5",
+   "family": "SPREAD",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.49 above the zero-net-EV ceiling 0.48"
+   ],
+   "side": "YES",
+   "executable_ask": 0.49,
+   "fair": 0.5065,
+   "raw_disagreement": 0.01649999999999996,
+   "watch_ceiling": 0.48,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP17DETBUF-BUF14",
+   "family": "SPREAD",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.76 above the zero-net-EV ceiling 0.75"
+   ],
+   "side": "NO",
+   "executable_ask": 0.76,
+   "fair": 0.776475,
+   "raw_disagreement": 0.016475000000000017,
+   "watch_ceiling": 0.75,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP20PITNE-PIT",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.68 above the zero-net-EV ceiling 0.67"
+   ],
+   "side": "NO",
+   "executable_ask": 0.68,
+   "fair": 0.6964250000000001,
+   "raw_disagreement": 0.016425000000000023,
+   "watch_ceiling": 0.67,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20CLETB-CLE21",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.31 above the zero-net-EV ceiling 0.30"
+   ],
+   "side": "YES",
+   "executable_ask": 0.31,
+   "fair": 0.3263,
+   "raw_disagreement": 0.01629999999999998,
+   "watch_ceiling": 0.3,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20CARATL-CAR2",
+   "family": "SPREAD",
+   "game_id": "2026_02_CAR_ATL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.47 above the zero-net-EV ceiling 0.46"
+   ],
+   "side": "NO",
+   "executable_ask": 0.47,
+   "fair": 0.48619999999999997,
+   "raw_disagreement": 0.016199999999999992,
+   "watch_ceiling": 0.46,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20JACDEN-47",
+   "family": "TOTAL",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.46 above the zero-net-EV ceiling 0.45"
+   ],
+   "side": "YES",
+   "executable_ask": 0.46,
+   "fair": 0.4761,
+   "raw_disagreement": 0.016100000000000003,
+   "watch_ceiling": 0.45,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20PITNE-PIT11",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.80 above the zero-net-EV ceiling 0.79"
+   ],
+   "side": "YES",
+   "executable_ask": 0.8,
+   "fair": 0.815975,
+   "raw_disagreement": 0.01597499999999996,
+   "watch_ceiling": 0.79,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20LVLAC-44",
+   "family": "TOTAL",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.51 above the zero-net-EV ceiling 0.50"
+   ],
+   "side": "NO",
+   "executable_ask": 0.51,
+   "fair": 0.5259499999999999,
+   "raw_disagreement": 0.01594999999999991,
+   "watch_ceiling": 0.5,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP20MINCHI-CHICWILLIAMS18-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.48 above the zero-net-EV ceiling 0.47"
+   ],
+   "side": "NO",
+   "executable_ask": 0.48,
+   "fair": 0.49584733473999365,
+   "raw_disagreement": 0.015847334739993668,
+   "watch_ceiling": 0.47,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20MINCHI-MIN2",
+   "family": "SPREAD",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.71 above the zero-net-EV ceiling 0.70"
+   ],
+   "side": "NO",
+   "executable_ask": 0.71,
+   "fair": 0.7258249999999999,
+   "raw_disagreement": 0.015824999999999978,
+   "watch_ceiling": 0.7,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20SEAARI-SEA15",
+   "family": "SPREAD",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.19 above the zero-net-EV ceiling 0.18"
+   ],
+   "side": "YES",
+   "executable_ask": 0.19,
+   "fair": 0.20565,
+   "raw_disagreement": 0.015649999999999997,
+   "watch_ceiling": 0.18,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP20MINCHI-CHICWILLIAMS18-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.74 above the zero-net-EV ceiling 0.73"
+   ],
+   "side": "NO",
+   "executable_ask": 0.74,
+   "fair": 0.7556391238438345,
+   "raw_disagreement": 0.01563912384383448,
+   "watch_ceiling": 0.73,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20WASDAL-WAS3",
+   "family": "SPREAD",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.71 above the zero-net-EV ceiling 0.70"
+   ],
+   "side": "NO",
+   "executable_ask": 0.71,
+   "fair": 0.725625,
+   "raw_disagreement": 0.015625,
+   "watch_ceiling": 0.7,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP20MINCHI-CHI",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.68 above the zero-net-EV ceiling 0.67"
+   ],
+   "side": "YES",
+   "executable_ask": 0.68,
+   "fair": 0.6956125,
+   "raw_disagreement": 0.015612499999999918,
+   "watch_ceiling": 0.67,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP20MINCHI-MIN",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.68 above the zero-net-EV ceiling 0.67"
+   ],
+   "side": "NO",
+   "executable_ask": 0.68,
+   "fair": 0.6956125,
+   "raw_disagreement": 0.015612499999999918,
+   "watch_ceiling": 0.67,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20JACDEN-JAC29",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.24 above the zero-net-EV ceiling 0.23"
+   ],
+   "side": "YES",
+   "executable_ask": 0.24,
+   "fair": 0.255375,
+   "raw_disagreement": 0.015375000000000028,
+   "watch_ceiling": 0.23,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP20CINHOU-CINJBURROW9-225",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.42 above the zero-net-EV ceiling 0.41"
+   ],
+   "side": "NO",
+   "executable_ask": 0.42,
+   "fair": 0.435070870195001,
+   "raw_disagreement": 0.01507087019500103,
+   "watch_ceiling": 0.41,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20SEAARI-SEA11",
+   "family": "SPREAD",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.29 above the zero-net-EV ceiling 0.28"
+   ],
+   "side": "YES",
+   "executable_ask": 0.29,
+   "fair": 0.305025,
+   "raw_disagreement": 0.01502500000000001,
+   "watch_ceiling": 0.28,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20NOBAL-NO25",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.26 above the zero-net-EV ceiling 0.25"
+   ],
+   "side": "YES",
+   "executable_ask": 0.26,
+   "fair": 0.274925,
+   "raw_disagreement": 0.014924999999999966,
+   "watch_ceiling": 0.25,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20SEAARI-SEA18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.71 above the zero-net-EV ceiling 0.70"
+   ],
+   "side": "YES",
+   "executable_ask": 0.71,
+   "fair": 0.72485,
+   "raw_disagreement": 0.01485000000000003,
+   "watch_ceiling": 0.7,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20INDKC-KC32",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.69 above the zero-net-EV ceiling 0.68"
+   ],
+   "side": "NO",
+   "executable_ask": 0.69,
+   "fair": 0.7048,
+   "raw_disagreement": 0.014800000000000035,
+   "watch_ceiling": 0.68,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20GBNYJ-57",
+   "family": "TOTAL",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.18 above the zero-net-EV ceiling 0.17"
+   ],
+   "side": "YES",
+   "executable_ask": 0.18,
+   "fair": 0.19475,
+   "raw_disagreement": 0.014750000000000013,
+   "watch_ceiling": 0.17,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20WASDAL-DAL2",
+   "family": "SPREAD",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.62 above the zero-net-EV ceiling 0.61"
+   ],
+   "side": "YES",
+   "executable_ask": 0.62,
+   "fair": 0.6347,
+   "raw_disagreement": 0.014700000000000046,
+   "watch_ceiling": 0.61,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20GBNYJ-NYJ22",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.46 above the zero-net-EV ceiling 0.45"
+   ],
+   "side": "YES",
+   "executable_ask": 0.46,
+   "fair": 0.4747,
+   "raw_disagreement": 0.01469999999999999,
+   "watch_ceiling": 0.45,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP17DETBUF-BUFJALLEN17-200",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.76 above the zero-net-EV ceiling 0.75"
+   ],
+   "side": "YES",
+   "executable_ask": 0.76,
+   "fair": 0.7746255062040261,
+   "raw_disagreement": 0.01462550620402614,
+   "watch_ceiling": 0.75,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20CINHOU-HOU10",
+   "family": "SPREAD",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.73 above the zero-net-EV ceiling 0.72"
+   ],
+   "side": "NO",
+   "executable_ask": 0.73,
+   "fair": 0.744625,
+   "raw_disagreement": 0.014624999999999999,
+   "watch_ceiling": 0.72,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20GBNYJ-GB14",
+   "family": "SPREAD",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.78 above the zero-net-EV ceiling 0.77"
+   ],
+   "side": "NO",
+   "executable_ask": 0.78,
+   "fair": 0.7944,
+   "raw_disagreement": 0.014399999999999968,
+   "watch_ceiling": 0.77,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20WASDAL-DAL11",
+   "family": "SPREAD",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.28 above the zero-net-EV ceiling 0.27"
+   ],
+   "side": "YES",
+   "executable_ask": 0.28,
+   "fair": 0.294375,
+   "raw_disagreement": 0.014374999999999971,
+   "watch_ceiling": 0.27,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP17DETBUF-BUF30",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.48 above the zero-net-EV ceiling 0.47"
+   ],
+   "side": "NO",
+   "executable_ask": 0.48,
+   "fair": 0.49429999999999996,
+   "raw_disagreement": 0.01429999999999998,
+   "watch_ceiling": 0.47,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP17DETBUF-DET5",
+   "family": "SPREAD",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.19 above the zero-net-EV ceiling 0.18"
+   ],
+   "side": "YES",
+   "executable_ask": 0.19,
+   "fair": 0.204225,
+   "raw_disagreement": 0.014224999999999988,
+   "watch_ceiling": 0.18,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20CLETB-CLE22",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.28 above the zero-net-EV ceiling 0.27"
+   ],
+   "side": "YES",
+   "executable_ask": 0.28,
+   "fair": 0.29405,
+   "raw_disagreement": 0.014049999999999951,
+   "watch_ceiling": 0.27,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20CARATL-ATL8",
+   "family": "SPREAD",
+   "game_id": "2026_02_CAR_ATL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.20 above the zero-net-EV ceiling 0.19"
+   ],
+   "side": "YES",
+   "executable_ask": 0.2,
+   "fair": 0.214,
+   "raw_disagreement": 0.013999999999999985,
+   "watch_ceiling": 0.19,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20MINCHI-MIN6",
+   "family": "SPREAD",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.82 above the zero-net-EV ceiling 0.81"
+   ],
+   "side": "NO",
+   "executable_ask": 0.82,
+   "fair": 0.833875,
+   "raw_disagreement": 0.013875000000000082,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20LVLAC-42",
+   "family": "TOTAL",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.46 above the zero-net-EV ceiling 0.45"
+   ],
+   "side": "NO",
+   "executable_ask": 0.46,
+   "fair": 0.47385,
+   "raw_disagreement": 0.013849999999999973,
+   "watch_ceiling": 0.45,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20MINCHI-CHI10",
+   "family": "SPREAD",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.66 above the zero-net-EV ceiling 0.65"
+   ],
+   "side": "NO",
+   "executable_ask": 0.66,
+   "fair": 0.673775,
+   "raw_disagreement": 0.013774999999999982,
+   "watch_ceiling": 0.65,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20SEAARI-SEA10",
+   "family": "SPREAD",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.66 above the zero-net-EV ceiling 0.65"
+   ],
+   "side": "NO",
+   "executable_ask": 0.66,
+   "fair": 0.6737,
+   "raw_disagreement": 0.013699999999999934,
+   "watch_ceiling": 0.65,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20NOBAL-BAL17",
+   "family": "SPREAD",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.29 above the zero-net-EV ceiling 0.28"
+   ],
+   "side": "YES",
+   "executable_ask": 0.29,
+   "fair": 0.303625,
+   "raw_disagreement": 0.013624999999999998,
+   "watch_ceiling": 0.28,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP20PHITEN-PHIJHURTS1-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.62 above the zero-net-EV ceiling 0.61"
+   ],
+   "side": "NO",
+   "executable_ask": 0.62,
+   "fair": 0.6335094587896992,
+   "raw_disagreement": 0.013509458789699225,
+   "watch_ceiling": 0.61,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP21NYGLAR-LAR10",
+   "family": "SPREAD",
+   "game_id": "2026_02_NYG_LA",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.59 above the zero-net-EV ceiling 0.58"
+   ],
+   "side": "NO",
+   "executable_ask": 0.59,
+   "fair": 0.6034999999999999,
+   "raw_disagreement": 0.013499999999999956,
+   "watch_ceiling": 0.58,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP20CLETB-TB",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.22 above the zero-net-EV ceiling 0.21"
+   ],
+   "side": "NO",
+   "executable_ask": 0.22,
+   "fair": 0.23343750000000008,
+   "raw_disagreement": 0.013437500000000074,
+   "watch_ceiling": 0.21,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP20CLETB-CLE",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.22 above the zero-net-EV ceiling 0.21"
+   ],
+   "side": "YES",
+   "executable_ask": 0.22,
+   "fair": 0.2334375,
+   "raw_disagreement": 0.013437499999999991,
+   "watch_ceiling": 0.21,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20INDKC-KC8",
+   "family": "SPREAD",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.44 above the zero-net-EV ceiling 0.43"
+   ],
+   "side": "YES",
+   "executable_ask": 0.44,
+   "fair": 0.453425,
+   "raw_disagreement": 0.01342500000000002,
+   "watch_ceiling": 0.43,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20WASDAL-WAS5",
+   "family": "SPREAD",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.21 above the zero-net-EV ceiling 0.20"
+   ],
+   "side": "YES",
+   "executable_ask": 0.21,
+   "fair": 0.223425,
+   "raw_disagreement": 0.01342500000000002,
+   "watch_ceiling": 0.2,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP20CINHOU-CINJBURROW9-200",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.30 above the zero-net-EV ceiling 0.29"
+   ],
+   "side": "NO",
+   "executable_ask": 0.3,
+   "fair": 0.31336796635607855,
+   "raw_disagreement": 0.013367966356078564,
+   "watch_ceiling": 0.29,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20NOBAL-BAL7",
+   "family": "SPREAD",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.58 above the zero-net-EV ceiling 0.57"
+   ],
+   "side": "YES",
+   "executable_ask": 0.58,
+   "fair": 0.59335,
+   "raw_disagreement": 0.013350000000000084,
+   "watch_ceiling": 0.57,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP21NYGLAR-LAR3",
+   "family": "SPREAD",
+   "game_id": "2026_02_NYG_LA",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.31 above the zero-net-EV ceiling 0.30"
+   ],
+   "side": "NO",
+   "executable_ask": 0.31,
+   "fair": 0.323325,
+   "raw_disagreement": 0.013324999999999976,
+   "watch_ceiling": 0.3,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20SEAARI-42",
+   "family": "TOTAL",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.51 above the zero-net-EV ceiling 0.50"
+   ],
+   "side": "NO",
+   "executable_ask": 0.51,
+   "fair": 0.523225,
+   "raw_disagreement": 0.013225000000000042,
+   "watch_ceiling": 0.5,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PHITEN-PHI3",
+   "family": "SPREAD",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.31 above the zero-net-EV ceiling 0.30"
+   ],
+   "side": "NO",
+   "executable_ask": 0.31,
+   "fair": 0.323125,
+   "raw_disagreement": 0.013124999999999998,
+   "watch_ceiling": 0.3,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20CINHOU-CIN25",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.39 above the zero-net-EV ceiling 0.38"
+   ],
+   "side": "YES",
+   "executable_ask": 0.39,
+   "fair": 0.403075,
+   "raw_disagreement": 0.013075000000000003,
+   "watch_ceiling": 0.38,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20SEAARI-SEA32",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.82 above the zero-net-EV ceiling 0.81"
+   ],
+   "side": "NO",
+   "executable_ask": 0.82,
+   "fair": 0.8330500000000001,
+   "raw_disagreement": 0.013050000000000117,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20LVLAC-LAC15",
+   "family": "SPREAD",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.75 above the zero-net-EV ceiling 0.74"
+   ],
+   "side": "NO",
+   "executable_ask": 0.75,
+   "fair": 0.762975,
+   "raw_disagreement": 0.012974999999999959,
+   "watch_ceiling": 0.74,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP20MINCHI-MINCWENTZ11-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.63 above the zero-net-EV ceiling 0.62"
+   ],
+   "side": "NO",
+   "executable_ask": 0.63,
+   "fair": 0.6429222014023662,
+   "raw_disagreement": 0.012922201402366218,
+   "watch_ceiling": 0.62,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP17DETBUF-BUF",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.68 above the zero-net-EV ceiling 0.67"
+   ],
+   "side": "YES",
+   "executable_ask": 0.68,
+   "fair": 0.6927375,
+   "raw_disagreement": 0.012737499999999957,
+   "watch_ceiling": 0.67,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP17DETBUF-DET",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.68 above the zero-net-EV ceiling 0.67"
+   ],
+   "side": "NO",
+   "executable_ask": 0.68,
+   "fair": 0.6927375,
+   "raw_disagreement": 0.012737499999999957,
+   "watch_ceiling": 0.67,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PITNE-NE11",
+   "family": "SPREAD",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.69 above the zero-net-EV ceiling 0.68"
+   ],
+   "side": "NO",
+   "executable_ask": 0.69,
+   "fair": 0.702725,
+   "raw_disagreement": 0.012725000000000097,
+   "watch_ceiling": 0.68,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20CLETB-CLE18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.43 above the zero-net-EV ceiling 0.42"
+   ],
+   "side": "YES",
+   "executable_ask": 0.43,
+   "fair": 0.44255,
+   "raw_disagreement": 0.012550000000000006,
+   "watch_ceiling": 0.42,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20WASDAL-DAL32",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.31 above the zero-net-EV ceiling 0.30"
+   ],
+   "side": "YES",
+   "executable_ask": 0.31,
+   "fair": 0.322425,
+   "raw_disagreement": 0.01242500000000002,
+   "watch_ceiling": 0.3,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20INDKC-40",
+   "family": "TOTAL",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.30 above the zero-net-EV ceiling 0.29"
+   ],
+   "side": "NO",
+   "executable_ask": 0.3,
+   "fair": 0.31237499999999996,
+   "raw_disagreement": 0.01237499999999997,
+   "watch_ceiling": 0.29,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20INDKC-KC6",
+   "family": "SPREAD",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.55 above the zero-net-EV ceiling 0.54"
+   ],
+   "side": "YES",
+   "executable_ask": 0.55,
+   "fair": 0.5623,
+   "raw_disagreement": 0.012299999999999978,
+   "watch_ceiling": 0.54,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PITNE-NE8",
+   "family": "SPREAD",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.39 above the zero-net-EV ceiling 0.38"
+   ],
+   "side": "YES",
+   "executable_ask": 0.39,
+   "fair": 0.40225,
+   "raw_disagreement": 0.012249999999999983,
+   "watch_ceiling": 0.38,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20LVLAC-LV11",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.82 above the zero-net-EV ceiling 0.81"
+   ],
+   "side": "YES",
+   "executable_ask": 0.82,
+   "fair": 0.832225,
+   "raw_disagreement": 0.012225000000000041,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20CINHOU-CIN29",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.25 above the zero-net-EV ceiling 0.24"
+   ],
+   "side": "YES",
+   "executable_ask": 0.25,
+   "fair": 0.262225,
+   "raw_disagreement": 0.012224999999999986,
+   "watch_ceiling": 0.24,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20WASDAL-DAL15",
+   "family": "SPREAD",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.80 above the zero-net-EV ceiling 0.79"
+   ],
+   "side": "NO",
+   "executable_ask": 0.8,
+   "fair": 0.8122,
+   "raw_disagreement": 0.012199999999999989,
+   "watch_ceiling": 0.79,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20CLETB-CLE25",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.18 above the zero-net-EV ceiling 0.17"
+   ],
+   "side": "YES",
+   "executable_ask": 0.18,
+   "fair": 0.192075,
+   "raw_disagreement": 0.012075000000000002,
+   "watch_ceiling": 0.17,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20MINCHI-MIN21",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.54 above the zero-net-EV ceiling 0.53"
+   ],
+   "side": "YES",
+   "executable_ask": 0.54,
+   "fair": 0.552075,
+   "raw_disagreement": 0.012074999999999947,
+   "watch_ceiling": 0.53,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20NOBAL-55",
+   "family": "TOTAL",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.72 above the zero-net-EV ceiling 0.71"
+   ],
+   "side": "NO",
+   "executable_ask": 0.72,
+   "fair": 0.73185,
+   "raw_disagreement": 0.011850000000000027,
+   "watch_ceiling": 0.71,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP20JACDEN-DENRHARVEY12-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.29 above the zero-net-EV ceiling 0.28"
+   ],
+   "side": "YES",
+   "executable_ask": 0.29,
+   "fair": 0.3018481726991774,
+   "raw_disagreement": 0.011848172699177428,
+   "watch_ceiling": 0.28,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20WASDAL-57",
+   "family": "TOTAL",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.69 above the zero-net-EV ceiling 0.68"
+   ],
+   "side": "NO",
+   "executable_ask": 0.69,
+   "fair": 0.701775,
+   "raw_disagreement": 0.011775000000000091,
+   "watch_ceiling": 0.68,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PITNE-NE14",
+   "family": "SPREAD",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.75 above the zero-net-EV ceiling 0.74"
+   ],
+   "side": "NO",
+   "executable_ask": 0.75,
+   "fair": 0.7617,
+   "raw_disagreement": 0.011700000000000044,
+   "watch_ceiling": 0.74,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20CLETB-TB11",
+   "family": "SPREAD",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.43 above the zero-net-EV ceiling 0.42"
+   ],
+   "side": "YES",
+   "executable_ask": 0.43,
+   "fair": 0.441675,
+   "raw_disagreement": 0.011674999999999991,
+   "watch_ceiling": 0.42,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP20INDKC-KCPMAHOMES15-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.57 above the zero-net-EV ceiling 0.56"
+   ],
+   "side": "YES",
+   "executable_ask": 0.57,
+   "fair": 0.5816729885057472,
+   "raw_disagreement": 0.011672988505747273,
+   "watch_ceiling": 0.56,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20PITNE-PIT15",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.34 above the zero-net-EV ceiling 0.33"
+   ],
+   "side": "NO",
+   "executable_ask": 0.34,
+   "fair": 0.35157499999999997,
+   "raw_disagreement": 0.011574999999999946,
+   "watch_ceiling": 0.33,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20LVLAC-47",
+   "family": "TOTAL",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.39 above the zero-net-EV ceiling 0.38"
+   ],
+   "side": "YES",
+   "executable_ask": 0.39,
+   "fair": 0.40145,
+   "raw_disagreement": 0.01144999999999996,
+   "watch_ceiling": 0.38,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20MINCHI-MIN18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.66 above the zero-net-EV ceiling 0.65"
+   ],
+   "side": "YES",
+   "executable_ask": 0.66,
+   "fair": 0.671375,
+   "raw_disagreement": 0.011375000000000024,
+   "watch_ceiling": 0.65,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP17DETBUF-DET21",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.67 above the zero-net-EV ceiling 0.66"
+   ],
+   "side": "YES",
+   "executable_ask": 0.67,
+   "fair": 0.68135,
+   "raw_disagreement": 0.011349999999999971,
+   "watch_ceiling": 0.66,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP20NOBAL-NOTSHOUGH6-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.33 above the zero-net-EV ceiling 0.32"
+   ],
+   "side": "NO",
+   "executable_ask": 0.33,
+   "fair": 0.3413368400031622,
+   "raw_disagreement": 0.011336840003162207,
+   "watch_ceiling": 0.32,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP20LVLAC-LVKCOUSINS8-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.34 above the zero-net-EV ceiling 0.33"
+   ],
+   "side": "NO",
+   "executable_ask": 0.34,
+   "fair": 0.35130281219390214,
+   "raw_disagreement": 0.011302812193902112,
+   "watch_ceiling": 0.33,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP17DETBUF-BUF11",
+   "family": "SPREAD",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.69 above the zero-net-EV ceiling 0.68"
+   ],
+   "side": "NO",
+   "executable_ask": 0.69,
+   "fair": 0.7013,
+   "raw_disagreement": 0.011300000000000088,
+   "watch_ceiling": 0.68,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP20NOBAL-NO",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.22 above the zero-net-EV ceiling 0.21"
+   ],
+   "side": "YES",
+   "executable_ask": 0.22,
+   "fair": 0.2312875,
+   "raw_disagreement": 0.011287500000000006,
+   "watch_ceiling": 0.21,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP20NOBAL-BAL",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.22 above the zero-net-EV ceiling 0.21"
+   ],
+   "side": "NO",
+   "executable_ask": 0.22,
+   "fair": 0.23128749999999998,
+   "raw_disagreement": 0.011287499999999978,
+   "watch_ceiling": 0.21,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP20LVLAC-LACJHERBERT10-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.54 above the zero-net-EV ceiling 0.53"
+   ],
+   "side": "NO",
+   "executable_ask": 0.54,
+   "fair": 0.5512451994229184,
+   "raw_disagreement": 0.01124519942291835,
+   "watch_ceiling": 0.53,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20CINHOU-HOU5",
+   "family": "SPREAD",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.39 above the zero-net-EV ceiling 0.38"
+   ],
+   "side": "YES",
+   "executable_ask": 0.39,
+   "fair": 0.401225,
+   "raw_disagreement": 0.011224999999999985,
+   "watch_ceiling": 0.38,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP21NYGLAR-43",
+   "family": "TOTAL",
+   "game_id": "2026_02_NYG_LA",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.34 above the zero-net-EV ceiling 0.33"
+   ],
+   "side": "NO",
+   "executable_ask": 0.34,
+   "fair": 0.351225,
+   "raw_disagreement": 0.011224999999999985,
+   "watch_ceiling": 0.33,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKNOX88-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.57 above the zero-net-EV ceiling 0.56"
+   ],
+   "side": "NO",
+   "executable_ask": 0.57,
+   "fair": 0.5811050847457628,
+   "raw_disagreement": 0.011105084745762883,
+   "watch_ceiling": 0.56,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20SEAARI-ARI21",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.40 above the zero-net-EV ceiling 0.39"
+   ],
+   "side": "YES",
+   "executable_ask": 0.4,
+   "fair": 0.411075,
+   "raw_disagreement": 0.011075000000000002,
+   "watch_ceiling": 0.39,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20WASDAL-WAS18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.71 above the zero-net-EV ceiling 0.70"
+   ],
+   "side": "YES",
+   "executable_ask": 0.71,
+   "fair": 0.7209,
+   "raw_disagreement": 0.01090000000000002,
+   "watch_ceiling": 0.7,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20GBNYJ-GB3",
+   "family": "SPREAD",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.43 above the zero-net-EV ceiling 0.42"
+   ],
+   "side": "NO",
+   "executable_ask": 0.43,
+   "fair": 0.44089999999999996,
+   "raw_disagreement": 0.010899999999999965,
+   "watch_ceiling": 0.42,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20CLETB-TB32",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.26 above the zero-net-EV ceiling 0.25"
+   ],
+   "side": "YES",
+   "executable_ask": 0.26,
+   "fair": 0.2709,
+   "raw_disagreement": 0.010899999999999965,
+   "watch_ceiling": 0.25,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20MINCHI-MIN15",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.79 above the zero-net-EV ceiling 0.78"
+   ],
+   "side": "YES",
+   "executable_ask": 0.79,
+   "fair": 0.800875,
+   "raw_disagreement": 0.010874999999999968,
+   "watch_ceiling": 0.78,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20JACDEN-53",
+   "family": "TOTAL",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.30 above the zero-net-EV ceiling 0.29"
+   ],
+   "side": "YES",
+   "executable_ask": 0.3,
+   "fair": 0.3108,
+   "raw_disagreement": 0.010800000000000032,
+   "watch_ceiling": 0.29,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20PHITEN-39",
+   "family": "TOTAL",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.47 above the zero-net-EV ceiling 0.46"
+   ],
+   "side": "NO",
+   "executable_ask": 0.47,
+   "fair": 0.4808,
+   "raw_disagreement": 0.010800000000000032,
+   "watch_ceiling": 0.46,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP17DETBUF-53",
+   "family": "TOTAL",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.55 above the zero-net-EV ceiling 0.54"
+   ],
+   "side": "YES",
+   "executable_ask": 0.55,
+   "fair": 0.5608,
+   "raw_disagreement": 0.01079999999999992,
+   "watch_ceiling": 0.54,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP20LVLAC-LVKCOUSINS8-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.70 above the zero-net-EV ceiling 0.69"
+   ],
+   "side": "NO",
+   "executable_ask": 0.7,
+   "fair": 0.7106045916361414,
+   "raw_disagreement": 0.01060459163614147,
+   "watch_ceiling": 0.69,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20JACDEN-DEN25",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.47 above the zero-net-EV ceiling 0.46"
+   ],
+   "side": "YES",
+   "executable_ask": 0.47,
+   "fair": 0.4806,
+   "raw_disagreement": 0.010600000000000054,
+   "watch_ceiling": 0.46,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20SEAARI-ARI25",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.25 above the zero-net-EV ceiling 0.24"
+   ],
+   "side": "YES",
+   "executable_ask": 0.25,
+   "fair": 0.2606,
+   "raw_disagreement": 0.010599999999999998,
+   "watch_ceiling": 0.24,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20GBNYJ-46",
+   "family": "TOTAL",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.47 above the zero-net-EV ceiling 0.46"
+   ],
+   "side": "YES",
+   "executable_ask": 0.47,
+   "fair": 0.4805,
+   "raw_disagreement": 0.01050000000000001,
+   "watch_ceiling": 0.46,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20MIASF-56",
+   "family": "TOTAL",
+   "game_id": "2026_02_MIA_SF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.21 above the zero-net-EV ceiling 0.20"
+   ],
+   "side": "YES",
+   "executable_ask": 0.21,
+   "fair": 0.2205,
+   "raw_disagreement": 0.01050000000000001,
+   "watch_ceiling": 0.2,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20WASDAL-DAL14",
+   "family": "SPREAD",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.78 above the zero-net-EV ceiling 0.77"
+   ],
+   "side": "NO",
+   "executable_ask": 0.78,
+   "fair": 0.79045,
+   "raw_disagreement": 0.01044999999999996,
+   "watch_ceiling": 0.77,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20GBNYJ-GB18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.78 above the zero-net-EV ceiling 0.77"
+   ],
+   "side": "YES",
+   "executable_ask": 0.78,
+   "fair": 0.790425,
+   "raw_disagreement": 0.010425000000000018,
+   "watch_ceiling": 0.77,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP20PHITEN-PHI",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.25 above the zero-net-EV ceiling 0.24"
+   ],
+   "side": "NO",
+   "executable_ask": 0.25,
+   "fair": 0.26041250000000005,
+   "raw_disagreement": 0.010412500000000047,
+   "watch_ceiling": 0.24,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLGAME-26SEP20PHITEN-TEN",
+   "family": "GAME_WINNER",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.25 above the zero-net-EV ceiling 0.24"
+   ],
+   "side": "YES",
+   "executable_ask": 0.25,
+   "fair": 0.2604125,
+   "raw_disagreement": 0.010412499999999991,
+   "watch_ceiling": 0.24,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20GBNYJ-GB8",
+   "family": "SPREAD",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.34 above the zero-net-EV ceiling 0.33"
+   ],
+   "side": "YES",
+   "executable_ask": 0.34,
+   "fair": 0.35035,
+   "raw_disagreement": 0.01034999999999997,
+   "watch_ceiling": 0.33,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP20INDKC-INDTWARREN84-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.81 above the zero-net-EV ceiling 0.80"
+   ],
+   "side": "NO",
+   "executable_ask": 0.81,
+   "fair": 0.8202380623903469,
+   "raw_disagreement": 0.010238062390346858,
+   "watch_ceiling": 0.8,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20JACDEN-46",
+   "family": "TOTAL",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.49 above the zero-net-EV ceiling 0.48"
+   ],
+   "side": "YES",
+   "executable_ask": 0.49,
+   "fair": 0.500125,
+   "raw_disagreement": 0.01012500000000005,
+   "watch_ceiling": 0.48,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20PITNE-NE8",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.97 above the zero-net-EV ceiling 0.96"
+   ],
+   "side": "YES",
+   "executable_ask": 0.97,
+   "fair": 0.9799,
+   "raw_disagreement": 0.00990000000000002,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20PITNE-38",
+   "family": "TOTAL",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.39 above the zero-net-EV ceiling 0.37"
+   ],
+   "side": "NO",
+   "executable_ask": 0.39,
+   "fair": 0.399875,
+   "raw_disagreement": 0.009874999999999967,
+   "watch_ceiling": 0.37,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20LVLAC-LV10",
+   "family": "SPREAD",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.09 above the zero-net-EV ceiling 0.08"
+   ],
+   "side": "YES",
+   "executable_ask": 0.09,
+   "fair": 0.099825,
+   "raw_disagreement": 0.009825,
+   "watch_ceiling": 0.08,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP20PHITEN-TENCDIKE17-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.07 above the zero-net-EV ceiling 0.06"
+   ],
+   "side": "YES",
+   "executable_ask": 0.07,
+   "fair": 0.07981825859883251,
+   "raw_disagreement": 0.009818258598832508,
+   "watch_ceiling": 0.06,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20LVLAC-LAC11",
+   "family": "SPREAD",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.66 above the zero-net-EV ceiling 0.64"
+   ],
+   "side": "NO",
+   "executable_ask": 0.66,
+   "fair": 0.6698,
+   "raw_disagreement": 0.00979999999999992,
+   "watch_ceiling": 0.64,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETBWRIGHT89-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.08 above the zero-net-EV ceiling 0.07"
+   ],
+   "side": "YES",
+   "executable_ask": 0.08,
+   "fair": 0.08979148999216649,
+   "raw_disagreement": 0.009791489992166488,
+   "watch_ceiling": 0.07,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP13NODET-NOAESTIME30-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_NO_DET",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.99 above the zero-net-EV ceiling 0.98"
+   ],
+   "side": "NO",
+   "executable_ask": 0.99,
+   "fair": 0.9997914237931839,
+   "raw_disagreement": 0.009791423793183873,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20JACDEN-JAC11",
+   "family": "SPREAD",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.13 above the zero-net-EV ceiling 0.12"
+   ],
+   "side": "YES",
+   "executable_ask": 0.13,
+   "fair": 0.13975,
+   "raw_disagreement": 0.009750000000000009,
+   "watch_ceiling": 0.12,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PHITEN-PHI11",
+   "family": "SPREAD",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.62 above the zero-net-EV ceiling 0.60"
+   ],
+   "side": "NO",
+   "executable_ask": 0.62,
+   "fair": 0.629675,
+   "raw_disagreement": 0.00967499999999999,
+   "watch_ceiling": 0.6,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP20CINHOU-HOUCSTROUD7-300",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.21 above the zero-net-EV ceiling 0.19"
+   ],
+   "side": "YES",
+   "executable_ask": 0.21,
+   "fair": 0.21963256149289717,
+   "raw_disagreement": 0.00963256149289718,
+   "watch_ceiling": 0.19,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP17DETBUF-DET22",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.63 above the zero-net-EV ceiling 0.61"
+   ],
+   "side": "YES",
+   "executable_ask": 0.63,
+   "fair": 0.639625,
+   "raw_disagreement": 0.009624999999999995,
+   "watch_ceiling": 0.61,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20INDKC-IND10",
+   "family": "SPREAD",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.08 above the zero-net-EV ceiling 0.07"
+   ],
+   "side": "YES",
+   "executable_ask": 0.08,
+   "fair": 0.0896,
+   "raw_disagreement": 0.009599999999999997,
+   "watch_ceiling": 0.07,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20PITNE-NE3",
+   "family": "SPREAD",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.38 above the zero-net-EV ceiling 0.36"
+   ],
+   "side": "NO",
+   "executable_ask": 0.38,
+   "fair": 0.38959999999999995,
+   "raw_disagreement": 0.009599999999999942,
+   "watch_ceiling": 0.36,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20NOBAL-BAL32",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.37 above the zero-net-EV ceiling 0.35"
+   ],
+   "side": "YES",
+   "executable_ask": 0.37,
+   "fair": 0.37955,
+   "raw_disagreement": 0.009550000000000003,
+   "watch_ceiling": 0.35,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP21NYGLAR-NYG3",
+   "family": "SPREAD",
+   "game_id": "2026_02_NYG_LA",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.79 above the zero-net-EV ceiling 0.77"
+   ],
+   "side": "NO",
+   "executable_ask": 0.79,
+   "fair": 0.79955,
+   "raw_disagreement": 0.009549999999999947,
+   "watch_ceiling": 0.77,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP17DETBUF-BUF39",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.84 above the zero-net-EV ceiling 0.83"
+   ],
+   "side": "NO",
+   "executable_ask": 0.84,
+   "fair": 0.8495,
+   "raw_disagreement": 0.009500000000000064,
+   "watch_ceiling": 0.83,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP20PHITEN-TENCTATE14-100",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.98 above the zero-net-EV ceiling 0.97"
+   ],
+   "side": "NO",
+   "executable_ask": 0.98,
+   "fair": 0.9894707627118644,
+   "raw_disagreement": 0.009470762711864422,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP20PITNE-PITRDOWDLE13-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.75 above the zero-net-EV ceiling 0.73"
+   ],
+   "side": "NO",
+   "executable_ask": 0.75,
+   "fair": 0.7594706287492841,
+   "raw_disagreement": 0.00947062874928406,
+   "watch_ceiling": 0.73,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP17DETBUF-DETJGOFF16-200",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.21 above the zero-net-EV ceiling 0.19"
+   ],
+   "side": "NO",
+   "executable_ask": 0.21,
+   "fair": 0.21945758496051615,
+   "raw_disagreement": 0.009457584960516158,
+   "watch_ceiling": 0.19,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP21NYGLAR-NYG10",
+   "family": "SPREAD",
+   "game_id": "2026_02_NYG_LA",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.09 above the zero-net-EV ceiling 0.08"
+   ],
+   "side": "YES",
+   "executable_ask": 0.09,
+   "fair": 0.09945,
+   "raw_disagreement": 0.00945,
+   "watch_ceiling": 0.08,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP17DETBUF-BUFJALLEN17-375",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.05 above the zero-net-EV ceiling 0.04"
+   ],
+   "side": "YES",
+   "executable_ask": 0.05,
+   "fair": 0.05944073129454975,
+   "raw_disagreement": 0.009440731294549747,
+   "watch_ceiling": 0.04,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP17DETBUF-DET8",
+   "family": "SPREAD",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.13 above the zero-net-EV ceiling 0.12"
+   ],
+   "side": "YES",
+   "executable_ask": 0.13,
+   "fair": 0.139375,
+   "raw_disagreement": 0.009374999999999994,
+   "watch_ceiling": 0.12,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP20MINCHI-MINJJEFFERSON18-150",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.98 above the zero-net-EV ceiling 0.97"
+   ],
+   "side": "NO",
+   "executable_ask": 0.98,
+   "fair": 0.9893619155223362,
+   "raw_disagreement": 0.009361915522336228,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20MIASF-MIA8",
+   "family": "SPREAD",
+   "game_id": "2026_02_MIA_SF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.04 above the zero-net-EV ceiling 0.03"
+   ],
+   "side": "YES",
+   "executable_ask": 0.04,
+   "fair": 0.049325,
+   "raw_disagreement": 0.009325,
+   "watch_ceiling": 0.03,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20JACDEN-DEN2",
+   "family": "SPREAD",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.45 above the zero-net-EV ceiling 0.43"
+   ],
+   "side": "NO",
+   "executable_ask": 0.45,
+   "fair": 0.45930000000000004,
+   "raw_disagreement": 0.00930000000000003,
+   "watch_ceiling": 0.43,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20MINCHI-CHI36",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.18 above the zero-net-EV ceiling 0.17"
+   ],
+   "side": "YES",
+   "executable_ask": 0.18,
+   "fair": 0.1893,
+   "raw_disagreement": 0.009300000000000003,
+   "watch_ceiling": 0.17,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20CINHOU-45",
+   "family": "TOTAL",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.44 above the zero-net-EV ceiling 0.42"
+   ],
+   "side": "NO",
+   "executable_ask": 0.44,
+   "fair": 0.44925000000000004,
+   "raw_disagreement": 0.009250000000000036,
+   "watch_ceiling": 0.42,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFJCOOK4-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.96 above the zero-net-EV ceiling 0.95"
+   ],
+   "side": "NO",
+   "executable_ask": 0.96,
+   "fair": 0.969178466409668,
+   "raw_disagreement": 0.009178466409668018,
+   "watch_ceiling": 0.95,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20SEAARI-ARI2",
+   "family": "SPREAD",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.69 above the zero-net-EV ceiling 0.67"
+   ],
+   "side": "NO",
+   "executable_ask": 0.69,
+   "fair": 0.699175,
+   "raw_disagreement": 0.009175000000000044,
+   "watch_ceiling": 0.67,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20CLETB-26",
+   "family": "TOTAL",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.09 above the zero-net-EV ceiling 0.08"
+   ],
+   "side": "NO",
+   "executable_ask": 0.09,
+   "fair": 0.09917500000000001,
+   "raw_disagreement": 0.009175000000000016,
+   "watch_ceiling": 0.08,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20CLETB-TB4",
+   "family": "SPREAD",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.67 above the zero-net-EV ceiling 0.65"
+   ],
+   "side": "YES",
+   "executable_ask": 0.67,
+   "fair": 0.679175,
+   "raw_disagreement": 0.009174999999999933,
+   "watch_ceiling": 0.65,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20MIASF-MIA29",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_MIA_SF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.10 above the zero-net-EV ceiling 0.09"
+   ],
+   "side": "YES",
+   "executable_ask": 0.1,
+   "fair": 0.10915,
+   "raw_disagreement": 0.009149999999999991,
+   "watch_ceiling": 0.09,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP20WASDAL-WASJDANIELS5-125",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.89 above the zero-net-EV ceiling 0.88"
+   ],
+   "side": "YES",
+   "executable_ask": 0.89,
+   "fair": 0.8990799792036562,
+   "raw_disagreement": 0.009079979203656219,
+   "watch_ceiling": 0.88,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20CLETB-CLE5",
+   "family": "SPREAD",
+   "game_id": "2026_02_CLE_TB",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.14 above the zero-net-EV ceiling 0.13"
+   ],
+   "side": "YES",
+   "executable_ask": 0.14,
+   "fair": 0.149075,
+   "raw_disagreement": 0.009075,
+   "watch_ceiling": 0.13,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.99 above the zero-net-EV ceiling 0.98"
+   ],
+   "side": "NO",
+   "executable_ask": 0.99,
+   "fair": 0.9990383017310479,
+   "raw_disagreement": 0.009038301731047915,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP20CINHOU-HOUCSTROUD7-275",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.32 above the zero-net-EV ceiling 0.30"
+   ],
+   "side": "YES",
+   "executable_ask": 0.32,
+   "fair": 0.3290171089818332,
+   "raw_disagreement": 0.009017108981833166,
+   "watch_ceiling": 0.3,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP20NOBAL-BALLJACKSON8-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.50 above the zero-net-EV ceiling 0.48"
+   ],
+   "side": "NO",
+   "executable_ask": 0.5,
+   "fair": 0.5089879026984377,
+   "raw_disagreement": 0.008987902698437744,
+   "watch_ceiling": 0.48,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20LVLAC-LAC18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.82 above the zero-net-EV ceiling 0.80"
+   ],
+   "side": "YES",
+   "executable_ask": 0.82,
+   "fair": 0.828975,
+   "raw_disagreement": 0.008975000000000066,
+   "watch_ceiling": 0.8,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20INDKC-IND6",
+   "family": "SPREAD",
+   "game_id": "2026_02_IND_KC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.15 above the zero-net-EV ceiling 0.14"
+   ],
+   "side": "YES",
+   "executable_ask": 0.15,
+   "fair": 0.158975,
+   "raw_disagreement": 0.00897500000000001,
+   "watch_ceiling": 0.14,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20PHITEN-38",
+   "family": "TOTAL",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.44 above the zero-net-EV ceiling 0.42"
+   ],
+   "side": "NO",
+   "executable_ask": 0.44,
+   "fair": 0.448975,
+   "raw_disagreement": 0.00897500000000001,
+   "watch_ceiling": 0.42,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20PITNE-53",
+   "family": "TOTAL",
+   "game_id": "2026_02_PIT_NE",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.20 above the zero-net-EV ceiling 0.18"
+   ],
+   "side": "YES",
+   "executable_ask": 0.2,
+   "fair": 0.208975,
+   "raw_disagreement": 0.008974999999999983,
+   "watch_ceiling": 0.18,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20GBNYJ-GB15",
+   "family": "SPREAD",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.81 above the zero-net-EV ceiling 0.79"
+   ],
+   "side": "NO",
+   "executable_ask": 0.81,
+   "fair": 0.818975,
+   "raw_disagreement": 0.008974999999999955,
+   "watch_ceiling": 0.79,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP20PHITEN-TENTPOLLARD20-45",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_PHI_TEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.51 above the zero-net-EV ceiling 0.49"
+   ],
+   "side": "YES",
+   "executable_ask": 0.51,
+   "fair": 0.5189585236410421,
+   "raw_disagreement": 0.008958523641042104,
+   "watch_ceiling": 0.49,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP20NOBAL-BALLJACKSON8-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_NO_BAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.34 above the zero-net-EV ceiling 0.32"
+   ],
+   "side": "YES",
+   "executable_ask": 0.34,
+   "fair": 0.34895534038235393,
+   "raw_disagreement": 0.008955340382353905,
+   "watch_ceiling": 0.32,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20LVLAC-LV5",
+   "family": "SPREAD",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.16 above the zero-net-EV ceiling 0.15"
+   ],
+   "side": "YES",
+   "executable_ask": 0.16,
+   "fair": 0.168925,
+   "raw_disagreement": 0.008924999999999988,
+   "watch_ceiling": 0.15,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP17DETBUF-50",
+   "family": "TOTAL",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.65 above the zero-net-EV ceiling 0.63"
+   ],
+   "side": "YES",
+   "executable_ask": 0.65,
+   "fair": 0.658925,
+   "raw_disagreement": 0.00892499999999996,
+   "watch_ceiling": 0.63,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFJALLEN17-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.49 above the zero-net-EV ceiling 0.47"
+   ],
+   "side": "YES",
+   "executable_ask": 0.49,
+   "fair": 0.4989006185375694,
+   "raw_disagreement": 0.008900618537569405,
+   "watch_ceiling": 0.47,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP20WASDAL-WASTMCLAURIN17-130",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_WAS_DAL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.98 above the zero-net-EV ceiling 0.97"
+   ],
+   "side": "NO",
+   "executable_ask": 0.98,
+   "fair": 0.9888687467408308,
+   "raw_disagreement": 0.008868746740830824,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFKSHAKIR10-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.97 above the zero-net-EV ceiling 0.96"
+   ],
+   "side": "NO",
+   "executable_ask": 0.97,
+   "fair": 0.9788428641164479,
+   "raw_disagreement": 0.008842864116447968,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20CARATL-ATL21",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_CAR_ATL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.52 above the zero-net-EV ceiling 0.50"
+   ],
+   "side": "YES",
+   "executable_ask": 0.52,
+   "fair": 0.528825,
+   "raw_disagreement": 0.008824999999999972,
+   "watch_ceiling": 0.5,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20LVLAC-LV25",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_LV_LAC",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.24 above the zero-net-EV ceiling 0.22"
+   ],
+   "side": "YES",
+   "executable_ask": 0.24,
+   "fair": 0.2488,
+   "raw_disagreement": 0.008800000000000002,
+   "watch_ceiling": 0.22,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP13MIALV-LVBBOWERS89-12",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_MIA_LV",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.99 above the zero-net-EV ceiling 0.98"
+   ],
+   "side": "NO",
+   "executable_ask": 0.99,
+   "fair": 0.9987781628406046,
+   "raw_disagreement": 0.00877816284060462,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20GBNYJ-27",
+   "family": "TOTAL",
+   "game_id": "2026_02_GB_NYJ",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.93 above the zero-net-EV ceiling 0.92"
+   ],
+   "side": "YES",
+   "executable_ask": 0.93,
+   "fair": 0.938775,
+   "raw_disagreement": 0.008774999999999977,
+   "watch_ceiling": 0.92,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP20MINCHI-CHILBURDEN10-120",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_MIN_CHI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.98 above the zero-net-EV ceiling 0.97"
+   ],
+   "side": "NO",
+   "executable_ask": 0.98,
+   "fair": 0.988759008343473,
+   "raw_disagreement": 0.008759008343472985,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP20MIASF-SF4",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_MIA_SF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.99 above the zero-net-EV ceiling 0.98"
+   ],
+   "side": "YES",
+   "executable_ask": 0.99,
+   "fair": 0.99875,
+   "raw_disagreement": 0.008750000000000036,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP17DETBUF-BUF18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.92 above the zero-net-EV ceiling 0.91"
+   ],
+   "side": "YES",
+   "executable_ask": 0.92,
+   "fair": 0.928725,
+   "raw_disagreement": 0.008724999999999983,
+   "watch_ceiling": 0.91,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP20CARATL-CARBYOUNG9-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_CAR_ATL",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.83 above the zero-net-EV ceiling 0.81"
+   ],
+   "side": "NO",
+   "executable_ask": 0.83,
+   "fair": 0.8387197886964348,
+   "raw_disagreement": 0.00871978869643486,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20MIASF-SF15",
+   "family": "SPREAD",
+   "game_id": "2026_02_MIA_SF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.58 above the zero-net-EV ceiling 0.56"
+   ],
+   "side": "NO",
+   "executable_ask": 0.58,
+   "fair": 0.5886750000000001,
+   "raw_disagreement": 0.0086750000000001,
+   "watch_ceiling": 0.56,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLSPREAD-26SEP20JACDEN-JAC8",
+   "family": "SPREAD",
+   "game_id": "2026_02_JAX_DEN",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.19 above the zero-net-EV ceiling 0.17"
+   ],
+   "side": "YES",
+   "executable_ask": 0.19,
+   "fair": 0.198625,
+   "raw_disagreement": 0.008624999999999994,
+   "watch_ceiling": 0.17,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP20SEAARI-SEADLOCK2-250",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_SEA_ARI",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.25 above the zero-net-EV ceiling 0.23"
+   ],
+   "side": "YES",
+   "executable_ask": 0.25,
+   "fair": 0.2586008671533681,
+   "raw_disagreement": 0.008600867153368108,
+   "watch_ceiling": 0.23,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP20MIASF-38",
+   "family": "TOTAL",
+   "game_id": "2026_02_MIA_SF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.71 above the zero-net-EV ceiling 0.69"
+   ],
+   "side": "YES",
+   "executable_ask": 0.71,
+   "fair": 0.7186,
+   "raw_disagreement": 0.008600000000000052,
+   "watch_ceiling": 0.69,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTOTAL-26SEP17DETBUF-61",
+   "family": "TOTAL",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.33 above the zero-net-EV ceiling 0.31"
+   ],
+   "side": "YES",
+   "executable_ask": 0.33,
+   "fair": 0.3386,
+   "raw_disagreement": 0.008599999999999997,
+   "watch_ceiling": 0.31,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP20CINHOU-HOUCSTOVER8-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_CIN_HOU",
+   "support_state": "SUPPORTED",
+   "stage_reached": "data_quality",
+   "state": "WATCH",
+   "reasons": [
+    "ask 0.07 above the zero-net-EV ceiling 0.06"
+   ],
+   "side": "YES",
+   "executable_ask": 0.07,
+   "fair": 0.07854169419982358,
+   "raw_disagreement": 0.008541694199823577,
+   "watch_ceiling": 0.06,
+   "fee_state": "KNOWN"
+  }
+ ],
+ "bet": [
+  {
+   "ticker": "KXNFLRSHATT-26SEP17DETBUF-BUFJALLEN17-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.18,
+   "fair": 0.6191982840918357,
+   "raw_disagreement": 0.43919828409183576,
+   "watch_ceiling": 0.59,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDKINCAID86-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.29,
+   "fair": 0.7279544701983403,
+   "raw_disagreement": 0.4379544701983403,
+   "watch_ceiling": 0.7,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDMOORE2-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.37,
+   "fair": 0.7982146193575396,
+   "raw_disagreement": 0.42821461935753957,
+   "watch_ceiling": 0.77,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDKINCAID86-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.43,
+   "fair": 0.8478069035186937,
+   "raw_disagreement": 0.4178069035186937,
+   "watch_ceiling": 0.83,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDMOORE2-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.23,
+   "fair": 0.6449903016628658,
+   "raw_disagreement": 0.41499030166286577,
+   "watch_ceiling": 0.62,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHATT-26SEP17DETBUF-BUFJCOOK4-17",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.4,
+   "fair": 0.7995037583103495,
+   "raw_disagreement": 0.39950375831034945,
+   "watch_ceiling": 0.77,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETSLAPORTA87-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.39,
+   "fair": 0.7839300780421548,
+   "raw_disagreement": 0.39393007804215474,
+   "watch_ceiling": 0.76,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDKINCAID86-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.15,
+   "fair": 0.538363041550303,
+   "raw_disagreement": 0.388363041550303,
+   "watch_ceiling": 0.51,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHATT-26SEP17DETBUF-DETJGIBBS0-20",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.55,
+   "fair": 0.9370557925587665,
+   "raw_disagreement": 0.38705579255876643,
+   "watch_ceiling": 0.92,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-80",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.4,
+   "fair": 0.7777646429720166,
+   "raw_disagreement": 0.3777646429720166,
+   "watch_ceiling": 0.75,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDMOORE2-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.36,
+   "fair": 0.7363739049191727,
+   "raw_disagreement": 0.37637390491917266,
+   "watch_ceiling": 0.71,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHATT-26SEP17DETBUF-BUFJCOOK4-14",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.26,
+   "fair": 0.6346457629455755,
+   "raw_disagreement": 0.3746457629455755,
+   "watch_ceiling": 0.61,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.39,
+   "fair": 0.760684086563532,
+   "raw_disagreement": 0.370684086563532,
+   "watch_ceiling": 0.74,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.47,
+   "fair": 0.8382710281592213,
+   "raw_disagreement": 0.3682710281592213,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.18,
+   "fair": 0.534561072692184,
+   "raw_disagreement": 0.354561072692184,
+   "watch_ceiling": 0.51,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETSLAPORTA87-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.27,
+   "fair": 0.6234261005419532,
+   "raw_disagreement": 0.3534261005419532,
+   "watch_ceiling": 0.6,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDMOORE2-5",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.54,
+   "fair": 0.8928336404723017,
+   "raw_disagreement": 0.3528336404723017,
+   "watch_ceiling": 0.88,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-70",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.36,
+   "fair": 0.7107166371823738,
+   "raw_disagreement": 0.3507166371823738,
+   "watch_ceiling": 0.69,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJGIBBS0-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.42,
+   "fair": 0.7546067460094219,
+   "raw_disagreement": 0.3346067460094219,
+   "watch_ceiling": 0.73,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.29,
+   "fair": 0.6222434464458025,
+   "raw_disagreement": 0.33224344644580256,
+   "watch_ceiling": 0.6,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDMOORE2-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.32,
+   "fair": 0.6465651573092299,
+   "raw_disagreement": 0.3265651573092299,
+   "watch_ceiling": 0.62,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDMOORE2-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.48,
+   "fair": 0.8012056101164611,
+   "raw_disagreement": 0.3212056101164611,
+   "watch_ceiling": 0.78,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-90",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.51,
+   "fair": 0.8303731826954005,
+   "raw_disagreement": 0.3203731826954005,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.26,
+   "fair": 0.5798302537806362,
+   "raw_disagreement": 0.31983025378063623,
+   "watch_ceiling": 0.55,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETSLAPORTA87-5",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.57,
+   "fair": 0.8850234330659237,
+   "raw_disagreement": 0.31502343306592373,
+   "watch_ceiling": 0.87,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHATT-26SEP17DETBUF-BUFJALLEN17-7",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.45,
+   "fair": 0.7613440695302309,
+   "raw_disagreement": 0.3113440695302309,
+   "watch_ceiling": 0.74,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJGIBBS0-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.29,
+   "fair": 0.5815699112721655,
+   "raw_disagreement": 0.2915699112721655,
+   "watch_ceiling": 0.56,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-8",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.53,
+   "fair": 0.8152904766710884,
+   "raw_disagreement": 0.2852904766710884,
+   "watch_ceiling": 0.79,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDMOORE2-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.2,
+   "fair": 0.4805905440639666,
+   "raw_disagreement": 0.2805905440639666,
+   "watch_ceiling": 0.46,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDMOORE2-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.15,
+   "fair": 0.42891933085416634,
+   "raw_disagreement": 0.2789193308541663,
+   "watch_ceiling": 0.4,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDKINCAID86-5",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.64,
+   "fair": 0.9180705040561308,
+   "raw_disagreement": 0.27807050405613076,
+   "watch_ceiling": 0.9,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJGIBBS0-5",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.59,
+   "fair": 0.8679349019780888,
+   "raw_disagreement": 0.2779349019780888,
+   "watch_ceiling": 0.85,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJWILLIAMS1-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.39,
+   "fair": 0.6665422473473328,
+   "raw_disagreement": 0.2765422473473328,
+   "watch_ceiling": 0.64,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.63,
+   "fair": 0.8942454632365723,
+   "raw_disagreement": 0.2642454632365723,
+   "watch_ceiling": 0.88,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFJCOOK4-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.55,
+   "fair": 0.8111887165162596,
+   "raw_disagreement": 0.2611887165162595,
+   "watch_ceiling": 0.79,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-7",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.44,
+   "fair": 0.6999848271563667,
+   "raw_disagreement": 0.25998482715636667,
+   "watch_ceiling": 0.67,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETJGIBBS0-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.32,
+   "fair": 0.579224141961177,
+   "raw_disagreement": 0.259224141961177,
+   "watch_ceiling": 0.55,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDMOORE2-70",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.6,
+   "fair": 0.8546323700677908,
+   "raw_disagreement": 0.2546323700677908,
+   "watch_ceiling": 0.84,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-100",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.62,
+   "fair": 0.8653698054036667,
+   "raw_disagreement": 0.2453698054036667,
+   "watch_ceiling": 0.85,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETSLAPORTA87-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.45,
+   "fair": 0.6948881366243699,
+   "raw_disagreement": 0.24488813662436987,
+   "watch_ceiling": 0.67,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETSLAPORTA87-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.16,
+   "fair": 0.40392380535144035,
+   "raw_disagreement": 0.24392380535144034,
+   "watch_ceiling": 0.38,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFJCOOK4-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.5,
+   "fair": 0.7403981792108465,
+   "raw_disagreement": 0.2403981792108465,
+   "watch_ceiling": 0.72,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKSHAKIR10-5",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.58,
+   "fair": 0.8073880305666876,
+   "raw_disagreement": 0.22738803056668766,
+   "watch_ceiling": 0.78,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJGIBBS0-6",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.71,
+   "fair": 0.9334696881471861,
+   "raw_disagreement": 0.22346968814718615,
+   "watch_ceiling": 0.92,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-6",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.33,
+   "fair": 0.5523308016569846,
+   "raw_disagreement": 0.22233080165698454,
+   "watch_ceiling": 0.53,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-110",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.68,
+   "fair": 0.9017594564168543,
+   "raw_disagreement": 0.22175945641685424,
+   "watch_ceiling": 0.89,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETSLAPORTA87-45",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.52,
+   "fair": 0.7414803015817835,
+   "raw_disagreement": 0.22148030158178345,
+   "watch_ceiling": 0.72,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETSLAPORTA87-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.3,
+   "fair": 0.5211468060142534,
+   "raw_disagreement": 0.22114680601425346,
+   "watch_ceiling": 0.5,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJWILLIAMS1-5",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.6,
+   "fair": 0.8103962714072439,
+   "raw_disagreement": 0.21039627140724393,
+   "watch_ceiling": 0.79,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDMOORE2-80",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.69,
+   "fair": 0.8940870328524249,
+   "raw_disagreement": 0.2040870328524249,
+   "watch_ceiling": 0.88,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJWILLIAMS1-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.27,
+   "fair": 0.47205576126809623,
+   "raw_disagreement": 0.2020557612680962,
+   "watch_ceiling": 0.45,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-70",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.73,
+   "fair": 0.9319456196766904,
+   "raw_disagreement": 0.20194561967669045,
+   "watch_ceiling": 0.92,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJGIBBS0-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.16,
+   "fair": 0.35899517666497527,
+   "raw_disagreement": 0.19899517666497527,
+   "watch_ceiling": 0.33,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKSHAKIR10-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.27,
+   "fair": 0.4673248252844434,
+   "raw_disagreement": 0.1973248252844434,
+   "watch_ceiling": 0.44,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJCOOK4-80",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.5,
+   "fair": 0.6968238745980707,
+   "raw_disagreement": 0.1968238745980707,
+   "watch_ceiling": 0.67,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-9",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.7,
+   "fair": 0.8952036749094369,
+   "raw_disagreement": 0.1952036749094369,
+   "watch_ceiling": 0.88,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKSHAKIR10-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.47,
+   "fair": 0.6624850503893429,
+   "raw_disagreement": 0.19248505038934294,
+   "watch_ceiling": 0.64,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHATT-26SEP17DETBUF-BUFJCOOK4-20",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.71,
+   "fair": 0.9020814226743339,
+   "raw_disagreement": 0.19208142267433392,
+   "watch_ceiling": 0.89,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETJGIBBS0-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.68,
+   "fair": 0.8716858749667531,
+   "raw_disagreement": 0.19168587496675304,
+   "watch_ceiling": 0.86,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETSLAPORTA87-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.59,
+   "fair": 0.7791151964192595,
+   "raw_disagreement": 0.18911519641925956,
+   "watch_ceiling": 0.75,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJGIBBS0-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.24,
+   "fair": 0.416090670085173,
+   "raw_disagreement": 0.17609067008517298,
+   "watch_ceiling": 0.39,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDMOORE2-90",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.75,
+   "fair": 0.9246636407091953,
+   "raw_disagreement": 0.17466364070919527,
+   "watch_ceiling": 0.91,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-5",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.22,
+   "fair": 0.3882729714967862,
+   "raw_disagreement": 0.1682729714967862,
+   "watch_ceiling": 0.36,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJGIBBS0-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.41,
+   "fair": 0.5759349035285938,
+   "raw_disagreement": 0.1659349035285938,
+   "watch_ceiling": 0.55,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETSLAPORTA87-6",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.78,
+   "fair": 0.942353244116129,
+   "raw_disagreement": 0.16235324411612895,
+   "watch_ceiling": 0.93,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJWILLIAMS1-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.39,
+   "fair": 0.5473878020163394,
+   "raw_disagreement": 0.1573878020163394,
+   "watch_ceiling": 0.52,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDMOORE2-6",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.79,
+   "fair": 0.9461653397633558,
+   "raw_disagreement": 0.15616533976335578,
+   "watch_ceiling": 0.93,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-120",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.77,
+   "fair": 0.9251026696687038,
+   "raw_disagreement": 0.15510266966870379,
+   "watch_ceiling": 0.91,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJCOOK4-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.34,
+   "fair": 0.4931112540192927,
+   "raw_disagreement": 0.15311125401929265,
+   "watch_ceiling": 0.47,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJCOOK4-70",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.45,
+   "fair": 0.6005913987138263,
+   "raw_disagreement": 0.15059139871382626,
+   "watch_ceiling": 0.58,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKSHAKIR10-6",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.75,
+   "fair": 0.8994539777542631,
+   "raw_disagreement": 0.14945397775426306,
+   "watch_ceiling": 0.88,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETASTBROWN14-80",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.51,
+   "fair": 0.6578935033895359,
+   "raw_disagreement": 0.14789350338953589,
+   "watch_ceiling": 0.63,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDMOORE2-100",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.8,
+   "fair": 0.9476235312011124,
+   "raw_disagreement": 0.14762353120111238,
+   "watch_ceiling": 0.93,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJCOOK4-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.24,
+   "fair": 0.3866466237942122,
+   "raw_disagreement": 0.14664662379421223,
+   "watch_ceiling": 0.36,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJALLEN17-30",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.46,
+   "fair": 0.6057586042065011,
+   "raw_disagreement": 0.14575860420650105,
+   "watch_ceiling": 0.58,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFKCOLEMAN0-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.31,
+   "fair": 0.45362646445332866,
+   "raw_disagreement": 0.14362646445332866,
+   "watch_ceiling": 0.43,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJGIBBS0-30",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.5,
+   "fair": 0.6434129758386928,
+   "raw_disagreement": 0.14341297583869284,
+   "watch_ceiling": 0.62,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJWILLIAMS1-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.51,
+   "fair": 0.6491404484616722,
+   "raw_disagreement": 0.13914044846167217,
+   "watch_ceiling": 0.62,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-80",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.82,
+   "fair": 0.9579518772814184,
+   "raw_disagreement": 0.13795187728141844,
+   "watch_ceiling": 0.94,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKCOLEMAN0-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.16,
+   "fair": 0.2968395773794768,
+   "raw_disagreement": 0.1368395773794768,
+   "watch_ceiling": 0.27,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJWILLIAMS1-6",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.77,
+   "fair": 0.9013557376646244,
+   "raw_disagreement": 0.13135573766462438,
+   "watch_ceiling": 0.89,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFDKINCAID86-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.69,
+   "fair": 0.8213372730942164,
+   "raw_disagreement": 0.1313372730942165,
+   "watch_ceiling": 0.8,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJCOOK4-100",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.71,
+   "fair": 0.8373835209003215,
+   "raw_disagreement": 0.12738352090032157,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFKCOLEMAN0-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.48,
+   "fair": 0.6045295576221101,
+   "raw_disagreement": 0.12452955762211015,
+   "watch_ceiling": 0.58,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSCOMP-26SEP17DETBUF-BUFJALLEN17-26",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.15,
+   "fair": 0.27436455009352445,
+   "raw_disagreement": 0.12436455009352446,
+   "watch_ceiling": 0.25,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETASTBROWN14-70",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.46,
+   "fair": 0.5843545280723101,
+   "raw_disagreement": 0.12435452807231012,
+   "watch_ceiling": 0.56,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDMOORE2-7",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.85,
+   "fair": 0.9738862709683287,
+   "raw_disagreement": 0.12388627096832872,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETSLAPORTA87-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.72,
+   "fair": 0.8426160872588214,
+   "raw_disagreement": 0.12261608725882145,
+   "watch_ceiling": 0.83,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKCOLEMAN0-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.38,
+   "fair": 0.5006678165617457,
+   "raw_disagreement": 0.12066781656174574,
+   "watch_ceiling": 0.48,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJCOOK4-90",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.66,
+   "fair": 0.7759000803858521,
+   "raw_disagreement": 0.11590008038585209,
+   "watch_ceiling": 0.75,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJALLEN17-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.4,
+   "fair": 0.5122713671128107,
+   "raw_disagreement": 0.11227136711281072,
+   "watch_ceiling": 0.49,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETASTBROWN14-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.39,
+   "fair": 0.4998690378932731,
+   "raw_disagreement": 0.10986903789327307,
+   "watch_ceiling": 0.47,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP13DALNYG-NYGNHARRIS23-30",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_DAL_NYG",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.25,
+   "fair": 0.35801184866516567,
+   "raw_disagreement": 0.10801184866516567,
+   "watch_ceiling": 0.33,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDKINCAID86-6",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.85,
+   "fair": 0.9571710613208969,
+   "raw_disagreement": 0.10717106132089693,
+   "watch_ceiling": 0.94,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-90",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.87,
+   "fair": 0.9747856031635669,
+   "raw_disagreement": 0.10478560316356689,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETASTBROWN14-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.3,
+   "fair": 0.40256304971319323,
+   "raw_disagreement": 0.10256304971319324,
+   "watch_ceiling": 0.38,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFDMOORE2-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.66,
+   "fair": 0.7619640403542279,
+   "raw_disagreement": 0.1019640403542279,
+   "watch_ceiling": 0.74,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFJALLEN17-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.84,
+   "fair": 0.9398659675582008,
+   "raw_disagreement": 0.09986596755820087,
+   "watch_ceiling": 0.92,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP13DALNYG-NYGNHARRIS23-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_DAL_NYG",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.16,
+   "fair": 0.2571253192344805,
+   "raw_disagreement": 0.0971253192344805,
+   "watch_ceiling": 0.23,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJWILLIAMS1-70",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.64,
+   "fair": 0.7370209977403094,
+   "raw_disagreement": 0.09702099774030937,
+   "watch_ceiling": 0.71,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETSLAPORTA87-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.72,
+   "fair": 0.8158854101521589,
+   "raw_disagreement": 0.0958854101521589,
+   "watch_ceiling": 0.79,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJWILLIAMS1-80",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.71,
+   "fair": 0.8057548844081349,
+   "raw_disagreement": 0.09575488440813495,
+   "watch_ceiling": 0.78,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKSHAKIR10-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.16,
+   "fair": 0.2556541389440051,
+   "raw_disagreement": 0.09565413894400512,
+   "watch_ceiling": 0.23,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFKCOLEMAN0-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.18,
+   "fair": 0.2753189735790022,
+   "raw_disagreement": 0.09531897357900221,
+   "watch_ceiling": 0.25,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETASTBROWN14-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.22,
+   "fair": 0.31494223883191386,
+   "raw_disagreement": 0.09494223883191386,
+   "watch_ceiling": 0.29,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-10",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.85,
+   "fair": 0.944923537123272,
+   "raw_disagreement": 0.09492353712327206,
+   "watch_ceiling": 0.93,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKCOLEMAN0-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.07,
+   "fair": 0.1646280681531415,
+   "raw_disagreement": 0.09462806815314148,
+   "watch_ceiling": 0.15,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-130",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.85,
+   "fair": 0.9436917980057896,
+   "raw_disagreement": 0.09369179800578964,
+   "watch_ceiling": 0.93,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-11",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.88,
+   "fair": 0.9728565813039654,
+   "raw_disagreement": 0.09285658130396535,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETSLAPORTA87-7",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.88,
+   "fair": 0.97237780443734,
+   "raw_disagreement": 0.09237780443734,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJCOOK4-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.19,
+   "fair": 0.2812975080385851,
+   "raw_disagreement": 0.0912975080385851,
+   "watch_ceiling": 0.26,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP13DALNYG-NYGNHARRIS23-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_DAL_NYG",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.1,
+   "fair": 0.18968624718559024,
+   "raw_disagreement": 0.08968624718559023,
+   "watch_ceiling": 0.17,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJALLEN17-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.78,
+   "fair": 0.8692599904397705,
+   "raw_disagreement": 0.08925999043977051,
+   "watch_ceiling": 0.85,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFJCOOK4-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.46,
+   "fair": 0.5484739281734667,
+   "raw_disagreement": 0.08847392817346672,
+   "watch_ceiling": 0.52,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP13DALNYG-NYGNHARRIS23-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_DAL_NYG",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.33,
+   "fair": 0.41706100514634936,
+   "raw_disagreement": 0.08706100514634935,
+   "watch_ceiling": 0.39,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETJGOFF16-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.05,
+   "fair": 0.13693112419463085,
+   "raw_disagreement": 0.08693112419463085,
+   "watch_ceiling": 0.12,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETITESLAA18-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.49,
+   "fair": 0.5769057627118643,
+   "raw_disagreement": 0.08690576271186434,
+   "watch_ceiling": 0.55,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJWILLIAMS1-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.34,
+   "fair": 0.42675927776812106,
+   "raw_disagreement": 0.08675927776812103,
+   "watch_ceiling": 0.4,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJALLEN17-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.68,
+   "fair": 0.7662765296367113,
+   "raw_disagreement": 0.08627652963671129,
+   "watch_ceiling": 0.74,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFJPALMER5-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.3,
+   "fair": 0.3859490348513819,
+   "raw_disagreement": 0.08594903485138189,
+   "watch_ceiling": 0.36,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFKCOLEMAN0-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.11,
+   "fair": 0.1944945893446897,
+   "raw_disagreement": 0.08449458934468969,
+   "watch_ceiling": 0.17,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP13DALNYG-NYGNHARRIS23-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_DAL_NYG",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.05,
+   "fair": 0.13374395866838212,
+   "raw_disagreement": 0.08374395866838212,
+   "watch_ceiling": 0.12,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJALLEN17-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.21,
+   "fair": 0.2931547323135756,
+   "raw_disagreement": 0.08315473231357559,
+   "watch_ceiling": 0.27,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJALLEN17-20",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.32,
+   "fair": 0.4027630497131932,
+   "raw_disagreement": 0.0827630497131932,
+   "watch_ceiling": 0.38,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETASTBROWN14-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.58,
+   "fair": 0.6604262428925407,
+   "raw_disagreement": 0.08042624289254074,
+   "watch_ceiling": 0.64,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETSLAPORTA87-70",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.81,
+   "fair": 0.8904001129845298,
+   "raw_disagreement": 0.08040011298452976,
+   "watch_ceiling": 0.88,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFJCOOK4-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.76,
+   "fair": 0.8402086737354424,
+   "raw_disagreement": 0.08020867373544238,
+   "watch_ceiling": 0.83,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFJPALMER5-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.48,
+   "fair": 0.5595436055101686,
+   "raw_disagreement": 0.07954360551016859,
+   "watch_ceiling": 0.53,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJWILLIAMS1-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.18,
+   "fair": 0.2595321496158264,
+   "raw_disagreement": 0.07953214961582639,
+   "watch_ceiling": 0.23,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP13NODET-NOAESTIME30-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_NO_DET",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.92,
+   "fair": 0.9989068196966419,
+   "raw_disagreement": 0.07890681969664182,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJGIBBS0-7",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.89,
+   "fair": 0.9684765512968905,
+   "raw_disagreement": 0.07847655129689046,
+   "watch_ceiling": 0.95,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-150",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.89,
+   "fair": 0.9683780395625603,
+   "raw_disagreement": 0.07837803956256029,
+   "watch_ceiling": 0.95,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJCOOK4-110",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.81,
+   "fair": 0.8848592443729904,
+   "raw_disagreement": 0.0748592443729903,
+   "watch_ceiling": 0.87,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJWILLIAMS1-90",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.79,
+   "fair": 0.8643451633930124,
+   "raw_disagreement": 0.07434516339301234,
+   "watch_ceiling": 0.85,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETJGIBBS0-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.9,
+   "fair": 0.9714317572575638,
+   "raw_disagreement": 0.07143175725756379,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDKINCAID86-7",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.91,
+   "fair": 0.978004557918257,
+   "raw_disagreement": 0.06800455791825699,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETASTBROWN14-90",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.66,
+   "fair": 0.7264786980705717,
+   "raw_disagreement": 0.06647869807057172,
+   "watch_ceiling": 0.7,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJWILLIAMS1-7",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.89,
+   "fair": 0.9525189775849295,
+   "raw_disagreement": 0.06251897758492952,
+   "watch_ceiling": 0.94,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFJPALMER5-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.07,
+   "fair": 0.13181445970205594,
+   "raw_disagreement": 0.06181445970205593,
+   "watch_ceiling": 0.12,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJWILLIAMS1-100",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.84,
+   "fair": 0.9017355814357727,
+   "raw_disagreement": 0.061735581435772735,
+   "watch_ceiling": 0.89,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFKSHAKIR10-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.49,
+   "fair": 0.5514315531027291,
+   "raw_disagreement": 0.061431553102729075,
+   "watch_ceiling": 0.53,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETITESLAA18-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.57,
+   "fair": 0.6313819229482187,
+   "raw_disagreement": 0.06138192294821876,
+   "watch_ceiling": 0.61,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETASTBROWN14-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.9,
+   "fair": 0.9612015762138885,
+   "raw_disagreement": 0.06120157621388844,
+   "watch_ceiling": 0.95,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSATT-26SEP17DETBUF-DETJGOFF16-32",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.29,
+   "fair": 0.3496603396847644,
+   "raw_disagreement": 0.05966033968476442,
+   "watch_ceiling": 0.32,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDMOORE2-8",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.93,
+   "fair": 0.9878004795297451,
+   "raw_disagreement": 0.0578004795297451,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFKSHAKIR10-50",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.62,
+   "fair": 0.676976212410916,
+   "raw_disagreement": 0.056976212410915994,
+   "watch_ceiling": 0.65,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETJWILLIAMS1-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.72,
+   "fair": 0.7752782155748196,
+   "raw_disagreement": 0.0552782155748196,
+   "watch_ceiling": 0.75,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.18,
+   "fair": 0.2347667840453872,
+   "raw_disagreement": 0.05476678404538721,
+   "watch_ceiling": 0.21,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-100",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.93,
+   "fair": 0.9844415652702938,
+   "raw_disagreement": 0.05444156527029376,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKNOX88-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.11,
+   "fair": 0.16435805084745764,
+   "raw_disagreement": 0.05435805084745764,
+   "watch_ceiling": 0.15,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP13DALNYG-NYGNHARRIS23-70",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_DAL_NYG",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.04,
+   "fair": 0.09213324300418141,
+   "raw_disagreement": 0.05213324300418141,
+   "watch_ceiling": 0.08,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP17DETBUF-BUFJALLEN17-275",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.36,
+   "fair": 0.4114497162575909,
+   "raw_disagreement": 0.05144971625759093,
+   "watch_ceiling": 0.39,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJWILLIAMS1-25",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.2,
+   "fair": 0.2514481792108465,
+   "raw_disagreement": 0.05144817921084649,
+   "watch_ceiling": 0.23,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFKSHAKIR10-15",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.13,
+   "fair": 0.1810347861985051,
+   "raw_disagreement": 0.0510347861985051,
+   "watch_ceiling": 0.17,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSCOMP-26SEP17DETBUF-BUFJALLEN17-21",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.53,
+   "fair": 0.5808623668191583,
+   "raw_disagreement": 0.05086236681915823,
+   "watch_ceiling": 0.56,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJALLEN17-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.88,
+   "fair": 0.9303229445506692,
+   "raw_disagreement": 0.05032294455066921,
+   "watch_ceiling": 0.92,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP17DETBUF-BUFJALLEN17-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.41,
+   "fair": 0.45995632117619933,
+   "raw_disagreement": 0.04995632117619936,
+   "watch_ceiling": 0.43,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP17DETBUF-BUFJALLEN17-300",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.24,
+   "fair": 0.2890376075950342,
+   "raw_disagreement": 0.04903760759503423,
+   "watch_ceiling": 0.26,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETJGIBBS0-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.71,
+   "fair": 0.7581069050929949,
+   "raw_disagreement": 0.04810690509299498,
+   "watch_ceiling": 0.73,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP13DALNYG-NYGNHARRIS23-80",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_DAL_NYG",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.02,
+   "fair": 0.06786967594081694,
+   "raw_disagreement": 0.04786967594081694,
+   "watch_ceiling": 0.05,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETASTBROWN14-12",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.94,
+   "fair": 0.9874330739080368,
+   "raw_disagreement": 0.04743307390803686,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP17DETBUF-DETJGOFF16-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.16,
+   "fair": 0.20735081044203751,
+   "raw_disagreement": 0.04735081044203751,
+   "watch_ceiling": 0.18,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETSLAPORTA87-8",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.94,
+   "fair": 0.9872681402599451,
+   "raw_disagreement": 0.04726814025994519,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFJPALMER5-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.37,
+   "fair": 0.416444128460233,
+   "raw_disagreement": 0.04644412846023299,
+   "watch_ceiling": 0.39,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETSLAPORTA87-100",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.92,
+   "fair": 0.9664422866330611,
+   "raw_disagreement": 0.04644228663306105,
+   "watch_ceiling": 0.95,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJGIBBS0-8",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.94,
+   "fair": 0.9856821292945528,
+   "raw_disagreement": 0.04568212929455284,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP13DALNYG-NYGNHARRIS23-20",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_DAL_NYG",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.44,
+   "fair": 0.48556613058861375,
+   "raw_disagreement": 0.04556613058861375,
+   "watch_ceiling": 0.46,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETSLAPORTA87-80",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.88,
+   "fair": 0.9251886407091953,
+   "raw_disagreement": 0.04518864070919526,
+   "watch_ceiling": 0.91,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDMOORE2-9",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.95,
+   "fair": 0.9943978180871464,
+   "raw_disagreement": 0.04439781808714649,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDKNOX88-4",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.09,
+   "fair": 0.13432966564812937,
+   "raw_disagreement": 0.044329665648129374,
+   "watch_ceiling": 0.12,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-120",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.95,
+   "fair": 0.9942517425690943,
+   "raw_disagreement": 0.044251742569094366,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJGIBBS0-9",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.95,
+   "fair": 0.9936942991358965,
+   "raw_disagreement": 0.04369429913589651,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFKCOLEMAN0-60",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.09,
+   "fair": 0.13350937076308014,
+   "raw_disagreement": 0.043509370763080146,
+   "watch_ceiling": 0.12,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETASTBROWN14-100",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.74,
+   "fair": 0.7831699939162177,
+   "raw_disagreement": 0.043169993916217675,
+   "watch_ceiling": 0.76,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSATT-26SEP17DETBUF-DETJGOFF16-37",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.53,
+   "fair": 0.5727748552156893,
+   "raw_disagreement": 0.042774855215689245,
+   "watch_ceiling": 0.55,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFJCOOK4-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.82,
+   "fair": 0.861867809185479,
+   "raw_disagreement": 0.041867809185479055,
+   "watch_ceiling": 0.85,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKSHAKIR10-9",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.95,
+   "fair": 0.9904841637477804,
+   "raw_disagreement": 0.04048416374778041,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDKNOX88-3",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.2,
+   "fair": 0.239921231389859,
+   "raw_disagreement": 0.03992123138985898,
+   "watch_ceiling": 0.21,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETASTBROWN14-110",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.79,
+   "fair": 0.8289245132974101,
+   "raw_disagreement": 0.03892451329741009,
+   "watch_ceiling": 0.8,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP13DALNYG-NYGNHARRIS23-10",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_01_DAL_NYG",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.61,
+   "fair": 0.6485859737857833,
+   "raw_disagreement": 0.03858597378578332,
+   "watch_ceiling": 0.62,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-DETJWILLIAMS1-8",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.94,
+   "fair": 0.9784459628095019,
+   "raw_disagreement": 0.038445962809501966,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFKSHAKIR10-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.73,
+   "fair": 0.7683324664135447,
+   "raw_disagreement": 0.03833246641354471,
+   "watch_ceiling": 0.74,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-BUFJCOOK4-120",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.88,
+   "fair": 0.9181022508038585,
+   "raw_disagreement": 0.03810225080385854,
+   "watch_ceiling": 0.9,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDMOORE2-140",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.95,
+   "fair": 0.9876074091778203,
+   "raw_disagreement": 0.03760740917782035,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSTDS-26SEP17DETBUF-DETJGOFF16-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.48,
+   "fair": 0.5175138761102707,
+   "raw_disagreement": 0.03751387611027068,
+   "watch_ceiling": 0.49,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETASTBROWN14-160",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.92,
+   "fair": 0.9569515861289762,
+   "raw_disagreement": 0.0369515861289762,
+   "watch_ceiling": 0.94,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSYDS-26SEP17DETBUF-BUFJALLEN17-325",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.15,
+   "fair": 0.18678879674415186,
+   "raw_disagreement": 0.036788796744151864,
+   "watch_ceiling": 0.17,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRSHYDS-26SEP17DETBUF-DETJGIBBS0-140",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.92,
+   "fair": 0.9563860244451592,
+   "raw_disagreement": 0.03638602444515915,
+   "watch_ceiling": 0.94,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFDKINCAID86-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.95,
+   "fair": 0.9857628877665893,
+   "raw_disagreement": 0.03576288776658931,
+   "watch_ceiling": 0.97,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSATT-26SEP17DETBUF-BUFJALLEN17-32",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.49,
+   "fair": 0.5254194300407002,
+   "raw_disagreement": 0.03541943004070025,
+   "watch_ceiling": 0.5,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFKSHAKIR10-70",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.82,
+   "fair": 0.8547502476968538,
+   "raw_disagreement": 0.034750247696853864,
+   "watch_ceiling": 0.84,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFDMOORE2-2",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.94,
+   "fair": 0.9743523292694092,
+   "raw_disagreement": 0.03435232926940923,
+   "watch_ceiling": 0.96,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLPASSCOMP-26SEP17DETBUF-DETJGOFF16-24",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.51,
+   "fair": 0.5436207500397549,
+   "raw_disagreement": 0.03362075003975484,
+   "watch_ceiling": 0.52,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFDKNOX88-5",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.04,
+   "fair": 0.07357563843863693,
+   "raw_disagreement": 0.03357563843863693,
+   "watch_ceiling": 0.06,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-DETITESLAA18-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.86,
+   "fair": 0.8922957342982921,
+   "raw_disagreement": 0.032295734298292134,
+   "watch_ceiling": 0.88,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-DETITESLAA18-40",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.8,
+   "fair": 0.8322808898305085,
+   "raw_disagreement": 0.032280889830508475,
+   "watch_ceiling": 0.81,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTD-26SEP17DETBUF-BUFRDAVIS7-1",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.14,
+   "fair": 0.17203540856971972,
+   "raw_disagreement": 0.0320354085697197,
+   "watch_ceiling": 0.16,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLREC-26SEP17DETBUF-BUFKSHAKIR10-7",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.92,
+   "fair": 0.9515045883397809,
+   "raw_disagreement": 0.03150458833978087,
+   "watch_ceiling": 0.94,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLTEAMTOTAL-26SEP17DETBUF-DET18",
+   "family": "TEAM_TOTAL",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "YES",
+   "executable_ask": 0.78,
+   "fair": 0.8106,
+   "raw_disagreement": 0.03059999999999996,
+   "watch_ceiling": 0.79,
+   "fee_state": "KNOWN"
+  },
+  {
+   "ticker": "KXNFLRECYDS-26SEP17DETBUF-BUFDKINCAID86-110",
+   "family": "PLAYER_STAT",
+   "game_id": "2026_02_DET_BUF",
+   "support_state": "SUPPORTED",
+   "stage_reached": "liquidity",
+   "state": "BET",
+   "reasons": [],
+   "side": "NO",
+   "executable_ask": 0.96,
+   "fair": 0.9905482530853468,
+   "raw_disagreement": 0.03054825308534681,
+   "watch_ceiling": 0.98,
+   "fee_state": "KNOWN"
+  }
+ ]
+}
