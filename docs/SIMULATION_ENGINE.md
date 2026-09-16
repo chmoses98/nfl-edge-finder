@@ -156,7 +156,29 @@ Every committed summary is a pure render of its JSON by `scripts/sim/write_resul
   before/after contact, stuff and explosive rates were all built, audited and ablated; per-carry yardage
   has an out-of-sample r² of 0.006 and no arm moved it materially, so none is deployed. FTN scheme data
   and observed weather were rejected on point-in-time grounds. See `RUSHING_ABLATION.md`.
+* **The starting quarterback is whoever the depth chart says.** The first live Week 2 slate found the
+  cost: nflverse made Kyler Murray Minnesota's QB1, Kalshi listed a full starter's passing ladder for
+  Carson Wentz and none for Murray, and the football model gave Wentz **8.5** passing yards against a
+  market-implied 215. The model read its source faithfully — the source was wrong — and a team's whole
+  passing game went to the wrong player. 26 of the other 27 listed quarterbacks agreed with the market
+  inside ~15%. Reconciliation contained the damage (`pass_yards` deploys 0, so the reported line sits at
+  the market mean and nothing is ranked), but the football-only view is badly wrong.
+  `slate_audit.py` now fails on it every cycle. The fix is *not* to read the player's quote; the
+  candidate is to use the **existence** of a passing ladder as a starter prior, which the project already
+  accepts as a role signal — and it has to be fitted and confirmed on the 2025 archive before it ships,
+  not wired in on the eve of a kickoff.
 * No in-game QB replacement branch (Darnold → Lock) beyond the fitted starter-share tail.
+* **The ranked `any_td` gap is not a pure football opinion.** The reconciled probability re-locates the
+  football shape onto the market's *estimated* mean, and on a thin two-rung ladder that estimate is
+  poorly identified. On the live slate the mean ranked gap was +0.0115 while the football view was
+  +0.0056, and 21 of 225 ranked rows pointed the *opposite* way to the football view. The 0.25 weight was
+  fitted and confirmed on exactly this quantity, so it is inside the validated envelope — but the ranked
+  entries now carry `football_disagreement_vs_mid` and `disagrees_with_own_football_view` so a reader
+  sees both. A shape blend, or scoring the market's own mid instead of its fitted mean, is the open
+  question.
+* **Mean relocation is not exact.** `shifted_to_mean` scales the support once and re-discretises onto the
+  integer lattice without iterating, so at weight 0 a small-count family lands 1-10% from the market mean
+  (17 of 1,300 zero-weight rows on the live slate; none beyond 10%). Second order behind the shape gap.
 * Game-level centres carry no football deviation (see above).
 * Longest reception/rush, fantasy points, interceptions, field goals, first-TD scorer, period markets:
   unsupported, reported as `UNSUPPORTED_STAT` — a professional model passes on what it cannot price.

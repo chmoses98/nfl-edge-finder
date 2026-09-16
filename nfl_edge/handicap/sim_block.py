@@ -111,6 +111,16 @@ def game_view(game_rows: list, manifest: dict | None) -> dict:
                  "mid": r.get("mid"), "p_football": r.get("p_football"), "p_reconciled": r.get("p_reconciled"),
                  "reconcile_weight": r.get("reconcile_weight"), "disagreement_vs_mid": round(r["p_reconciled"] - r["mid"], 5),
                  "football_mean": r.get("football_mean"), "market_mean": r.get("market_mean"), "final_mean": r.get("final_mean"),
+                 # How much of the ranked gap is a football opinion at all.  The reconciled probability is
+                 # the football distribution re-shaped and re-located onto the market's own ESTIMATED mean,
+                 # and that estimate is poorly identified on a thin ladder, so the two can disagree about
+                 # the market itself.  On the first live Week 2 slate the mean ranked any_td gap was +0.0115
+                 # against a football view of +0.0056, and 9.3% of ranked rows pointed the opposite way to
+                 # the football view.  A reader ranking these must see both numbers.
+                 "football_disagreement_vs_mid": r.get("football_disagreement_vs_mid"),
+                 "disagrees_with_own_football_view": (
+                     r.get("football_disagreement_vs_mid") is not None
+                     and (r["p_reconciled"] - r["mid"]) * r["football_disagreement_vs_mid"] < 0),
                  "label": "DISAGREEMENT ONLY -- REQUIRES HANDICAP"} for r in ranked[:15]],
             "unranked_zero_weight_disagreements": [
                 {"ticker": r["ticker"], "stat": r.get("stat"), "threshold": r.get("threshold"), "player_id": r.get("player_id"),

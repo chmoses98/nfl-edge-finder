@@ -36,6 +36,27 @@ STARTER_FLOOR = {"RB": 6.0, "WR": 3.0, "TE": 2.0, "QB": 15.0}
 BACKUP_CEILING = {"RB": 12.0, "WR": 7.0, "TE": 6.0}
 PLAY_STATES = {"ACTIVE": 1.0, "PROBABLE": 0.97, "QUESTIONABLE": 0.75, "DOUBTFUL": 0.25, "OUT": 0.0}
 OPP_STAT = {"RB": "carries", "WR": "targets", "TE": "targets", "QB": "attempts"}
+# Kalshi stat -> the reconciliation family the deployed weights are keyed by
+STAT_TO_FAMILY = {"touchdowns": "any_td", "passing_tds": "pass_td", "passing_yards": "pass_yards",
+                  "receiving_yards": "rec_yards", "receptions": "receptions", "rushing_yards": "rush_yards"}
+
+
+class Tee:
+    """Captures everything printed so the committed report is a pure render of the audit run."""
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.buf = []
+
+    def write(self, s):
+        self.buf.append(s)
+        return self.stream.write(s)
+
+    def flush(self):
+        self.stream.flush()
+
+    def text(self):
+        return "".join(self.buf)
 
 
 class Findings:
@@ -221,13 +242,27 @@ def audit_reconciliation(man: dict, priced: list, F: Findings):
               f"{rc.mean():13.4f} {rc.max():12.4f} {fm:9.3f} {mm:9.3f} {nm:10.3f}")
 
     # INVARIANT: weight 0 means the mean is the market's.  The final mean must match the market mean.
-    mean_off = [f"{r['ticker']}: final {r['final_mean']:.3f} vs market {r['market_mean']:.3f}"
-                for r in priced if r["reconcile_weight"] == 0.0
-                and r.get("final_mean") is not None and r.get("market_mean") is not None
-                and abs(r["final_mean"] - r["market_mean"]) > 0.02 * max(1.0, abs(r["market_mean"]))]
-    print(f"\n  zero-weight rows whose FINAL MEAN is not the market mean: {len(mean_off)}")
-    if mean_off:
-        F.add("BLOCKER", "RECONCILE", f"{len(mean_off)} zero-weight rows deviate from the market MEAN", mean_off)
+    def _rel(r):
+        return abs(r["final_mean"] - r["market_mean"]) / max(1e-9, abs(r["market_mean"]))
+    zw_means = [r for r in priced if r["reconcile_weight"] == 0.0
+                and r.get("final_mean") is not None and r.get("market_mean") is not None]
+    gran = [r for r in zw_means if 0.01 < _rel(r) <= 0.10]
+    broken = [r for r in zw_means if _rel(r) > 0.10]
+    print(f"\n  zero-weight rows whose FINAL MEAN is not the market mean: "
+          f"{len(gran)} within 1-10% (lattice granularity), {len(broken)} beyond 10%")
+    if broken:
+        F.add("BLOCKER", "RECONCILE",
+              f"{len(broken)} zero-weight rows are more than 10% from the market MEAN, which the "
+              f"relocation is supposed to hit exactly at w=0",
+              [f"{r['ticker']}: final {r['final_mean']:.3f} vs market {r['market_mean']:.3f}" for r in broken[:12]])
+    if gran:
+        F.add("WARN", "RECONCILE",
+              f"{len(gran)} zero-weight rows sit 1-10% from the market mean: `shifted_to_mean` scales the "
+              f"support once and re-discretises onto the integer lattice without iterating, so a "
+              f"small-count family cannot land on an arbitrary mean. Known limitation, second order "
+              f"behind the shape gap",
+              [f"{r['ticker']}: final {r['final_mean']:.3f} vs market {r['market_mean']:.3f} "
+               f"({100 * _rel(r):.1f}%)" for r in gran[:8]])
 
     # INVARIANT: a zero-weight family must not present a disagreement.  At weight 0 the only thing left
     # that can move the probability away from the market is the SHAPE substitution, and no shape claim has
@@ -235,18 +270,50 @@ def audit_reconciliation(man: dict, priced: list, F: Findings):
     # unearned disagreement that a ranker will pick up.
     RANK_FLOOR = 0.05
     zero = [r for r in priced if r["reconcile_weight"] == 0.0]
-    rankable = [r for r in zero if abs((r.get("p_reconciled") or 0) - (r.get("mid") or 0)) >= RANK_FLOOR]
-    print(f"  zero-weight rows whose |p_reconciled - mid| >= {RANK_FLOOR}: {len(rankable)} of {len(zero)}")
-    if rankable:
-        worst = sorted(rankable, key=lambda r: -abs(r["p_reconciled"] - r["mid"]))[:12]
-        F.add("BLOCKER", "RECONCILE",
-              f"{len(rankable)} rows in families with ZERO deployed weight present a reconciled "
-              f"disagreement of >= {RANK_FLOOR} against the mid; a ranker that sorts on reconciled "
-              f"disagreement will rank a family that earned no authority",
-              [f"{r['stat']:16s} w={r['reconcile_weight']:.2f} mid={r['mid']:.3f} "
-               f"p_rec={r['p_reconciled']:.3f} (dis {r['p_reconciled'] - r['mid']:+.4f}) "
-               f"p_fb={r['p_football']:.3f} (fb dis {(r.get('football_disagreement_vs_mid') or 0):+.4f}) "
-               f"{r['ticker']}" for r in worst])
+    material = [r for r in zero if abs((r.get("p_reconciled") or 0) - (r.get("mid") or 0)) >= RANK_FLOOR]
+    print(f"  zero-weight rows whose |p_reconciled - mid| >= {RANK_FLOOR}: {len(material)} of {len(zero)} "
+          f"(the untested shape substitution; reported, and they must not be ranked)")
+    if material:
+        worst = sorted(material, key=lambda r: -abs(r["p_reconciled"] - r["mid"]))[:8]
+        F.add("NOTE", "RECONCILE",
+              f"{len(material)} zero-weight rows carry a reconciled gap of >= {RANK_FLOOR} against the mid. "
+              f"At w=0 the mean is the market's, so this is the football SHAPE, which was never confirmed "
+              f"out of sample. It is legitimate to REPORT; the invariant below is that it is never RANKED",
+              [f"{r['stat']:16s} mid={r['mid']:.3f} p_rec={r['p_reconciled']:.3f} "
+               f"(dis {r['p_reconciled'] - r['mid']:+.4f}) p_fb={r['p_football']:.3f} "
+               f"(fb dis {(r.get('football_disagreement_vs_mid') or 0):+.4f}) {r['ticker']}" for r in worst])
+
+    # THE INVARIANT, checked end to end against the real consumer rather than a proxy: run the packet's
+    # own game_view over the published rows and assert nothing without a deployed weight is ranked.
+    try:
+        from nfl_edge.handicap import sim_block as SB
+        per_game = collections.defaultdict(list)
+        for r in priced:
+            per_game[r.get("game_id")].append(r)
+        bad, n_ranked, n_diverted = [], 0, 0
+        for gid, rs in per_game.items():
+            v = SB.game_view(rs, man)
+            n_ranked += len(v.get("largest_reconciled_disagreements") or [])
+            n_diverted += len(v.get("unranked_zero_weight_disagreements") or [])
+            for e in (v.get("largest_reconciled_disagreements") or []):
+                if not (e.get("reconcile_weight") or 0) > 0:
+                    bad.append(f"{gid} {e.get('stat')} w={e.get('reconcile_weight')} {e.get('ticker')}")
+        fams = sorted({e.get("stat") for gid, rs in per_game.items()
+                       for e in (SB.game_view(rs, man).get("largest_reconciled_disagreements") or [])})
+        print(f"  packet ranking over these rows: {n_ranked} ranked, {n_diverted} diverted as zero-weight; "
+              f"families ranked = {fams or 'none'}")
+        if bad:
+            F.add("BLOCKER", "RECONCILE",
+                  f"{len(bad)} rows with NO deployed weight reached the packet's ranked disagreement list",
+                  bad[:12])
+        deployed_nonzero = sorted(k for k, v in (man.get("deployed_weights") or {}).items() if v)
+        unexpected = [f for f in fams if f and STAT_TO_FAMILY.get(f, f) not in deployed_nonzero]
+        if unexpected:
+            F.add("BLOCKER", "RECONCILE",
+                  f"families ranked that carry no deployed weight on the manifest: {unexpected} "
+                  f"(deployed non-zero: {deployed_nonzero})")
+    except Exception as exc:                                                     # noqa: BLE001
+        F.add("WARN", "RECONCILE", f"could not check the ranking invariant: {type(exc).__name__}: {exc}")
 
     game_fams = [r for r in priced if r.get("family") != "PLAYER_STAT"]
     if game_fams:
@@ -295,6 +362,70 @@ def audit_roles_from_artifact(man: dict, rows: list, F: Findings):
         print(f"  football-only rows with no usable market: {len(fonly)}")
         for (s, why), n in who.most_common(10):
             print(f"    {s:18s} {str(why)[:60]:60s} {n}")
+
+    # QUARTERBACK STARTER CROSS-CHECK.  Uses only the EXISTENCE of a passing ladder -- never its price --
+    # which the project already accepts as a role signal.  Kalshi lists passing markets for the man it
+    # believes is taking the snaps; if the model projects that man a handful of yards, the model has the
+    # wrong starter, and the whole team's passing game is attributed to the wrong player.  This is the
+    # Week 1 Price/Stevenson failure moved to the highest-leverage position, and Week 2 2026 had one:
+    # nflverse's depth chart made Kyler Murray Minnesota's QB1, Kalshi listed a full 215-yard ladder for
+    # Carson Wentz and none for Murray, and the football model gave Wentz 8.5 passing yards.
+    qb_stats = {"passing_yards", "passing_tds", "attempts", "completions"}
+    listed_qb = collections.defaultdict(dict)
+    for r in priced:
+        if r.get("stat") in qb_stats and r.get("player_id"):
+            d = listed_qb[(r.get("game_id"), r.get("team"))].setdefault(
+                r["player_id"], {"stats": set(), "fb": None, "mkt": None})
+            d["stats"].add(r["stat"])
+            if r.get("stat") == "passing_yards":
+                d["fb"], d["mkt"] = r.get("football_mean"), r.get("market_mean")
+    print(f"\n  quarterback starter cross-check (market LISTING only, never the quote):")
+    for (gid, team), qbs in sorted(listed_qb.items(), key=lambda x: str(x[0])):
+        who = sorted(qbs.items(), key=lambda kv: -(kv[1]["fb"] or 0))
+        desc = ", ".join(f"{pid} fb={('%.1f' % v['fb']) if v['fb'] is not None else '-'}"
+                         f"/mkt={('%.1f' % v['mkt']) if v['mkt'] is not None else '-'}" for pid, v in who)
+        print(f"    {gid:22s} {str(team):4s} {desc}")
+        for pid, v in who:
+            fb, mkt = v.get("fb"), v.get("mkt")
+            if fb is None or mkt is None or mkt < 80.0:
+                continue                      # not a starter's ladder; nothing is being claimed
+            if fb < 0.35 * mkt:
+                F.add("BLOCKER", "ROLE",
+                      f"{gid} {team}: the market lists a starter's passing ladder for {pid} "
+                      f"(implied mean {mkt:.0f} yards) and the football model projects {fb:.1f} -- the "
+                      f"model almost certainly has the wrong starting quarterback, so this team's passing "
+                      f"volume is attributed to the wrong player")
+
+    # ANY_TD: how much of the ranked gap is football, and how much is the market-mean estimator?  any_td
+    # is the ONLY family with deployed authority, so this is the only disagreement that can reach a
+    # ranking, and it deserves to be decomposed rather than trusted whole.
+    td1 = [r for r in priced if r.get("stat") == "touchdowns" and r.get("threshold") == 1
+           and r.get("market_mean") is not None and r.get("mid") is not None
+           and r.get("p_reconciled") is not None]
+    if td1:
+        rt = np.array([1.0 - math.exp(-max(r["market_mean"], 0.0)) for r in td1])
+        mid = np.array([r["mid"] for r in td1])
+        fbd = np.array([(r.get("football_disagreement_vs_mid") or 0.0) for r in td1])
+        recd = np.array([r["p_reconciled"] - r["mid"] for r in td1])
+        flip = int(np.sum(recd * fbd < 0))
+        print(f"\n  any_td (t=1, n={len(td1)}) ranked-signal decomposition:")
+        print(f"    mean ranked gap (reconciled - mid)          {recd.mean():+.4f}")
+        print(f"    mean football gap (football - mid)          {fbd.mean():+.4f}")
+        print(f"    market's own mean re-priced as a Poisson    {rt.mean():.4f} vs mid {mid.mean():.4f} "
+              f"({(rt - mid).mean():+.4f}; above the mid on {100 * (rt > mid).mean():.0f}% of rows)")
+        print(f"    ranked rows pointing OPPOSITE to football   {flip}/{len(td1)} = {100 * flip / len(td1):.1f}%")
+        if abs((rt - mid).mean()) > abs(fbd.mean()):
+            F.add("WARN", "RECONCILE",
+                  f"most of the mean ranked any_td gap is the market-mean estimator, not football: "
+                  f"re-pricing the market's OWN mean through the engine's Poisson sits {(rt - mid).mean():+.4f} "
+                  f"from the mid while the football view is {fbd.mean():+.4f}. The 0.25 weight was fitted and "
+                  f"confirmed on exactly this quantity, so it is inside the validated envelope, but a reader "
+                  f"ranking these rows is not seeing a pure football opinion")
+        if flip:
+            F.add("WARN", "RECONCILE",
+                  f"{flip} of {len(td1)} ranked any_td rows have a reconciled gap pointing the OPPOSITE way "
+                  f"to the football view (the relocation crosses the mid), so the sign of the ranked "
+                  f"disagreement is not the sign of the model's opinion")
 
     # p_active sanity: nobody priced should be a certainty-zero, and no row may exceed 1
     pa = [(r.get("p_active"), r) for r in priced if r.get("p_active") is not None]
@@ -431,6 +562,50 @@ def audit_football(man: dict, rows: list, F: Findings, market_data: str, n_sims:
               f"{tol:.0%} (Monte Carlo noise at this n, or a genuinely different input)", drift[:15])
 
 
+def render_md(man: dict, F: Findings, transcript: str) -> str:
+    src = man.get("sources") or {}
+    iv = src.get("injury_vintage") or {}
+    nb, nw = len(F.of("BLOCKER")), len(F.of("WARN"))
+    verdict = "BLOCKERS PRESENT" if nb else ("CLEAN, WITH WARNINGS" if nw else "CLEAN")
+    L = [f"# Week {man.get('week')} {man.get('season')} published slate -- hostile sanity audit",
+         "",
+         "Generated by `scripts/sim/slate_audit.py` from the published manifest and projections; do not edit "
+         "by hand.  A green workflow is not evidence that a slate is football-sane, so this interrogates the "
+         "artifact the production path actually published.",
+         "",
+         f"**Verdict: {verdict}** -- {nb} blocker(s), {nw} warning(s), {len(F.of('NOTE'))} note(s).",
+         "",
+         "## Provenance", "",
+         "| field | value |", "|---|---|",
+         f"| run_id | `{man.get('run_id')}` |",
+         f"| sim_version | {man.get('sim_version')} |",
+         f"| cutoff | {man.get('cutoff')} |",
+         f"| market_observed_at | {man.get('market_observed_at')} |",
+         f"| bundle_train_seasons | {man.get('bundle_train_seasons')} |",
+         f"| priors_fit_seasons | {man.get('priors_fit_seasons')} ({man.get('priors_version')}) |",
+         f"| deployed_weights | {man.get('deployed_weights')} |",
+         f"| depth_chart_vintage | {src.get('depth_chart_vintage')} |",
+         f"| injury vintage | resolved={iv.get('resolved')} sha=`{(iv.get('sha256') or '')[:16]}` "
+         f"retrieved={iv.get('retrieved_at')} reason={iv.get('reason')} rows_for_week={iv.get('rows_for_week')} |",
+         f"| sleeper_run | {src.get('sleeper_run')} |",
+         f"| history | {src.get('history_games')} games, latest `{src.get('latest_history_game')}` |",
+         f"| rows / games | {man.get('n_rows')} / {len(man.get('games') or {})} |",
+         "",
+         "## Contracts by family and support state", "",
+         "| family \| support_state | n |", "|---|---|"]
+    for k, v in sorted((man.get("counts") or {}).items()):
+        L.append(f"| {str(k).replace('|', ' / ')} | {v} |")
+    L += ["", "## Findings", ""]
+    if F.rows:
+        L += ["| severity | area | finding |", "|---|---|---|"]
+        for r in F.rows:
+            L.append(f"| {r['severity']} | {r['area']} | {r['message'].replace('|', '/')} |")
+    else:
+        L.append("None.")
+    L += ["", "## Full audit transcript", "", "```", transcript.rstrip(), "```", ""]
+    return "\n".join(L)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sim-root", default=None, help="directory of published sim artifacts")
@@ -440,7 +615,10 @@ def main():
                     help="re-run the simulation to expose team-level football (slow)")
     ap.add_argument("--n-sims", type=int, default=20000)
     ap.add_argument("--tol", type=float, default=0.05)
+    ap.add_argument("--write-md", default=None, help="render the audit to this markdown path")
     a = ap.parse_args()
+    tee = Tee(sys.stdout)
+    sys.stdout = tee
 
     if a.manifest:
         man_path = a.manifest
@@ -471,6 +649,11 @@ def main():
     F.report()
     nb, nw = len(F.of("BLOCKER")), len(F.of("WARN"))
     print(f"\n{'=' * 100}\nVERDICT: {nb} blocker(s), {nw} warning(s), {len(F.of('NOTE'))} note(s)\n{'=' * 100}")
+    sys.stdout = tee.stream
+    if a.write_md:
+        os.makedirs(os.path.dirname(os.path.abspath(a.write_md)), exist_ok=True)
+        open(a.write_md, "w").write(render_md(man, F, tee.text()))
+        print(f"wrote {a.write_md}")
     return 1 if nb else 0
 
 

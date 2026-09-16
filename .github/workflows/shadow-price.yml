@@ -165,6 +165,18 @@ jobs:
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/sim --message "simulation projections $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
+      # A green sim step says the run finished, not that the slate is football-sane.  This interrogates the
+      # artifact that was just published: provenance and injury vintage against the cutoff, probabilities
+      # finite and in [0,1], ladder monotonicity, the invariant that no family without a deployed weight
+      # reaches the packet's ranked disagreements, and the role checks -- including the quarterback
+      # cross-check that catches the model carrying a different starter from the one the market lists a
+      # passing ladder for.  Read-only and continue-on-error: it reports, it never blocks the cycle.
+      - name: Audit the published simulation slate
+        if: steps.sim.outcome == 'success'
+        continue-on-error: true
+        run: |
+          python3 scripts/sim/slate_audit.py --sim-root data/shadow/sim 2>&1 | tail -80
+
       # 45m, not the 30m the manual/horizon paths use. Those price a capture and build seconds later; this
       # job publishes shocks, runs system health and pushes the ledger to market-data (with backoff
       # retries) between pricing and reporting, so a 30m limit would chronically skip the 2-hourly refresh
