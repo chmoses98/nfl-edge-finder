@@ -31,7 +31,30 @@ WEIGHT_GRID = np.round(np.arange(0.0, 1.01, 0.05), 2)
 BANDS = [(0.0, 0.05), (0.05, 0.10), (0.10, 0.20), (0.20, 1.01)]
 
 
-def reconcile_distribution(football: LatticeDistribution, market_mean: float | None, w: float | None) -> tuple[LatticeDistribution, dict]:
+TD_STATS = {"any_td", "pass_td", "rush_td", "rec_td", "touchdowns", "passing_tds", "rushing_tds", "receiving_tds"}
+
+
+def _poisson_lattice(mean: float, n: int) -> LatticeDistribution:
+    k = np.arange(n)
+    lam = max(float(mean), 1e-6)
+    logp = -lam + k * np.log(lam) - np.cumsum(np.log(np.maximum(k, 1)))
+    pmf = np.exp(logp); pmf[-1] += max(0.0, 1.0 - pmf.sum())
+    return LatticeDistribution(pmf / pmf.sum(), meta={"family": "poisson", "loc": lam})
+
+
+def relocate(football: LatticeDistribution, target: float, stat: str | None = None) -> LatticeDistribution:
+    """Move a football distribution to a target mean.  Yardage and count families keep their SHAPE (support
+    scaled); touchdown families -- small integer counts whose lattice cannot be stretched without breaking
+    (a 0.0005-mean lattice scaled 40x is nonsense) -- are re-located as a Poisson at the target mean, which
+    is what the allocation step produces to a good approximation anyway."""
+    fm = football.mean()
+    if stat in TD_STATS or fm < 0.5 or target / max(fm, 1e-9) > 4.0 or target / max(fm, 1e-9) < 0.25:
+        return _poisson_lattice(target, football.n)
+    return football.shifted_to_mean(target, method="scale")
+
+
+def reconcile_distribution(football: LatticeDistribution, market_mean: float | None, w: float | None,
+                           stat: str | None = None) -> tuple[LatticeDistribution, dict]:
     """Return (reconciled distribution, attribution).  With no market mean or no weight the football
     distribution is returned untouched and the attribution says so."""
     fm = football.mean()
@@ -41,16 +64,16 @@ def reconcile_distribution(football: LatticeDistribution, market_mean: float | N
     target = market_mean + w * (fm - market_mean)
     if target <= 0:
         target = max(fm * 0.05, 0.01)
-    out = football.shifted_to_mean(target, method="scale")
+    out = relocate(football, target, stat)
     return out, {"football_mean": fm, "market_mean": float(market_mean), "final_mean": float(out.mean()), "weight": float(w),
                  "disagreement_mean": float(fm - market_mean), "status": "RECONCILED"}
 
 
 # ------------------------------------------------------------------------------------------ research
-def _survival_after_shift(dist: LatticeDistribution, target_mean: float, k: float) -> float:
+def _survival_after_shift(dist: LatticeDistribution, target_mean: float, k: float, stat: str | None = None) -> float:
     if target_mean <= 0:
         target_mean = 0.01
-    return dist.shifted_to_mean(target_mean, method="scale").survival(k)
+    return relocate(dist, target_mean, stat).survival(k)
 
 
 def score_weights(rows: pd.DataFrame, dists: dict, market: dict, weights=WEIGHT_GRID) -> pd.DataFrame:
@@ -68,7 +91,7 @@ def score_weights(rows: pd.DataFrame, dists: dict, market: dict, weights=WEIGHT_
                "market_mono": r.market_mono, "market_ident": m["identification"], "football_mean": fm, "market_mean": mm,
                "p_football": d.survival(r.k), "p_market_fit": m["_dist"].survival(r.k)}
         for w in weights:
-            rec[f"p_w{w:.2f}"] = _survival_after_shift(d, mm + w * (fm - mm), r.k)
+            rec[f"p_w{w:.2f}"] = _survival_after_shift(d, mm + w * (fm - mm), r.k, r.stat)
         recs.append(rec)
     return pd.DataFrame(recs)
 
@@ -132,6 +155,39 @@ def encompassing(scored: pd.DataFrame) -> dict:
         m = logistic_fit(X, g["y"].to_numpy(float), lam=0.01)
         b = np.asarray(m["beta"]) / np.asarray(m["sd"])   # back to the logit scale
         out[stat] = {"b_football": float(b[0]), "b_market": float(b[1]), "n": int(len(g))}
+    return out
+
+
+MIN_FIT_ROWS = 500
+MAX_CONFIRM_Z = 1.0
+
+
+def deploy_weights(fitted_all: dict, fitted_fit: dict, confirmed: dict) -> dict:
+    """The weight a family actually USES, from three pieces of evidence: the weight fitted on the early
+    weeks, its paired confirmation on the later weeks, and the weight fitted on the whole season.
+
+    A family earns a non-zero weight only if (a) the early-week fit had at least MIN_FIT_ROWS rows and
+    a non-zero optimum, (b) that weight was not worse than the market on the later weeks beyond
+    MAX_CONFIRM_Z, and (c) the deployed value is the SMALLER of the early-week and whole-season optima.
+    Anything else deploys 0 -- the football distribution is shown at the market mean and never ranked --
+    with the reason recorded."""
+    out = {}
+    for stat, allv in fitted_all.items():
+        w_all = allv["weight"]; ff = fitted_fit.get(stat); cf = confirmed.get(stat)
+        if not ff or ff["n"] < MIN_FIT_ROWS:
+            out[stat] = {"weight": 0.0, "reason": "no early-week fit with enough rows to confirm", "w_all_2025": w_all,
+                         "w_fit": ff["weight"] if ff else None, "n_fit": ff["n"] if ff else 0}
+            continue
+        if ff["weight"] <= 0.0:
+            out[stat] = {"weight": 0.0, "reason": "early-week optimum was 0", "w_all_2025": w_all, "w_fit": 0.0, "n_fit": ff["n"]}
+            continue
+        z = (cf or {}).get("z")
+        if cf is None or z is None or z > MAX_CONFIRM_Z:
+            out[stat] = {"weight": 0.0, "reason": f"later-week confirmation worse than the market (z={z})", "w_all_2025": w_all,
+                         "w_fit": ff["weight"], "n_fit": ff["n"], "confirm": cf}
+            continue
+        out[stat] = {"weight": float(min(ff["weight"], w_all)), "reason": "early-week fit confirmed on later weeks; smaller of the two optima",
+                     "w_all_2025": w_all, "w_fit": ff["weight"], "n_fit": ff["n"], "confirm": cf}
     return out
 
 

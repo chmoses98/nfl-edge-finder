@@ -11,6 +11,7 @@ import glob
 import json
 import os
 
+import numpy as np
 import pandas as pd
 import polars as pl
 
@@ -56,8 +57,9 @@ def market_ladders(rungs: pd.DataFrame, horizon: str, max_width: float = 0.20) -
     out = {}
     b, a = f"bid_{horizon}", f"ask_{horizon}"
     for key, g in rungs.groupby(["game_id", "player_id", "stat"]):
-        lad = [{"threshold": r.k, "yes_bid": getattr(r, b), "yes_ask": getattr(r, a)} for r in g.itertuples()
-               if getattr(r, b) is not None and getattr(r, a) is not None]
+        lad = [{"threshold": r["k"], "yes_bid": r[b], "yes_ask": r[a]} for r in g.to_dict("records")
+               if r[b] is not None and r[a] is not None and not (isinstance(r[b], float) and np.isnan(r[b]))
+               and not (isinstance(r[a], float) and np.isnan(r[a]))]
         if not lad:
             continue
         out[key] = market_distribution(g["kalshi_stat"].iloc[0], lad, max_width=max_width)

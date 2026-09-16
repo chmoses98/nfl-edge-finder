@@ -49,8 +49,8 @@ def main():
         rows = rungs.copy()
         b, aa = f"bid_{h}", f"ask_{h}"
         rows = rows[rows[b].notna() & rows[aa].notna() & ((rows[aa] - rows[b]) <= 0.10)]
-        rows["market_mono"] = [next((x["mid_monotone"] for x in (market.get((r.game_id, r.player_id, r.stat)) or {}).get("rungs", [])
-                                     if abs(x["k"] - r.k) < 1e-9), (getattr(r, b) + getattr(r, aa)) / 2) for r in rows.itertuples()]
+        rows["market_mono"] = [next((x["mid_monotone"] for x in (market.get((r["game_id"], r["player_id"], r["stat"])) or {}).get("rungs", [])
+                                     if abs(x["k"] - r["k"]) < 1e-9), (r[b] + r[aa]) / 2) for r in rows.to_dict("records")]
         scored = R.score_weights(rows, dists, market)
         fit = scored[(scored["week"] >= lo) & (scored["week"] <= hi)]
         conf = scored[scored["week"] > hi]
@@ -72,10 +72,15 @@ def main():
                              for k, v in fitted.items()}, indent=0))
         print(h, "confirm", json.dumps({k: {kk: (round(vv, 5) if isinstance(vv, float) else vv) for kk, vv in v.items()} for k, v in confirmed.items()}, indent=0))
     json.dump(results, open(os.path.join(OUT, "reconciliation_2025.json"), "w"), indent=1)
-    R.save_weights(os.path.join(OUT, "reconciliation_weights.json"), final_weights or {}, results["horizons"].get("T-0", {}).get("confirmed_on_later_weeks", {}),
-                   {"fitted_on": "2025 weeks 1-22 at T-0 (closing quotes); the 2026 season is the first period these weights are evaluated on",
-                    "confirmation": "weights fitted on weeks 1-9 and confirmed on weeks 10-22 are in reconciliation_2025.json",
+    t0 = results["horizons"].get("T-0", {})
+    deployed = R.deploy_weights(final_weights or {}, t0.get("fitted_on_fit_weeks", {}), t0.get("confirmed_on_later_weeks", {}))
+    R.save_weights(os.path.join(OUT, "reconciliation_weights.json"), deployed, t0.get("confirmed_on_later_weeks", {}),
+                   {"fitted_on": "2025 at T-0 (closing quotes): early-week (1-9) fit, later-week (10-22) confirmation, whole-season fit; "
+                                 "deployed = reconcile.deploy_weights of the three. The 2026 season is the first period these weights are evaluated on.",
+                    "rule": f"non-zero only if the early fit had >= {R.MIN_FIT_ROWS} rows, a non-zero optimum, and a confirmation z <= {R.MAX_CONFIRM_Z}; "
+                            "then the smaller of the early-week and whole-season optima",
                     "sim_version": "sim-1.0.0"})
+    print(json.dumps({k: (v["weight"], v["reason"]) for k, v in deployed.items()}, indent=0))
     print("wrote", os.path.join(OUT, "reconciliation_weights.json"))
 
 

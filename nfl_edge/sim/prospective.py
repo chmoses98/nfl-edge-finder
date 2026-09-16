@@ -277,7 +277,7 @@ def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dic
                         mrec = mkt.get((r.get("player_kalshi_id"), r["stat"]))
                         m_mean = mrec["_dist"].mean() if mrec and mrec.get("identification") not in (None, "NONE") else None
                         w = w_by_stat.get(st)
-                        rd, attr = R.reconcile_distribution(d, m_mean, w)
+                        rd, attr = R.reconcile_distribution(d, m_mean, w, st)
                         rec.update(p_football=pf, p_market=r.get("mid"), football_mean=d.mean(), football_sd=float(np.sqrt(d.var())),
                                    market_mean=m_mean, market_identification=(mrec or {}).get("identification"),
                                    p_active=p_active, reconcile_weight=w, final_mean=attr["final_mean"],

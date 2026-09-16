@@ -225,3 +225,10 @@ def test_projection_records_are_write_once(tmp_path):
     assert os.path.exists(p)
     with pytest.raises(FileExistsError):
         P.write_records(str(tmp_path), "20260916T010000Z", [{"ticker": "T"}], {"run_id": "20260916T010000Z"})
+
+
+def test_touchdown_relocation_is_poisson_not_a_stretched_lattice():
+    d = LatticeDistribution.from_samples(np.r_[np.zeros(9995), np.ones(5)], 6)   # football mean 0.0005
+    out, attr = R.reconcile_distribution(d, 0.046, 0.6, stat="any_td")
+    assert out.mean() == pytest.approx(0.046 + 0.6 * (d.mean() - 0.046), abs=1e-3)
+    assert 0.0 < out.survival(1) < 0.05
