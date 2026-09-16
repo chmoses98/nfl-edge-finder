@@ -1,0 +1,131 @@
+{
+ "version": "reconcile-1.0.0",
+ "meta": {
+  "fitted_on": "2025 at T-0 (closing quotes): early-week (1-9) fit, later-week (10-22) confirmation, whole-season fit; deployed = reconcile.deploy_weights of the three. The 2026 season is the first period these weights are evaluated on.",
+  "rule": "non-zero only if the early fit had >= 500 rows, a non-zero optimum, and a confirmation z <= 1.0; then the smaller of the early-week and whole-season optima",
+  "sim_version": "sim-1.0.0"
+ },
+ "fitted": {
+  "any_td": {
+   "weight": 0.6,
+   "reason": "early-week fit confirmed on later weeks; smaller of the two optima",
+   "w_all_2025": 0.7,
+   "w_fit": 0.6,
+   "n_fit": 1670,
+   "confirm": {
+    "weight": 0.6,
+    "n": 2050,
+    "games": 136,
+    "brier_reconciled": 0.15133030345290036,
+    "brier_market_mono": 0.15140078048780486,
+    "brier_football": 0.15184046982377444,
+    "diff_vs_market": -7.047703490453947e-05,
+    "se": 0.0005657018227820035,
+    "z": -0.12458336188126128
+   }
+  },
+  "pass_td": {
+   "weight": 0.0,
+   "reason": "no early-week fit with enough rows to confirm",
+   "w_all_2025": 1.0,
+   "w_fit": null,
+   "n_fit": 0
+  },
+  "pass_yards": {
+   "weight": 0.0,
+   "reason": "early-week optimum was 0",
+   "w_all_2025": 0.0,
+   "w_fit": 0.0,
+   "n_fit": 554
+  },
+  "rec_yards": {
+   "weight": 0.0,
+   "reason": "early-week optimum was 0",
+   "w_all_2025": 0.05,
+   "w_fit": 0.0,
+   "n_fit": 1395
+  },
+  "receptions": {
+   "weight": 0.0,
+   "reason": "no early-week fit with enough rows to confirm",
+   "w_all_2025": 0.15,
+   "w_fit": 0.0,
+   "n_fit": 32
+  },
+  "rush_yards": {
+   "weight": 0.05,
+   "reason": "early-week fit confirmed on later weeks; smaller of the two optima",
+   "w_all_2025": 0.05,
+   "w_fit": 0.25,
+   "n_fit": 599,
+   "confirm": {
+    "weight": 0.25,
+    "n": 2813,
+    "games": 128,
+    "brier_reconciled": 0.20662972761793044,
+    "brier_market_mono": 0.20510505144282665,
+    "brier_football": 0.21212012463845478,
+    "diff_vs_market": 0.001524676175103795,
+    "se": 0.0018116185575971658,
+    "z": 0.8416099342270175
+   }
+  }
+ },
+ "confirmed": {
+  "any_td": {
+   "weight": 0.6,
+   "n": 2050,
+   "games": 136,
+   "brier_reconciled": 0.15133030345290036,
+   "brier_market_mono": 0.15140078048780486,
+   "brier_football": 0.15184046982377444,
+   "diff_vs_market": -7.047703490453947e-05,
+   "se": 0.0005657018227820035,
+   "z": -0.12458336188126128
+  },
+  "pass_yards": {
+   "weight": 0.0,
+   "n": 2048,
+   "games": 133,
+   "brier_reconciled": 0.16484140161808755,
+   "brier_market_mono": 0.16202843913952839,
+   "brier_football": 0.17144876826081515,
+   "diff_vs_market": 0.002812962478559197,
+   "se": 0.0014108776599553385,
+   "z": 1.9937678215475052
+  },
+  "rec_yards": {
+   "weight": 0.0,
+   "n": 5439,
+   "games": 132,
+   "brier_reconciled": 0.21080255599237638,
+   "brier_market_mono": 0.20935647309204197,
+   "brier_football": 0.21448213290487253,
+   "diff_vs_market": 0.0014460829003343511,
+   "se": 0.0008957913988994188,
+   "z": 1.6143076413895332
+  },
+  "receptions": {
+   "weight": 0.0,
+   "n": 4413,
+   "games": 132,
+   "brier_reconciled": 0.18456482837527652,
+   "brier_market_mono": 0.18286182575115267,
+   "brier_football": 0.18858256351304178,
+   "diff_vs_market": 0.0017030026241238187,
+   "se": 0.001095859326149064,
+   "z": 1.5540339745141416
+  },
+  "rush_yards": {
+   "weight": 0.25,
+   "n": 2813,
+   "games": 128,
+   "brier_reconciled": 0.20662972761793044,
+   "brier_market_mono": 0.20510505144282665,
+   "brier_football": 0.21212012463845478,
+   "diff_vs_market": 0.001524676175103795,
+   "se": 0.0018116185575971658,
+   "z": 0.8416099342270175
+  }
+ }
+}
