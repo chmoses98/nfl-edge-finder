@@ -38,6 +38,16 @@ nflverse history ─► strictly-prior features ─► fitted primitives ─► 
 | efficiency | per-carry and per-target outcomes from **empirical banks** binned on the player's expected per-touch value (runner history, opponent's allowed rate, own team's rate, position, the row's margin); completions with the player's catch probability; yards-given-completion rescaled to the player's expected yards per reception | `models.fit_carry_model`, `models.fit_target_model` |
 | identities | Σ player carries = team rush attempts; Σ targets = team targets; QB passing yards = Σ receiving yards; completions = Σ receptions; TDs reconcile with the team count | `simulate.coherence_report` (every row, every game, refused on failure) |
 
+The starter's `qb_share` tail (21% of rows draw a share below 1, reaching 0.02) is the row on which he
+left the game. That remainder goes to the next quarterback on the chart, and when the team has **no**
+second available quarterback to the team's `OTHER` bucket — somebody threw those passes. Crediting them
+to nobody broke `Σ qb attempts = team pass attempts`, and it never fired in the 855-game backtest because
+historical eligibility always kept a backup; Week 2 2026 was the first slate where two teams (JAX, SEA)
+had one available quarterback, and they were the only two games to fail coherence. A coherence failure is
+now **fail-closed in production too**: the prospective path marks every row of that game
+`UNSUPPORTED_COHERENCE` rather than publishing it as `PRICED` with `coherence_ok: false` beside it, which
+is what the backtest's `raise` has always meant.
+
 The centre (expected home margin and total) is an input, never derived here: the prospective path reads
 the Kalshi-implied lines (50% crossings of the monotone spread and total ladders, falling back to the
 consensus line), the backtest uses the consensus closing line, and the market-free arm can pass the
@@ -106,6 +116,21 @@ kickoff). The handicap packet attaches these per market (`simulation`) and per g
 (`simulation.largest_reconciled_disagreements`), and `game_priority` now ignores the incumbent's raw
 disagreement entirely: only a reconciled disagreement moves the review priority, capped below the
 injury and weather signals.
+
+**Only a family with a non-zero deployed weight is ranked.** At weight 0 the reconciled *mean* is the
+market's, but the reconciled *shape* is still the football shape, so the probability at a given rung can
+sit well away from the mid — and no shape claim has been confirmed out of sample. The first live Week 2
+slate showed how large that is: zero-weight families supplied 41% of the top-15 reconciled
+disagreements, three of the four priority boosts, and rows whose *football* probability agreed with the
+market to 0.003 while their *reconciled* probability sat 0.035 away. `sim_block.game_view` now ranks
+only `reconcile_weight > 0` and lists the rest under `unranked_zero_weight_disagreements`, which is
+reported and carries no authority.
+
+`scripts/sim/slate_audit.py` audits a published slate: provenance and injury vintage, probabilities
+finite and in [0,1], ladder monotonicity, the zero-weight invariants above, role and availability
+anomalies, and — with `--reconstruct` — the team-level football (plays, pass/rush split, dropbacks, team
+rush attempts and targets) from a re-run at the manifest's own cutoff, verified against the published
+football means first. It exits non-zero on a blocker, so it can gate a publication step.
 
 ## Evidence
 

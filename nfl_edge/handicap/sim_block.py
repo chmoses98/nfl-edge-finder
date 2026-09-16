@@ -59,6 +59,11 @@ def market_view(row: dict | None) -> dict | None:
             "reconciled_disagreement_vs_mid": (round(row["p_reconciled"] - row["mid"], 5)
                                                if row.get("p_reconciled") is not None and row.get("mid") is not None else None),
             "football_disagreement_vs_mid": row.get("football_disagreement_vs_mid"),
+            # at weight 0 the reconciled MEAN is the market's, so whatever gap is left at this rung is the
+            # football SHAPE, which has never been confirmed out of sample.  Say so on the row itself.
+            "reconciled_disagreement_is_shape_only": (row.get("p_reconciled") is not None
+                                                      and not (row.get("reconcile_weight") or 0) > 0),
+            "ranked": bool((row.get("reconcile_weight") or 0) > 0),
             "center_source": row.get("center_source"), "label": "DISAGREEMENT ONLY -- REQUIRES HANDICAP"}
 
 
@@ -69,7 +74,18 @@ def game_view(game_rows: list, manifest: dict | None) -> dict:
     for r in game_rows:
         counts[r.get("support_state")] = counts.get(r.get("support_state"), 0) + 1
     priced = [r for r in game_rows if r.get("support_state") in PRICED_STATES and r.get("p_reconciled") is not None and r.get("mid") is not None]
-    ranked = sorted(priced, key=lambda r: -abs(r["p_reconciled"] - r["mid"]))
+    # ONLY a family that earned a non-zero deployed weight may be ranked.  At weight 0 the mean is the
+    # market's, so the only thing left that can move p_reconciled away from the mid is the SHAPE
+    # substitution -- and no shape claim has ever been confirmed out of sample (RECONCILIATION.md carries
+    # it as an untested caveat).  Ranking that gap presents an unearned disagreement as the model's view:
+    # on the first live Week 2 slate it put zero-weight families in 41% of the top-15 lists and supplied
+    # three of the four reconciled-disagreement priority boosts, with rows whose FOOTBALL probability
+    # agreed with the market to 0.003 showing a 0.035 "reconciled disagreement".
+    rankable = [r for r in priced if (r.get("reconcile_weight") or 0) > 0]
+    ranked = sorted(rankable, key=lambda r: -abs(r["p_reconciled"] - r["mid"]))
+    # reported, never ranked -- the information is kept, it just carries no authority
+    unranked = sorted((r for r in priced if not (r.get("reconcile_weight") or 0) > 0),
+                      key=lambda r: -abs(r["p_reconciled"] - r["mid"]))
     centre = None
     if game_rows:
         r0 = game_rows[0]
@@ -96,6 +112,16 @@ def game_view(game_rows: list, manifest: dict | None) -> dict:
                  "reconcile_weight": r.get("reconcile_weight"), "disagreement_vs_mid": round(r["p_reconciled"] - r["mid"], 5),
                  "football_mean": r.get("football_mean"), "market_mean": r.get("market_mean"), "final_mean": r.get("final_mean"),
                  "label": "DISAGREEMENT ONLY -- REQUIRES HANDICAP"} for r in ranked[:15]],
+            "unranked_zero_weight_disagreements": [
+                {"ticker": r["ticker"], "stat": r.get("stat"), "threshold": r.get("threshold"), "player_id": r.get("player_id"),
+                 "mid": r.get("mid"), "p_football": r.get("p_football"), "p_reconciled": r.get("p_reconciled"),
+                 "reconcile_weight": r.get("reconcile_weight"), "disagreement_vs_mid": round(r["p_reconciled"] - r["mid"], 5),
+                 "label": "NOT RANKED -- this family earned no weight; the gap is the untested shape substitution"}
+                for r in unranked[:15]],
+            "ranking_basis": ("Only families with a non-zero DEPLOYED reconciliation weight are ranked. At weight 0 the "
+                              "reconciled mean IS the market mean, so any remaining gap against the mid comes from the "
+                              "football shape, which has never been confirmed out of sample; those rows are listed "
+                              "under unranked_zero_weight_disagreements and carry no authority."),
             "note": ("The simulation's football-only probability is shown for every priced market; only the RECONCILED "
                      "probability -- the football distribution shrunk toward the market by a weight fitted out of sample "
                      "on the 2025 archive -- is ranked, and only where such a weight exists.")}

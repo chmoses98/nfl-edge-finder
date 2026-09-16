@@ -347,13 +347,22 @@ def _simulate_players(rng, ti: TeamInput, T: dict, bundle: dict, res: SimResult,
         qb["completions"] = np.minimum(np.round(share * team_receptions).astype(np.int64), qb["attempts"])
         qb["pass_yards"] = np.round(share * team_rec_yards); qb["pass_td"] = rng.binomial(T["pass_td"], share)
         qb["starter_share"] = share
-        # the remainder goes to the next quarterback on the chart, if he is in the eligible set
+        # The remainder goes to the next quarterback on the chart; when the team has NO second available
+        # quarterback it goes to the OTHER bucket, because somebody threw those passes.  Crediting them to
+        # nobody breaks sum(qb attempts) == team pass attempts on exactly the rows where the fitted share
+        # tail says the starter left the game -- 21% of rows draw a share below 1 and the tail reaches
+        # 0.02, so on a single-quarterback team up to the whole team's passing game went uncredited.  It
+        # never fired in the 855-game backtest (historical eligibility always kept a backup) and first
+        # appeared in production on Week 2 2026, where JAX and SEA were the only two teams with one
+        # available quarterback and the only two games to fail coherence.
         others = [j for j, pid in enumerate(ids[:m]) if P.loc[j, "position"] == "QB" and j != qb_idx]
         if others:
             j2 = min(others, key=lambda j: (P.loc[j, "dc_rank"] if np.isfinite(P.loc[j, "dc_rank"]) else 99))
             q2 = res.player[ids[j2]]
-            q2["attempts"] = T["pass_att"] - qb["attempts"]; q2["completions"] = team_receptions - qb["completions"]
-            q2["pass_yards"] = team_rec_yards - qb["pass_yards"]; q2["pass_td"] = T["pass_td"] - qb["pass_td"]
+        else:
+            q2 = res.player[f"OTHER:{ti.team}"]
+        q2["attempts"] = T["pass_att"] - qb["attempts"]; q2["completions"] = team_receptions - qb["completions"]
+        q2["pass_yards"] = team_rec_yards - qb["pass_yards"]; q2["pass_td"] = T["pass_td"] - qb["pass_td"]
     # touchdown allocation
     td = bundle["td"]
     gam_r, gam_p = td["rush"]["gamma"], td["pass"]["gamma"]
