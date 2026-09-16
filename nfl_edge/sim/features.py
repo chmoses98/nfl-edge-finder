@@ -29,6 +29,17 @@ RAW = D.RAW
 SKILL = ("QB", "RB", "WR", "TE", "FB")
 
 
+def _pandas(df: "pl.DataFrame", columns: list[str]) -> pd.DataFrame:
+    """polars -> pandas WITHOUT pyarrow.
+
+    ``DataFrame.to_pandas()`` goes through Arrow, and this repository's dependency contract deliberately
+    does not declare pyarrow (`requirements-test.txt` is derived by walking the import graph, and nothing
+    imports it by name).  The CI runner therefore has no pyarrow, so any code path a test can reach must
+    not need it.  ``to_dicts()`` is pure polars.  An empty frame still comes back with its columns."""
+    rows = df.to_dicts()
+    return pd.DataFrame(rows, columns=columns) if not rows else pd.DataFrame(rows)[columns]
+
+
 @dataclass(frozen=True)
 class FeatureConfig:
     player_halflife_short: float = 3.0     # games; recent role
@@ -333,8 +344,9 @@ def depth_chart(season: int, week: int | None = None, cutoff: datetime | None = 
             return pd.DataFrame(columns=["team", "player_id", "dc_pos", "dc_rank", "dc_vintage"])
         latest = vint[-1]
         sub = d.filter((pl.col("dt") == latest) & pl.col("pos_abb").is_in(list(SKILL)) & pl.col("gsis_id").is_not_null())
-        out = sub.select([pl.col("team"), pl.col("gsis_id").alias("player_id"), pl.col("pos_abb").alias("dc_pos"),
-                          pl.col("pos_rank").cast(pl.Int32).alias("dc_rank")]).to_pandas()
+        out = _pandas(sub.select([pl.col("team"), pl.col("gsis_id").alias("player_id"), pl.col("pos_abb").alias("dc_pos"),
+                                  pl.col("pos_rank").cast(pl.Int32).alias("dc_rank")]),
+                      ["team", "player_id", "dc_pos", "dc_rank"])
         out = out.sort_values("dc_rank").drop_duplicates(["team", "player_id"])
         out["dc_vintage"] = latest
         return out
@@ -342,8 +354,9 @@ def depth_chart(season: int, week: int | None = None, cutoff: datetime | None = 
         raise ValueError("weekly depth charts need a week")
     sub = d.filter((pl.col("week") == week) & (pl.col("game_type") == "REG") & pl.col("gsis_id").is_not_null()
                    & pl.col("position").is_in(list(SKILL)) & (pl.col("formation") == "Offense"))
-    out = sub.select([pl.col("club_code").replace(D.TEAM_FIX).alias("team"), pl.col("gsis_id").alias("player_id"),
-                      pl.col("position").alias("dc_pos"), pl.col("depth_team").cast(pl.Int32).alias("dc_rank")]).to_pandas()
+    out = _pandas(sub.select([pl.col("club_code").replace(D.TEAM_FIX).alias("team"), pl.col("gsis_id").alias("player_id"),
+                              pl.col("position").alias("dc_pos"), pl.col("depth_team").cast(pl.Int32).alias("dc_rank")]),
+                  ["team", "player_id", "dc_pos", "dc_rank"])
     out = out.sort_values("dc_rank").drop_duplicates(["team", "player_id"])
     out["dc_vintage"] = f"{season}-W{week:02d}"
     return out
@@ -357,7 +370,9 @@ def weekly_roster(season: int, week: int) -> pd.DataFrame:
     r = pl.read_parquet(p, columns=["season", "team", "position", "gsis_id", "status", "week", "game_type", "full_name"])
     r = r.filter((pl.col("week") == week) & pl.col("gsis_id").is_not_null())
     r = r.with_columns(pl.col("team").replace(D.TEAM_FIX).alias("team"))
-    out = r.select(["team", pl.col("gsis_id").alias("player_id"), "position", "status", pl.col("full_name").alias("player_name")]).to_pandas()
+    out = _pandas(r.select(["team", pl.col("gsis_id").alias("player_id"), "position", "status",
+                            pl.col("full_name").alias("player_name")]),
+                  ["team", "player_id", "position", "status", "player_name"])
     return out.drop_duplicates(["team", "player_id"])
 
 
@@ -372,7 +387,8 @@ def injury_designations(season: int, week: int, root: str | None = None) -> pd.D
     i = pl.read_parquet(p).filter((pl.col("week") == week) & pl.col("gsis_id").is_not_null())
     if "game_type" in i.columns:
         i = i.filter(pl.col("game_type") == "REG") if season < 2025 or i.filter(pl.col("game_type") == "REG").height else i
-    out = i.select([pl.col("gsis_id").alias("player_id"), "report_status", "practice_status"]).to_pandas()
+    cols = ["player_id", "report_status", "practice_status"]
+    out = _pandas(i.select([pl.col("gsis_id").alias("player_id"), "report_status", "practice_status"]), cols)
     return out.drop_duplicates("player_id")
 
 
