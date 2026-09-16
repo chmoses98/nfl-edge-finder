@@ -15,6 +15,7 @@ Free-data NFL analytics, projection, and Kalshi market-pricing research platform
 | Game-model study vs closing line | `research/game_model/RESULTS.md` | no edge vs close (documented) |
 | Ladder calibration from the line, day-1 microstructure, quick effects, role features, player distribution families | `research/*/RESULTS.md` | see hypothesis registry |
 | Pricing primitives (ladder semantics, monotonicity checks) | `nfl_edge/pricing/ladder.py` | tested |
+| Coherent game-simulation projection layer (shadow): script-conditional volume, opportunity over the point-in-time eligible set, opponent-adjusted efficiency, one distribution per ladder, out-of-sample reconciliation weights | `nfl_edge/sim/`, `scripts/sim/`, `docs/SIMULATION_ENGINE.md`, `research/simulation_engine/` | walk-forward 2023–2025; prospective from Week 2 2026 |
 
 ## Run
 ```

@@ -1,0 +1,19 @@
+{
+ "version": "role-floor-1.0.0",
+ "fitted_on": "2025 weeks 1-9, confirmed on 10+",
+ "rule": "the boolean existence of a Kalshi ladder only; no price, midpoint, bid or ask is read",
+ "floors": {
+  "target": {
+   "quantile": 0.2,
+   "floor": {
+    "QB|dc1-2": 0.0,
+    "RB|dc1-2": 0.03225806451612903,
+    "TE|dc1-2": 0.041333333333333326,
+    "WR|dc1-2": 0.14285714285714285,
+    "WR|dc3+": 0.03125
+   }
+  }
+ },
+ "deployed_in_simulator": false,
+ "finding": "The listing signal is REAL in the raw data -- a WR at depth-chart rank 3+ with a Kalshi ladder averaged 2.95 targets against 1.17 for one without, and an RB 3.1 carries against 1.6 -- but the fitted share model already absorbs it through snap share and recent usage: its confirmation-week bias on listed rank-3+ players is only -0.14 targets and +0.06 carries on 544 rows, so it is not assigning them near-zero opportunity. The floor that passed the declared rule for targets changes confirmation-week count MAE by 0.3% (1.462 -> 1.459), which is immaterial, so it is NOT wired into the simulator. The Week-1 mechanism is different and remains untested: in week 1 there is no current-season history at all, every player falls back to the depth-rank cell prior, and the depth chart is the thing that was wrong. The population that isolates it (listed, <=2 prior games) is n=31 in the 2025 confirmation weeks -- unmeasurable. Testing it needs the opening weeks of several seasons and is registered as remaining work."
+}

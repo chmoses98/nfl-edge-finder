@@ -31,6 +31,8 @@ import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
+from nfl_edge.handicap.sim_block import game_view as _sim_game_view, load_latest as _sim_load_latest, market_view as _sim_market_view
+
 PACKET_SCHEMA_VERSION = "1.0.0"
 
 # Movement horizons, in minutes before kickoff. Reported only where an observation exists.
@@ -914,15 +916,18 @@ def _health_flags(game_rows: list, weather: dict, injuries: dict, now, kickoff) 
     return flags
 
 
-def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, now, implied):
+def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, now, implied, sim_rows=None,
+               sim_manifest=None):
     home = next((r.get("home_team") for r in rows if r.get("home_team")), None)
     away = next((r.get("away_team") for r in rows if r.get("away_team")), None)
     kickoff = _iso(next((r.get("kickoff_utc") for r in rows if r.get("kickoff_utc")), None))
     teams = {t for t in (home, away) if t}
 
     markets = [market_row(r) for r in rows]
+    sim_rows = sim_rows or {}
     for m, r in zip(markets, rows):
         m["movement"] = movement_for(m["ticker"], movement, kickoff, now) if movement else None
+        m["simulation"] = _sim_market_view(sim_rows.get(m["ticker"]))
 
     weather = weather_state(context_runs, game_id)
     inj_all = injury_state(context_runs, teams)
@@ -1015,6 +1020,7 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
         "matchup": matchup_advantages(profiles, home, away),
         "players": player_projection_blocks(rows, implied, game_id),
         "markets": markets,
+        "simulation": _sim_game_view([sim_rows[m["ticker"]] for m in markets if m["ticker"] in sim_rows], sim_manifest),
         "largest_disagreements": [
             {k: m.get(k) for k in ("ticker", "family", "stat", "player_name", "threshold", "mid",
                                    "yes_ask", "no_ask", "model_probability", "disagreement_vs_mid",
@@ -1116,12 +1122,14 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
     tickers = {r["ticker"] for r in slate}
     movement, n_move_files = load_movement(md_root, tickers, max_files=movement_files)
 
+    sim_rows, sim_manifest = _sim_load_latest((md_root, root), at_or_before=now)
     games = []
     for gid in sorted(by_game, key=lambda g: (
             _iso(next((r.get("kickoff_utc") for r in by_game[g] if r.get("kickoff_utc")), None))
             or datetime.max.replace(tzinfo=timezone.utc), g)):
         games.append(build_game(gid, by_game[gid], profiles=profiles, qb_profiles=qb_profiles,
-                                context_runs=context_runs, movement=movement, now=now, implied=implied))
+                                context_runs=context_runs, movement=movement, now=now, implied=implied,
+                                sim_rows=sim_rows, sim_manifest=sim_manifest))
 
     packet = {
         "schema_version": PACKET_SCHEMA_VERSION,
@@ -1137,6 +1145,9 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
             "capture_files_scanned_for_movement": n_move_files,
             "team_profile_basis": (profiles.get("_meta") or {}).get("basis"),
             "qb_profile_basis": (qb_profiles.get("_meta") or {}).get("basis_season"),
+            "simulation": ({k: v for k, v in sim_manifest.items() if k in ("run_id", "sim_version", "generated_at", "cutoff",
+                                                                          "market_observed_at", "bundle_train_seasons", "weights", "sources")}
+                           if sim_manifest else None),
         },
         "real_money_status": "NOT VALIDATED -- this packet recommends nothing and authorises nothing",
         "slate_summary": slate_summary(games, rows, manifest),
@@ -1216,10 +1227,20 @@ def game_priority(games: list) -> list:
             mx = abs(g["largest_moves"][0]["move"])
             if mx >= 0.03:
                 score += min(4.0, mx * 40); reasons.append(f"largest market move {mx:.3f}")
+        # The incumbent's raw disagreement used to add up to 4 points here.  Week 1 2026 and the 2025 archive both
+        # showed the largest raw disagreements were the WORST-scoring contracts (research/simulation_engine/RESULTS.md,
+        # research/model_vs_market/RESULTS.md), so raw disagreement no longer moves the priority at all.  Only the
+        # simulation's RECONCILED disagreement -- shrunk toward the market by a weight fitted out of sample -- does,
+        # and it is capped below the injury and weather signals.
+        rd = ((g.get("simulation") or {}).get("largest_reconciled_disagreements") or [])
+        if rd:
+            md = abs(rd[0].get("disagreement_vs_mid") or 0)
+            if md >= 0.05:
+                score += min(2.0, md * 10); reasons.append(f"largest reconciled simulation disagreement {md:.3f}")
         if g["largest_disagreements"]:
             md = abs(g["largest_disagreements"][0].get("disagreement_vs_mid") or 0)
-            if md >= 0.05:
-                score += min(4.0, md * 20); reasons.append(f"largest model disagreement {md:.3f}")
+            if md >= 0.20:
+                reasons.append(f"raw incumbent disagreement {md:.3f} (NOT scored: unvalidated)")
         nprops = sum(1 for m in g["markets"] if m["family"] in PLAYER_FAMILIES and m["support_state"] == "SUPPORTED")
         if nprops >= 40:
             score += 1.5; reasons.append(f"{nprops} supported player-prop rungs")

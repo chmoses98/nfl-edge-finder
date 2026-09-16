@@ -1,0 +1,949 @@
+{
+ "arms": [
+  "baseline",
+  "ol",
+  "front",
+  "runner",
+  "context",
+  "combined"
+ ],
+ "history_start": 2018,
+ "by_season": {
+  "2023": {
+   "baseline": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n"
+    ],
+    "n_features": 10,
+    "per_carry": {
+     "n": 13764,
+     "mae": 3.672522843392191,
+     "rmse": 5.897519899217619,
+     "r2": 0.008851048682974483
+    },
+    "per_player_game": {
+     "n": 877,
+     "mae": 15.695718431436493,
+     "rmse": 21.186297714836115,
+     "bias": 1.1739455022918335
+    },
+    "coef": {
+     "rt_ypc": 0.2354,
+     "prior_ypc": 0.1267,
+     "def_ypc": 0.1409,
+     "off_ypc": 0.0257,
+     "rt_explosive_rate": 0.0975,
+     "is_qb": -0.1658,
+     "is_wr": 0.0221,
+     "team_margin": 0.2236,
+     "home": -0.0042,
+     "rt_ypc_n": 0.0685
+    }
+   },
+   "ol": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "off_ybc_att",
+     "ol_continuity",
+     "ol_out",
+     "off_stuff_rate"
+    ],
+    "n_features": 14,
+    "per_carry": {
+     "n": 13764,
+     "mae": 3.6692991124060286,
+     "rmse": 5.896649622890513,
+     "r2": 0.009143547848805555
+    },
+    "per_player_game": {
+     "n": 877,
+     "mae": 15.634543976894582,
+     "rmse": 21.168962357447196,
+     "bias": 1.0500491504099918
+    },
+    "coef": {
+     "rt_ypc": 0.2339,
+     "prior_ypc": 0.1238,
+     "def_ypc": 0.1407,
+     "off_ypc": 0.0301,
+     "rt_explosive_rate": 0.1024,
+     "is_qb": -0.1688,
+     "is_wr": 0.0235,
+     "team_margin": 0.2258,
+     "home": -0.0046,
+     "rt_ypc_n": 0.0712,
+     "off_ybc_att": -0.0075,
+     "ol_continuity": -0.0457,
+     "ol_out": -0.0133,
+     "off_stuff_rate": 0.0028
+    }
+   },
+   "front": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "def_ybc_att_adj",
+     "def_stuff_rate_adj",
+     "def_rush_epa_att_adj",
+     "def_exp10_rate"
+    ],
+    "n_features": 14,
+    "per_carry": {
+     "n": 13764,
+     "mae": 3.675089132244241,
+     "rmse": 5.897270805035981,
+     "r2": 0.00893477344429161
+    },
+    "per_player_game": {
+     "n": 877,
+     "mae": 15.689671651637326,
+     "rmse": 21.163256670369798,
+     "bias": 1.3376040882234388
+    },
+    "coef": {
+     "rt_ypc": 0.2418,
+     "prior_ypc": 0.1292,
+     "def_ypc": 0.1418,
+     "off_ypc": 0.0176,
+     "rt_explosive_rate": 0.0875,
+     "is_qb": -0.1591,
+     "is_wr": 0.0229,
+     "team_margin": 0.2232,
+     "home": -0.0036,
+     "rt_ypc_n": 0.0688,
+     "def_ybc_att_adj": -0.005,
+     "def_stuff_rate_adj": -0.0412,
+     "def_rush_epa_att_adj": 0.0326,
+     "def_exp10_rate": -0.0522
+    }
+   },
+   "runner": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "rt_ybc_att",
+     "rt_yac_att",
+     "rt_stuff_rate",
+     "rt_broken_att"
+    ],
+    "n_features": 14,
+    "per_carry": {
+     "n": 13764,
+     "mae": 3.671027407950065,
+     "rmse": 5.897910090713083,
+     "r2": 0.008719891623119147
+    },
+    "per_player_game": {
+     "n": 877,
+     "mae": 15.672170964211768,
+     "rmse": 21.191756829652483,
+     "bias": 1.0669546244354378
+    },
+    "coef": {
+     "rt_ypc": 0.4125,
+     "prior_ypc": 0.1108,
+     "def_ypc": 0.142,
+     "off_ypc": 0.0323,
+     "rt_explosive_rate": 0.0237,
+     "is_qb": -0.0804,
+     "is_wr": 0.0308,
+     "team_margin": 0.2287,
+     "home": -0.0033,
+     "rt_ypc_n": 0.0693,
+     "rt_ybc_att": -0.1158,
+     "rt_yac_att": -0.0765,
+     "rt_stuff_rate": 0.1028,
+     "rt_broken_att": 0.0291
+    }
+   },
+   "context": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "off_qb_rush_share",
+     "indoor"
+    ],
+    "n_features": 12,
+    "per_carry": {
+     "n": 13764,
+     "mae": 3.6797141049247744,
+     "rmse": 5.899089407256324,
+     "r2": 0.008323429184795672
+    },
+    "per_player_game": {
+     "n": 877,
+     "mae": 15.85935306933233,
+     "rmse": 21.304385474479375,
+     "bias": 1.5486376329812512
+    },
+    "coef": {
+     "rt_ypc": 0.2315,
+     "prior_ypc": 0.1086,
+     "def_ypc": 0.1389,
+     "off_ypc": -0.0317,
+     "rt_explosive_rate": 0.1265,
+     "is_qb": -0.2001,
+     "is_wr": 0.0245,
+     "team_margin": 0.2154,
+     "home": -0.0039,
+     "rt_ypc_n": 0.0765,
+     "off_qb_rush_share": 0.1388,
+     "indoor": 0.0063
+    }
+   },
+   "combined": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "off_ybc_att",
+     "ol_continuity",
+     "ol_out",
+     "off_stuff_rate",
+     "def_ybc_att_adj",
+     "def_stuff_rate_adj",
+     "def_rush_epa_att_adj",
+     "def_exp10_rate",
+     "rt_ybc_att",
+     "rt_yac_att",
+     "rt_stuff_rate",
+     "rt_broken_att",
+     "off_qb_rush_share",
+     "indoor"
+    ],
+    "n_features": 24,
+    "per_carry": {
+     "n": 13764,
+     "mae": 3.6695767299430098,
+     "rmse": 5.898481318345872,
+     "r2": 0.008527866311697663
+    },
+    "per_player_game": {
+     "n": 877,
+     "mae": 15.808652688828142,
+     "rmse": 21.28089113398681,
+     "bias": 1.1198016078068447
+    },
+    "coef": {
+     "rt_ypc": 0.4091,
+     "prior_ypc": 0.0956,
+     "def_ypc": 0.1425,
+     "off_ypc": -0.0178,
+     "rt_explosive_rate": 0.0272,
+     "is_qb": -0.1005,
+     "is_wr": 0.0186,
+     "team_margin": 0.2206,
+     "home": -0.0026,
+     "rt_ypc_n": 0.0763,
+     "off_ybc_att": -0.0805,
+     "ol_continuity": -0.0144,
+     "ol_out": -0.0092,
+     "off_stuff_rate": -0.053,
+     "def_ybc_att_adj": 0.0248,
+     "def_stuff_rate_adj": -0.0602,
+     "def_rush_epa_att_adj": 0.0556,
+     "def_exp10_rate": -0.0804,
+     "rt_ybc_att": -0.0733,
+     "rt_yac_att": -0.0604,
+     "rt_stuff_rate": 0.1523,
+     "rt_broken_att": 0.0228,
+     "off_qb_rush_share": 0.182,
+     "indoor": 0.0068
+    }
+   }
+  },
+  "2024": {
+   "baseline": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n"
+    ],
+    "n_features": 10,
+    "per_carry": {
+     "n": 13898,
+     "mae": 3.771143806056503,
+     "rmse": 6.275620058237426,
+     "r2": 0.005836421382570678
+    },
+    "per_player_game": {
+     "n": 867,
+     "mae": 16.596329442644965,
+     "rmse": 22.602978654486495,
+     "bias": -1.1086741876466706
+    },
+    "coef": {
+     "rt_ypc": 0.2691,
+     "prior_ypc": 0.1215,
+     "def_ypc": 0.1343,
+     "off_ypc": 0.0231,
+     "rt_explosive_rate": 0.0928,
+     "is_qb": -0.1925,
+     "is_wr": 0.0082,
+     "team_margin": 0.2209,
+     "home": 0.0103,
+     "rt_ypc_n": 0.0467
+    }
+   },
+   "ol": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "off_ybc_att",
+     "ol_continuity",
+     "ol_out",
+     "off_stuff_rate"
+    ],
+    "n_features": 14,
+    "per_carry": {
+     "n": 13898,
+     "mae": 3.768309137407158,
+     "rmse": 6.275835928400984,
+     "r2": 0.005768025289934919
+    },
+    "per_player_game": {
+     "n": 867,
+     "mae": 16.570566323366588,
+     "rmse": 22.620427078435906,
+     "bias": -1.2353845838126054
+    },
+    "coef": {
+     "rt_ypc": 0.2691,
+     "prior_ypc": 0.1219,
+     "def_ypc": 0.1328,
+     "off_ypc": 0.0505,
+     "rt_explosive_rate": 0.0908,
+     "is_qb": -0.1912,
+     "is_wr": 0.011,
+     "team_margin": 0.2256,
+     "home": 0.0097,
+     "rt_ypc_n": 0.0513,
+     "off_ybc_att": -0.0362,
+     "ol_continuity": -0.059,
+     "ol_out": -0.0145,
+     "off_stuff_rate": 0.0097
+    }
+   },
+   "front": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "def_ybc_att_adj",
+     "def_stuff_rate_adj",
+     "def_rush_epa_att_adj",
+     "def_exp10_rate"
+    ],
+    "n_features": 14,
+    "per_carry": {
+     "n": 13898,
+     "mae": 3.7697417698852274,
+     "rmse": 6.276199089144398,
+     "r2": 0.005652956485078686
+    },
+    "per_player_game": {
+     "n": 867,
+     "mae": 16.644012013014795,
+     "rmse": 22.637010894042938,
+     "bias": -1.187826114869874
+    },
+    "coef": {
+     "rt_ypc": 0.272,
+     "prior_ypc": 0.124,
+     "def_ypc": 0.1347,
+     "off_ypc": 0.0158,
+     "rt_explosive_rate": 0.0872,
+     "is_qb": -0.1873,
+     "is_wr": 0.0079,
+     "team_margin": 0.2211,
+     "home": 0.0108,
+     "rt_ypc_n": 0.0459,
+     "def_ybc_att_adj": 0.0048,
+     "def_stuff_rate_adj": -0.0483,
+     "def_rush_epa_att_adj": 0.0205,
+     "def_exp10_rate": -0.0465
+    }
+   },
+   "runner": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "rt_ybc_att",
+     "rt_yac_att",
+     "rt_stuff_rate",
+     "rt_broken_att"
+    ],
+    "n_features": 14,
+    "per_carry": {
+     "n": 13898,
+     "mae": 3.7708674708331453,
+     "rmse": 6.274737447401388,
+     "r2": 0.006116042467228855
+    },
+    "per_player_game": {
+     "n": 867,
+     "mae": 16.589829116574368,
+     "rmse": 22.59127341810935,
+     "bias": -1.0905511364964797
+    },
+    "coef": {
+     "rt_ypc": 0.4197,
+     "prior_ypc": 0.1169,
+     "def_ypc": 0.1346,
+     "off_ypc": 0.0276,
+     "rt_explosive_rate": 0.0336,
+     "is_qb": -0.1089,
+     "is_wr": 0.0102,
+     "team_margin": 0.2253,
+     "home": 0.0106,
+     "rt_ypc_n": 0.0464,
+     "rt_ybc_att": -0.1104,
+     "rt_yac_att": -0.0577,
+     "rt_stuff_rate": 0.0865,
+     "rt_broken_att": 0.0308
+    }
+   },
+   "context": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "off_qb_rush_share",
+     "indoor"
+    ],
+    "n_features": 12,
+    "per_carry": {
+     "n": 13898,
+     "mae": 3.7748968072585196,
+     "rmse": 6.274366781028642,
+     "r2": 0.0062334620352549885
+    },
+    "per_player_game": {
+     "n": 867,
+     "mae": 16.566777789812935,
+     "rmse": 22.480067934822845,
+     "bias": -0.9205299568283631
+    },
+    "coef": {
+     "rt_ypc": 0.2655,
+     "prior_ypc": 0.109,
+     "def_ypc": 0.1341,
+     "off_ypc": -0.0198,
+     "rt_explosive_rate": 0.1155,
+     "is_qb": -0.2205,
+     "is_wr": 0.0088,
+     "team_margin": 0.2149,
+     "home": 0.0103,
+     "rt_ypc_n": 0.052,
+     "off_qb_rush_share": 0.1125,
+     "indoor": 0.0047
+    }
+   },
+   "combined": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "off_ybc_att",
+     "ol_continuity",
+     "ol_out",
+     "off_stuff_rate",
+     "def_ybc_att_adj",
+     "def_stuff_rate_adj",
+     "def_rush_epa_att_adj",
+     "def_exp10_rate",
+     "rt_ybc_att",
+     "rt_yac_att",
+     "rt_stuff_rate",
+     "rt_broken_att",
+     "off_qb_rush_share",
+     "indoor"
+    ],
+    "n_features": 24,
+    "per_carry": {
+     "n": 13898,
+     "mae": 3.768444546716471,
+     "rmse": 6.273694999032138,
+     "r2": 0.006446251230827982
+    },
+    "per_player_game": {
+     "n": 867,
+     "mae": 16.602840459582534,
+     "rmse": 22.494245596300253,
+     "bias": -1.1482105568805128
+    },
+    "coef": {
+     "rt_ypc": 0.4199,
+     "prior_ypc": 0.1172,
+     "def_ypc": 0.134,
+     "off_ypc": 0.0322,
+     "rt_explosive_rate": 0.0319,
+     "is_qb": -0.1457,
+     "is_wr": -0.0163,
+     "team_margin": 0.222,
+     "home": 0.011,
+     "rt_ypc_n": 0.0539,
+     "off_ybc_att": -0.1205,
+     "ol_continuity": -0.0351,
+     "ol_out": -0.0144,
+     "off_stuff_rate": -0.0321,
+     "def_ybc_att_adj": 0.0403,
+     "def_stuff_rate_adj": -0.0596,
+     "def_rush_epa_att_adj": 0.0382,
+     "def_exp10_rate": -0.0841,
+     "rt_ybc_att": -0.0655,
+     "rt_yac_att": -0.0691,
+     "rt_stuff_rate": 0.122,
+     "rt_broken_att": 0.0256,
+     "off_qb_rush_share": 0.158,
+     "indoor": 0.0041
+    }
+   }
+  },
+  "2025": {
+   "baseline": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n"
+    ],
+    "n_features": 10,
+    "per_carry": {
+     "n": 13402,
+     "mae": 3.6790461676073427,
+     "rmse": 6.182307785495924,
+     "r2": 0.006212110095153767
+    },
+    "per_player_game": {
+     "n": 838,
+     "mae": 17.444508845153326,
+     "rmse": 24.18822852106096,
+     "bias": -0.07025734350790092
+    },
+    "coef": {
+     "rt_ypc": 0.2873,
+     "prior_ypc": 0.111,
+     "def_ypc": 0.1241,
+     "off_ypc": 0.0338,
+     "rt_explosive_rate": 0.0488,
+     "is_qb": -0.1987,
+     "is_wr": 0.0219,
+     "team_margin": 0.2265,
+     "home": -0.0031,
+     "rt_ypc_n": 0.0561
+    }
+   },
+   "ol": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "off_ybc_att",
+     "ol_continuity",
+     "ol_out",
+     "off_stuff_rate"
+    ],
+    "n_features": 14,
+    "per_carry": {
+     "n": 13402,
+     "mae": 3.6777756896641978,
+     "rmse": 6.182989059270089,
+     "r2": 0.005993072494938856
+    },
+    "per_player_game": {
+     "n": 838,
+     "mae": 17.432317027387988,
+     "rmse": 24.221264291442825,
+     "bias": -0.1616717609645467
+    },
+    "coef": {
+     "rt_ypc": 0.2879,
+     "prior_ypc": 0.1112,
+     "def_ypc": 0.1229,
+     "off_ypc": 0.057,
+     "rt_explosive_rate": 0.0459,
+     "is_qb": -0.1972,
+     "is_wr": 0.0251,
+     "team_margin": 0.2314,
+     "home": -0.0038,
+     "rt_ypc_n": 0.0604,
+     "off_ybc_att": -0.0248,
+     "ol_continuity": -0.0532,
+     "ol_out": -0.0132,
+     "off_stuff_rate": 0.0151
+    }
+   },
+   "front": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "def_ybc_att_adj",
+     "def_stuff_rate_adj",
+     "def_rush_epa_att_adj",
+     "def_exp10_rate"
+    ],
+    "n_features": 14,
+    "per_carry": {
+     "n": 13402,
+     "mae": 3.682819156245477,
+     "rmse": 6.182902386133229,
+     "r2": 0.006020940276618703
+    },
+    "per_player_game": {
+     "n": 838,
+     "mae": 17.495023637668595,
+     "rmse": 24.214987822291874,
+     "bias": 0.11406175846250032
+    },
+    "coef": {
+     "rt_ypc": 0.2878,
+     "prior_ypc": 0.1121,
+     "def_ypc": 0.1239,
+     "off_ypc": 0.0286,
+     "rt_explosive_rate": 0.0477,
+     "is_qb": -0.1951,
+     "is_wr": 0.0213,
+     "team_margin": 0.2282,
+     "home": -0.0029,
+     "rt_ypc_n": 0.0558,
+     "def_ybc_att_adj": 0.0149,
+     "def_stuff_rate_adj": -0.0181,
+     "def_rush_epa_att_adj": 0.0366,
+     "def_exp10_rate": -0.0566
+    }
+   },
+   "runner": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "rt_ybc_att",
+     "rt_yac_att",
+     "rt_stuff_rate",
+     "rt_broken_att"
+    ],
+    "n_features": 14,
+    "per_carry": {
+     "n": 13402,
+     "mae": 3.6817418458776365,
+     "rmse": 6.1839157100785425,
+     "r2": 0.005695104526034944
+    },
+    "per_player_game": {
+     "n": 838,
+     "mae": 17.492718454454046,
+     "rmse": 24.26423492744616,
+     "bias": -0.03868286041303167
+    },
+    "coef": {
+     "rt_ypc": 0.3744,
+     "prior_ypc": 0.1126,
+     "def_ypc": 0.1252,
+     "off_ypc": 0.0379,
+     "rt_explosive_rate": -0.0167,
+     "is_qb": -0.1314,
+     "is_wr": 0.0108,
+     "team_margin": 0.2311,
+     "home": -0.0028,
+     "rt_ypc_n": 0.0562,
+     "rt_ybc_att": -0.0241,
+     "rt_yac_att": -0.0286,
+     "rt_stuff_rate": 0.0934,
+     "rt_broken_att": 0.0394
+    }
+   },
+   "context": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "off_qb_rush_share",
+     "indoor"
+    ],
+    "n_features": 12,
+    "per_carry": {
+     "n": 13402,
+     "mae": 3.674894595804638,
+     "rmse": 6.181390459055281,
+     "r2": 0.00650700329881726
+    },
+    "per_player_game": {
+     "n": 838,
+     "mae": 17.432523147691175,
+     "rmse": 24.19596927160029,
+     "bias": -0.19994197761027752
+    },
+    "coef": {
+     "rt_ypc": 0.2833,
+     "prior_ypc": 0.1011,
+     "def_ypc": 0.1242,
+     "off_ypc": -0.0098,
+     "rt_explosive_rate": 0.0701,
+     "is_qb": -0.2268,
+     "is_wr": 0.0213,
+     "team_margin": 0.2198,
+     "home": -0.0027,
+     "rt_ypc_n": 0.0578,
+     "off_qb_rush_share": 0.1166,
+     "indoor": 0.0151
+    }
+   },
+   "combined": {
+    "features": [
+     "rt_ypc",
+     "prior_ypc",
+     "def_ypc",
+     "off_ypc",
+     "rt_explosive_rate",
+     "is_qb",
+     "is_wr",
+     "team_margin",
+     "home",
+     "rt_ypc_n",
+     "off_ybc_att",
+     "ol_continuity",
+     "ol_out",
+     "off_stuff_rate",
+     "def_ybc_att_adj",
+     "def_stuff_rate_adj",
+     "def_rush_epa_att_adj",
+     "def_exp10_rate",
+     "rt_ybc_att",
+     "rt_yac_att",
+     "rt_stuff_rate",
+     "rt_broken_att",
+     "off_qb_rush_share",
+     "indoor"
+    ],
+    "n_features": 24,
+    "per_carry": {
+     "n": 13402,
+     "mae": 3.6844870719857736,
+     "rmse": 6.185083026086864,
+     "r2": 0.0053196862235647124
+    },
+    "per_player_game": {
+     "n": 838,
+     "mae": 17.580379024457,
+     "rmse": 24.352434170369765,
+     "bias": 0.10855235932684888
+    },
+    "coef": {
+     "rt_ypc": 0.3681,
+     "prior_ypc": 0.1125,
+     "def_ypc": 0.1234,
+     "off_ypc": 0.052,
+     "rt_explosive_rate": -0.0125,
+     "is_qb": -0.171,
+     "is_wr": -0.0143,
+     "team_margin": 0.2286,
+     "home": -0.0025,
+     "rt_ypc_n": 0.0598,
+     "off_ybc_att": -0.1249,
+     "ol_continuity": -0.0276,
+     "ol_out": -0.0145,
+     "off_stuff_rate": -0.0275,
+     "def_ybc_att_adj": 0.0453,
+     "def_stuff_rate_adj": -0.029,
+     "def_rush_epa_att_adj": 0.06,
+     "def_exp10_rate": -0.0981,
+     "rt_ybc_att": 0.0202,
+     "rt_yac_att": -0.0396,
+     "rt_stuff_rate": 0.1248,
+     "rt_broken_att": 0.0359,
+     "off_qb_rush_share": 0.1621,
+     "indoor": 0.0172
+    }
+   }
+  }
+ },
+ "rejected": {
+  "ftn_scheme": "only a file-level date_pulled, which moves when the file is rebuilt (weeks 1-5 of 2024 all carry 2025-09-01), so no per-row publication instant exists and no point-in-time claim can be made; coverage also starts in 2022, leaving one training season for the earliest evaluation",
+  "observed_weather": "the schedule's temp/wind are measured AT the game (hindsight) and are null indoors; forecast vintages only exist from 2026-09-04, so no historical fit can use them. 'indoor' (roof) is retained."
+ },
+ "verdict": {
+  "baseline": {
+   "delta_player_game_mae": {
+    "2023": 0.0,
+    "2024": 0.0,
+    "2025": 0.0
+   },
+   "improves_every_season": false,
+   "mean_delta": 0.0
+  },
+  "ol": {
+   "delta_player_game_mae": {
+    "2023": -0.06117445454191106,
+    "2024": -0.025763119278376934,
+    "2025": -0.012191817765337731
+   },
+   "improves_every_season": true,
+   "mean_delta": -0.03304313052854191
+  },
+  "front": {
+   "delta_player_game_mae": {
+    "2023": -0.0060467797991670125,
+    "2024": 0.04768257036982959,
+    "2025": 0.050514792515269136
+   },
+   "improves_every_season": false,
+   "mean_delta": 0.030716861028643905
+  },
+  "runner": {
+   "delta_player_game_mae": {
+    "2023": -0.023547467224725338,
+    "2024": -0.00650032607059714,
+    "2025": 0.04820960930072005
+   },
+   "improves_every_season": false,
+   "mean_delta": 0.0060539386684658565
+  },
+  "context": {
+   "delta_player_game_mae": {
+    "2023": 0.16363463789583754,
+    "2024": -0.029551652832029873,
+    "2025": -0.011985697462151279
+   },
+   "improves_every_season": false,
+   "mean_delta": 0.040699095867218794
+  },
+  "combined": {
+   "delta_player_game_mae": {
+    "2023": 0.11293425739164853,
+    "2024": 0.006511016937569281,
+    "2025": 0.13587017930367296
+   },
+   "improves_every_season": false,
+   "mean_delta": 0.08510515121096358
+  }
+ }
+}

@@ -44,7 +44,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
       - name: Fetch bronze inputs (nflverse) and market-data
         run: |
-          python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,ff_playerids --seasons 2013-2026 2>&1 | tail -3
+          python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,depth_charts,ff_playerids --seasons 2013-2026 2>&1 | tail -3
           python3 nfl_edge/data/silver.py 2016 2025 2>&1 | tail -2
           python3 nfl_edge/data/ids.py 2>&1 | tail -3
           git fetch --depth=1 origin market-data
@@ -144,6 +144,26 @@ jobs:
         if: steps.week.outputs.status == 'OK'
         continue-on-error: true
         run: python3 scripts/ci/assert_no_airtable.py
+
+      # ---- simulation layer (shadow; zero authority) -------------------------------------------------
+      # Prices the same board from the coherent game simulation (nfl_edge/sim) at this cycle's ledger
+      # snapshot: football-only, market and reconciled probabilities side by side.  Written to its own
+      # write-once corpus (data/shadow/sim), never into the ledger; the packet reads it if present.  A
+      # failure here is reported and cannot fail the pricing job or the report.
+      - name: Simulation-layer projections (shadow)
+        id: sim
+        if: steps.week.outputs.status == 'OK'
+        continue-on-error: true
+        run: |
+          python3 scripts/sim/project_week.py --market-data /tmp/md --out . \
+            --season ${{ steps.week.outputs.season }} --week ${{ steps.week.outputs.week }} \
+            --bundle research/simulation_engine/bundle_${{ steps.week.outputs.season }}.json 2>&1 | tail -25
+
+      - name: Publish the simulation-layer projections
+        if: steps.sim.outcome == 'success'
+        continue-on-error: true
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/sim --message "simulation projections $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
       # 45m, not the 30m the manual/horizon paths use. Those price a capture and build seconds later; this
       # job publishes shocks, runs system health and pushes the ledger to market-data (with backoff
