@@ -21,3 +21,9 @@ data/handicap/
 # The workflow's report directory is the same build artifact under a different name; packet.json is ~15MB
 # and belongs on the `handicap-reports` branch and in the run's artifact, never on main.
 data/handicap_report/
+# Simulation-layer walk-forward outputs are regenerable (scripts/sim/walkforward.py) and tens of MB per
+# season; the fitted bundles, the weights and the summary JSON/markdown are committed, the row-level
+# parquets are not.
+research/simulation_engine/*_dists_*.parquet
+research/simulation_engine/reconciliation_scored_*.parquet
+research/simulation_engine/week1_2026_diagnostic_rows.parquet
