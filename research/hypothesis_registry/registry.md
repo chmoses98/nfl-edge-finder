@@ -35,3 +35,4 @@ consequence of it -- a standing rule can be live *and* have already forced a cha
 | `H-20260904-025` | REGISTERED_PROSPECTIVE | — | three separately reported components of the pre -> +60m change: locati | Prior is that a skill-position absence moves location slightly and does not chan |
 | `H-20260910-026` | REGISTERED_PROSPECTIVE | — | PRIMARY GAME-CENTRE METRICS: margin RMSE and MAE, total RMSE and MAE,  | Prior, from the closing-line research: at the close DATA_ONLY is worse than CURR |
 | `H-20260916-027` | REGISTERED_PROSPECTIVE | — | PRIMARY: paired Brier of the RECONCILED probability versus the quoted  | The reconciled probability is not worse than the market midpoint on any family w |
+| `H-20260916-028` | PROPOSED | — | PRIMARY: accuracy of the predicted starting quarterback against the re | The depth-chart-only baseline is already right on the large majority of team-gam |
