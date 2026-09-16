@@ -1,0 +1,136 @@
+{
+ "version": "reconcile-1.0.0",
+ "meta": {
+  "fitted_on": "2025 at T-0 (closing quotes): early-week (1-9) fit, later-week (10-22) confirmation, whole-season fit; deployed = reconcile.deploy_weights of the three. The 2026 season is the first period these weights are evaluated on.",
+  "rule": "non-zero only if the early fit had >= 500 rows, a non-zero optimum, a confirmation z <= 1.0 AND a confirmation point estimate no worse than the market; then the smaller of the early-week and whole-season optima",
+  "min_fit_rows": 500,
+  "max_confirm_z": 1.0,
+  "require_favourable_confirmation": true,
+  "point_in_time": "distributions from the corrected walk-forward (priors frozen on seasons <= 2024)",
+  "sim_version": "sim-1.0.0"
+ },
+ "fitted": {
+  "any_td": {
+   "weight": 0.25,
+   "reason": "early-week fit confirmed on later weeks; smaller of the two optima",
+   "w_all_2025": 0.35,
+   "w_fit": 0.25,
+   "n_fit": 1670,
+   "confirm": {
+    "weight": 0.25,
+    "n": 2050,
+    "games": 136,
+    "brier_reconciled": 0.15120513213869896,
+    "brier_market_mono": 0.15140078048780486,
+    "brier_football": 0.1519623816889303,
+    "diff_vs_market": -0.00019564834910592105,
+    "se": 0.00019670024840622973,
+    "z": -0.9946522726390448
+   }
+  },
+  "pass_td": {
+   "weight": 0.0,
+   "reason": "no early-week fit with enough rows to confirm",
+   "w_all_2025": 1.0,
+   "w_fit": null,
+   "n_fit": 0
+  },
+  "pass_yards": {
+   "weight": 0.0,
+   "reason": "early-week optimum was 0",
+   "w_all_2025": 0.0,
+   "w_fit": 0.0,
+   "n_fit": 554
+  },
+  "rec_yards": {
+   "weight": 0.0,
+   "reason": "early-week optimum was 0",
+   "w_all_2025": 0.05,
+   "w_fit": 0.0,
+   "n_fit": 1395
+  },
+  "receptions": {
+   "weight": 0.0,
+   "reason": "no early-week fit with enough rows to confirm",
+   "w_all_2025": 0.15,
+   "w_fit": 0.0,
+   "n_fit": 32
+  },
+  "rush_yards": {
+   "weight": 0.0,
+   "w_all_2025": 0.2,
+   "w_fit": 0.25,
+   "n_fit": 599,
+   "confirm": {
+    "weight": 0.25,
+    "n": 2813,
+    "games": 128,
+    "brier_reconciled": 0.20667843529746338,
+    "brier_market_mono": 0.20510505144282665,
+    "brier_football": 0.2118909589131342,
+    "diff_vs_market": 0.0015733838546367117,
+    "se": 0.0016909405987145377,
+    "z": 0.930478489801952
+   },
+   "reason": "later-week confirmation point estimate is worse than the market (+0.00157 Brier, z=+0.93); inside the z gate but pointing the wrong way, so no deviation is earned",
+   "weight_under_z_gate_only": 0.2
+  }
+ },
+ "confirmed": {
+  "any_td": {
+   "weight": 0.25,
+   "n": 2050,
+   "games": 136,
+   "brier_reconciled": 0.15120513213869896,
+   "brier_market_mono": 0.15140078048780486,
+   "brier_football": 0.1519623816889303,
+   "diff_vs_market": -0.00019564834910592105,
+   "se": 0.00019670024840622973,
+   "z": -0.9946522726390448
+  },
+  "pass_yards": {
+   "weight": 0.0,
+   "n": 2048,
+   "games": 133,
+   "brier_reconciled": 0.16301174025733906,
+   "brier_market_mono": 0.16202843913952839,
+   "brier_football": 0.1714701585452565,
+   "diff_vs_market": 0.0009833011178106523,
+   "se": 0.0008706756923722512,
+   "z": 1.129354048154877
+  },
+  "rec_yards": {
+   "weight": 0.0,
+   "n": 5439,
+   "games": 132,
+   "brier_reconciled": 0.2107920151188855,
+   "brier_market_mono": 0.20935647309204197,
+   "brier_football": 0.21458240482020416,
+   "diff_vs_market": 0.0014355420268434848,
+   "se": 0.0008805613388645217,
+   "z": 1.6302578406344834
+  },
+  "receptions": {
+   "weight": 0.0,
+   "n": 4413,
+   "games": 132,
+   "brier_reconciled": 0.184645466506874,
+   "brier_market_mono": 0.18286182575115267,
+   "brier_football": 0.1885912978180179,
+   "diff_vs_market": 0.0017836407557213047,
+   "se": 0.0011176181009546731,
+   "z": 1.5959304472589633
+  },
+  "rush_yards": {
+   "weight": 0.25,
+   "n": 2813,
+   "games": 128,
+   "brier_reconciled": 0.20667843529746338,
+   "brier_market_mono": 0.20510505144282665,
+   "brier_football": 0.2118909589131342,
+   "diff_vs_market": 0.0015733838546367117,
+   "se": 0.0016909405987145377,
+   "z": 0.930478489801952
+  }
+ }
+}

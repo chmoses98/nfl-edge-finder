@@ -242,3 +242,24 @@ def test_yardage_relocation_never_uses_a_poisson():
     assert 0.6 < out.survival(15) < 0.95, "a 37-yard mean must leave real mass below 15 yards"
     near = R.relocate(d, 6.0, stat="rec_yards")
     assert near.meta.get("shift", "").startswith("scale"), "within the scale limit the football shape is kept"
+
+
+def test_a_weight_whose_confirmation_points_the_wrong_way_is_not_deployed():
+    """Inside the z gate is not enough: if the later-week confirmation is worse than the market in point
+    estimate, no deviation is earned.  This is the condition that removed the rush_yards weight after the
+    point-in-time correction moved its z from +1.05 to +0.93."""
+    fitted_all = {"s": {"weight": 0.30}}
+    fitted_fit = {"s": {"weight": 0.25, "n": 600}}
+    adverse = {"s": {"z": 0.93, "diff_vs_market": +0.00157, "n": 2813}}
+    favourable = {"s": {"z": -0.99, "diff_vs_market": -0.00020, "n": 2050}}
+    assert R.deploy_weights(fitted_all, fitted_fit, adverse)["s"]["weight"] == 0.0
+    assert R.deploy_weights(fitted_all, fitted_fit, adverse)["s"]["weight_under_z_gate_only"] == 0.25
+    assert R.deploy_weights(fitted_all, fitted_fit, favourable)["s"]["weight"] == 0.25
+
+
+def test_the_deployment_rule_can_only_remove_weights_never_invent_one():
+    """Every gate is a conjunction, so tightening any of them moves a weight toward zero."""
+    fitted_all = {"s": {"weight": 0.0}}
+    fitted_fit = {"s": {"weight": 0.0, "n": 9999}}
+    conf = {"s": {"z": -5.0, "diff_vs_market": -1.0, "n": 9999}}
+    assert R.deploy_weights(fitted_all, fitted_fit, conf)["s"]["weight"] == 0.0

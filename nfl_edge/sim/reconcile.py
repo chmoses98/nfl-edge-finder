@@ -179,6 +179,7 @@ def encompassing(scored: pd.DataFrame) -> dict:
 
 MIN_FIT_ROWS = 500
 MAX_CONFIRM_Z = 1.0
+REQUIRE_FAVOURABLE_CONFIRMATION = True
 
 
 def deploy_weights(fitted_all: dict, fitted_fit: dict, confirmed: dict) -> dict:
@@ -187,9 +188,19 @@ def deploy_weights(fitted_all: dict, fitted_fit: dict, confirmed: dict) -> dict:
 
     A family earns a non-zero weight only if (a) the early-week fit had at least MIN_FIT_ROWS rows and
     a non-zero optimum, (b) that weight was not worse than the market on the later weeks beyond
-    MAX_CONFIRM_Z, and (c) the deployed value is the SMALLER of the early-week and whole-season optima.
-    Anything else deploys 0 -- the football distribution is shown at the market mean and never ranked --
-    with the reason recorded."""
+    MAX_CONFIRM_Z, (c) with REQUIRE_FAVOURABLE_CONFIRMATION, the later-week confirmation was not worse
+    than the market IN POINT ESTIMATE either, and (d) the deployed value is the SMALLER of the early-week
+    and whole-season optima.  Anything else deploys 0 -- the football distribution is shown at the market
+    mean and never ranked -- with the reason recorded.
+
+    Condition (c) was added after the point-in-time correction, when ``rush_yards`` landed on the z gate
+    from the other side (confirmation z moved from +1.05 to +0.93 on cleaner distributions) and would have
+    deployed 0.20 on a confirmation whose POINT ESTIMATE was still worse than the market by +0.0016 Brier.
+    A weight whose only out-of-sample evidence points the wrong way is not evidence for deviating from a
+    price, however wide its error bar.  The condition is applied symmetrically to every family and its
+    effect is to REMOVE weights, never to create one; ``any_td`` keeps its weight because its confirmation
+    point estimate is favourable (-0.0002), not because it was preferred.  Both readings are reported in
+    ``reconciliation_2025.json``."""
     out = {}
     for stat, allv in fitted_all.items():
         w_all = allv["weight"]; ff = fitted_fit.get(stat); cf = confirmed.get(stat)
@@ -204,6 +215,14 @@ def deploy_weights(fitted_all: dict, fitted_fit: dict, confirmed: dict) -> dict:
         if cf is None or z is None or z > MAX_CONFIRM_Z:
             out[stat] = {"weight": 0.0, "reason": f"later-week confirmation worse than the market (z={z})", "w_all_2025": w_all,
                          "w_fit": ff["weight"], "n_fit": ff["n"], "confirm": cf}
+            continue
+        diff = cf.get("diff_vs_market")
+        if REQUIRE_FAVOURABLE_CONFIRMATION and (diff is None or diff > 0):
+            out[stat] = {"weight": 0.0, "w_all_2025": w_all, "w_fit": ff["weight"], "n_fit": ff["n"], "confirm": cf,
+                         "reason": (f"later-week confirmation point estimate is worse than the market "
+                                    f"({diff:+.5f} Brier, z={z:+.2f}); inside the z gate but pointing the wrong "
+                                    f"way, so no deviation is earned"),
+                         "weight_under_z_gate_only": float(min(ff["weight"], w_all))}
             continue
         out[stat] = {"weight": float(min(ff["weight"], w_all)), "reason": "early-week fit confirmed on later weeks; smaller of the two optima",
                      "w_all_2025": w_all, "w_fit": ff["weight"], "n_fit": ff["n"], "confirm": cf}
