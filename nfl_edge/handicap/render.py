@@ -420,7 +420,7 @@ def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = Fa
     if sv.get("run_id"):
         c = sv.get("center") or {}
         a(f"_run {sv.get('run_id')} · generated {sv.get('generated_at')} · centre {c.get('source')} "
-          f"(home {c.get('spread_home')}, total {c.get('total')}) · "
+          f"(home {_num(c.get('spread_home'), 1)}, total {_num(c.get('total'), 1)}) · "
           f"{', '.join(f'{k} {v}' for k, v in sorted((sv.get('counts_by_support_state') or {}).items()))}_")
         a("")
         a(sv.get("note") or "")
@@ -436,6 +436,17 @@ def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = Fa
                   f"{_num(x.get('final_mean'),1)} |")
         else:
             a("_No reconciled (validated-weight) disagreement in this game; football-only probabilities are on the board rows._")
+        pp = sv.get("player_projections") or []
+        if pp:
+            a("")
+            a("**Player projections (football-only mean · sd · market-implied mean · reconciled mean · w · P(plays))**")
+            a("")
+            a("| team | player | stat | football | sd | market | final | w | P(plays) | rungs |")
+            a("|---|---|---|---|---|---|---|---|---|---|")
+            for x in pp[:max_players * 3]:
+                a(f"| {x.get('team')} | {x.get('player_id')} | {x.get('stat')} | {_num(x.get('football_mean'), 1)} | {_num(x.get('football_sd'), 1)} | "
+                  f"{_num(x.get('market_mean'), 1)} | {_num(x.get('final_mean'), 1)} | {_num(x.get('reconcile_weight'))} | "
+                  f"{_num(x.get('p_active'))} | {x.get('n_rungs')} |")
     else:
         a("_No simulation projections at or before this build; the board carries the incumbent only._")
     a("")

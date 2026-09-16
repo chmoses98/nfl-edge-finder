@@ -74,7 +74,21 @@ def game_view(game_rows: list, manifest: dict | None) -> dict:
     if game_rows:
         r0 = game_rows[0]
         centre = {"source": r0.get("center_source"), "spread_home": r0.get("center_spread_home"), "total": r0.get("center_total")}
+    # one line per (player, stat) with a football distribution: the projection table a handicapper reads
+    seen = {}
+    for r in game_rows:
+        if r.get("football_mean") is None or not r.get("player_id"):
+            continue
+        key = (r["player_id"], r.get("stat"))
+        if key not in seen:
+            seen[key] = {"player_id": r["player_id"], "player_kalshi_id": r.get("player_kalshi_id"), "team": r.get("team"), "stat": r.get("stat"),
+                         "football_mean": r.get("football_mean"), "football_sd": r.get("football_sd"), "market_mean": r.get("market_mean"),
+                         "market_identification": r.get("market_identification"), "final_mean": r.get("final_mean"),
+                         "reconcile_weight": r.get("reconcile_weight"), "p_active": r.get("p_active"), "n_rungs": 0}
+        seen[key]["n_rungs"] += 1
+    projections = sorted(seen.values(), key=lambda x: (x["team"] or "", x["stat"] or "", -(x["football_mean"] or 0)))
     return {"sim_version": (manifest or {}).get("sim_version"), "run_id": (manifest or {}).get("run_id"),
+            "player_projections": projections,
             "generated_at": (manifest or {}).get("generated_at"), "counts_by_support_state": counts, "center": centre,
             "largest_reconciled_disagreements": [
                 {"ticker": r["ticker"], "stat": r.get("stat"), "threshold": r.get("threshold"), "player_id": r.get("player_id"),
