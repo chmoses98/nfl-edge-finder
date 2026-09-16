@@ -18,7 +18,7 @@ from datetime import timedelta
 import numpy as np, pandas as pd, polars as pl
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
-from nfl_edge.sim import data as D, prospective as P, backtest as B, reconcile as R
+from nfl_edge.sim import data as D, features as F, prospective as P, backtest as B, reconcile as R
 
 STAT_OF = P.STAT_MAP
 
@@ -66,13 +66,15 @@ def main():
     sched = D.schedule().to_pandas(); wk = sched[(sched["season"] == 2026) & (sched["week"] == 1)].copy()
     wk["kickoff"] = pd.to_datetime(wk["gameday"] + " " + wk["gametime"]).dt.tz_localize("America/New_York").dt.tz_convert("UTC")
     bundle = json.load(open(os.path.join(B.OUT, "bundle_2026.json")))
+    priors = F.PriorSet.from_dict(bundle["priors"])
+    assert max(priors.fit_seasons) < 2026, priors.fit_seasons
     wpath = os.path.join(B.OUT, "reconciliation_weights.json")
     weights = R.load_weights(wpath) if os.path.exists(wpath) else None
     pmap = pl.read_parquet(os.path.join(ROOT, "data", "silver", "kalshi_player_map.parquet"))
     pmap = pmap.filter(pl.col("gsis_id").is_not_null() & pl.col("status").str.starts_with("RESOLVED"))
     player_map = dict(zip(pmap["kalshi_player_id"].to_list(), pmap["gsis_id"].to_list()))
     pg = D.load("player_games", [2026]).to_pandas(); tg = D.load("team_games", [2026]).to_pandas()
-    all_rows = []
+    all_rows = []; sources = []
     for kick, grp in wk.groupby("kickoff"):
         cutoff = kick.to_pydatetime() - timedelta(minutes=a.lead_minutes)
         try:
@@ -80,7 +82,9 @@ def main():
         except FileNotFoundError:
             continue
         observed_at = max((r.get("observed_at") or "") for r in ledger_rows)
-        slate = P.slate_inputs(2026, 1, cutoff, a.market_data, ledger_rows=ledger_rows, verbose=lambda *x: None)
+        slate = P.slate_inputs(2026, 1, cutoff, a.market_data, ledger_rows=ledger_rows, verbose=lambda *x: None,
+                               priors=priors)
+        sources.append({"cutoff": cutoff.isoformat(), **{k: v for k, v in slate["sources"].items()}})
         keep = set(grp["game_id"])
         slate["games"] = {k: v for k, v in slate["games"].items() if k in keep}
         if not slate["games"]:
@@ -95,6 +99,7 @@ def main():
     df = df[df["y"].notna() & df["mid"].notna()]
     df["p_inc"] = df["incumbent_model_probability"]
     out = {"label": "DEVELOPMENT / DIAGNOSTIC -- Week 1 2026 was inspected before this layer was built; not validation",
+           "point_in_time_sources": sources, "priors_fit_seasons": list(priors.fit_seasons),
            "n_contracts": int(len(df)), "families": {}, "player_stats": {}, "disagreement_bands": {}, "largest_football_disagreements": []}
     pr = df[df["family"] == "PLAYER_STAT"]
 

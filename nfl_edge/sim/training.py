@@ -78,14 +78,37 @@ def eligible_frame(seasons, verbose=print) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def assemble(seasons, cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print) -> dict:
-    """Frames with features for the seasons: team, player (real + phantom), eligible-with-shares, carries, targets."""
+def prior_seasons_for(target_season: int, history_start: int = 2016) -> list:
+    """Seasons whose raw rows may set the shrinkage targets for a projection in ``target_season``: every
+    season strictly before it.  Warm-up seasons are included -- they are strictly earlier, so they are
+    PIT-clean, and they make the priors less noisy."""
+    return [s for s in range(history_start, target_season)]
+
+
+def fit_priors_for(target_season: int, history_start: int = 2016) -> F.PriorSet:
+    """The frozen shrinkage targets for ``target_season``, fitted on raw rows of earlier seasons only."""
+    seasons = prior_seasons_for(target_season, history_start)
+    if not seasons:
+        raise ValueError(f"no seasons before {target_season} to fit priors on")
+    return F.fit_priors(D.load("team_games", seasons).to_pandas(),
+                        D.load("player_games", seasons).to_pandas(), fit_seasons=seasons)
+
+
+def assemble(seasons, cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print,
+             priors: F.PriorSet | None = None) -> dict:
+    """Frames with features for the seasons: team, player (real + phantom), eligible-with-shares, carries, targets.
+
+    ``priors`` are the frozen shrinkage targets and are REQUIRED: every statistic used to build a row must
+    come from observations strictly earlier than that row, and a league mean taken over the frame being
+    assembled would include the games about to be predicted."""
+    if priors is None:
+        raise F.MissingPriors("assemble needs priors= from training.fit_priors_for(target_season)")
     tg = D.load("team_games", seasons).to_pandas()
     pg = D.load("player_games", seasons).to_pandas()
     elig = eligible_frame(seasons, verbose=verbose)
     elig = elig[elig["avail_state"].isin(["EXPECTED_ACTIVE", "QUESTIONABLE"])]
-    tf = F.team_features(tg, cfg)
-    pf = F.player_features(pg, tg, cfg, phantom_rows=elig)
+    tf = F.team_features(tg, cfg, priors)
+    pf = F.player_features(pg, tg, cfg, phantom_rows=elig, priors=priors)
     # eligible rows with realised shares
     keep = ["game_id", "team", "player_id", "position", "dc_rank", "avail_state", "season", "week"]
     e = elig[keep].merge(pf.drop(columns=["position", "season", "week", "team"]), on=["game_id", "player_id"], how="left")
@@ -107,7 +130,8 @@ def assemble(seasons, cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print) ->
     tar = D.load("targets", seasons).to_pandas()
     tar = tar.merge(pfeat, on=["game_id", "player_id"], how="inner").merge(tf_off, on=["game_id", "team"], how="inner") \
              .merge(tf_def, on=["game_id", "opp"], how="inner")
-    return {"team": tf, "player": pf, "eligible": e, "outside": tot, "carries": car, "targets": tar}
+    return {"team": tf, "player": pf, "eligible": e, "outside": tot, "carries": car, "targets": tar,
+            "priors": priors}
 
 
 def fit_bundle(target_season: int, frames: dict | None = None, history_start: int = 2016,
@@ -115,7 +139,14 @@ def fit_bundle(target_season: int, frames: dict | None = None, history_start: in
     """Fit every primitive on seasons < target_season (after the warm-up seasons) and return the bundle."""
     seasons = list(range(history_start, target_season))
     if frames is None:
-        frames = assemble(range(history_start, target_season + 1), cfg, verbose=verbose)
+        frames = assemble(range(history_start, target_season + 1), cfg, verbose=verbose,
+                          priors=fit_priors_for(target_season, history_start))
+    priors = frames.get("priors")
+    if priors is None:
+        raise F.MissingPriors("these frames were built without a recorded PriorSet")
+    if max(priors.fit_seasons) >= target_season:
+        raise F.MissingPriors(f"priors were fitted on {priors.fit_seasons}, which reaches into or past the "
+                              f"evaluation season {target_season}")
     train = [s for s in seasons if s >= history_start + WARMUP_SEASONS]
     tf = frames["team"]; tf = tf[tf["season"].isin(train)]
     e = frames["eligible"]; e = e[e["season"].isin(train)]
@@ -138,4 +169,5 @@ def fit_bundle(target_season: int, frames: dict | None = None, history_start: in
     b = M.bundle(game_env, carry_share, target_share, carry, target, td, train_seasons=train,
                  feature_config=cfg.to_dict(), other_share=other_share, qb_share=qb_share)
     b["target_season"] = target_season
+    b["priors"] = priors.to_dict()
     return b

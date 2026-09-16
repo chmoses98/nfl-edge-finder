@@ -417,3 +417,41 @@
     field goals, first-TD scorer, period props and any operator other than `>=` are `UNSUPPORTED_STAT` /
     `UNSUPPORTED_RULES` in `data/shadow/sim`; the packet shows them with no simulation probability.
 
+85. **Resolved -- the simulation layer's shrinkage priors leaked the evaluation season.** `features.py`
+    computed its league means, pooled rate numerators/denominators and position rates over the ENTIRE assembled
+    frame, which in the walk-forward included the season being predicted: a week-1 projection's priors had seen
+    week 18. The row-level EWMAs were always lagged, so the leak was indirect and small in magnitude (the
+    affected targets moved 0.05-0.63% when refitted on training seasons only), but it was real and the code
+    comment calling it "not a leak of consequence" was wrong. Priors are now a fitted artifact frozen on seasons
+    strictly before the evaluation season, required by every feature call, carried on the bundle and refused if
+    they reach the evaluation season; the walk-forward rebuilds its frames once per evaluation season. All
+    dependent evidence was deleted and regenerated. `tests/test_sim_pit.py` poisons every future game of the
+    evaluation season by 1,000x and asserts no earlier feature moves.
+
+86. **The historical T-24h comparison is not point-in-time and is labelled so.** The historical simulator's
+    game centre is the nflverse consensus CLOSING line, so scoring the football arm against a T-24h quote
+    compares a later market against an earlier price. One level down, the historical eligibility inputs cannot
+    be pinned to a T-24h instant either: the injury designations are the week's FINAL report and the 2016-2024
+    depth charts are weekly files with no intra-week vintage. T-24h is therefore available only behind
+    `--descriptive-horizons`, recorded as `NON_PIT_DESCRIPTIVE`, and cannot fit or promote a reconciliation
+    weight. A real T-24h study needs the Kalshi archive's own T-24h spread/total ladders as the centre.
+
+87. **Rushing efficiency is close to unpredictable and the enrichment did not change that.** Offensive-line
+    blocking (PFR yards before contact, snap-count line continuity, linemen on the injury report), the
+    opponent-adjusted defensive front, the runner's yards after contact and broken tackles, stuff and explosive
+    rates, the quarterback rushing threat and the roof were all built and ablated walk-forward on 2023-2025. The
+    baseline per-carry out-of-sample r-squared is 0.006-0.009 and no arm moves it; only the offensive-line arm
+    improves player-game rushing-yards MAE in all three seasons, by 0.033 yards on a 16.6-yard error, which
+    fails any materiality bar. None is deployed. FTN scheme data was rejected because its only timestamp is a
+    file-level `date_pulled` that moves when the file is rebuilt, and observed weather because the schedule's
+    temp/wind are measured at the game. `research/simulation_engine/RUSHING_ABLATION.md`.
+
+88. **The Kalshi-listing role signal is real but already absorbed.** A wide receiver at depth-chart rank 3+ with
+    a Kalshi ladder averaged 2.95 targets in 2025 against 1.17 for one without, so the existence of a market
+    does identify a role the depth chart missed. But the fitted share model already reflects it through snap
+    share and recent usage: its confirmation-week bias on listed rank-3+ players is -0.14 targets and +0.06
+    carries on 544 rows. The floor that passed the declared fit/confirm rule for targets moves count MAE by
+    0.3%, so it is NOT wired into the simulator. The Week-1 mechanism -- no current-season history at all, every
+    player on the depth-rank cell prior, and a stale chart -- is a different population (n=31 in the 2025
+    confirmation weeks) and remains untested.
+

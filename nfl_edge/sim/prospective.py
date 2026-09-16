@@ -96,6 +96,41 @@ def fast_implied_lines(rows: list[dict], home: str, away: str) -> tuple[float | 
     return s, t, {"n_spread_rungs": len(sp), "n_total_rungs": len(tp)}
 
 
+# ------------------------------------------------------------------------------ injury vintages
+def _download_manifest(root: str) -> dict:
+    path = os.path.join(root, "data", "raw", "nflverse", "_manifest.jsonl")
+    out = {}
+    if not os.path.exists(path):
+        return out
+    for line in open(path):
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if r.get("path"):
+            out[r["path"]] = r
+    return out
+
+
+def injury_vintage(root: str, season: int, cutoff: datetime, extra_roots=()) -> tuple[str | None, dict, str]:
+    """The injury parquet a projection at ``cutoff`` may legitimately read, via the content-addressed
+    vintage index (``shadow_v2.vintage_snapshots``).
+
+    The nflverse injury release is REBUILT IN PLACE as designations are filed, so reading the mutable file
+    re-runs an old cutoff against today's fuller report.  The resolver returns the newest snapshot whose
+    retrieval time is at or before the cutoff, and returns NOTHING rather than falling back to the mutable
+    file.  Sleeper supplements whatever this returns; it never silently replaces it."""
+    from nfl_edge.shadow_v2 import vintage_snapshots as VS
+    try:
+        path, row, why = VS.resolve_injuries(root, season, cutoff, manifest=_download_manifest(root),
+                                             adopt=True, extra_roots=tuple(extra_roots))
+    except Exception as exc:                                                   # noqa: BLE001
+        return None, {}, f"vintage resolution failed: {type(exc).__name__}: {exc}"
+    if path is None or not os.path.exists(path or ""):
+        return None, (row or {}), (why or "no injury vintage at or before the cutoff")
+    return path, (row or {}), why
+
+
 # ---------------------------------------------------------------------------------- availability
 def sleeper_availability(market_data: str, cutoff: datetime) -> tuple[dict, str | None]:
     """gsis_id -> Sleeper injury status from the newest capture at or before the cutoff."""
@@ -137,8 +172,15 @@ def avail_state(nfl_status: str | None, sleeper: dict | None) -> str:
 
 # ------------------------------------------------------------------------------------ assembly
 def slate_inputs(season: int, week: int, cutoff: datetime, market_data: str, *, ledger_rows: list[dict],
-                 history_start: int = 2016, cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print) -> dict:
-    """Point-in-time GameInputs for every game of the week whose kickoff is after the cutoff."""
+                 history_start: int = 2016, cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print,
+                 priors: F.PriorSet | None = None) -> dict:
+    """Point-in-time GameInputs for every game of the week whose kickoff is after the cutoff.
+
+    ``priors`` are the frozen shrinkage targets carried on the season's bundle (fitted on seasons strictly
+    before it).  They are required: a league mean computed over the frame assembled here would include this
+    season's completed games, which is defensible, and its own upcoming ones, which is not."""
+    if priors is None:
+        raise F.MissingPriors("slate_inputs needs the bundle's PriorSet (bundle['priors'])")
     sched = D.schedule().to_pandas()
     g = sched[(sched["season"] == season) & (sched["week"] == week)].copy()
     g["kickoff"] = pd.to_datetime(g["gameday"] + " " + g["gametime"]).dt.tz_localize("America/New_York").dt.tz_convert("UTC")
@@ -157,11 +199,13 @@ def slate_inputs(season: int, week: int, cutoff: datetime, market_data: str, *, 
             ph.append({"game_id": r.game_id, "team": team, "opp": opp, "home": home, "season": season, "week": week,
                        "season_type": "REG", "home_team": r.home_team, "away_team": r.away_team})
     tg_all = pd.concat([tg, pd.DataFrame(ph)], ignore_index=True, sort=False)
-    tf = F.team_features(tg_all, cfg)
+    tf = F.team_features(tg_all, cfg, priors)
     # eligibility
     depth = F.depth_chart(season, cutoff=cutoff)
     roster = F.weekly_roster(season, week)
-    inj = F.injury_designations(season, week)
+    inj_path, inj_row, inj_why = injury_vintage(D.ROOT, season, cutoff, extra_roots=(market_data,))
+    inj = F.injury_designations(season, week, root=inj_path) if inj_path else pd.DataFrame(
+        columns=["player_id", "report_status", "practice_status"])
     inj_map = dict(zip(inj["player_id"], inj["report_status"])) if len(inj) else {}
     sleeper, sleeper_run = sleeper_availability(market_data, cutoff)
     elig_rows = []
@@ -175,7 +219,7 @@ def slate_inputs(season: int, week: int, cutoff: datetime, market_data: str, *, 
             e = e[~e["avail_state"].isin(["OUT", "DOUBTFUL"])]
             elig_rows.append(e)
     elig = pd.concat(elig_rows, ignore_index=True)
-    pf = F.player_features(pg, tg, cfg, phantom_rows=elig)
+    pf = F.player_features(pg, tg, cfg, phantom_rows=elig, priors=priors)
     keep = ["game_id", "team", "player_id", "position", "dc_rank", "avail_state"]
     e = elig[keep].merge(pf.drop(columns=["position", "season", "week", "team"]), on=["game_id", "player_id"], how="left")
     frames = {"team": tf, "eligible": e}
@@ -190,9 +234,18 @@ def slate_inputs(season: int, week: int, cutoff: datetime, market_data: str, *, 
         gi = I.historical_game_input(frames, r.game_id, spread_home=spread, total_line=total, center_source=src)
         gi.season, gi.week = season, week
         inputs[r.game_id] = {"input": gi, "kickoff": r.kickoff, "center_diag": diag}
-    return {"games": inputs, "sources": {"depth_chart_vintage": depth["dc_vintage"].iloc[0] if len(depth) else None,
-                                        "roster_week": week, "injury_rows": int(len(inj)), "sleeper_run": sleeper_run,
-                                        "history_games": len(ok_games), "latest_history_game": max(ok_games) if ok_games else None},
+    return {"games": inputs,
+            "sources": {"depth_chart_vintage": depth["dc_vintage"].iloc[0] if len(depth) else None,
+                        "roster_week": week,
+                        "injury_vintage": {"resolved": inj_path is not None,
+                                           "snapshot_path": (inj_row or {}).get("snapshot_path"),
+                                           "sha256": (inj_row or {}).get("sha256"),
+                                           "retrieved_at": (inj_row or {}).get("retrieved_at"),
+                                           "reason": inj_why, "rows_for_week": int(len(inj)),
+                                           "designations": {k: int(v) for k, v in inj["report_status"].value_counts().items()} if len(inj) else {}},
+                        "sleeper_run": sleeper_run,
+                        "priors_fit_seasons": list(priors.fit_seasons), "priors_version": priors.version,
+                        "history_games": len(ok_games), "latest_history_game": max(ok_games) if ok_games else None},
             "eligible": e}
 
 

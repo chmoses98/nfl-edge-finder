@@ -46,18 +46,37 @@ claims no football deviation on them, by design, until `H-20260910-026` reads ou
 
 ## Point in time
 
-* Every feature on a (subject, game) row is computed from rows strictly before that game
-  (`features.decayed_prior_sums`; `tests/test_sim_engine.py` perturbs a row's outcome and asserts its own
-  feature does not move). Eligible players who did not appear get a **phantom** row that reads the state
-  and leaves it untouched.
+The invariant: **for every prediction row at time T, every statistic used to build that row depends only on
+observations strictly earlier than T, or is a constant frozen before the evaluation period.** That includes
+the shrinkage targets, which is where the first version of this layer failed.
+
+* **Shrinkage priors are a fitted artifact, not a statistic of the frame.** League levels, pooled rate
+  numerators/denominators and position rates are fitted by `features.fit_priors` on the RAW rows of seasons
+  strictly before the season being predicted (`training.fit_priors_for`), carried on the bundle as
+  `bundle["priors"]`, and passed into every feature call. `features.team_features` and
+  `player_features` raise `MissingPriors` rather than computing their own, `fit_bundle` refuses a
+  `PriorSet` whose fit seasons reach the evaluation season, and the walk-forward rebuilds its frames once
+  per evaluation season. The first version computed these targets over the whole assembled frame, so a
+  week-1 projection's league play-volume prior had seen week 18 of the same season.
+* Every per-subject feature is an exponentially decayed sum over that subject's strictly earlier rows
+  (`features.decayed_prior_sums`). Eligible players who did not appear get a **phantom** row that reads the
+  state and leaves it untouched.
 * Eligibility uses the week's roster file (status `ACT`; `RES`/`INA`/`CUT`/`DEV` are unavailable even
   if the depth chart still lists them), the depth chart at the cutoff (daily snapshots from 2025, weekly
-  before), the week's injury designations (`Out`/`Doubtful` excluded, `Questionable` kept with a play
-  probability) and, prospectively, the newest Sleeper capture at or before the cutoff.
+  before), injury designations from the **content-addressed vintage** at the cutoff (below), and,
+  prospectively, the newest Sleeper capture at or before the cutoff.
 * History for a prospective run is every game whose kickoff plus four hours precedes the cutoff.
-* Injury vintages: the prospective path reads the nflverse file for the week if it exists; the
-  content-addressed vintage machinery of `shadow_v2` is the right source when the report is still being
-  filed and is a known gap (below).
+* **Injury vintages.** `prospective.injury_vintage` resolves the nflverse injury release through
+  `shadow_v2.vintage_snapshots.resolve_injuries`: the newest content-addressed snapshot whose retrieval
+  time is at or before the cutoff, and **nothing at all** rather than the mutable file when none qualifies.
+  The snapshot path, sha256, retrieval instant, reason and per-status counts are recorded on every run's
+  manifest. Sleeper supplements it and can only tighten a designation, never clear one
+  (`tests/test_sim_injury_vintage.py`).
+
+`tests/test_sim_pit.py` is the adversarial suite: it multiplies every evaluation-season game after week 3
+by 1,000 and asserts that no feature of an earlier row moves by a bit, with a negative control proving the
+same poison does reach later rows and a second control proving that priors refitted over the whole frame
+*would* move.
 
 ## Reconciliation
 
@@ -67,9 +86,13 @@ claims no football deviation on them, by design, until `H-20260910-026` reads ou
 
 with the football **shape** kept (the market ladder rarely identifies a tail; the simulation always has
 one). `w_family` is fitted by `scripts/sim/reconciliation_study.py` on the 2025 archive — weights on
-weeks 1-9 confirmed on weeks 10-22, then the weight the 2026 season uses fitted on all of 2025 — and
-recorded in `research/simulation_engine/reconciliation_weights.json`. A family with no fitted weight is
-reported football-only and **never ranked**. See `research/simulation_engine/RECONCILIATION.md`.
+weeks 1-9, **confirmed** on weeks 10-22 against the market with game-clustered standard errors, then the
+whole-season fit — and `reconcile.deploy_weights` deploys a non-zero weight only when the early fit had
+enough rows AND the later-week confirmation was not worse than the market beyond z = 1, taking the smaller
+of the two optima. A family that fails any of that deploys 0: reported football-only at the market mean,
+**never ranked**. Only the close (T-0) is evidence — the historical simulator's centre is the consensus
+closing line, so an earlier horizon would score the football arm against a price it was not centred on.
+See `research/simulation_engine/RECONCILIATION.md`.
 
 ## Outputs
 
@@ -86,15 +109,29 @@ injury and weather signals.
 
 ## Evidence
 
+Every committed summary is a pure render of its JSON by `scripts/sim/write_results.py`, and
+`tests/test_sim_results_consistency.py` re-renders and compares, so a table cannot drift from the data.
+
 * `research/simulation_engine/RESULTS.md` — walk-forward 2023 → 2024 → 2025 primitives (MAE / RMSE /
-  bias / CRPS / coverage / ladder Brier), the 2025 Kalshi head-to-head, and the coherence audit.
-* `research/simulation_engine/RECONCILIATION.md` — fitted weights, Brier curves, disagreement bands,
-  encompassing regression.
+  bias / CRPS / coverage / ladder Brier) and the coherence audit.
+* `research/simulation_engine/RECONCILIATION.md` — the 2025 Kalshi head-to-head, fitted / confirmed /
+  deployed weights, Brier curves, disagreement bands, encompassing regression.
+* `research/simulation_engine/RUSHING_ABLATION.md` — the rushing input audit: what was retained, what was
+  rejected and why, and the walk-forward ablation that kept none of it out of the deployed model.
+* `research/simulation_engine/role_signal_2025.json` — whether the existence of a Kalshi ladder identifies
+  a role the depth chart missed (it does; the share model already absorbs it, so nothing is deployed).
 * `research/simulation_engine/WEEK1_2026_DIAGNOSTIC.md` — **development / diagnostic only**.
 
 ## What is deliberately not done yet
 
-* No in-game QB replacement branch (Darnold → Lock): the starter takes every attempt on every row.
+* A genuinely point-in-time **T-24h** study. It needs a T-24h game centre (the Kalshi archive's own T-24h
+  spread and total ladders) and dated injury/depth vintages for 2025; until then T-24h is reported as
+  `NON_PIT_DESCRIPTIVE` and cannot fit or promote a weight.
+* **Rushing efficiency covariates.** Offensive-line blocking, opponent-adjusted defensive front, yards
+  before/after contact, stuff and explosive rates were all built, audited and ablated; per-carry yardage
+  has an out-of-sample r² of 0.006 and no arm moved it materially, so none is deployed. FTN scheme data
+  and observed weather were rejected on point-in-time grounds. See `RUSHING_ABLATION.md`.
+* No in-game QB replacement branch (Darnold → Lock) beyond the fitted starter-share tail.
 * Game-level centres carry no football deviation (see above).
 * Longest reception/rush, fantasy points, interceptions, field goals, first-TD scorer, period markets:
   unsupported, reported as `UNSUPPORTED_STAT` — a professional model passes on what it cannot price.

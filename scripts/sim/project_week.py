@@ -13,12 +13,12 @@ write-once projections file plus a manifest.  It never touches the incumbent led
 the recommendation ledger.
 """
 from __future__ import annotations
-import argparse, json, os, pickle, sys
+import argparse, json, os, sys
 from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 import polars as pl
-from nfl_edge.sim import SIM_VERSION, prospective as P, training as T, backtest as B, reconcile as R
+from nfl_edge.sim import SIM_VERSION, features as F, prospective as P, training as T, backtest as B, reconcile as R
 
 
 def main():
@@ -31,7 +31,6 @@ def main():
     ap.add_argument("--out", default=ROOT)
     ap.add_argument("--bundle", default=None)
     ap.add_argument("--weights", default=os.path.join(B.OUT, "reconciliation_weights.json"))
-    ap.add_argument("--frames-cache", default=os.path.join(ROOT, "data", "cache", "sim", "frames.pkl"))
     a = ap.parse_args()
     cutoff = datetime.fromisoformat(a.cutoff.replace("Z", "+00:00")) if a.cutoff else datetime.now(timezone.utc)
     generated_at = datetime.now(timezone.utc)
@@ -42,15 +41,19 @@ def main():
     if os.path.exists(bundle_path):
         bundle = json.load(open(bundle_path))
     else:
-        frames = pickle.load(open(a.frames_cache, "rb")) if os.path.exists(a.frames_cache) else None
-        bundle = T.fit_bundle(a.season, frames)
+        bundle = T.fit_bundle(a.season)
         os.makedirs(os.path.dirname(bundle_path), exist_ok=True)
         json.dump(bundle, open(bundle_path, "w"))
+    if not bundle.get("priors"):
+        raise SystemExit(f"{bundle_path} carries no frozen priors; refit it with the current training code")
+    priors = F.PriorSet.from_dict(bundle["priors"])
+    if max(priors.fit_seasons) >= a.season:
+        raise SystemExit(f"bundle priors were fitted on {priors.fit_seasons}, which reaches season {a.season}")
     weights = R.load_weights(a.weights) if os.path.exists(a.weights) else None
     pmap = pl.read_parquet(os.path.join(ROOT, "data", "silver", "kalshi_player_map.parquet"))
     pmap = pmap.filter(pl.col("gsis_id").is_not_null() & pl.col("status").str.starts_with("RESOLVED"))
     player_map = dict(zip(pmap["kalshi_player_id"].to_list(), pmap["gsis_id"].to_list()))
-    slate = P.slate_inputs(a.season, a.week, cutoff, a.market_data, ledger_rows=ledger_rows)
+    slate = P.slate_inputs(a.season, a.week, cutoff, a.market_data, ledger_rows=ledger_rows, priors=priors)
     print("sources", json.dumps(slate["sources"], default=str))
     rows = P.price_slate(slate, ledger_rows, bundle, weights, n_sims=a.n_sims, run_id=run_id, observed_at=observed_at,
                          generated_at=generated_at, player_map=player_map)
@@ -59,7 +62,10 @@ def main():
     print(json.dumps({f"{k[0]}|{k[1]}": v for k, v in c.most_common()}, indent=0))
     manifest = {"run_id": run_id, "sim_version": SIM_VERSION, "season": a.season, "week": a.week, "cutoff": cutoff.isoformat(),
                 "generated_at": generated_at.isoformat(), "market_observed_at": observed_at, "ledger_manifest": {k: man.get(k) for k in ("run_id", "written_at")},
-                "bundle": bundle_path, "bundle_train_seasons": bundle.get("train_seasons"), "weights": a.weights if weights else None,
+                "bundle": bundle_path, "bundle_train_seasons": bundle.get("train_seasons"),
+                "priors_fit_seasons": list(priors.fit_seasons), "priors_version": priors.version,
+                "weights": a.weights if weights else None,
+                "deployed_weights": {k: v.get("weight") for k, v in ((weights or {}).get("fitted") or {}).items()},
                 "sources": slate["sources"], "n_rows": len(rows), "counts": {f"{k[0]}|{k[1]}": v for k, v in c.items()},
                 "games": {gid: {"center_source": G["input"].center_source, "spread_home": G["input"].spread_home,
                                 "total": G["input"].total_line, "kickoff": G["kickoff"].isoformat()} for gid, G in slate["games"].items()}}

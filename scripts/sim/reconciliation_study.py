@@ -1,12 +1,23 @@
 #!/usr/bin/env python3
 """Market reconciliation research on the 2025 Kalshi archive.
 
-Joins the walk-forward simulation distributions of 2025 (fitted on <= 2024) to the settled 2025 rungs and
-their archived quotes, then, per statistic family:
+Joins the walk-forward simulation distributions of 2025 (fitted on <= 2024, with shrinkage priors frozen on
+<= 2024) to the settled 2025 rungs and their archived quotes, then, per statistic family:
   * fits the reconciliation weight on weeks 1-9 and confirms it on weeks 10-22 (paired against the market,
-    game-clustered), at T-0 and at T-24h;
+    game-clustered);
   * reports the encompassing regression, the Brier curve over the weight grid, and the disagreement bands;
   * fits the weight the 2026 season will USE on all of 2025 (no 2026 outcome enters).
+
+ONLY T-0 (the close) IS EVIDENCE.  The historical simulator's game centre is the nflverse consensus
+CLOSING line, so a comparison against the close is like-for-like, and a comparison against an earlier
+quote is not: the football arm would be centred on a later market than the price it is being scored
+against.  The historical eligibility inputs have the same problem one level down -- the injury
+designations are the week's FINAL report and the 2016-2024 depth charts are weekly files with no intra-week
+vintage, neither of which can be pinned to a T-24h instant.  So T-24h is available behind
+``--descriptive-horizons`` and is written into the results as NON_PIT_DESCRIPTIVE: it may be read, it may
+not fit or promote a weight.  A genuinely point-in-time T-24h study needs a T-24h game centre (the Kalshi
+archive's own T-24h spread/total ladders) and dated injury/depth vintages; that is registered as remaining
+work, not claimed here.
 
 Writes research/simulation_engine/reconciliation_2025.json, reconciliation_weights.json and
 RECONCILIATION.md.
@@ -37,14 +48,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--market-data", default="/home/user/_market_data_wt")
     ap.add_argument("--fit-weeks", default="1-9")
-    ap.add_argument("--horizons", default="T-0,T-24h")
+    ap.add_argument("--descriptive-horizons", default="",
+                    help="extra horizons to report as NON_PIT_DESCRIPTIVE; they never fit or promote a weight")
     a = ap.parse_args()
     lo, hi = (int(x) for x in a.fit_weeks.split("-"))
     rungs = K.load_rungs(a.market_data, 2025)
     dists = load_dists(2025)
     results = {"n_rungs_archive": int(len(rungs)), "n_dists": len(dists), "horizons": {}}
     final_weights = None
-    for h in a.horizons.split(","):
+    horizons = ["T-0"] + [h for h in a.descriptive_horizons.split(",") if h.strip()]
+    for h in horizons:
         market = K.market_ladders(rungs, h)
         rows = rungs.copy()
         b, aa = f"bid_{h}", f"ask_{h}"
@@ -58,7 +71,15 @@ def main():
         confirmed = R.confirm(conf, fitted)
         enc = R.encompassing(scored)
         allfit = R.fit_weights(scored)
-        results["horizons"][h] = {"n_scored": int(len(scored)), "games": int(scored["game_id"].nunique()),
+        pit = h == "T-0"
+        results["horizons"][h] = {"pit_status": "PIT_EVIDENCE" if pit else "NON_PIT_DESCRIPTIVE",
+                                  "pit_note": ("the simulation centre is the consensus CLOSING line, so this "
+                                               "comparison is like-for-like") if pit else
+                                              ("NOT point-in-time: the simulation centre is the consensus CLOSING "
+                                               "line and the eligibility inputs are the week's final injury report "
+                                               "and a weekly depth chart, none of which is a T-24h vintage. "
+                                               "Descriptive only; cannot fit or promote a weight."),
+                                  "n_scored": int(len(scored)), "games": int(scored["game_id"].nunique()),
                                   "fit_weeks": [lo, hi], "fitted_on_fit_weeks": fitted, "confirmed_on_later_weeks": confirmed,
                                   "encompassing_all": enc, "fitted_on_all_2025": allfit,
                                   "by_stat_all": {st: {"n": int(len(g)), "brier_football": float(np.mean((g.p_football - g.y) ** 2)),
@@ -66,8 +87,12 @@ def main():
                                                        "mean_football": float(g.p_football.mean()), "mean_market": float(g.market_mono.mean()),
                                                        "rate": float(g.y.mean())} for st, g in scored.groupby("stat")}}
         scored.to_parquet(os.path.join(OUT, f"reconciliation_scored_2025_{h}.parquet"))
-        if h == "T-0":
+        if pit:
             final_weights = allfit
+        else:
+            # a descriptive horizon contributes no weight, by construction
+            results["horizons"][h]["fitted_on_fit_weeks"] = {k: dict(v, weight_not_deployable=True)
+                                                             for k, v in fitted.items()}
         print(h, json.dumps({k: {"w": v["weight"], "n": v["n"], "mkt": round(v["brier_market_mono"], 5), "fb": round(v["brier_football"], 5)}
                              for k, v in fitted.items()}, indent=0))
         print(h, "confirm", json.dumps({k: {kk: (round(vv, 5) if isinstance(vv, float) else vv) for kk, vv in v.items()} for k, v in confirmed.items()}, indent=0))

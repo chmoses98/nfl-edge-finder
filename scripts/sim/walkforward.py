@@ -20,15 +20,14 @@ def main():
     ap.add_argument("--frames-cache", default=os.path.join(ROOT, "data", "cache", "sim", "frames.pkl"))
     a = ap.parse_args()
     seasons = [int(s) for s in a.seasons.split(",")]
-    if os.path.exists(a.frames_cache):
-        frames = pickle.load(open(a.frames_cache, "rb"))
-    else:
-        frames = T.assemble(range(a.history_start, max(seasons) + 1))
-        os.makedirs(os.path.dirname(a.frames_cache), exist_ok=True)
-        pickle.dump(frames, open(a.frames_cache, "wb"))
     out_path = os.path.join(B.OUT, "walkforward.json")
     results = json.load(open(out_path)) if os.path.exists(out_path) else {}
     for y in seasons:
+        # One frame build PER EVALUATION SEASON, with the shrinkage priors frozen on seasons < y.  Sharing
+        # one frame across evaluation seasons is what let a season's own later games set its priors.
+        priors = T.fit_priors_for(y, a.history_start)
+        print(f"{y}: priors fitted on seasons {list(priors.fit_seasons)} ({priors.version})", flush=True)
+        frames = T.assemble(range(a.history_start, y + 1), verbose=lambda *x: None, priors=priors)
         info = B.run_season(y, frames, n_sims=a.n_sims, limit=a.limit or None, verbose=print)
         ev = B.evaluate(y, frames)
         results[str(y)] = {"run": info, "evaluation": ev}

@@ -80,8 +80,11 @@ def synthetic_bundle(seed=0):
     rng = np.random.default_rng(seed)
     tg = team_frame(rng)
     pg = player_frame(rng, tg)
-    tf = F.team_features(tg)
-    pf = F.player_features(pg, tg)
+    # The fixtures are not evidence, so fitting the priors on the same synthetic frame is fine here; the
+    # walk-forward fits them on seasons strictly before the evaluation season (training.fit_priors_for).
+    priors = F.fit_priors(tg, pg)
+    tf = F.team_features(tg, priors=priors)
+    pf = F.player_features(pg, tg, priors=priors)
     pf["dc_rank"] = pf["player_id"].str[-1].map({"B": 1, "1": 1, "2": 2}).fillna(1)
     pf["avail_state"] = "EXPECTED_ACTIVE"
     e = eligible_frame(pf)

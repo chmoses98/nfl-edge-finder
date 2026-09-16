@@ -46,6 +46,96 @@ class FeatureConfig:
 
 
 FEATURE_CONFIG = FeatureConfig()
+PRIORS_VERSION = "sim-priors-1.0.0"
+
+
+class MissingPriors(ValueError):
+    """Raised when a feature build is asked to invent its own shrinkage targets.
+
+    Every shrinkage target is a statistic of a POPULATION, and a population that includes the games being
+    predicted is a leak: a week-1 projection whose league play-volume prior was computed over the whole
+    season has seen week 18.  So priors are a fitted artifact, frozen on seasons strictly before the
+    evaluation period, carried on the bundle, and passed in here explicitly.  There is no default.
+    """
+
+
+@dataclass(frozen=True)
+class PriorSet:
+    """The shrinkage targets a feature build is allowed to use, fitted on rows strictly earlier than every
+    row it will be applied to.
+
+    ``team_level``   column -> league mean of that team-game level (used for own-offence AND opponent-allowed
+                     columns: over the league the multiset of allowed_X equals the multiset of X).
+    ``team_rate``    rate name -> pooled numerator/denominator over the fit seasons.
+    ``team_den``     denominator column -> league mean, which sets how many pseudo-games the prior is worth.
+    ``player_rate``  "POS|rate" -> pooled rate for that position; ``player_rate_all`` is the fallback for a
+                     position the fit seasons never saw.
+    """
+    team_level: dict
+    team_rate: dict
+    team_den: dict
+    player_rate: dict
+    player_rate_all: dict
+    fit_seasons: tuple
+    version: str = PRIORS_VERSION
+
+    def to_dict(self) -> dict:
+        return {"team_level": self.team_level, "team_rate": self.team_rate, "team_den": self.team_den,
+                "player_rate": self.player_rate, "player_rate_all": self.player_rate_all,
+                "fit_seasons": list(self.fit_seasons), "version": self.version}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "PriorSet":
+        return cls(team_level=d["team_level"], team_rate=d["team_rate"], team_den=d["team_den"],
+                   player_rate=d["player_rate"], player_rate_all=d["player_rate_all"],
+                   fit_seasons=tuple(d["fit_seasons"]), version=d.get("version", PRIORS_VERSION))
+
+    def player_prior(self, position, rate: str) -> np.ndarray:
+        pos = np.asarray(position, dtype=object)
+        out = np.full(len(pos), float(self.player_rate_all[rate]))
+        for p in np.unique(pos):
+            v = self.player_rate.get(f"{p}|{rate}")
+            if v is not None:
+                out[pos == p] = float(v)
+        return out
+
+
+PLAYER_RATES = {"ypc": ("rush_yards", "carries"), "rush_td_rate": ("rush_td", "carries"),
+                "explosive_rate": ("rush_10plus", "carries"), "ypt": ("rec_yards", "targets"),
+                "catch_rate": ("receptions", "targets"), "adot": ("air_yards", "targets"),
+                "rec_td_rate": ("rec_td", "targets"), "ypa": ("pass_yards", "attempts"),
+                "pass_td_rate": ("pass_td", "attempts"), "int_rate": ("ints", "attempts"),
+                "comp_rate": ("completions", "attempts"), "sack_rate": ("sacks_taken", "attempts"),
+                "scramble_rate": ("scrambles", "attempts"), "rz_carry_rate": ("rz_carries", "carries"),
+                "ez_target_rate": ("ez_targets", "targets")}
+
+
+def fit_priors(tg_fit: pd.DataFrame, pg_fit: pd.DataFrame, fit_seasons=None) -> PriorSet:
+    """Fit every shrinkage target from RAW team-game and player-game rows of the fit seasons only.
+
+    Called with seasons strictly before the period the features will be used to predict.  Nothing here
+    touches a feature column, so there is no recursion and no way for a later row to enter."""
+    tg = tg_fit.copy()
+    tg["off_td"] = tg["pass_td"] + tg["rush_td"]
+    seasons = tuple(sorted(int(s) for s in tg["season"].unique())) if fit_seasons is None else tuple(sorted(fit_seasons))
+    team_level = {c: float(np.nanmean(tg[c].to_numpy(dtype=float))) for c in TEAM_LEVEL_COLS}
+    team_rate, team_den = {}, {}
+    for name, (num, den) in TEAM_RATE_NUM_DEN.items():
+        n = float(np.nansum(tg[num].to_numpy(dtype=float))); d = float(np.nansum(tg[den].to_numpy(dtype=float)))
+        team_rate[name] = n / max(1.0, d)
+    for den in sorted({d for _, d in TEAM_RATE_NUM_DEN.values()}):
+        team_den[den] = float(np.nanmean(tg[den].to_numpy(dtype=float)))
+    pg = pg_fit
+    player_rate, player_rate_all = {}, {}
+    pos = pg["position"].to_numpy(dtype=object)
+    for name, (num, den) in PLAYER_RATES.items():
+        nv = pg[num].to_numpy(dtype=float); dv = pg[den].to_numpy(dtype=float)
+        player_rate_all[name] = float(np.nansum(nv) / max(1.0, np.nansum(dv)))
+        for p in np.unique(pos):
+            m = pos == p
+            player_rate[f"{p}|{name}"] = float(np.nansum(nv[m]) / max(1.0, np.nansum(dv[m])))
+    return PriorSet(team_level=team_level, team_rate=team_rate, team_den=team_den, player_rate=player_rate,
+                    player_rate_all=player_rate_all, fit_seasons=seasons)
 
 
 # ------------------------------------------------------------------------------------------ primitive
@@ -100,10 +190,13 @@ TEAM_LEVEL_COLS = ["plays", "neutral_pass_rate", "pass_rate", "proe", "neutral_p
                    "off_td", "epa_play", "success_rate", "rz_trips", "drives", "rush_att", "pass_att", "dropbacks"]
 
 
-def team_features(tg: pd.DataFrame, cfg: FeatureConfig = FEATURE_CONFIG) -> pd.DataFrame:
+def team_features(tg: pd.DataFrame, cfg: FeatureConfig = FEATURE_CONFIG, priors: PriorSet | None = None) -> pd.DataFrame:
     """Prior-only EWMA features for every team-game: the team's own offence (``off_*``) and what its
-    opponents have done against it (``def_*``), both shrunk toward the league mean of the training window.
-    Returns the frame with feature columns added, sorted by (team, season, week)."""
+    opponents have done against it (``def_*``), both shrunk toward FROZEN league targets fitted on seasons
+    strictly before the rows being predicted (``priors``).  Returns the frame with feature columns added,
+    sorted by (team, season, week)."""
+    if priors is None:
+        raise MissingPriors("team_features needs a PriorSet fitted on earlier seasons (features.fit_priors)")
     tg = tg.copy()
     tg["off_td"] = tg["pass_td"] + tg["rush_td"]
     # defensive view: the opponent's offensive line becomes the defence's 'allowed' row
@@ -120,22 +213,23 @@ def team_features(tg: pd.DataFrame, cfg: FeatureConfig = FEATURE_CONFIG) -> pd.D
     S, N, n_prior = decayed_prior_sums(tg["team"].to_numpy(), None, tg["season"].to_numpy(), X,
                                        cfg.team_halflife, cfg.team_season_carry)
     tg["team_n_prior"] = n_prior
-    # league means (over the whole frame; used only as the shrink target -- callers fit on train seasons,
-    # and the mean of a level like 'plays' is stationary enough that this is not a leak of consequence;
-    # recorded in the artifact regardless)
+    tg["priors_version"] = priors.version
+    # The shrink targets are the FROZEN league means of the fit seasons.  An own-offence column and its
+    # opponent-allowed twin share one target: over the league the multiset of allowed_X is the multiset of X.
     k = cfg.team_shrink_k
     for j, c in enumerate(level_cols):
-        prior = np.nanmean(X[:, j])
-        name = c.replace("allowed_", "def_") if c.startswith("allowed_") else f"off_{c}"
+        base = c.replace("allowed_", "")
+        prior = priors.team_level[base]
+        name = f"def_{base}" if c.startswith("allowed_") else f"off_{base}"
         tg[name] = (S[:, j] + k * prior) / (N[:, j] + k)
     off = len(level_cols)
     idx = {c: off + i for i, c in enumerate(rate_cols_all)}
     for name, (num, den) in TEAM_RATE_NUM_DEN.items():
+        prior = priors.team_rate[name]
+        # exposure-weighted: decayed numerator over decayed denominator, k pseudo-games of the prior
+        den_prior = k * priors.team_den[den]
         for side, pre in (("", "off_"), ("allowed_", "def_")):
             jn, jd = idx[side + num], idx[side + den]
-            prior = np.nansum(X[:, jn]) / max(1.0, np.nansum(X[:, jd]))
-            # exposure-weighted: decayed numerator over decayed denominator, k pseudo-games of the prior
-            den_prior = k * np.nanmean(X[:, jd])
             tg[pre + name] = (S[:, jn] + prior * den_prior) / (S[:, jd] + den_prior)
     return tg
 
@@ -158,13 +252,16 @@ def _attach_team_volume(pg: pd.DataFrame, tg: pd.DataFrame) -> pd.DataFrame:
 
 
 def player_features(pg: pd.DataFrame, tg: pd.DataFrame, cfg: FeatureConfig = FEATURE_CONFIG,
-                    phantom_rows: pd.DataFrame | None = None) -> pd.DataFrame:
+                    phantom_rows: pd.DataFrame | None = None, priors: PriorSet | None = None) -> pd.DataFrame:
     """Prior-only features for every player-game.
 
     Shares (``sh_*``) are the player's share of the team's official volume in each prior game, averaged
     with two half-lives; rates (``rt_*``) are exposure-weighted (decayed yards over decayed carries)
-    and shrunk toward the position prior with ``rate_shrink_k`` pseudo-touches.  ``last_*`` is the
-    previous game's share, ``gap_weeks`` the weeks since the player's previous appearance."""
+    and shrunk toward the FROZEN position prior (``priors``, fitted on earlier seasons) with
+    ``rate_shrink_k`` pseudo-touches.  ``last_*`` is the previous game's share, ``gap_weeks`` the weeks
+    since the player's previous appearance."""
+    if priors is None:
+        raise MissingPriors("player_features needs a PriorSet fitted on earlier seasons (features.fit_priors)")
     pg = pg.copy(); pg["phantom"] = False
     if phantom_rows is not None and len(phantom_rows):
         ph = phantom_rows[["game_id", "team", "player_id", "position", "season", "week"]].copy()
@@ -206,20 +303,12 @@ def player_features(pg: pd.DataFrame, tg: pd.DataFrame, cfg: FeatureConfig = FEA
     Xc[phantom] = np.nan
     Sc, Nc, _ = decayed_prior_sums(grp, None, sea, Xc, cfg.player_halflife_long, cfg.player_season_carry, phantom=phantom)
     ci = {c: i for i, c in enumerate(PLAYER_COUNT_COLS)}
-    pos = pg["position"].to_numpy()
-    rates = {"ypc": ("rush_yards", "carries"), "rush_td_rate": ("rush_td", "carries"), "explosive_rate": ("rush_10plus", "carries"),
-             "ypt": ("rec_yards", "targets"), "catch_rate": ("receptions", "targets"), "adot": ("air_yards", "targets"),
-             "rec_td_rate": ("rec_td", "targets"), "ypa": ("pass_yards", "attempts"), "pass_td_rate": ("pass_td", "attempts"),
-             "int_rate": ("ints", "attempts"), "comp_rate": ("completions", "attempts"),
-             "sack_rate": ("sacks_taken", "attempts"), "scramble_rate": ("scrambles", "attempts"),
-             "rz_carry_rate": ("rz_carries", "carries"), "ez_target_rate": ("ez_targets", "targets")}
-    for name, (num, den) in rates.items():
+    pos = pg["position"].to_numpy(dtype=object)
+    pg["priors_version"] = priors.version
+    for name, (num, den) in PLAYER_RATES.items():
         jn, jd = ci[num], ci[den]
-        # position prior = pooled rate by position over the frame (stationary; recorded in artifacts)
-        prior = np.zeros(len(pg))
-        for p in np.unique(pos):
-            m = pos == p
-            prior[m] = np.nansum(Xc[m, jn]) / max(1.0, np.nansum(Xc[m, jd]))
+        # position prior: FROZEN, fitted on earlier seasons; a later game cannot move it
+        prior = priors.player_prior(pos, name)
         k = cfg.rate_shrink_k
         pg[f"rt_{name}"] = (Sc[:, jn] + k * prior) / (Sc[:, jd] + k)
         pg[f"rt_{name}_n"] = Sc[:, jd]
@@ -329,11 +418,20 @@ def eligible_players(season: int, week: int, team: str, *, depth: pd.DataFrame, 
 
 
 # --------------------------------------------------------------------------------------- assembly
-def build_frames(seasons, cfg: FeatureConfig = FEATURE_CONFIG) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """(team frame with features, player frame with features) for the seasons.  Features on a row use only
-    earlier rows; including earlier seasons in ``seasons`` is what warms the EWMAs up."""
+def build_frames(seasons, cfg: FeatureConfig = FEATURE_CONFIG, priors: PriorSet | None = None,
+                 prior_seasons=None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(team frame with features, player frame with features) for the seasons.
+
+    Features on a row use only earlier rows of the same subject AND frozen priors.  ``priors`` must be
+    fitted on seasons strictly before anything that will be predicted; ``prior_seasons`` is a convenience
+    that fits them here from those seasons' raw rows."""
     tg = D.load("team_games", seasons).to_pandas()
     pg = D.load("player_games", seasons).to_pandas()
-    tf = team_features(tg, cfg)
-    pf = player_features(pg, tg, cfg)
+    if priors is None:
+        if prior_seasons is None:
+            raise MissingPriors("build_frames needs priors= or prior_seasons=")
+        priors = fit_priors(D.load("team_games", prior_seasons).to_pandas(),
+                            D.load("player_games", prior_seasons).to_pandas(), fit_seasons=prior_seasons)
+    tf = team_features(tg, cfg, priors)
+    pf = player_features(pg, tg, cfg, priors=priors)
     return tf, pf
