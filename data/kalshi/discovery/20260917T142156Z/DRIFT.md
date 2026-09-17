@@ -1,0 +1,71 @@
+# Discovery -> registry drift (20260917T142156Z)
+
+Registry holds 392 series; discovery lists 460 NFL candidates.
+
+| quantity | n |
+|---|---|
+| new_series | 7 |
+| new_series_open_markets | 785 |
+| unclassified_series | 8 |
+| capture_gap_contracts | 785 |
+| capture_gap_contracts_outside_registry | 785 |
+
+## NEW_SERIES (not in the reviewed registry)
+
+| series | family | open | first seen | lag (days) | title |
+|---|---|---|---|---|---|
+| KXNFLFFWEEKLEAD | UNKNOWN_NEEDS_CLASSIFICATION | 254 | 20260917T142156Z | 0.0 | Weekly Fantasy Football Leader |
+| KXNFLPOTM | UNKNOWN_NEEDS_CLASSIFICATION | 200 | 20260917T142156Z | 0.0 | NFL Player of the Month |
+| KXNFLFFWEEKTOP | UNKNOWN_NEEDS_CLASSIFICATION | 155 | 20260917T142156Z | 0.0 | Weekly Fantasy Football Top Players |
+| KXNFLFFPLAYOFFLEADER | UNKNOWN_NEEDS_CLASSIFICATION | 75 | 20260917T142156Z | 0.0 | Fantasy Football Playoffs Leader |
+| KXNFLROTM | UNKNOWN_NEEDS_CLASSIFICATION | 60 | 20260917T142156Z | 0.0 | NFL Rookie of the Month |
+| KXNFLFFSEASONTOTAL | UNKNOWN_NEEDS_CLASSIFICATION | 36 | 20260917T142156Z | 0.0 | Pro Football Player's Fantasy Season Total |
+| KXNFLLONGESTPLAY | UNKNOWN_NEEDS_CLASSIFICATION | 5 | 20260917T142156Z | 0.0 | NFL Longest Touchdown |
+
+## UNCLASSIFIED
+
+| series | open | title |
+|---|---|---|
+| KXNFLFFWEEKLEAD | 254 | Weekly Fantasy Football Leader |
+| KXNFLPOTM | 200 | NFL Player of the Month |
+| KXNFLFFWEEKTOP | 155 | Weekly Fantasy Football Top Players |
+| KXNFLFFPLAYOFFLEADER | 75 | Fantasy Football Playoffs Leader |
+| KXNFLROTM | 60 | NFL Rookie of the Month |
+| KXNFLFFSEASONTOTAL | 36 | Pro Football Player's Fantasy Season Total |
+| KXNFLLONGESTPLAY | 5 | NFL Longest Touchdown |
+| KXTENNCOACH | 0 | Tennessee Pro Football Team Next Coach |
+
+## CAPTURE_GAP (open contracts never confirmed open by any capture run)
+
+| series | open | never seen | in registry | tier |
+|---|---|---|---|---|
+| KXNFLFFWEEKLEAD | 254 | 254 | False | None |
+| KXNFLPOTM | 200 | 200 | False | None |
+| KXNFLFFWEEKTOP | 155 | 155 | False | None |
+| KXNFLFFPLAYOFFLEADER | 75 | 75 | False | None |
+| KXNFLROTM | 60 | 60 | False | None |
+| KXNFLFFSEASONTOTAL | 36 | 36 | False | None |
+| KXNFLLONGESTPLAY | 5 | 5 | False | None |
+
+## NEW_MARKET_STRUCTURES: 29 contracts on PROVEN families did not parse PROVEN
+
+* KXNFLFG-26SEP17DETBUF-DET4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP17DETBUF-DET3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP17DETBUF-DET2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP17DETBUF-DET1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP17DETBUF-BUF4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP17DETBUF-BUF3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP17DETBUF-BUF2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP17DETBUF-BUF1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-DET-JGIBBS0 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-DET-SVAKI33 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-DET-BWRIGHT89 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-DET-JWILLIAMS1 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-DET-ITESLAA18 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-DET-SLAPORTA87 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-DET-ASTBROWN14 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-BUF-DMOORE2 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-BUF-JCOOK4 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-BUF-DKINCAID86 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-BUF-RDAVIS7 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP17DETBUF-BUF-JHAWES85 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
