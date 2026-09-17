@@ -174,7 +174,10 @@ Every committed summary is a pure render of its JSON by `scripts/sim/write_resul
   `slate_audit.py` now fails on it every cycle. The fix is *not* to read the player's quote; the
   candidate is to use the **existence** of a passing ladder as a starter prior, which the project already
   accepts as a role signal — and it has to be fitted and confirmed on the 2025 archive before it ships,
-  not wired in on the eve of a kickoff.
+  not wired in on the eve of a kickoff. Registered as **`H-20260916-028`** (`PROPOSED`, nothing fitted):
+  the candidate signals, the walk-forward procedure, the disagreement-subset target that actually matters,
+  and the hard constraint that only market *existence* and liquidity may enter — never a price. The
+  Minnesota case motivated the hypothesis, which is exactly why it may not be its validation set.
 * No in-game QB replacement branch (Darnold → Lock) beyond the fitted starter-share tail.
 * **The ranked `any_td` gap is not a pure football opinion.** The reconciled probability re-locates the
   football shape onto the market's *estimated* mean, and on a thin two-rung ladder that estimate is

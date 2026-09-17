@@ -30,7 +30,16 @@ def load_latest(roots, at_or_before: datetime | None = None) -> tuple[dict, dict
     for root in roots:
         files += glob.glob(os.path.join(root, DIRNAME, "*", "*.projections.jsonl.gz"))
     stamp = _stamp(at_or_before)
-    files = sorted(f for f in files if stamp is None or os.path.basename(f)[:16] <= stamp)
+    # Sort by the RUN STAMP, not by the full path.  The caller passes several roots (the market-data
+    # clone and the repo itself), and sorting full paths makes the root whose directory name sorts last
+    # win regardless of which artifact is newer: on the runner "/tmp/md" sorts after
+    # "/home/runner/work/...", and the market-data clone is fetched BEFORE this cycle's projections are
+    # published, so the packet silently read the PREVIOUS cycle's simulation -- about two hours stale
+    # against the ledger it was pricing.  The basename is the run stamp, which is what "latest" means.
+    # A run present in more than one root ties on the stamp and resolves to the first root, whose copy
+    # is byte-identical because the corpus is write-once.
+    files = sorted((f for f in files if stamp is None or os.path.basename(f)[:16] <= stamp),
+                   key=os.path.basename)
     if not files:
         return None, None
     path = files[-1]
