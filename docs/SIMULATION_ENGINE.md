@@ -107,15 +107,36 @@ See `research/simulation_engine/RECONCILIATION.md`.
 ## Outputs
 
 `scripts/sim/project_week.py` writes one row per contract to
-`data/shadow/sim/<day>/<run_id>.sim-1.0.0.projections.jsonl.gz` (write-once) with: football-only,
+`data/shadow/sim/<day>/<run_id>.sim-1.1.0.projections.jsonl.gz` (write-once) with: football-only,
 market and reconciled probabilities; the reconciliation weight; the football / market / final means and
-football sd; the disagreement of the reconciled probability against the mid (and the raw football one,
-separately); support state and reason; centre and its source; every version (sim, engine, models,
-reconcile, bundle training seasons) and every instant (market observed, generated, feature cutoff,
-kickoff). The handicap packet attaches these per market (`simulation`) and per game
-(`simulation.largest_reconciled_disagreements`), and `game_priority` now ignores the incumbent's raw
-disagreement entirely: only a reconciled disagreement moves the review priority, capped below the
-injury and weather signals.
+football sd; **the football distribution's own summary — `football_p05/p25/p50/p75/p95` — plus
+`market_p50` and `final_p50`**; the ledger player name beside the GSIS and Kalshi ids; the disagreement of
+the reconciled probability against the mid (and the raw football one, separately); support state and
+reason; centre and its source; every version (sim, engine, models, reconcile, bundle training seasons) and
+every instant (market observed, generated, feature cutoff, kickoff). The handicap packet attaches these per
+market (`simulation`) and per game (`simulation.largest_reconciled_disagreements`), and `game_priority` now
+ignores the incumbent's raw disagreement entirely: only a reconciled disagreement moves the review
+priority, capped below the injury and weather signals.
+
+**The quantiles are read, not estimated.** `football_p50` is `LatticeDistribution.quantile(0.50)` on the
+same pmf that prices every rung of that player's ladder — the one produced by the 20,000-row coherent
+simulation — and the report calls it "football median" so it can never be confused with a median inferred
+from where a sparse Kalshi ladder happens to cross 0.50. sim-1.0.0 computed these quantiles internally and
+persisted none of them, which is why the 2026 week 2 DET @ BUF report could show Jahmyr Gibbs's rushing
+yards with a model median of `--` beside a football mean of 95.1: the only median in the document came from
+the incumbent's ladder, whose highest probability on that ladder was 0.4647, so it never crossed. The
+sim-1.1.0 bump is additive — every sim-1.0.0 field keeps its name and meaning, and a sim-1.0.0 artifact
+stays readable, with its quantiles reported as unavailable rather than reconstructed
+(`handicap.sim_block._has_quantiles`).
+
+**Per-game coverage accounting.** `sim_block.game_view` puts every listed FULL-period player/stat market
+group into exactly one bucket — `SIMULATED_AND_EXPOSED`, or one of `UNSUPPORTED_COHERENCE`, `ERROR`,
+`UNSUPPORTED_IDENTITY`, `UNSUPPORTED_STAT`, `NOT_ELIGIBLE`, `UNSUPPORTED_RULES` — and reports
+`silently_missing`, the number that are neither exposed with a distribution summary nor refused with a
+reason. It must be zero. The full game file renders every exposable row and prints the total against the
+rendered count; only the compact slate summary may cap the table, and it says that it has and where the
+rest is. The cap it replaced (`pp[:max_players * 3]`) dropped fifteen of DET @ BUF's fifty-seven priced
+projections out of the document with nothing saying so.
 
 **Only a family with a non-zero deployed weight is ranked.** At weight 0 the reconciled *mean* is the
 market's, but the reconciled *shape* is still the football shape, so the probability at a given rung can
