@@ -197,10 +197,11 @@ def _many_sim_rows(n_groups=60):
     return rows
 
 
-def _game_with(sim_rows, legacy_rows=None, names=None):
+def _game_with(sim_rows, legacy_rows=None, names=None, listed=None):
     with open(GAME_FIXTURE) as f:
         g = json.load(f)
-    g["simulation"] = sim_block.game_view(sim_rows, {"sim_version": "sim-1.1.0", "run_id": "r"}, names=names)
+    g["simulation"] = sim_block.game_view(sim_rows, {"sim_version": "sim-1.1.0", "run_id": "r"},
+                                          names=names, listed=listed)
     if legacy_rows is not None:
         g["players"] = PK.player_projection_blocks(legacy_rows, {}, g["game_id"])
     return g
@@ -369,6 +370,40 @@ def test_every_listed_player_stat_group_lands_in_exactly_one_coverage_bucket():
     assert "silently missing: 0" in md
     for r in refused:
         assert r["player_name"] in md and r["support_reason"] in md, r["ticker"]
+
+
+def test_a_listed_group_the_simulation_run_never_saw_is_accounted_for_too():
+    """The denominator is the LISTED board, not the rows the run happened to produce.
+
+    2026 week 2: 897 listed FULL-period player/stat groups across the slate, 313 of which the attached
+    simulation run produced no row for at all -- PIT @ NE alone had 144 listed player/stat markets with no
+    sim row, including 74 receptions rungs, a statistic the same run priced in other games. Counting
+    coverage over the sim rows can only ever count what the run produced, so those 313 groups were invisible
+    to the accounting as well as to the table. They are listed markets; the report has to say so.
+    """
+    priced = _many_sim_rows(2)                       # 2 groups the run priced
+    listed = [dict(r, family="PLAYER_STAT", period="FULL") for r in priced]
+    listed += [{"ticker": "NEW-1", "family": "PLAYER_STAT", "period": "FULL", "stat": "receptions",
+                "player_name": "Listed After The Run", "team": "BUF"},
+               {"ticker": "NEW-2", "family": "PLAYER_STAT", "period": "FULL", "stat": "receptions",
+                "player_name": "Listed After The Run", "team": "BUF"},
+               {"ticker": "FFP-1", "family": "PLAYER_STAT", "period": "FULL", "stat": "fantasy_points",
+                "player_name": "Never Priced", "team": "DET"}]
+    view = sim_block.game_view(priced, {"sim_version": "sim-1.1.0", "run_id": "r"}, listed=listed)
+    cov = view["coverage"]
+    assert cov["denominator"] == "listed market board"
+    assert cov["player_stat_groups_listed"] == 4, "2 priced groups + 2 groups the run never saw"
+    assert cov["buckets"]["SIMULATED_AND_EXPOSED"] == 2
+    assert cov["buckets"]["NOT_IN_SIMULATION_RUN"] == 2
+    assert sum(cov["buckets"].values()) == cov["player_stat_groups_listed"]
+    assert cov["silently_missing"] == 0
+    # both are named, with the reason, in the document
+    md = render_game_markdown(_game_with(priced, listed=listed))
+    assert "Listed After The Run" in md and "Never Priced" in md
+    assert "NOT_IN_SIMULATION_RUN" in md
+    assert "no row in the attached simulation run" in md
+    # a group the run never saw must not be counted as one the run refused on football grounds
+    assert cov["buckets"]["UNSUPPORTED_STAT"] == 0
 
 
 def test_a_priced_group_that_never_reached_the_table_is_reported_not_lost():

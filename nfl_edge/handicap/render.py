@@ -226,7 +226,8 @@ def _sim_projection_section(sv: dict, *, compact: bool, max_rows: int) -> list:
         for k, v in buckets.items():
             a(f"| {k} | {v} |")
         a("")
-        a(f"- listed FULL-period player/stat groups: **{cov.get('player_stat_groups_listed')}**")
+        a(f"- listed FULL-period player/stat groups: **{cov.get('player_stat_groups_listed')}** "
+          f"(denominator: {cov.get('denominator')})")
         a(f"- simulated and exposed above: **{cov.get('simulated_and_exposed')}**")
         a(f"- simulation projection rows total: **{sv.get('simulation_projection_rows_total')}** · "
           f"rendered here: **{len(shown)}**")
@@ -235,8 +236,8 @@ def _sim_projection_section(sv: dict, *, compact: bool, max_rows: int) -> list:
         a("")
         ref = cov.get("unsupported_or_refused") or []
         if ref:
-            a(f"_{len(ref)} group(s) the simulation refused, with the reason. A refusal is a statement, not a "
-              "gap: the market is listed, the simulation would not price it._")
+            a(f"_{len(ref)} group(s) not exposed above, each with its reason. A refusal is a statement, not a "
+              "gap: the market is listed, and the simulation either would not price it or never saw it._")
             a("")
             a("| player | team | stat | state | reason | rungs |")
             a("|---|---|---|---|---|---|")

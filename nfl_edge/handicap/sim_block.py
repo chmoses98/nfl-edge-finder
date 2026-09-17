@@ -27,7 +27,15 @@ EXPOSABLE_STATES = ("PRICED", "FOOTBALL_ONLY_NO_RECONCILIATION")
 # a blank row and never an absent one.
 REFUSAL_PRECEDENCE = ("UNSUPPORTED_COHERENCE", "ERROR", "UNSUPPORTED_IDENTITY", "UNSUPPORTED_STAT",
                       "NOT_ELIGIBLE", "UNSUPPORTED_RULES")
-COVERAGE_BUCKETS = ("SIMULATED_AND_EXPOSED",) + REFUSAL_PRECEDENCE + ("EXPOSABLE_BUT_NOT_EXPOSED",)
+# A listed group the attached simulation run never produced a row for at all.  This is not a refusal the
+# simulation made -- it is a market the run never saw, because the run priced an earlier ledger snapshot
+# than the one the packet is built from.  It is by far the largest bucket in practice (2026 week 2: 313 of
+# 897 listed groups) and it was completely invisible before, because a coverage count taken over the sim
+# rows can only ever count what the sim produced.  The denominator has to be the LISTED board.
+NOT_IN_RUN = "NOT_IN_SIMULATION_RUN"
+NOT_IN_RUN_REASON = ("no row in the attached simulation run for this market group -- the run priced an "
+                     "earlier ledger snapshot, or this family is not one the run prices at all")
+COVERAGE_BUCKETS = ("SIMULATED_AND_EXPOSED",) + REFUSAL_PRECEDENCE + (NOT_IN_RUN, "EXPOSABLE_BUT_NOT_EXPOSED")
 QUANTILES = ("p05", "p25", "p50", "p75", "p95")
 
 
@@ -125,7 +133,11 @@ def _player_label(row: dict, names: dict | None) -> str | None:
     return None
 
 
-def coverage(game_rows: list, projected_keys: set, names: dict | None = None) -> dict:
+def _is_full_player_stat(m: dict) -> bool:
+    return m.get("family") == "PLAYER_STAT" and (m.get("period") or "FULL") == "FULL"
+
+
+def coverage(game_rows: list, projected_keys: set, names: dict | None = None, listed: list | None = None) -> dict:
     """Every listed FULL-period player/stat market GROUP, in exactly one bucket.
 
     The rendering cap this replaced could drop a priced group out of the game file without a word (2026
@@ -133,33 +145,58 @@ def coverage(game_rows: list, projected_keys: set, names: dict | None = None) ->
     the report was being read for).  A count that has to add up is the only defence: a group is either
     exposed with its distribution summary or refused with a reason, and `silently_missing` is the number
     that are neither.  It must be zero.
+
+    ``listed`` is the game's LISTED market rows, and is the denominator when it is given: a group the
+    attached simulation run produced no row for is a group the report has to account for too, and counting
+    over the sim rows alone can only ever count what the run produced.  Without it the denominator falls
+    back to the sim rows, which is the right answer only when the caller has nothing else (``slate_audit``
+    reads a projections file with no board beside it).
     """
+    by_ticker = {r.get("ticker"): r for r in game_rows if r.get("ticker")}
     groups = {}
-    for r in game_rows:
-        if r.get("family") != "PLAYER_STAT" or (r.get("period") or "FULL") != "FULL":
-            continue
-        g = groups.setdefault(_group_key(r), {"states": set(), "reasons": {}, "n_rungs": 0, "row": r})
-        g["states"].add(r.get("support_state"))
-        if r.get("support_reason"):
-            g["reasons"][r.get("support_state")] = r["support_reason"]
-        g["n_rungs"] += 1
+    if listed is None:
+        for r in game_rows:
+            if not _is_full_player_stat(r):
+                continue
+            g = groups.setdefault(_group_key(r), {"rows": [], "n_rungs": 0, "market": r})
+            g["rows"].append(r)
+            g["n_rungs"] += 1
+    else:
+        for m in listed:
+            if not _is_full_player_stat(m):
+                continue
+            key = (m.get("player_name") or m.get("player_id") or m.get("player_kalshi_id"), m.get("stat"))
+            g = groups.setdefault(key, {"rows": [], "n_rungs": 0, "market": m})
+            g["n_rungs"] += 1
+            r = by_ticker.get(m.get("ticker"))
+            if r is not None:
+                g["rows"].append(r)
+
     counts = {b: 0 for b in COVERAGE_BUCKETS}
     refused, orphans = [], []
     for key, g in groups.items():
-        exposable = bool(g["states"] & set(EXPOSABLE_STATES))
-        if exposable and key in projected_keys:
-            bucket = "SIMULATED_AND_EXPOSED"
-        elif exposable:
-            bucket = "EXPOSABLE_BUT_NOT_EXPOSED"
+        rows = g["rows"]
+        states = {r.get("support_state") for r in rows}
+        exposed = any((r.get("player_id"), r.get("stat")) in projected_keys for r in rows)
+        if not rows:
+            bucket, reason = NOT_IN_RUN, NOT_IN_RUN_REASON
+        elif states & set(EXPOSABLE_STATES):
+            bucket = "SIMULATED_AND_EXPOSED" if exposed else "EXPOSABLE_BUT_NOT_EXPOSED"
+            reason = None
         else:
-            bucket = next((st for st in REFUSAL_PRECEDENCE if st in g["states"]), "EXPOSABLE_BUT_NOT_EXPOSED")
+            bucket = next((st for st in REFUSAL_PRECEDENCE if st in states), "EXPOSABLE_BUT_NOT_EXPOSED")
+            reason = next((r.get("support_reason") for r in rows
+                           if r.get("support_state") == bucket and r.get("support_reason")), None)
         counts[bucket] += 1
-        if bucket in REFUSAL_PRECEDENCE or bucket == "EXPOSABLE_BUT_NOT_EXPOSED":
-            rec = {"player": _player_label(g["row"], names) or key[0], "player_id": g["row"].get("player_id"),
-                   "player_kalshi_id": g["row"].get("player_kalshi_id"), "team": g["row"].get("team"),
-                   "stat": key[1], "state": bucket, "reason": g["reasons"].get(bucket), "n_rungs": g["n_rungs"]}
+        if bucket != "SIMULATED_AND_EXPOSED":
+            src = rows[0] if rows else g["market"]
+            rec = {"player": _player_label(src, names) or g["market"].get("player_name") or key[0],
+                   "player_id": src.get("player_id"), "player_kalshi_id": src.get("player_kalshi_id"),
+                   "team": src.get("team") or g["market"].get("team"), "stat": key[1], "state": bucket,
+                   "reason": reason, "n_rungs": g["n_rungs"]}
             (orphans if bucket == "EXPOSABLE_BUT_NOT_EXPOSED" else refused).append(rec)
     return {"player_stat_groups_listed": len(groups), "buckets": counts,
+            "denominator": ("listed market board" if listed is not None else "attached simulation rows"),
             "simulated_and_exposed": counts["SIMULATED_AND_EXPOSED"],
             "unsupported_or_refused": sorted(refused, key=lambda x: (str(x["team"]), str(x["stat"]), str(x["player"]))),
             "silently_missing": counts["EXPOSABLE_BUT_NOT_EXPOSED"],
@@ -168,7 +205,8 @@ def coverage(game_rows: list, projected_keys: set, names: dict | None = None) ->
                           "distribution summary, or refused with a reason. silently_missing must be 0.")}
 
 
-def game_view(game_rows: list, manifest: dict | None, names: dict | None = None) -> dict:
+def game_view(game_rows: list, manifest: dict | None, names: dict | None = None,
+              listed: list | None = None) -> dict:
     """Per-game summary: counts by support state, the centre used, and the reconciled disagreements ranked
     (validated weight only)."""
     counts = {}
@@ -234,7 +272,7 @@ def game_view(game_rows: list, manifest: dict | None, names: dict | None = None)
                          "distribution_quantiles_available": _has_quantiles(r), "n_rungs": 0}
         seen[key]["n_rungs"] += 1
     projections = sorted(seen.values(), key=lambda x: (x["team"] or "", x["stat"] or "", -(x["football_mean"] or 0)))
-    cov = coverage(game_rows, set(seen.keys()), names)
+    cov = coverage(game_rows, set(seen.keys()), names, listed)
     return {"sim_version": (manifest or {}).get("sim_version"), "run_id": (manifest or {}).get("run_id"),
             "player_projections": projections,
             "simulation_projection_rows_total": len(projections),

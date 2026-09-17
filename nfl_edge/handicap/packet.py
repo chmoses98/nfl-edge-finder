@@ -1042,8 +1042,10 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
         "markets": markets,
         # The ledger's own player names, keyed by both ids, so the simulation projection table reads as
         # names even against an artifact written before sim-1.1.0 carried them.
+        # `listed=markets` makes the LISTED board the coverage denominator, so a player/stat group the
+        # attached simulation run produced no row for is still accounted for instead of vanishing.
         "simulation": _sim_game_view([sim_rows[m["ticker"]] for m in markets if m["ticker"] in sim_rows], sim_manifest,
-                                     names=_ledger_player_names(rows)),
+                                     names=_ledger_player_names(rows), listed=markets),
         "largest_disagreements": [
             {k: m.get(k) for k in ("ticker", "family", "stat", "player_name", "threshold", "mid",
                                    "yes_ask", "no_ask", "model_probability", "disagreement_vs_mid",
