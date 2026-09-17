@@ -33,7 +33,14 @@ from datetime import datetime, timedelta, timezone
 
 from nfl_edge.handicap.sim_block import game_view as _sim_game_view, load_latest as _sim_load_latest, market_view as _sim_market_view
 
-PACKET_SCHEMA_VERSION = "1.0.0"
+# 1.1.0: the per-game `simulation` block gained the coherent simulation's own DISTRIBUTION SUMMARY per
+# player/stat (football p05/p25/p50/p75/p95, the market and reconciled medians), the ledger player name on
+# each projection row, and a `coverage` block that accounts for every listed FULL-period player/stat group.
+# Additive: every 1.0.0 field keeps its name and meaning.  The renderer's human-facing structure changed in
+# the same change -- the coherent simulation is now the primary player projection table and the incumbent
+# ladder-derived one is labelled LEGACY ... DIAGNOSTIC ONLY -- which is a material change to the document a
+# handicapper reads, so the packet schema moves with it rather than leaving readers to detect it.
+PACKET_SCHEMA_VERSION = "1.1.0"
 
 # Movement horizons, in minutes before kickoff. Reported only where an observation exists.
 MOVEMENT_HORIZONS_MIN = [72 * 60, 48 * 60, 24 * 60, 12 * 60, 6 * 60, 3 * 60, 90, 60, 30]
@@ -335,6 +342,19 @@ def _survival_summary(points: list) -> dict:
         "thresholds": {str(k): round(p, 4) for k, p in zip(ks, mono)},
         "monotonicity_violations": sum(1 for a, b in zip(ps, ps[1:]) if b > a),
     }
+
+
+def _ledger_player_names(rows: list) -> dict:
+    """{player_kalshi_id or player_id -> player_name} from this game's ledger observations."""
+    out = {}
+    for r in rows:
+        name = r.get("player_name")
+        if not name:
+            continue
+        for k in ("player_kalshi_id", "player_id"):
+            if r.get(k):
+                out.setdefault(r[k], name)
+    return out
 
 
 def player_projection_blocks(rows: list, implied: dict, game_id: str) -> dict:
@@ -1020,7 +1040,10 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
         "matchup": matchup_advantages(profiles, home, away),
         "players": player_projection_blocks(rows, implied, game_id),
         "markets": markets,
-        "simulation": _sim_game_view([sim_rows[m["ticker"]] for m in markets if m["ticker"] in sim_rows], sim_manifest),
+        # The ledger's own player names, keyed by both ids, so the simulation projection table reads as
+        # names even against an artifact written before sim-1.1.0 carried them.
+        "simulation": _sim_game_view([sim_rows[m["ticker"]] for m in markets if m["ticker"] in sim_rows], sim_manifest,
+                                     names=_ledger_player_names(rows)),
         "largest_disagreements": [
             {k: m.get(k) for k in ("ticker", "family", "stat", "player_name", "threshold", "mid",
                                    "yes_ask", "no_ask", "model_probability", "disagreement_vs_mid",

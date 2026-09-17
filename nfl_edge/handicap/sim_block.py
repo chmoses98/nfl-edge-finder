@@ -18,6 +18,18 @@ DIRNAME = os.path.join("data", "shadow", "sim")
 PRICED_STATES = ("PRICED",)
 FOOTBALL_ONLY_STATES = ("FOOTBALL_ONLY_NO_RECONCILIATION", "MARKET_CENTRED_GAME")
 
+# A player/stat group the simulation priced: it has a football distribution, so it MUST appear in the
+# projection table with that distribution's summary.
+EXPOSABLE_STATES = ("PRICED", "FOOTBALL_ONLY_NO_RECONCILIATION")
+# ... and one it refused.  Exactly one of these is reported per group, in this order of precedence: a group
+# whose rungs refused for more than one reason is bucketed by the FIRST reason here, so the report never
+# double-counts a group and never has to pick arbitrarily.  A refusal is shown with its reason; it is never
+# a blank row and never an absent one.
+REFUSAL_PRECEDENCE = ("UNSUPPORTED_COHERENCE", "ERROR", "UNSUPPORTED_IDENTITY", "UNSUPPORTED_STAT",
+                      "NOT_ELIGIBLE", "UNSUPPORTED_RULES")
+COVERAGE_BUCKETS = ("SIMULATED_AND_EXPOSED",) + REFUSAL_PRECEDENCE + ("EXPOSABLE_BUT_NOT_EXPOSED",)
+QUANTILES = ("p05", "p25", "p50", "p75", "p95")
+
 
 def _stamp(dt: datetime | None) -> str | None:
     return dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ") if dt else None
@@ -54,6 +66,16 @@ def load_latest(roots, at_or_before: datetime | None = None) -> tuple[dict, dict
     return rows, manifest
 
 
+def _has_quantiles(row: dict) -> bool:
+    """Does this artifact REPORT the distribution's quantiles at all?
+
+    Key presence, not value: an artifact written before sim-1.1.0 carries no ``football_p50`` key, and the
+    honest reading of that is "this artifact does not report a median", never "the simulation had no
+    median".  A sim-1.1.0 row that genuinely could not be priced carries the key with ``None``.
+    """
+    return "football_p50" in row
+
+
 def market_view(row: dict | None) -> dict | None:
     """The per-market block.  ``disagreement_vs_mid`` here is the RECONCILED probability minus the market
     mid where a validated weight exists, else None -- the raw football disagreement is reported separately
@@ -65,6 +87,11 @@ def market_view(row: dict | None) -> dict | None:
             "p_reconciled": row.get("p_reconciled"), "reconcile_weight": row.get("reconcile_weight"),
             "football_mean": row.get("football_mean"), "market_mean": row.get("market_mean"), "final_mean": row.get("final_mean"),
             "football_sd": row.get("football_sd"), "p_active": row.get("p_active"),
+            # the distribution's OWN quantiles (sim-1.1.0).  A sim-1.0.0 artifact has no such keys, and says
+            # so through `distribution_quantiles_available` rather than having a median invented for it.
+            **{f"football_{q}": row.get(f"football_{q}") for q in QUANTILES},
+            "market_p50": row.get("market_p50"), "final_p50": row.get("final_p50"),
+            "distribution_quantiles_available": _has_quantiles(row),
             "reconciled_disagreement_vs_mid": (round(row["p_reconciled"] - row["mid"], 5)
                                                if row.get("p_reconciled") is not None and row.get("mid") is not None else None),
             "football_disagreement_vs_mid": row.get("football_disagreement_vs_mid"),
@@ -76,7 +103,72 @@ def market_view(row: dict | None) -> dict | None:
             "center_source": row.get("center_source"), "label": "DISAGREEMENT ONLY -- REQUIRES HANDICAP"}
 
 
-def game_view(game_rows: list, manifest: dict | None) -> dict:
+def _group_key(row: dict):
+    """One (player, stat) group.  Keyed on the GSIS id where the identity resolved -- which is how the
+    projection table is keyed -- and on the Kalshi id where it did not, so an unresolved identity is still
+    one countable group rather than a hole."""
+    return (row.get("player_id") or row.get("player_kalshi_id"), row.get("stat"))
+
+
+def _player_label(row: dict, names: dict | None) -> str | None:
+    """The ledger player name, from the sim row (sim-1.1.0) or the packet's own ledger rows (any vintage).
+
+    A handicapper reading `00-0039139 rushing_yards` has to go and look up who that is; the projection
+    table exists to be read.  The ids stay on the row for provenance -- this only decides the label.
+    """
+    if row.get("player_name"):
+        return row["player_name"]
+    for k in ("player_kalshi_id", "player_id"):
+        v = row.get(k)
+        if v and (names or {}).get(v):
+            return names[v]
+    return None
+
+
+def coverage(game_rows: list, projected_keys: set, names: dict | None = None) -> dict:
+    """Every listed FULL-period player/stat market GROUP, in exactly one bucket.
+
+    The rendering cap this replaced could drop a priced group out of the game file without a word (2026
+    week 2, DET @ BUF: 57 projection rows, 42 rendered, 15 gone -- including Gibbs's rushing yards, the one
+    the report was being read for).  A count that has to add up is the only defence: a group is either
+    exposed with its distribution summary or refused with a reason, and `silently_missing` is the number
+    that are neither.  It must be zero.
+    """
+    groups = {}
+    for r in game_rows:
+        if r.get("family") != "PLAYER_STAT" or (r.get("period") or "FULL") != "FULL":
+            continue
+        g = groups.setdefault(_group_key(r), {"states": set(), "reasons": {}, "n_rungs": 0, "row": r})
+        g["states"].add(r.get("support_state"))
+        if r.get("support_reason"):
+            g["reasons"][r.get("support_state")] = r["support_reason"]
+        g["n_rungs"] += 1
+    counts = {b: 0 for b in COVERAGE_BUCKETS}
+    refused, orphans = [], []
+    for key, g in groups.items():
+        exposable = bool(g["states"] & set(EXPOSABLE_STATES))
+        if exposable and key in projected_keys:
+            bucket = "SIMULATED_AND_EXPOSED"
+        elif exposable:
+            bucket = "EXPOSABLE_BUT_NOT_EXPOSED"
+        else:
+            bucket = next((st for st in REFUSAL_PRECEDENCE if st in g["states"]), "EXPOSABLE_BUT_NOT_EXPOSED")
+        counts[bucket] += 1
+        if bucket in REFUSAL_PRECEDENCE or bucket == "EXPOSABLE_BUT_NOT_EXPOSED":
+            rec = {"player": _player_label(g["row"], names) or key[0], "player_id": g["row"].get("player_id"),
+                   "player_kalshi_id": g["row"].get("player_kalshi_id"), "team": g["row"].get("team"),
+                   "stat": key[1], "state": bucket, "reason": g["reasons"].get(bucket), "n_rungs": g["n_rungs"]}
+            (orphans if bucket == "EXPOSABLE_BUT_NOT_EXPOSED" else refused).append(rec)
+    return {"player_stat_groups_listed": len(groups), "buckets": counts,
+            "simulated_and_exposed": counts["SIMULATED_AND_EXPOSED"],
+            "unsupported_or_refused": sorted(refused, key=lambda x: (str(x["team"]), str(x["stat"]), str(x["player"]))),
+            "silently_missing": counts["EXPOSABLE_BUT_NOT_EXPOSED"],
+            "silently_missing_detail": orphans,
+            "invariant": ("Every listed FULL-period player/stat group is in exactly one bucket: exposed with its "
+                          "distribution summary, or refused with a reason. silently_missing must be 0.")}
+
+
+def game_view(game_rows: list, manifest: dict | None, names: dict | None = None) -> dict:
     """Per-game summary: counts by support state, the centre used, and the reconciled disagreements ranked
     (validated weight only)."""
     counts = {}
@@ -117,21 +209,40 @@ def game_view(game_rows: list, manifest: dict | None) -> dict:
     if game_rows:
         r0 = game_rows[0]
         centre = {"source": r0.get("center_source"), "spread_home": r0.get("center_spread_home"), "total": r0.get("center_total")}
-    # one line per (player, stat) with a football distribution: the projection table a handicapper reads
+    # one line per (player, stat) with a football distribution: THE projection table a handicapper reads.
+    # This is the current coherent simulation's own view -- mean, sd and the distribution's own quantiles --
+    # and it is the primary player projection table in the report.  The incumbent ladder-derived table is
+    # kept below it as a diagnostic and is never the thing a blank in it is read against.
     seen = {}
     for r in game_rows:
         if r.get("football_mean") is None or not r.get("player_id"):
             continue
         key = (r["player_id"], r.get("stat"))
         if key not in seen:
-            seen[key] = {"player_id": r["player_id"], "player_kalshi_id": r.get("player_kalshi_id"), "team": r.get("team"), "stat": r.get("stat"),
-                         "football_mean": r.get("football_mean"), "football_sd": r.get("football_sd"), "market_mean": r.get("market_mean"),
-                         "market_identification": r.get("market_identification"), "final_mean": r.get("final_mean"),
-                         "reconcile_weight": r.get("reconcile_weight"), "p_active": r.get("p_active"), "n_rungs": 0}
+            seen[key] = {"player_name": _player_label(r, names),
+                         "player_id": r["player_id"], "player_kalshi_id": r.get("player_kalshi_id"),
+                         "team": r.get("team"), "stat": r.get("stat"),
+                         "football_mean": r.get("football_mean"), "football_sd": r.get("football_sd"),
+                         # the simulation's own quantiles.  `football_p50` IS the model median the report
+                         # quotes: LatticeDistribution.quantile(0.5) on the pmf that priced the ladder.
+                         **{f"football_{q}": r.get(f"football_{q}") for q in QUANTILES},
+                         "market_mean": r.get("market_mean"), "market_p50": r.get("market_p50"),
+                         "market_identification": r.get("market_identification"),
+                         "final_mean": r.get("final_mean"), "final_p50": r.get("final_p50"),
+                         "reconcile_weight": r.get("reconcile_weight"), "p_active": r.get("p_active"),
+                         "support_state": r.get("support_state"),
+                         "distribution_quantiles_available": _has_quantiles(r), "n_rungs": 0}
         seen[key]["n_rungs"] += 1
     projections = sorted(seen.values(), key=lambda x: (x["team"] or "", x["stat"] or "", -(x["football_mean"] or 0)))
+    cov = coverage(game_rows, set(seen.keys()), names)
     return {"sim_version": (manifest or {}).get("sim_version"), "run_id": (manifest or {}).get("run_id"),
             "player_projections": projections,
+            "simulation_projection_rows_total": len(projections),
+            "distribution_quantiles_available": all(p["distribution_quantiles_available"] for p in projections) if projections else None,
+            "distribution_quantiles_note": ("The football median is the simulation distribution's own quantile(0.50). An artifact "
+                                            "written before sim-1.1.0 does not report quantiles at all; those rows say so rather "
+                                            "than having a median inferred for them."),
+            "coverage": cov,
             "generated_at": (manifest or {}).get("generated_at"), "counts_by_support_state": counts, "center": centre,
             "largest_reconciled_disagreements": [
                 {"ticker": r["ticker"], "stat": r.get("stat"), "threshold": r.get("threshold"), "player_id": r.get("player_id"),

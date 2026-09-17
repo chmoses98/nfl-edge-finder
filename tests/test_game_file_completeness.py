@@ -43,7 +43,12 @@ REQUIRED_SECTIONS = [
     "TEAM STRENGTH",
     "MATCHUP ADVANTAGES",
     "DEPTH CHART / EXPECTED ROLES",
-    "PLAYER PROJECTIONS vs MARKET",
+    # The player projection sections, in the order a reader meets them. The current coherent simulation is
+    # the PRIMARY table; the incumbent one below it was called "PLAYER PROJECTIONS vs MARKET" until a 2026
+    # week 2 report let that generic heading be read as the current projection system, and is now labelled
+    # for what it is. `tests/test_handicap_sim_projection_exposure.py` pins the ordering and the wording.
+    "COHERENT SIMULATION — PLAYER PROJECTIONS",
+    "LEGACY INCUMBENT PROJECTIONS — DIAGNOSTIC ONLY",
     "MARKET BOARD",
     "LARGEST MODEL/MARKET DISAGREEMENTS",
     "MOVEMENT",
@@ -103,6 +108,13 @@ def test_movement_names_the_observed_horizons(md):
 
 def test_the_document_is_a_full_report_not_a_summary(md):
     assert len(md) > 10000, "the game file is suspiciously short for a full report"
+
+
+def test_the_current_projection_system_is_the_one_the_reader_meets_first(md):
+    """Two tables both called "model" is how a blank in the legacy one came to read as "the model has no
+    projection". The coherent simulation comes first and says it is the current system."""
+    assert md.index("### COHERENT SIMULATION") < md.index("### LEGACY INCUMBENT")
+    assert "This is NOT the current coherent simulation" in md
 
 
 def test_the_slate_document_keeps_the_canonical_label_too(game):

@@ -256,6 +256,29 @@ def _player_dist(arr: np.ndarray, stat: str) -> LatticeDistribution:
     return LatticeDistribution.from_samples(np.round(arr), GRID_MAX[stat])
 
 
+# The quantiles a projection row carries, and the one the report calls "the model median".  Read off the
+# distribution that priced the ladder -- never inferred from where a sparse Kalshi ladder happens to cross
+# 0.50, which is how the incumbent ledger-derived median came to be blank for a player the simulation had a
+# perfectly good distribution for (Jahmyr Gibbs rushing yards, 2026 week 2: 15 listed rungs, none of them
+# crossing 0.50 under the incumbent's own ladder, so the report showed "--" beside a football mean of 95.1).
+QUANTILES = ("p05", "p25", "p50", "p75", "p95")
+SUMMARY_FIELDS = ("mean", "sd") + QUANTILES
+
+
+def distribution_fields(prefix: str, d: LatticeDistribution | None) -> dict:
+    """``{prefix}_mean/_sd/_p05/_p25/_p50/_p75/_p95`` from the distribution's OWN summary.
+
+    ``LatticeDistribution.summary()`` is the single source: its sd is sqrt(var) and its quantiles are
+    ``quantile(q)`` on the same pmf that priced every rung, so the persisted median is the simulation's
+    median and not a reconstruction of it.  A ``None`` distribution yields the field names with ``None``
+    values, so a row never silently lacks a key.
+    """
+    if d is None:
+        return {f"{prefix}_{k}": None for k in SUMMARY_FIELDS}
+    s = d.summary()
+    return {f"{prefix}_{k}": float(s[k]) for k in SUMMARY_FIELDS}
+
+
 def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dict | None, *, n_sims: int = 20000,
                 run_id: str, observed_at: str, generated_at: datetime, player_map: dict, verbose=print) -> list[dict]:
     """Price every FULL-period contract of the priced families on the slate's games."""
@@ -291,6 +314,12 @@ def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dic
                    "incumbent_model_probability": r.get("model_contract_value"), "incumbent_support_state": r.get("support_state"),
                    "p_football": None, "p_market": None, "p_reconciled": None, "reconcile_weight": None, "disagreement_vs_mid": None,
                    "football_mean": None, "market_mean": None, "final_mean": None, "football_sd": None,
+                   # the distribution summary (sim-1.1.0).  Declared here so every row carries the keys and a
+                   # reader can tell "this artifact does not report a median" from "this row has none".
+                   **distribution_fields("football", None),
+                   "market_p50": None, "final_p50": None,
+                   # ledger identity, carried through so a handicapper reads a name and a machine reads the ids
+                   "player_name": r.get("player_name"),
                    "n_sims": n_sims, "support_state": None, "support_reason": None, "coherence_ok": bool(coh["ok"])}
             fam = r.get("family")
             try:
@@ -333,8 +362,15 @@ def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dic
                         m_mean = mrec["_dist"].mean() if mrec and mrec.get("identification") not in (None, "NONE") else None
                         w = w_by_stat.get(st)
                         rd, attr = R.reconcile_distribution(d, m_mean, w, st)
-                        rec.update(p_football=pf, p_market=r.get("mid"), football_mean=d.mean(), football_sd=float(np.sqrt(d.var())),
+                        rec.update(p_football=pf, p_market=r.get("mid"),
+                                   # mean, sd AND the quantiles from one call on the pricing distribution
+                                   **distribution_fields("football", d),
                                    market_mean=m_mean, market_identification=(mrec or {}).get("identification"),
+                                   market_p50=(mrec["_dist"].quantile(0.5) if m_mean is not None else None),
+                                   # the reconciled distribution's own median, on the same footing as its mean:
+                                   # `rd` IS the football distribution when nothing reconciled it, which is
+                                   # exactly when `final_mean` is the football mean, so the two stay consistent
+                                   final_p50=float(rd.quantile(0.5)),
                                    p_active=p_active, reconcile_weight=w, final_mean=attr["final_mean"],
                                    p_reconciled=(rd.survival(k) if attr["status"] == "RECONCILED" else None),
                                    support_state=("PRICED" if attr["status"] == "RECONCILED" else "FOOTBALL_ONLY_NO_RECONCILIATION"),

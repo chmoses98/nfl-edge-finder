@@ -149,6 +149,159 @@ def render_game_markdown(g: dict, max_players: int = 14, max_markets: int = 60) 
     return "\n".join(head + _render_game(g, max_players, max_markets, compact=False)[3:])
 
 
+def _sim_projection_section(sv: dict, *, compact: bool, max_rows: int) -> list:
+    """**COHERENT SIMULATION — PLAYER PROJECTIONS**: the current projection system's own distributions.
+
+    Two rules, both learnt the hard way on the 2026 week 2 DET @ BUF report:
+
+    * **The full game file never truncates this table.**  It used to render `pp[:max_players * 3]` -- 42 rows
+      at `max_players=14` -- and that game had 57.  Fifteen priced player/stat projections, Jahmyr Gibbs's
+      rushing yards among them, were absent from the document with nothing saying so.  A compact slate
+      summary may still cap the table, and says so and where the rest is; the game file may not.
+    * **The median shown is the simulation's own.**  `football median` is `LatticeDistribution.quantile(0.50)`
+      on the pmf that priced the ladder, not a crossing point read off the listed rungs.
+    """
+    L = []
+    a = L.append
+    a("### COHERENT SIMULATION — PLAYER PROJECTIONS")
+    a("")
+    if not sv.get("run_id"):
+        a("_No simulation projections at or before this build; the board carries the incumbent only. "
+          "This is the absence of a simulation run, not the absence of a projection._")
+        a("")
+        return L
+    pp = sv.get("player_projections") or []
+    cov = sv.get("coverage") or {}
+    a(f"**This is the current projection system (sim-1.x, run `{sv.get('run_id')}`).** Every number below is "
+      "read off the coherent simulation's own distribution for that player and statistic: one simulated "
+      "football game, one distribution per player/stat, and that distribution prices the whole Kalshi ladder. "
+      "`football median` is that distribution's own p50.")
+    a("")
+    if sv.get("distribution_quantiles_available") is False:
+        a("> **This simulation artifact predates sim-1.1.0 and does not report distribution quantiles.** The "
+          "median and quartile columns read `n/a` for those rows. That is the artifact not carrying the "
+          "field -- it is not the simulation lacking a projection, and no median has been inferred for it.")
+        a("")
+    shown = pp if not (compact and len(pp) > max_rows) else pp[:max_rows]
+    if not pp:
+        a("_This simulation run priced no player/stat market in this game. The coverage accounting below says "
+          "why, market group by market group._")
+    else:
+        if len(shown) < len(pp):
+            a(f"> **TRUNCATED: {len(shown)} of {len(pp)} projection rows shown.** This is the compact slate "
+              f"summary. The complete table, with every row, is in this game's own file under `games/`.")
+            a("")
+        a("| player | team | stat | football mean | football median (p50) | p25 | p75 | p05 | p95 | "
+          "market mean | market median | reconciled mean | reconciled median | w | P(active) | rungs | support |")
+        a("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+        for x in shown:
+            q = (lambda v: _num(v, 1)) if x.get("distribution_quantiles_available") else (lambda v: "n/a")
+            who = x.get("player_name") or x.get("player_id") or x.get("player_kalshi_id") or "?"
+            a(f"| {who} | {x.get('team')} | {x.get('stat')} | {_num(x.get('football_mean'), 1)} | "
+              f"{q(x.get('football_p50'))} | {q(x.get('football_p25'))} | {q(x.get('football_p75'))} | "
+              f"{q(x.get('football_p05'))} | {q(x.get('football_p95'))} | "
+              f"{_num(x.get('market_mean'), 1)} | {q(x.get('market_p50'))} | "
+              f"{_num(x.get('final_mean'), 1)} | {q(x.get('final_p50'))} | "
+              f"{_num(x.get('reconcile_weight'))} | {_num(x.get('p_active'))} | {x.get('n_rungs')} | "
+              f"{x.get('support_state') or '--'} |")
+        a("")
+        a(f"_{len(shown)} of {sv.get('simulation_projection_rows_total', len(pp))} simulation player/stat "
+          "projection rows rendered. GSIS and Kalshi ids for every row are in `packet.json` under "
+          "`simulation.player_projections`. `w` is the reconciliation weight; at w = 0 the reconciled mean IS "
+          "the market's._")
+    a("")
+    # ---------------- coverage accounting: the count that has to add up
+    if cov and compact:
+        a(f"_Simulation coverage: {cov.get('simulated_and_exposed')} of "
+          f"{cov.get('player_stat_groups_listed')} listed player/stat groups simulated and exposed, "
+          f"{len(cov.get('unsupported_or_refused') or [])} refused with a reason, silently missing "
+          f"{cov.get('silently_missing')}. The full accounting is in this game's own file under `games/`._")
+        a("")
+    elif cov:
+        a("**SIMULATION COVERAGE — every listed FULL-period player/stat market group**")
+        a("")
+        buckets = cov.get("buckets") or {}
+        a("| bucket | groups |")
+        a("|---|---|")
+        for k, v in buckets.items():
+            a(f"| {k} | {v} |")
+        a("")
+        a(f"- listed FULL-period player/stat groups: **{cov.get('player_stat_groups_listed')}**")
+        a(f"- simulated and exposed above: **{cov.get('simulated_and_exposed')}**")
+        a(f"- simulation projection rows total: **{sv.get('simulation_projection_rows_total')}** · "
+          f"rendered here: **{len(shown)}**")
+        a(f"- **silently missing: {cov.get('silently_missing')}** (must be 0 — a group is either shown with "
+          "its distribution summary or refused with a reason)")
+        a("")
+        ref = cov.get("unsupported_or_refused") or []
+        if ref:
+            a(f"_{len(ref)} group(s) the simulation refused, with the reason. A refusal is a statement, not a "
+              "gap: the market is listed, the simulation would not price it._")
+            a("")
+            a("| player | team | stat | state | reason | rungs |")
+            a("|---|---|---|---|---|---|")
+            for r in ref:
+                a(f"| {r.get('player')} | {r.get('team')} | {r.get('stat')} | {r.get('state')} | "
+                  f"{r.get('reason') or '--'} | {r.get('n_rungs')} |")
+            a("")
+        for r in cov.get("silently_missing_detail") or []:
+            a(f"> **INVARIANT VIOLATED** — {r.get('player')} {r.get('stat')} was priced by the simulation and "
+              "is neither exposed above nor refused with a reason. Treat this report as incomplete.")
+            a("")
+    return L
+
+
+def _legacy_incumbent_section(g: dict, *, max_players: int, compact: bool) -> list:
+    """**LEGACY INCUMBENT PROJECTIONS — DIAGNOSTIC ONLY.**
+
+    This table used to be called "PLAYER PROJECTIONS vs MARKET" and sat ABOVE the simulation, which made the
+    incumbent shadow ledger's ladder-derived median look like the current model's projection.  Its median is
+    the point where the incumbent's OWN listed ladder crosses 0.50, so a ladder that never crosses 0.50 has
+    no median at all -- and on the 2026 week 2 DET @ BUF report that produced a blank beside Jahmyr Gibbs's
+    rushing yards while the coherent simulation had him at a football mean of 95.1.  A blank here has never
+    meant the current system lacks a projection, and the heading now says so.
+    """
+    L = []
+    a = L.append
+    players = g.get("players") or {}
+    ranked = sorted(players.items(),
+                    key=lambda kv: -sum(b.get("supported_rungs", 0) for b in kv[1]["stats"].values()))
+    if not ranked:
+        return L
+    a("### LEGACY INCUMBENT PROJECTIONS — DIAGNOSTIC ONLY")
+    a("")
+    a("> **This is NOT the current coherent simulation.** It is the legacy incumbent model (`shadow-0.4.x`), "
+      "kept for historical comparison and diagnostics. It must not override sim-1.x, and it must not be read "
+      "as the current projection system — that table is **COHERENT SIMULATION — PLAYER PROJECTIONS** above.")
+    a(">")
+    a("> The `legacy ladder median` below is derived from where the incumbent's own listed ladder crosses "
+      "0.50. A ladder that never crosses 0.50 has no such median and the cell is blank. **A blank here does "
+      "not mean sim-1.x lacks a projection for that player and statistic** — check the coherent simulation "
+      "table above, which reports its distribution's actual p50.")
+    a("")
+    a("_`mean_lower_bound` is a LOWER BOUND, not a mean: a ladder is truncated at its top rung._")
+    a("")
+    for name, blk in ranked[:(4 if compact else max_players)]:
+        meta = blk["meta"]
+        a(f"**{name}** ({meta.get('team')}) — availability {meta.get('availability_state')}, "
+          f"P(plays) {_num(meta.get('p_plays'))}")
+        a("")
+        a("| stat | rungs | legacy ladder median | market median | legacy E≥ | market E≥ | disagree |")
+        a("|---|---|---|---|---|---|---|")
+        for stat, b in sorted(blk["stats"].items()):
+            mm, km = b.get("model") or {}, b.get("market") or {}
+            a(f"| {stat} | {b['n_listed_rungs']} ({b['supported_rungs']} sup) | "
+              f"{_num(mm.get('median'),1)} | {_num(km.get('median'),1)} | "
+              f"{_num(mm.get('mean_lower_bound'),1)} | {_num(km.get('mean_lower_bound'),1)} | "
+              f"{_sign(b.get('median_disagreement'),1)} |")
+        a("")
+    if compact and len(ranked) > 4:
+        a(f"_TRUNCATED: 4 of {len(ranked)} legacy diagnostic players shown; the complete legacy table is in "
+          "this game's own file under `games/`._")
+        a("")
+    return L
+
+
 def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = False) -> list:
     L = []
     a = L.append
@@ -252,6 +405,9 @@ def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = Fa
     a("")
 
     if compact:
+        # The compact slate may cap this table -- and must say that it has, and where the rest is.  It may
+        # not be silent about it, and it may not be the only place the rows exist.
+        L.extend(_sim_projection_section(g.get("simulation") or {}, compact=True, max_rows=max_players))
         d = g.get("largest_disagreements") or []
         if d:
             a("### TOP DISAGREEMENTS (tradable books only)")
@@ -364,30 +520,11 @@ def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = Fa
         a(f"_{(g.get('roles') or {}).get('caveat')}  (* = carries an injury designation)_")
         a("")
 
-    # players
-    players = g.get("players") or {}
-    ranked = sorted(players.items(),
-                    key=lambda kv: -sum(b.get("supported_rungs", 0) for b in kv[1]["stats"].values()))
-    if ranked:
-        a("### PLAYER PROJECTIONS vs MARKET")
-        a("")
-        a("_Model median and market median from the same listed ladder. `mean_lower_bound` is a LOWER BOUND, "
-          "not a mean: a ladder is truncated at its top rung._")
-        a("")
-        for name, blk in ranked[:(4 if compact else max_players)]:
-            meta = blk["meta"]
-            a(f"**{name}** ({meta.get('team')}) — availability {meta.get('availability_state')}, "
-              f"P(plays) {_num(meta.get('p_plays'))}")
-            a("")
-            a("| stat | rungs | model median | market median | model E≥ | market E≥ | disagree |")
-            a("|---|---|---|---|---|---|---|")
-            for stat, b in sorted(blk["stats"].items()):
-                mm, km = b.get("model") or {}, b.get("market") or {}
-                a(f"| {stat} | {b['n_listed_rungs']} ({b['supported_rungs']} sup) | "
-                  f"{_num(mm.get('median'),1)} | {_num(km.get('median'),1)} | "
-                  f"{_num(mm.get('mean_lower_bound'),1)} | {_num(km.get('mean_lower_bound'),1)} | "
-                  f"{_sign(b.get('median_disagreement'),1)} |")
-            a("")
+    # the CURRENT player projection system, first: the coherent simulation's own distributions
+    L.extend(_sim_projection_section(g.get("simulation") or {}, compact=compact, max_rows=max_players * 3))
+
+    # the incumbent, second and unmistakably labelled: it is a diagnostic, not the current projection
+    L.extend(_legacy_incumbent_section(g, max_players=max_players, compact=compact))
 
     # markets
     a("### MARKET BOARD")
@@ -415,7 +552,7 @@ def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = Fa
 
     # the simulation layer (shadow): football-only, market and reconciled side by side
     sv = g.get("simulation") or {}
-    a("### SIMULATION LAYER (shadow, sim-1.x)")
+    a("### SIMULATION LAYER (shadow, sim-1.x) — MARKET-LEVEL RECONCILIATION")
     a("")
     if sv.get("run_id"):
         c = sv.get("center") or {}
@@ -436,17 +573,9 @@ def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = Fa
                   f"{_num(x.get('final_mean'),1)} |")
         else:
             a("_No reconciled (validated-weight) disagreement in this game; football-only probabilities are on the board rows._")
-        pp = sv.get("player_projections") or []
-        if pp:
-            a("")
-            a("**Player projections (football-only mean · sd · market-implied mean · reconciled mean · w · P(plays))**")
-            a("")
-            a("| team | player | stat | football | sd | market | final | w | P(plays) | rungs |")
-            a("|---|---|---|---|---|---|---|---|---|---|")
-            for x in pp[:max_players * 3]:
-                a(f"| {x.get('team')} | {x.get('player_id')} | {x.get('stat')} | {_num(x.get('football_mean'), 1)} | {_num(x.get('football_sd'), 1)} | "
-                  f"{_num(x.get('market_mean'), 1)} | {_num(x.get('final_mean'), 1)} | {_num(x.get('reconcile_weight'))} | "
-                  f"{_num(x.get('p_active'))} | {x.get('n_rungs')} |")
+        a("")
+        a("_The per-player/stat distribution summaries for this simulation are in **COHERENT SIMULATION — "
+          "PLAYER PROJECTIONS** above; this section is the market-level reconciliation only._")
     else:
         a("_No simulation projections at or before this build; the board carries the incumbent only._")
     a("")
