@@ -136,27 +136,70 @@ def test_publish_failures_are_not_swallowed():
         "a failed shock publish is masked as a warning; losing shocks silently is the failure mode"
 
 
-def test_download_list_covers_what_the_pipeline_reads():
-    """A workflow that runs ids.py must also download ff_playerids.
+# Every nflverse release nfl_edge/data/ids.py reads. A workflow that rebuilds the crosswalk must download
+# all of them in the same job, before it runs ids.py.
+IDS_PY_RELEASES = ("players", "rosters", "ff_playerids")
 
-    ids.py reads data/raw/nflverse/ff_playerids/db_playerids.csv, but the fetch step's `--only` list omitted
-    it, so ids.py raised FileNotFoundError on every run. With no pipefail that exception exited 0 and the
-    step went green; the crosswalk was simply never rebuilt in CI.
-    """
-    path = os.path.join(ROOT, ".github", "workflows", "shadow-price.yml")
-    with open(path) as f:
-        doc = yaml.safe_load(f)
-    for job_name, job in doc["jobs"].items():
+
+def _ids_py_fetches(doc):
+    """(job, --only list, --seasons) for every job that runs ids.py, taken from the LAST nflverse_download
+    call before ids.py in that job (a later download cannot feed an earlier ids.py)."""
+    for job_name, job in (doc.get("jobs") or {}).items():
         runs = [s.get("run") or "" for s in (job.get("steps") or [])]
         if not any("ids.py" in r for r in runs):
             continue
-        only = ""
+        only, seasons = "", ""
         for r in runs:
-            m = re.search(r"nflverse_download\.py\s+--only\s+(\S+)", r)
+            m = re.search(r"nflverse_download\.py\s+--only\s+(\S+)(?:\s+--seasons\s+(\S+))?", r)
             if m:
-                only = m.group(1)
-        assert "ff_playerids" in only.split(","), (
-            f"{job_name} runs ids.py but --only is {only!r}; ids.py reads ff_playerids/db_playerids.csv")
+                only, seasons = m.group(1), m.group(2) or ""
+            if "ids.py" in r:
+                break
+        yield job_name, only, seasons
+
+
+@pytest.mark.parametrize("path", WORKFLOWS, ids=[os.path.basename(p) for p in WORKFLOWS])
+def test_download_list_covers_what_the_pipeline_reads(path):
+    """A workflow that runs ids.py must also download every release ids.py reads.
+
+    ids.py reads data/raw/nflverse/ff_playerids/db_playerids.csv, but shadow-price's fetch step `--only`
+    list omitted it, so ids.py raised FileNotFoundError on every run. With no pipefail that exception exited
+    0 and the step went green; the crosswalk was simply never rebuilt in CI.
+
+    Then shadow-v2-settle omitted `rosters`: on a clean runner ids.py found no roster_<season>.parquet and
+    died in polars with `ValueError: cannot concat empty list`, an error that named neither the input nor
+    the fix. Same omission, one release over, so the guard now covers every release and every workflow.
+    """
+    with open(path) as f:
+        doc = yaml.safe_load(f)
+    for job_name, only, _ in _ids_py_fetches(doc):
+        missing = [r for r in IDS_PY_RELEASES if r not in only.split(",")]
+        assert not missing, (
+            f"{os.path.basename(path)}: {job_name} runs ids.py but --only is {only!r}, missing {missing}; "
+            f"ids.py reads players/players.parquet, rosters/roster_<season>.parquet and "
+            f"ff_playerids/db_playerids.csv")
+
+
+def test_shadow_v2_settle_fetches_rosters_for_the_seasons_it_settles():
+    """The manual run that failed: `--only schedules,stats_player,snap_counts,pbp,players,ff_playerids`.
+
+    ids.py scans roster_2016..roster_2026, so the fetch must request `rosters` AND a season range that
+    overlaps that window, or the directory is created empty and the crosswalk still cannot build.
+    """
+    path = os.path.join(ROOT, ".github", "workflows", "shadow-v2-settle.yml")
+    with open(path) as f:
+        doc = yaml.safe_load(f)
+    fetches = list(_ids_py_fetches(doc))
+    assert fetches, "shadow-v2-settle.yml no longer rebuilds the crosswalk with ids.py"
+    from nfl_edge.data.ids import ROSTER_SEASONS
+    for job_name, only, seasons in fetches:
+        assert "rosters" in only.split(","), f"{job_name}: --only {only!r} does not request rosters"
+        assert re.fullmatch(r"\d{4}-\d{4}", seasons), f"{job_name}: --seasons {seasons!r} is not lo-hi"
+        lo, hi = (int(x) for x in seasons.split("-"))
+        assert set(range(lo, hi + 1)) & set(ROSTER_SEASONS), (
+            f"{job_name}: --seasons {seasons!r} downloads no roster season ids.py scans "
+            f"({ROSTER_SEASONS.start}-{ROSTER_SEASONS.stop - 1})")
+        assert 2026 in range(lo, hi + 1), f"{job_name}: the settled season 2026 is outside --seasons {seasons!r}"
 
 
 def test_system_health_defaults_to_the_published_ledger():

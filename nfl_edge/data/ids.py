@@ -23,6 +23,28 @@ import polars as pl
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RAW = os.path.join(ROOT, "data", "raw", "nflverse")
 
+# Seasons whose nflverse roster release the crosswalk scans (roster_<season>.parquet). The rosters are the
+# second identity source (see the module docstring), so the crosswalk is not defined without at least one.
+ROSTER_SEASONS = range(2016, 2027)
+ROSTER_COLUMNS = ["season", "gsis_id", "espn_id", "sportradar_id", "yahoo_id", "rotowire_id", "pff_id", "pfr_id",
+                  "fantasy_data_id", "sleeper_id", "jersey_number", "team"]
+
+
+class RosterSourceMissing(FileNotFoundError):
+    """No nflverse roster parquet was available to build the crosswalk from.
+
+    Raised instead of letting polars fail on `pl.concat([])` with "cannot concat empty list", which names
+    neither the missing input nor how to fetch it. The first manual Shadow v2 settlement run died exactly
+    that way: the workflow's `nflverse_download.py --only ...` list omitted `rosters`, so on a clean runner
+    the rosters directory did not exist and the error looked like a data bug in the game being settled.
+    """
+
+
+def roster_files(raw: str = RAW) -> list[str]:
+    """The roster_<season>.parquet files present under `raw`, in season order."""
+    return [f for f in (os.path.join(raw, "rosters", f"roster_{s}.parquet") for s in ROSTER_SEASONS)
+            if os.path.exists(f)]
+
 TEAM_ALIASES = {
     "OAK": "LV", "SD": "LAC", "STL": "LA", "LAR": "LA", "ARZ": "ARI", "AZ": "ARI", "BLT": "BAL", "CLV": "CLE",
     "HST": "HOU", "JAC": "JAX", "SL": "LA", "WSH": "WAS", "LVR": "LV", "GBP": "GB", "KCC": "KC", "NEP": "NE",
@@ -79,9 +101,23 @@ def _norm_name(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def build_player_crosswalk() -> pl.DataFrame:
-    """One row per GSIS id with every external id we can find, plus provenance flags."""
-    p = pl.read_parquet(os.path.join(RAW, "players", "players.parquet"))
+def build_player_crosswalk(raw: str = RAW) -> pl.DataFrame:
+    """One row per GSIS id with every external id we can find, plus provenance flags.
+
+    `raw` is the nflverse download root (data/raw/nflverse); it must hold players/players.parquet, at least
+    one rosters/roster_<season>.parquet and ff_playerids/db_playerids.csv. A missing roster source raises
+    RosterSourceMissing rather than an opaque polars error, and never silently degrades the crosswalk.
+    """
+    files = roster_files(raw)
+    if not files:
+        rd = os.path.join(raw, "rosters")
+        raise RosterSourceMissing(
+            f"no nflverse roster parquet files found: expected {rd}/roster_<season>.parquet for a season in "
+            f"{ROSTER_SEASONS.start}-{ROSTER_SEASONS.stop - 1} (directory "
+            f"{'exists but is empty of them' if os.path.isdir(rd) else 'does not exist'}). The crosswalk "
+            "needs the rosters release; fetch it with "
+            "`python3 scripts/data/nflverse_download.py --only rosters --seasons <lo>-<hi>` before ids.py.")
+    p = pl.read_parquet(os.path.join(raw, "players", "players.parquet"))
     base = p.select(
         pl.col("gsis_id"), pl.col("display_name"), pl.col("first_name"), pl.col("last_name"), pl.col("football_name"),
         pl.col("position"), pl.col("position_group"), pl.col("birth_date"), pl.col("height"), pl.col("weight"),
@@ -91,15 +127,10 @@ def build_player_crosswalk() -> pl.DataFrame:
         pl.col("pff_id").alias("pff_id_players"), pl.col("otc_id"), pl.col("espn_id").alias("espn_id_players"), pl.col("smart_id"),
     ).filter(pl.col("gsis_id").is_not_null())
     # rosters (latest row per gsis)
-    ros = []
-    for s in range(2016, 2027):
-        f = os.path.join(RAW, "rosters", f"roster_{s}.parquet")
-        if os.path.exists(f):
-            r = pl.read_parquet(f).select(["season", "gsis_id", "espn_id", "sportradar_id", "yahoo_id", "rotowire_id", "pff_id", "pfr_id", "fantasy_data_id", "sleeper_id", "jersey_number", "team"])
-            ros.append(r)
+    ros = [pl.read_parquet(f).select(ROSTER_COLUMNS) for f in files]
     ros = pl.concat(ros, how="diagonal_relaxed").filter(pl.col("gsis_id").is_not_null()).sort("season").group_by("gsis_id").last()
     ros = ros.rename({c: f"{c}_roster" for c in ros.columns if c != "gsis_id"})
-    dp = pl.read_csv(os.path.join(RAW, "ff_playerids", "db_playerids.csv"), infer_schema_length=100000)
+    dp = pl.read_csv(os.path.join(raw, "ff_playerids", "db_playerids.csv"), infer_schema_length=100000)
     dp = dp.filter(pl.col("gsis_id").is_not_null()).select(["gsis_id", "mfl_id", "sportradar_id", "fantasypros_id", "pff_id", "sleeper_id", "nfl_id", "espn_id", "yahoo_id", "cbs_id", "pfr_id", "cfbref_id", "rotowire_id", "rotoworld_id", "ktc_id", "fantasy_data_id", "merge_name"])
     dp = dp.rename({c: f"{c}_dp" for c in dp.columns if c != "gsis_id"}).unique(subset=["gsis_id"])
     x = base.join(ros, on="gsis_id", how="left").join(dp, on="gsis_id", how="left")
@@ -139,6 +170,7 @@ if __name__ == "__main__":
     x = build_player_crosswalk()
     x.write_parquet(os.path.join(out, "player_crosswalk.parquet"))
     act = x.filter(pl.col("last_season") >= 2025)
+    print("roster seasons:", ", ".join(os.path.basename(f)[len("roster_"):-len(".parquet")] for f in roster_files()))
     print("players:", x.height, "active-ish:", act.height)
     print(act.select(pl.col(["espn_id", "pfr_id", "pff_id", "sleeper_id", "sportradar_id", "rotowire_id"]).is_not_null().mean()))
     print("conflicts espn:", x["espn_id_conflict"].sum(), "pfr:", x["pfr_id_conflict"].sum())
