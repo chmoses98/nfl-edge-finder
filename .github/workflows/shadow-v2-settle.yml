@@ -40,9 +40,12 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+      # `rosters` is not optional: ids.py builds the crosswalk from players + rosters + ff_playerids and
+      # refuses (RosterSourceMissing) when no roster_<season>.parquet was downloaded. Omitting it here is
+      # what killed the first manual run with polars' bare "cannot concat empty list".
       - name: Fetch results (schedule, player statistics, snap counts, play-by-play, identities) and market-data
         run: |
-          python3 scripts/data/nflverse_download.py --only schedules,stats_player,snap_counts,pbp,players,ff_playerids --seasons 2025-2026 2>&1 | tail -4
+          python3 scripts/data/nflverse_download.py --only schedules,stats_player,snap_counts,pbp,players,rosters,ff_playerids --seasons 2025-2026 2>&1 | tail -4
           python3 nfl_edge/data/ids.py 2>&1 | tail -3
           git fetch --depth=1 origin market-data
           rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
