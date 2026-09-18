@@ -139,35 +139,70 @@ class EvaluationCorpus:
         return sorted(seen)
 
     def evaluated_prediction_ids(self, game_id: str, evaluation_version: str | None = None) -> set:
-        return {pid for (pid, ver) in self.load(game_id)
+        return {pid for (pid, ver) in self.index(game_id)
                 if evaluation_version is None or ver == evaluation_version}
+
+    # ------------------------------------------------------------------ streaming reads
+    def iter_rows(self, game_id: str | None = None):
+        """(row, file) one at a time, in load()'s order and with its first-file-wins de-duplication.
+
+        Only the keys already yielded are retained, so a pass over the whole corpus holds one row at a time
+        plus one small tuple per row seen. load() materialises every row; drivers that only aggregate use this.
+        """
+        seen = set()
+        for path in self.batch_files(game_id):
+            with gzip.open(path, "rt") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    row = json.loads(line)
+                    key = (row.get("prediction_id"), row.get("evaluation_version"))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    yield row, path
+
+    def index(self, game_id: str | None = None) -> dict:
+        """(prediction_id, evaluation_version) -> (content_hash, file). Ids and hashes only, never rows.
+
+        This is what planning needs: whether a truth exists and whether it is the same truth. The row itself
+        is fetched only when a conflict must be described (see BatchPlanner)."""
+        out = {}
+        for row, path in self.iter_rows(game_id):
+            h = row.get("content_hash") or content_hash(row)
+            out[(row.get("prediction_id"), row.get("evaluation_version"))] = (h, path)
+        return out
+
+    def batch_versions(self, game_id: str) -> set:
+        """Evaluation versions that already have a written batch for this game, from file names alone."""
+        out = set()
+        for path in self.batch_files(game_id):
+            out.add(os.path.basename(path).split(".")[0])
+        return out
+
+    def has_batch(self, game_id: str, evaluation_version: str) -> bool:
+        """Does an immutable batch under this evaluation version already exist for the game (any root)?"""
+        for root in self.read_roots:
+            if glob.glob(os.path.join(root, game_id, f"{evaluation_version}.*.{self.suffix}.jsonl.gz")):
+                return True
+        return False
+
+    def planner(self, game_id: str | None = None) -> "BatchPlanner":
+        return BatchPlanner(self, game_id)
 
     # ------------------------------------------------------------------ planning
     def plan(self, rows: list, game_id: str | None = None) -> dict:
         """Split incoming rows into new / unchanged / conflicting, WITHOUT writing anything."""
-        existing = self.load(game_id)
-        new, noop, conflicts, seen = [], [], [], set()
+        p = self.planner(game_id)
+        noop = []
         for row in rows:
             row = stamp(row)
-            key = (row["prediction_id"], row.get("evaluation_version"))
-            if key in seen:
-                continue                     # the same prediction offered twice in one batch is one row
-            seen.add(key)
-            prior = existing.get(key)
-            if prior is None:
-                new.append(row)
-                continue
-            prev_row, prev_file = prior
-            if prev_row.get("content_hash") == row["content_hash"] or content_hash(prev_row) == row["content_hash"]:
+            if p.offer(row, stamped=True) == NOOP:
                 noop.append(row)
-                continue
-            fields = {k: (prev_row.get(k), row.get(k)) for k in sorted(set(prev_row) | set(row))
-                      if k not in VOLATILE_FIELDS and k != "content_hash" and prev_row.get(k) != row.get(k)}
-            conflicts.append({"prediction_id": row["prediction_id"],
-                              "evaluation_version": row.get("evaluation_version"),
-                              "existing_file": os.path.relpath(prev_file, os.path.dirname(prev_file) or "."),
-                              "existing_path": prev_file, "fields": fields})
-        return {"new": new, "noop": noop, "conflicts": conflicts}
+        out = p.plan()
+        out["noop"] = noop                      # callers count len(plan["noop"]); the rows are what they always got
+        return out
+
 
     # ------------------------------------------------------------------ writing
     def write_batch(self, game_id: str, rows: list, *, evaluation_version: str, batch: str,
@@ -182,7 +217,7 @@ class EvaluationCorpus:
             raise EvaluationConflict(plan["conflicts"])
         if not plan["new"]:
             return {"status": "NO_OP", "game_id": game_id, "evaluation_version": evaluation_version,
-                    "written": 0, "unchanged": len(plan["noop"])}
+                    "written": 0, "unchanged": _n(plan["noop"])}
         d = game_dir(self.write_root, game_id)
         os.makedirs(d, exist_ok=True)
         stem = f"{evaluation_version}.{batch}"
@@ -197,7 +232,7 @@ class EvaluationCorpus:
         man = {"status": "WRITTEN", "game_id": game_id, "evaluation_version": evaluation_version,
                "batch_id": batch, "schema_version": (plan["new"][0].get("schema_version") if plan["new"] else None),
                "written_at": datetime.now(timezone.utc).isoformat(),
-               "written": len(plan["new"]), "unchanged": len(plan["noop"]),
+               "written": len(plan["new"]), "unchanged": _n(plan["noop"]),
                "evaluations_file": os.path.basename(path),
                "evaluations_sha256": sha256_file(path),
                "prediction_ids_sha256": hashlib.sha256(
@@ -214,6 +249,70 @@ class EvaluationCorpus:
             json.dump(man, f, indent=1, default=str)
         return man
 
+
+NEW, NOOP, CONFLICT, REPEAT = "NEW", "NOOP", "CONFLICT", "REPEAT"
+
+
+def _load_row(path: str, prediction_id, evaluation_version) -> dict:
+    for row in read_rows(path):
+        if row.get("prediction_id") == prediction_id and row.get("evaluation_version") == evaluation_version:
+            return row
+    return {}
+
+
+class BatchPlanner:
+    """plan() one row at a time, holding the corpus as ids + hashes and the batch as its NEW rows only.
+
+    Unchanged rows are counted, not kept. That is what lets a driver settle a game of tens of thousands of
+    records, or examine every season-scoped record on every run, with memory that scales with what is new.
+    """
+
+    def __init__(self, corpus: EvaluationCorpus, game_id: str | None):
+        self.corpus, self.game_id = corpus, game_id
+        self.existing = corpus.index(game_id)
+        self.new: list = []
+        self.noop = 0
+        self.conflicts: list = []
+        self.repeated = 0
+        self._seen: set = set()
+
+    def offer(self, row: dict, *, stamped: bool = False) -> str:
+        row = row if stamped else stamp(row)
+        key = (row["prediction_id"], row.get("evaluation_version"))
+        if key in self._seen:
+            self.repeated += 1               # the same prediction offered twice in one batch is one row
+            return REPEAT
+        self._seen.add(key)
+        prior = self.existing.get(key)
+        if prior is None:
+            self.new.append(row)
+            return NEW
+        prev_hash, prev_file = prior
+        if prev_hash == row["content_hash"]:
+            self.noop += 1
+            return NOOP
+        prev_row = _load_row(prev_file, key[0], key[1])
+        if content_hash(prev_row) == row["content_hash"]:
+            self.noop += 1                   # a stored hash that predates a hashing change; the content agrees
+            return NOOP
+        fields = {k: (prev_row.get(k), row.get(k)) for k in sorted(set(prev_row) | set(row))
+                  if k not in VOLATILE_FIELDS and k != "content_hash" and prev_row.get(k) != row.get(k)}
+        self.conflicts.append({"prediction_id": row["prediction_id"],
+                               "evaluation_version": row.get("evaluation_version"),
+                               "existing_file": os.path.relpath(prev_file, os.path.dirname(prev_file) or "."),
+                               "existing_path": prev_file, "fields": fields})
+        return CONFLICT
+
+    def plan(self) -> dict:
+        return {"new": self.new, "noop": self.noop, "conflicts": self.conflicts}
+
+    def counts(self) -> dict:
+        return {"new": len(self.new), "unchanged": self.noop, "conflicts": len(self.conflicts), "repeated": self.repeated,
+                "existing": len(self.existing)}
+
+
+def _n(x) -> int:
+    return x if isinstance(x, int) else len(x)
 
 def read_rows(path: str) -> list:
     with gzip.open(path, "rt") as f:

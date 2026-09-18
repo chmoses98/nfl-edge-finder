@@ -28,7 +28,10 @@ jobs:
   settle:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The three drivers stream every game from its own projection files and re-read the whole settlement corpus
+    # for the scorecard; that is bounded in memory but grows in time with the season. 45 minutes was sized for a
+    # run that never got past its fetch step.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -49,17 +52,20 @@ jobs:
           python3 nfl_edge/data/ids.py 2>&1 | tail -3
           git fetch --depth=1 origin market-data
           rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+      # Live logs, not `| tail -N`: the first settlement run died with the runner's shutdown signal after 17 minutes
+      # and the log held nothing, because tail prints only once the process exits. Each driver's full output is
+      # kept under $RUNNER_TEMP and its tail is shown on failure so a dead step still says where it died.
       - name: Settle every ready game, diagnose, rebuild the scorecard
         id: settle
         run: |
           python3 scripts/shadow_v2/settle_v2.py --market-data /tmp/md --out data/shadow/v2 --target-season 2026 \
-            --github-output "$GITHUB_OUTPUT" 2>&1 | tail -40
+            --github-output "$GITHUB_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/settle_v2.log"
       # Canonical close + CLV for every kicked-off game (Parts 2-6): write-once batches per game; a game without a
       # valid pre-kickoff observation is CLV_CLOSE_MISSING, never inferred.
       - name: Pair every kicked-off projection with its canonical close and compute CLV
         id: closes
         run: |
-          python3 scripts/shadow_v2/pair_closes_v2.py --market-data /tmp/md --out data/shadow/v2 --github-output "$GITHUB_OUTPUT" 2>&1 | tail -30
+          python3 scripts/shadow_v2/pair_closes_v2.py --market-data /tmp/md --out data/shadow/v2 --github-output "$GITHUB_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/pair_closes_v2.log"
       # Derived, rebuildable research table + scorecard v3 + weekly report + health gate. Failure here must not
       # block publishing the immutable batches above.
       - name: Rebuild the research export, scorecard v3, weekly report and health gate
@@ -67,10 +73,19 @@ jobs:
         continue-on-error: true
         run: |
           WEEK=$(python3 scripts/shadow_v2/active_week.py --market-data /tmp/md)
-          python3 scripts/shadow_v2/research_export_v2.py --market-data /tmp/md --staging data/shadow/v2 --out data/shadow/v2/research --season 2026 --week "$WEEK" 2>&1 | tail -20
-          python3 scripts/shadow_v2/weekly_report_v2.py --market-data /tmp/md --research data/shadow/v2/research --out data/shadow/v2/reports --season 2026 --week "$WEEK" 2>&1 | tail -20
+          echo "active week: $WEEK"
+          python3 scripts/shadow_v2/research_export_v2.py --market-data /tmp/md --staging data/shadow/v2 --out data/shadow/v2/research --season 2026 --week "$WEEK" 2>&1 | tee "$RUNNER_TEMP/research_export_v2.log"
+          python3 scripts/shadow_v2/weekly_report_v2.py --market-data /tmp/md --research data/shadow/v2/research --out data/shadow/v2/reports --season 2026 --week "$WEEK" 2>&1 | tee "$RUNNER_TEMP/weekly_report_v2.log"
+      - name: Show where a failed driver died
+        if: failure() || steps.research.outcome == 'failure'
+        run: |
+          for f in settle_v2 pair_closes_v2 research_export_v2 weekly_report_v2; do
+            if [ -f "$RUNNER_TEMP/$f.log" ]; then echo "::group::$f (last 60 lines)"; tail -60 "$RUNNER_TEMP/$f.log"; echo "::endgroup::"; fi
+          done
+      # The projection index (data/shadow/v2/projection_index, one JSON per immutable projection file) is published
+      # with the batches so the next run reuses it instead of re-indexing the archive.
       - name: Publish the settlement, close and CLV batches, autopsies, scorecard, research export and report
-        if: steps.settle.outputs.status == 'WROTE' || steps.closes.outputs.status == 'WROTE'
+        if: steps.settle.outputs.status == 'WROTE' || steps.closes.outputs.status == 'WROTE' || steps.settle.outputs.index_written != '0'
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
             --message "shadow v2 settlements ${{ steps.settle.outputs.batch_id }} (${{ steps.settle.outputs.written }} records) + closes ${{ steps.closes.outputs.written }}"

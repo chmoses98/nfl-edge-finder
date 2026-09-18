@@ -145,7 +145,21 @@ never pass it), in which case the records are `HISTORICAL_RESEARCH` and the scor
 * `nfl_edge/evaluation/scorecard_v2.py`: Brier, log loss, calibration (ECE), sharpness, Brier − market with
   game-clustered SE, directional hit rate, executable P&L at the ask with fees once, per engine / arm / family /
   statistic / horizon / identification / availability / liquidity / width, paired arms on common contracts, per
-  evidence class.
+  evidence class. `ScorecardAccumulator` computes the same scorecard one row at a time.
+* **Memory scales with the game, not with the archive.** The projection corpus is the lifetime archive (1.5M
+  records after six days, ~8 KB each, growing 150-350k a day) and the first postgame drivers read all of it into
+  memory before knowing which game they were settling; the runner killed them. The path is now ordered the other
+  way round, in every driver (`settle_v2.py`, `pair_closes_v2.py`, `research_export_v2.py`, `weekly_report_v2.py`):
+  the result book / schedule decides the candidate games; a game that already holds its immutable batch under the
+  current rule version is skipped by file name (reported as skipped, never silent); the **projection index**
+  (`data/shadow/v2/projection_index/<day>/<snapshot>.<arm>.projections_index.json`, one small JSON per projection
+  file, keyed by the file's sha256, write-once and published beside the corpus) says which files hold each game;
+  `nfl_edge.projection.store.iter_projections` streams exactly those files one record at a time with the game /
+  week filters applied before parsing; sidecars are fetched per referenced snapshot; and the corpus planner holds
+  ids and hashes, never rows. Whole-corpus statistics (scorecard v2, exchange cross-check, autopsy summary,
+  coverage audits) are accumulators; the week-level scorecard v3 and health gate run over fixed-slot slim rows
+  (`nfl_edge/evaluation/research_slim.py`). Every probability-carrying record examined is accounted for in the
+  run summary (`accounting.silently_dropped` must be 0, and the run fails if it is not).
 
 ## 7. Isolation
 

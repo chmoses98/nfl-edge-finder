@@ -199,22 +199,45 @@ def crosscheck_rows(settlement_rows, results: ExchangeResults) -> list:
     return out
 
 
-def summarize(rows) -> dict:
-    """Coverage and, above all, the disagreements -- by family, because a misread contract is a family problem."""
-    by_agreement, by_family, disagreements = {}, {}, []
-    for r in rows:
+class SummaryAccumulator:
+    """summarize(), one cross-check row at a time. Keeps counts, the first 200 disagreements and the set of
+    families they touch -- never the rows -- so the settlement driver can summarise the whole corpus while
+    reading it game by game."""
+
+    KEEP = 200
+
+    def __init__(self):
+        self.n = 0
+        self.by_agreement, self.by_family = {}, {}
+        self.disagreements, self.n_disagreements, self.families = [], 0, set()
+
+    def add(self, r: dict):
+        self.n += 1
         a = r.get("agreement") or "UNKNOWN"
-        by_agreement[a] = by_agreement.get(a, 0) + 1
+        self.by_agreement[a] = self.by_agreement.get(a, 0) + 1
         fam = r.get("market_family") or "UNKNOWN"
-        d = by_family.setdefault(fam, {"n": 0, AGREE: 0, DISAGREE: 0, EXCHANGE_MISSING: 0})
+        d = self.by_family.setdefault(fam, {"n": 0, AGREE: 0, DISAGREE: 0, EXCHANGE_MISSING: 0})
         d["n"] += 1
         d[a] = d.get(a, 0) + 1
         if r.get("hard_warning"):
-            disagreements.append({k: r.get(k) for k in ("ticker", "market_family", "derived_settled_yes", "exchange_payout",
-                                                        "exchange_result", "exchange_settlement_ts", "exchange_source", "reason")})
-    comparable = by_agreement.get(AGREE, 0) + by_agreement.get(DISAGREE, 0)
-    return {"crosscheck_version": CROSSCHECK_VERSION, "n": len(rows), "by_agreement": by_agreement,
-            "comparable": comparable, "agreement_rate": (by_agreement.get(AGREE, 0) / comparable) if comparable else None,
-            "n_disagreements": len(disagreements), "disagreements": disagreements[:200],
-            "families_with_disagreement": sorted({d["market_family"] for d in disagreements if d.get("market_family")}),
-            "by_family": by_family}
+            self.n_disagreements += 1
+            if r.get("market_family"):
+                self.families.add(r["market_family"])
+            if len(self.disagreements) < self.KEEP:
+                self.disagreements.append({k: r.get(k) for k in ("ticker", "market_family", "derived_settled_yes", "exchange_payout",
+                                                                 "exchange_result", "exchange_settlement_ts", "exchange_source", "reason")})
+
+    def finish(self) -> dict:
+        comparable = self.by_agreement.get(AGREE, 0) + self.by_agreement.get(DISAGREE, 0)
+        return {"crosscheck_version": CROSSCHECK_VERSION, "n": self.n, "by_agreement": self.by_agreement,
+                "comparable": comparable, "agreement_rate": (self.by_agreement.get(AGREE, 0) / comparable) if comparable else None,
+                "n_disagreements": self.n_disagreements, "disagreements": self.disagreements[:self.KEEP],
+                "families_with_disagreement": sorted(self.families), "by_family": self.by_family}
+
+
+def summarize(rows) -> dict:
+    """Coverage and, above all, the disagreements -- by family, because a misread contract is a family problem."""
+    acc = SummaryAccumulator()
+    for r in rows:
+        acc.add(r)
+    return acc.finish()

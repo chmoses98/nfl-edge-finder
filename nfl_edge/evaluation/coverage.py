@@ -104,13 +104,23 @@ def _get_block(rec, name):
     return rec if name == "__root__" else (rec.get(name) or {})
 
 
-def audit(records, fields=None, *, label: str = "player_context") -> dict:
-    """Per-field KNOWN / UNKNOWN / NOT_APPLICABLE over a set of records."""
-    fields = fields or PLAYER_FIELDS
-    rows = []
-    for f in fields:
-        counts = {KNOWN: 0, UNKNOWN: 0, NOT_APPLICABLE: 0}
-        for rec in records:
+# Each audit below is an accumulator fed one record at a time, with the list form as a thin wrapper. The
+# research export streams a week of projections game by game and cannot hold the records the audit is over;
+# the list functions keep their signatures and, being built on the same accumulator, their exact results.
+
+
+class AuditAccumulator:
+    """audit(), one record at a time."""
+
+    def __init__(self, fields=None, *, label: str = "player_context"):
+        self.fields = list(fields or PLAYER_FIELDS)
+        self.label = label
+        self.n = 0
+        self.counts = [{KNOWN: 0, UNKNOWN: 0, NOT_APPLICABLE: 0} for _ in self.fields]
+
+    def add(self, rec: dict):
+        self.n += 1
+        for f, counts in zip(self.fields, self.counts):
             b = _get_block(rec, f.block)
             if f.na_when and f.na_when(rec, b):
                 counts[NOT_APPLICABLE] += 1
@@ -121,22 +131,77 @@ def audit(records, fields=None, *, label: str = "player_context") -> dict:
                 counts[NOT_APPLICABLE] += 1
             else:
                 counts[UNKNOWN] += 1
-        applicable = counts[KNOWN] + counts[UNKNOWN]
-        rows.append({"field": f.name, **counts, "applicable": applicable,
-                     "known_pct": round(100.0 * counts[KNOWN] / applicable, 1) if applicable else None,
-                     "note": f.note})
-    worst = sorted((r for r in rows if r["known_pct"] is not None), key=lambda r: r["known_pct"])[:5]
-    return {"coverage_version": COVERAGE_VERSION, "label": label, "n_records": len(records), "fields": rows,
-            "weakest_fields": [{"field": r["field"], "known_pct": r["known_pct"]} for r in worst],
-            "fields_below_50_pct": sorted(r["field"] for r in rows if (r["known_pct"] or 100) < 50)}
+
+    def finish(self) -> dict:
+        rows = []
+        for f, counts in zip(self.fields, self.counts):
+            applicable = counts[KNOWN] + counts[UNKNOWN]
+            rows.append({"field": f.name, **counts, "applicable": applicable,
+                         "known_pct": round(100.0 * counts[KNOWN] / applicable, 1) if applicable else None,
+                         "note": f.note})
+        worst = sorted((r for r in rows if r["known_pct"] is not None), key=lambda r: r["known_pct"])[:5]
+        return {"coverage_version": COVERAGE_VERSION, "label": self.label, "n_records": self.n, "fields": rows,
+                "weakest_fields": [{"field": r["field"], "known_pct": r["known_pct"]} for r in worst],
+                "fields_below_50_pct": sorted(r["field"] for r in rows if (r["known_pct"] or 100) < 50)}
+
+
+def audit(records, fields=None, *, label: str = "player_context") -> dict:
+    """Per-field KNOWN / UNKNOWN / NOT_APPLICABLE over a set of records."""
+    acc = AuditAccumulator(fields, label=label)
+    for rec in records:
+        acc.add(rec)
+    return acc.finish()
+
+
+class StateBreakdownAccumulator:
+    def __init__(self, block: str, key: str):
+        self.block, self.key, self.out = block, key, {}
+
+    def add(self, rec: dict):
+        v = _get_block(rec, self.block).get(self.key)
+        self.out[str(v)] = self.out.get(str(v), 0) + 1
+
+    def finish(self) -> dict:
+        return dict(sorted(self.out.items(), key=lambda kv: -kv[1]))
 
 
 def state_breakdown(records, block: str, key: str) -> dict:
-    out = {}
+    acc = StateBreakdownAccumulator(block, key)
     for rec in records:
-        v = _get_block(rec, block).get(key)
-        out[str(v)] = out.get(str(v), 0) + 1
-    return dict(sorted(out.items(), key=lambda kv: -kv[1]))
+        acc.add(rec)
+    return acc.finish()
+
+
+class DepthCoverageAccumulator:
+    def __init__(self, *, band_key="disagreement_band"):
+        self.band_key = band_key
+        self.n = 0
+        self.by_state, self.by_reason, self.by_band = {}, {}, {}
+
+    def add(self, rec: dict):
+        self.n += 1
+        d = rec.get("depth") or {}
+        st = d.get("state") or "NONE"
+        self.by_state[st] = self.by_state.get(st, 0) + 1
+        if st == "DEPTH_NOT_CAPTURED":
+            self.by_reason[d.get("why") or "UNKNOWN"] = self.by_reason.get(d.get("why") or "UNKNOWN", 0) + 1
+        band = rec.get(self.band_key) or _band(rec)
+        b = self.by_band.setdefault(band, {"n": 0, "captured": 0})
+        b["n"] += 1
+        if st in ("DEPTH_CAPTURED", "DEPTH_STALE"):
+            b["captured"] += 1
+
+    def finish(self) -> dict:
+        by_band = {k: dict(v) for k, v in self.by_band.items()}
+        for b in by_band.values():
+            b["captured_pct"] = round(100.0 * b["captured"] / b["n"], 1) if b["n"] else None
+        n = self.n
+        cap = self.by_state.get("DEPTH_CAPTURED", 0) + self.by_state.get("DEPTH_STALE", 0)
+        return {"coverage_version": COVERAGE_VERSION, "n_records": n, "captured": cap,
+                "captured_pct": round(100.0 * cap / n, 1) if n else None, "by_state": dict(self.by_state),
+                "not_captured_reasons": dict(self.by_reason), "by_disagreement_band": dict(sorted(by_band.items())),
+                "selection_check": "depth coverage by disagreement band; a strong gradient would mean the depth "
+                                   "sample is selected by the quantity under study"}
 
 
 def depth_coverage(records, *, band_key="disagreement_band") -> dict:
@@ -146,27 +211,10 @@ def depth_coverage(records, *, band_key="disagreement_band") -> dict:
     selection bias should be measurable rather than asserted. If depth coverage varies strongly across
     disagreement bands, the depth-conditional research is compromised and this is where it shows.
     """
-    by_state, by_reason, by_band = {}, {}, {}
+    acc = DepthCoverageAccumulator(band_key=band_key)
     for rec in records:
-        d = rec.get("depth") or {}
-        st = d.get("state") or "NONE"
-        by_state[st] = by_state.get(st, 0) + 1
-        if st == "DEPTH_NOT_CAPTURED":
-            by_reason[d.get("why") or "UNKNOWN"] = by_reason.get(d.get("why") or "UNKNOWN", 0) + 1
-        band = rec.get(band_key) or _band(rec)
-        b = by_band.setdefault(band, {"n": 0, "captured": 0})
-        b["n"] += 1
-        if st in ("DEPTH_CAPTURED", "DEPTH_STALE"):
-            b["captured"] += 1
-    for b in by_band.values():
-        b["captured_pct"] = round(100.0 * b["captured"] / b["n"], 1) if b["n"] else None
-    n = len(records)
-    cap = by_state.get("DEPTH_CAPTURED", 0) + by_state.get("DEPTH_STALE", 0)
-    return {"coverage_version": COVERAGE_VERSION, "n_records": n, "captured": cap,
-            "captured_pct": round(100.0 * cap / n, 1) if n else None, "by_state": by_state,
-            "not_captured_reasons": by_reason, "by_disagreement_band": dict(sorted(by_band.items())),
-            "selection_check": "depth coverage by disagreement band; a strong gradient would mean the depth "
-                               "sample is selected by the quantity under study"}
+        acc.add(rec)
+    return acc.finish()
 
 
 def _band(rec):
