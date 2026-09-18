@@ -242,3 +242,92 @@ def test_the_shipped_fixture_game_reconciles_too(game):
     assert len(_board_tickers(md)) == listed - suppressed
     assert "0 silently omitted" in _board(md)
     assert "INVARIANT VIOLATED" not in md
+
+
+# ---------------------------------------------------------------- the alarm has to be able to fire
+
+def test_a_market_that_never_reaches_the_table_is_named_not_counted_away(game, monkeypatch):
+    """The completeness check is by ticker identity, so a row that vanishes in rendering is caught.
+
+    The arithmetic version of this check (`listed - rendered - suppressed - capped`) was forced to zero by
+    the way those counts were derived: it could not have failed, whatever the document actually contained.
+    """
+    import nfl_edge.handicap.render as R
+    victim = EVIDENCE[0]["ticker"]
+    real = R._board_row
+    monkeypatch.setattr(R, "_board_row", lambda m: "" if m["ticker"] == victim else real(m))
+    md = render_game_markdown(game)
+    board = _board(md)
+    assert victim not in _board_tickers(md)
+    assert "REPORTING INVARIANT VIOLATED" in board
+    assert f"`{victim}`" in board, "the omitted ticker must be named, not just counted"
+    assert "1 silently omitted" in board
+
+
+def test_a_row_rendered_under_the_wrong_identity_is_caught_too(game, monkeypatch):
+    """A row is coverage of the contract it names. Rendering the right count under a wrong id is not."""
+    import nfl_edge.handicap.render as R
+    victim = EVIDENCE[1]["ticker"]
+    real = R._board_row
+    monkeypatch.setattr(R, "_board_row",
+                        lambda m: real(m).replace(victim, "KXNFL-NOT-A-LISTED-TICKER", 1)
+                        if m["ticker"] == victim else real(m))
+    board = _board(render_game_markdown(game))
+    assert "REPORTING INVARIANT VIOLATED" in board and f"`{victim}`" in board
+    assert "1 silently omitted" in board
+
+
+def test_many_omissions_are_counted_and_sampled(game, monkeypatch):
+    import nfl_edge.handicap.render as R
+    victims = {e["ticker"] for e in EVIDENCE}
+    real = R._board_row
+    monkeypatch.setattr(R, "_board_row", lambda m: "" if m["ticker"] in victims else real(m))
+    board = _board(render_game_markdown(game))
+    assert f"{len(victims)} silently omitted" in board
+    assert all(f"`{t}`" in board for t in victims)
+
+
+def test_a_duplicate_ticker_is_reported_rather_than_left_to_pad_the_count(game):
+    """One ticker is one contract. A ticker listed twice breaks any reconciliation and is named."""
+    g = copy.deepcopy(game)
+    dup = copy.deepcopy(g["markets"][0])
+    g["markets"].append(dup)
+    board = _board(render_game_markdown(g))
+    assert "ticker identity is not unique" in board
+    assert f"`{dup['ticker']}`" in board
+    assert "1 duplicate listing(s)" in board and "1 duplicate row(s)" in board
+
+
+def test_a_duplicate_row_cannot_reconcile_away_a_genuine_omission(game, monkeypatch):
+    """The failure the row-count check would have hidden: one row rendered twice, one market gone.
+
+    Counted by rows this board looks complete -- the same number of rows for the same number of markets.
+    By identity it is not: the omitted ticker is named, and the duplicate is named as a duplicate.
+    """
+    import nfl_edge.handicap.render as R
+    victim, twin = EVIDENCE[2]["ticker"], game["markets"][0]["ticker"]
+    real = R._board_row
+    monkeypatch.setattr(R, "_board_row",
+                        lambda m: real(m).replace(victim, twin, 1) if m["ticker"] == victim else real(m))
+    md = render_game_markdown(game)
+    board = _board(md)
+    real_markets = sum(1 for m in game["markets"] if not m.get("no_real_market"))
+    assert len(_board_tickers(md)) == real_markets, "the row count alone still looks healthy"
+    assert "1 silently omitted" in board and f"`{victim}`" in board
+    assert "1 duplicate row(s)" in board
+
+
+def test_a_listed_market_with_no_ticker_is_reported_not_swallowed(game):
+    g = copy.deepcopy(game)
+    g["markets"].append(_market(ticker=None, family="TOTAL", threshold=44.0))
+    board = _board(render_game_markdown(g))
+    assert "REPORTING INVARIANT VIOLATED" in board
+    assert "carry no ticker" in board
+    assert "| `None` |" not in board, "a market with no identity must not be rendered as a row"
+
+
+def test_the_healthy_board_raises_no_alarm_of_any_kind(full_md):
+    board = _board(full_md)
+    assert "REPORTING INVARIANT VIOLATED" not in board
+    assert "ticker identity is not unique" not in board
+    assert "0 silently omitted" in board

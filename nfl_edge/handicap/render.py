@@ -325,6 +325,29 @@ def _ladder_sort_key(m: dict) -> tuple:
             (0, float(t)) if numbered else (1, 0.0), (m.get("ticker") or ""))
 
 
+def _board_row(m: dict) -> str:
+    """One market, one board row. Separate from the section so the rendered set can be read back from it.
+
+    The completeness check below identifies what was rendered by parsing the ticker out of these rows,
+    which is the only reading that matches what a handicapper sees. A row builder that returned nothing for
+    a market would shrink the board silently; instead it shows up as an unexpected omission.
+    """
+    if not m.get("ticker"):
+        return ""      # no identity, no row: it is reported as unaccountable rather than rendered as None
+    who = m.get("player_name") or m.get("team") or ""
+    line = f"{who} {m.get('stat') or ''} {m.get('threshold') if m.get('threshold') is not None else ''}".strip()
+    return (f"| `{m['ticker']}` | {m['family']}{'/' + m['period'] if m.get('period') else ''} | {line} | "
+            f"{_num(m.get('yes_bid'))}/{_num(m.get('yes_ask'))} | {_num(m.get('no_bid'))}/{_num(m.get('no_ask'))} | "
+            f"{_num(m.get('width'))} | {_num(m.get('volume'),0)} | {_num(m.get('open_interest'),0)} | "
+            f"{_num(m.get('model_probability'))} | {_sign(m.get('disagreement_vs_mid'))} | {m['support_state']} |")
+
+
+def _row_identity(row: str):
+    """The ticker a rendered board row actually carries, or None if the row does not identify a contract."""
+    parts = row.split("`")
+    return parts[1] if len(parts) > 2 and parts[1] else None
+
+
 def _market_board_section(g: dict, *, max_markets=None) -> list:
     """**MARKET BOARD**: in the game file, every executable contract discovered for that game.
 
@@ -344,10 +367,22 @@ def _market_board_section(g: dict, *, max_markets=None) -> list:
       volume and no open interest, whose midpoint is a quoting artefact rather than a price. Those stay in
       `packet.json` with their flag, and the accounting line counts them.
 
-    The accounting line reconciles the rendered rows against the packet: listed = rendered + suppressed +
-    capped + silently omitted. **Silently omitted must be 0** -- a market is either on the board, named as
-    a placeholder, or named as held back by a cap this view has declared. Anything else is a reporting
-    invariant failure, and the document says so rather than reading as complete.
+    The accounting line reconciles the document against the packet **by ticker identity, not by
+    arithmetic**. Four sets are built in separate passes -- every listed ticker, the tickers actually
+    parsed back out of the rendered rows, the tickers classified `no_real_market`, and the tickers this
+    view explicitly withheld at its cap -- and
+
+        unexpected = listed - rendered - placeholders - cap_withheld
+
+    is what the line reports as silently omitted. **It must be 0**: a market is either on the board, named
+    as a placeholder, or named as held back by a declared cap. Anything else names the missing tickers
+    under REPORTING INVARIANT VIOLATED rather than letting the document read as complete. Counting lengths
+    instead (`listed - rendered - suppressed - capped`) is forced to zero by how those counts are derived
+    and would never fire.
+
+    Ticker identity is checked too, in both directions: a ticker listed twice in `packet.json`, or a row
+    rendered twice, is reported rather than allowed to pad the rendered count so that a genuine omission
+    reconciles. A listed market with no ticker at all cannot be accounted for and says so.
 
     Liquidity is preserved as information, not as a filter: volume, open interest and width are columns.
     """
@@ -356,29 +391,42 @@ def _market_board_section(g: dict, *, max_markets=None) -> list:
     a("### MARKET BOARD")
     a("")
     listed = g["markets"]
+    # Identity, not arithmetic. `listed - rendered - placeholders - cap-withheld` counted with lengths is
+    # algebraically forced to zero by the way the counts are derived, so it could never have caught the
+    # defect it claims to guard. These are sets of ticker ids, built from separate passes, and the rendered
+    # set is read back out of the row text the reader will actually see.
+    listed_ids, seen, duplicate_ids, unidentified = set(), set(), [], 0
+    for m in listed:
+        t = m.get("ticker")
+        if not t:
+            unidentified += 1
+            continue
+        if t in seen:
+            duplicate_ids.append(t)
+        seen.add(t)
+        listed_ids.add(t)
+    placeholder_ids = {m.get("ticker") for m in listed if m.get("no_real_market") and m.get("ticker")}
     board = [m for m in listed if not m.get("no_real_market")]
-    suppressed = len(listed) - len(board)
     capped_view = max_markets is not None and len(board) > max_markets
     if capped_view:
         board.sort(key=lambda m: (-(m.get("volume") or 0), m.get("family") or ""))
-        shown = board[:max_markets]
+        shown, withheld = board[:max_markets], board[max_markets:]
     else:
         board.sort(key=_ladder_sort_key)
-        shown = board
+        shown, withheld = board, []
     rows = []
     for m in shown:
-        who = m.get("player_name") or m.get("team") or ""
-        line = f"{who} {m.get('stat') or ''} {m.get('threshold') if m.get('threshold') is not None else ''}".strip()
-        rows.append(
-            f"| `{m['ticker']}` | {m['family']}{'/' + m['period'] if m.get('period') else ''} | {line} | "
-            f"{_num(m.get('yes_bid'))}/{_num(m.get('yes_ask'))} | {_num(m.get('no_bid'))}/{_num(m.get('no_ask'))} | "
-            f"{_num(m.get('width'))} | {_num(m.get('volume'),0)} | {_num(m.get('open_interest'),0)} | "
-            f"{_num(m.get('model_probability'))} | {_sign(m.get('disagreement_vs_mid'))} | {m['support_state']} |")
-    capped = len(board) - len(rows) if capped_view else 0
-    omitted = len(listed) - len(rows) - suppressed - capped
+        row = _board_row(m)
+        if row:
+            rows.append(row)
+    rendered_ids = {t for t in (_row_identity(r) for r in rows) if t}
+    cap_withheld_ids = {m.get("ticker") for m in withheld if m.get("ticker")}
+    unexpected = sorted(listed_ids - rendered_ids - placeholder_ids - cap_withheld_ids)
+    duplicate_rows = len(rows) - len(rendered_ids)
+    suppressed, capped = len(placeholder_ids), len(cap_withheld_ids)
     cap_note = f" · {capped} held back by this view's cap" if capped_view else ""
     a(f"_{len(listed)} markets listed · {len(rows)} executable books rendered · {suppressed} "
-      f"no-real-market placeholders suppressed{cap_note} · {omitted} silently omitted._")
+      f"no-real-market placeholders suppressed{cap_note} · {len(unexpected)} silently omitted._")
     a("")
     if capped_view:
         a(f"_This is a truncated slate view. Showing the {len(rows)} most traded of {len(board)} "
@@ -398,10 +446,26 @@ def _market_board_section(g: dict, *, max_markets=None) -> list:
           "could pay. Every one of them is in `packet.json` under this game's `markets`, flagged and with "
           "its reason. They are the only kind of row allowed to be absent from the board above._")
         a("")
-    if omitted:
-        a(f"> **REPORTING INVARIANT VIOLATED** — {omitted} listed market(s) are neither rendered above, nor "
-          "classified as a no-real-market placeholder, nor named as held back by this view's cap. Treat "
-          "this report as an incomplete view of the market universe.")
+    if unexpected:
+        ex = ", ".join(f"`{t}`" for t in unexpected[:8])
+        more = f" and {len(unexpected) - 8} more" if len(unexpected) > 8 else ""
+        a(f"> **REPORTING INVARIANT VIOLATED** — {len(unexpected)} listed market(s) are neither rendered "
+          "below, nor classified as a no-real-market placeholder, nor named as held back by this view's "
+          f"cap: {ex}{more}. Treat this report as an incomplete view of the market universe and read "
+          "`packet.json` for those tickers.")
+        a("")
+    if duplicate_ids or duplicate_rows:
+        ex = ", ".join(f"`{t}`" for t in sorted(set(duplicate_ids))[:8]) or "none in the packet"
+        a(f"> **REPORTING INVARIANT VIOLATED** — ticker identity is not unique. A ticker identifies one "
+          f"contract exactly once in a game's `markets`: {len(duplicate_ids)} duplicate listing(s) "
+          f"({ex}) and {duplicate_rows} duplicate row(s) on the board. Counts in this document cannot be "
+          "reconciled against the packet while a ticker appears twice, and a duplicated row must not be "
+          "read as coverage of a second contract.")
+        a("")
+    if unidentified:
+        a(f"> **REPORTING INVARIANT VIOLATED** — {unidentified} listed market(s) carry no ticker and cannot "
+          "be identified, rendered or accounted for. Treat this report as an incomplete view of the market "
+          "universe.")
         a("")
     a("| ticker | family | line | YES bid/ask | NO bid/ask | width | vol | OI | model | disagree | state |")
     a("|---|---|---|---|---|---|---|---|---|---|---|")
