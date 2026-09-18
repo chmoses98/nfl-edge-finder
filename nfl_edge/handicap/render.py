@@ -140,13 +140,19 @@ def render_markdown(packet: dict, max_players_per_game: int = 8,
 
 
 def render_game_markdown(g: dict, max_players: int = 14, max_markets: int = 60) -> str:
-    """One game, in full. This is the document to hand over when handicapping that game."""
+    """One game, in full. This is the document to hand over when handicapping that game.
+
+    In full means in full: the MARKET BOARD here carries every executable contract discovered for the game.
+    `max_markets` is retained for call compatibility and no longer caps that board -- a 762-market game
+    whose file showed the 60 most traded was the 2026 week 2 DET @ BUF reporting defect, see
+    `_market_board_section`. It is the slate document, not this one, that may truncate.
+    """
     head = [f"# {g['away_team']} @ {g['home_team']} — `{g['game_id']}`", "",
             "**DISAGREEMENT ONLY -- REQUIRES HANDICAP.** Every model-vs-market number in this document is a "
             "disagreement between two estimates. It is not an edge, not a selection and not a "
             "recommendation, and relabelling one as an edge is the single error this packet exists to "
             "prevent.", ""]
-    return "\n".join(head + _render_game(g, max_players, max_markets, compact=False)[3:])
+    return "\n".join(head + _render_game(g, max_players, None, compact=False)[3:])
 
 
 def _sim_projection_section(sv: dict, *, compact: bool, max_rows: int) -> list:
@@ -303,7 +309,108 @@ def _legacy_incumbent_section(g: dict, *, max_players: int, compact: bool) -> li
     return L
 
 
-def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = False) -> list:
+def _ladder_sort_key(m: dict) -> tuple:
+    """Ladder order: family, period, team, player, stat, threshold, ticker.
+
+    A board sorted by volume scatters the rungs of one ladder through the document, which is precisely the
+    comparison a handicapper is making when choosing how to express a thesis. Sorted this way, every rung of
+    a total, a team total, a spread or a player ladder reads as one block. A row with no threshold sorts
+    after the numbered rungs of its group rather than in the middle of them, and the ticker breaks ties, so
+    the ordering is total and the document is byte-stable between renders of the same packet.
+    """
+    t = m.get("threshold")
+    numbered = isinstance(t, (int, float)) and not isinstance(t, bool)
+    return ((m.get("family") or ""), (m.get("period") or ""), (m.get("team") or ""),
+            (m.get("player_name") or ""), (m.get("stat") or ""),
+            (0, float(t)) if numbered else (1, 0.0), (m.get("ticker") or ""))
+
+
+def _market_board_section(g: dict, *, max_markets=None) -> list:
+    """**MARKET BOARD**: in the game file, every executable contract discovered for that game.
+
+    The 2026 week 2 DET @ BUF report listed 762 markets and rendered 60 of them. The board was sorted by
+    volume and cut at `max_markets` in the full per-game file as well as in the compact slate, so genuinely
+    traded alternate-total rungs, most of both team-total ladders and a long tail of alternate spreads were
+    absent from the document with nothing saying so. Liquidity decided what a handicapper was allowed to
+    see, which defeats the purpose of the report: the whole point is to inspect the complete available
+    universe and pick the best expression of a football thesis.
+
+    Two rules now:
+
+    * **The full game file never truncates this table.** It passes `max_markets=None` and every listed
+      market with a real book is rendered. The slate document, which is a triage view and says so, may
+      still pass a cap; a capped board states that it is capped and points at the game file for the rest.
+    * **Only a `no_real_market` book may be off the table.** That is a 0.00/0.99-style quote carrying no
+      volume and no open interest, whose midpoint is a quoting artefact rather than a price. Those stay in
+      `packet.json` with their flag, and the accounting line counts them.
+
+    The accounting line reconciles the rendered rows against the packet: listed = rendered + suppressed +
+    capped + silently omitted. **Silently omitted must be 0** -- a market is either on the board, named as
+    a placeholder, or named as held back by a cap this view has declared. Anything else is a reporting
+    invariant failure, and the document says so rather than reading as complete.
+
+    Liquidity is preserved as information, not as a filter: volume, open interest and width are columns.
+    """
+    L = []
+    a = L.append
+    a("### MARKET BOARD")
+    a("")
+    listed = g["markets"]
+    board = [m for m in listed if not m.get("no_real_market")]
+    suppressed = len(listed) - len(board)
+    capped_view = max_markets is not None and len(board) > max_markets
+    if capped_view:
+        board.sort(key=lambda m: (-(m.get("volume") or 0), m.get("family") or ""))
+        shown = board[:max_markets]
+    else:
+        board.sort(key=_ladder_sort_key)
+        shown = board
+    rows = []
+    for m in shown:
+        who = m.get("player_name") or m.get("team") or ""
+        line = f"{who} {m.get('stat') or ''} {m.get('threshold') if m.get('threshold') is not None else ''}".strip()
+        rows.append(
+            f"| `{m['ticker']}` | {m['family']}{'/' + m['period'] if m.get('period') else ''} | {line} | "
+            f"{_num(m.get('yes_bid'))}/{_num(m.get('yes_ask'))} | {_num(m.get('no_bid'))}/{_num(m.get('no_ask'))} | "
+            f"{_num(m.get('width'))} | {_num(m.get('volume'),0)} | {_num(m.get('open_interest'),0)} | "
+            f"{_num(m.get('model_probability'))} | {_sign(m.get('disagreement_vs_mid'))} | {m['support_state']} |")
+    capped = len(board) - len(rows) if capped_view else 0
+    omitted = len(listed) - len(rows) - suppressed - capped
+    cap_note = f" · {capped} held back by this view's cap" if capped_view else ""
+    a(f"_{len(listed)} markets listed · {len(rows)} executable books rendered · {suppressed} "
+      f"no-real-market placeholders suppressed{cap_note} · {omitted} silently omitted._")
+    a("")
+    if capped_view:
+        a(f"_This is a truncated slate view. Showing the {len(rows)} most traded of {len(board)} "
+          "executable books, ordered by volume. **The complete executable board for this game, every rung "
+          "of every ladder, is in this game's own file under `games/`** -- nothing below is a statement "
+          "about what exists._")
+    else:
+        a("_**This is the complete executable board**: every market listed for this game that has a real "
+          "book, with none held back for being thinly traded. Rows are in ladder order -- family, period, "
+          "team, player, stat, threshold, ticker -- so the rungs of one ladder read together and can be "
+          "compared. Volume, open interest and width are shown as information; they do not decide what "
+          "appears._")
+    a("")
+    if suppressed:
+        a(f"_{suppressed} book(s) are held off the table as `no_real_market`: a 0.00/0.99-style quote with "
+          "no volume and no open interest, where the midpoint is a quoting artefact and not a price you "
+          "could pay. Every one of them is in `packet.json` under this game's `markets`, flagged and with "
+          "its reason. They are the only kind of row allowed to be absent from the board above._")
+        a("")
+    if omitted:
+        a(f"> **REPORTING INVARIANT VIOLATED** — {omitted} listed market(s) are neither rendered above, nor "
+          "classified as a no-real-market placeholder, nor named as held back by this view's cap. Treat "
+          "this report as an incomplete view of the market universe.")
+        a("")
+    a("| ticker | family | line | YES bid/ask | NO bid/ask | width | vol | OI | model | disagree | state |")
+    a("|---|---|---|---|---|---|---|---|---|---|---|")
+    L.extend(rows)
+    a("")
+    return L
+
+
+def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = False) -> list:
     L = []
     a = L.append
     a("")
@@ -527,24 +634,8 @@ def _render_game(g: dict, max_players: int, max_markets: int, compact: bool = Fa
     # the incumbent, second and unmistakably labelled: it is a diagnostic, not the current projection
     L.extend(_legacy_incumbent_section(g, max_players=max_players, compact=compact))
 
-    # markets
-    a("### MARKET BOARD")
-    a("")
-    board = [m for m in g["markets"] if not m.get("no_real_market")]
-    board.sort(key=lambda m: (-(m.get("volume") or 0), m.get("family") or ""))
-    a(f"_{len(g['markets'])} markets listed; {len(g['markets']) - len(board)} suppressed as untraded "
-      f"0.00/0.99 books (present in the JSON). Showing the {min(max_markets, len(board))} most traded._")
-    a("")
-    a("| ticker | family | line | YES bid/ask | NO bid/ask | width | vol | model | disagree | state |")
-    a("|---|---|---|---|---|---|---|---|---|---|")
-    for m in board[:max_markets]:
-        who = m.get("player_name") or m.get("team") or ""
-        line = f"{who} {m.get('stat') or ''} {m.get('threshold') if m.get('threshold') is not None else ''}".strip()
-        a(f"| `{m['ticker']}` | {m['family']}{'/' + m['period'] if m.get('period') else ''} | {line} | "
-          f"{_num(m.get('yes_bid'))}/{_num(m.get('yes_ask'))} | {_num(m.get('no_bid'))}/{_num(m.get('no_ask'))} | "
-          f"{_num(m.get('width'))} | {_num(m.get('volume'),0)} | {_num(m.get('model_probability'))} | "
-          f"{_sign(m.get('disagreement_vs_mid'))} | {m['support_state']} |")
-    a("")
+    # markets -- with max_markets None (what the game file passes) this is the complete executable board
+    L.extend(_market_board_section(g, max_markets=max_markets))
     drb = g.get("disagreement_ranking_basis") or {}
     a(f"_Disagreement ranking used {drb.get('ranked_markets')} markets; "
       f"{drb.get('excluded_untradable')} excluded as untradable (width > {drb.get('max_width_ranked')} or "
