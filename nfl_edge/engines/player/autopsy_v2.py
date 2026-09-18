@@ -209,8 +209,18 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None, contex
         comps["opportunity"] = _off(a["opportunity"], pj["opportunity"], log_tol=LOG_RATIO_LARGE)
     if a.get("opportunity") and actual is not None and pj["efficiency"]:
         a["efficiency"] = actual / a["opportunity"]
-        comps["efficiency"] = (abs(math.log((a["efficiency"] + 1e-6) / (pj["efficiency"] + 1e-6))) > LOG_RATIO_LARGE,
-                               math.log((a["efficiency"] + 1e-6) / (pj["efficiency"] + 1e-6)))
+        ratio = (a["efficiency"] + 1e-6) / (pj["efficiency"] + 1e-6)
+        if ratio > 0:
+            lr = math.log(ratio)
+            comps["efficiency"] = (abs(lr) > LOG_RATIO_LARGE, lr)
+        else:
+            # Yards lost (or none) on real opportunities against a positive projection: the log ratio is undefined,
+            # and what it would measure is a miss of unbounded size, not a small one. The first settlement run over
+            # the real corpus died here on a rusher with negative yardage (math domain error), which took the whole
+            # settlement step with it. The component is recorded as off, with no ratio to report.
+            comps["efficiency"] = (True, None)
+            out["evidence"].append(f"efficiency ratio undefined: actual {a['efficiency']:.3g} per opportunity against "
+                                   f"projected {pj['efficiency']:.3g}; recorded as a large miss")
     if proj_catch and a.get("catch_rate") is not None and stat in ("receiving_yards", "receptions", "rush_rec_yards"):
         comps["catch_rate"] = (abs(a["catch_rate"] - proj_catch) > 0.20, a["catch_rate"] - proj_catch)
     # ---- classification: first component off in causal order
@@ -259,12 +269,24 @@ def rank(records: list) -> list:
     return sorted(records, key=lambda r: (-(abs(r["robust_z"]) if r.get("robust_z") is not None else -1), r.get("game_id") or "", r.get("player_id") or "", r.get("stat") or ""))
 
 
+class SummaryAccumulator:
+    """summarize(), one autopsy record at a time: counts only, never the records."""
+
+    def __init__(self):
+        self.n, self.by, self.by_stat = 0, {}, {}
+
+    def add(self, r: dict):
+        self.n += 1
+        self.by[r["classification"]] = self.by.get(r["classification"], 0) + 1
+        self.by_stat.setdefault(r.get("stat"), {}).setdefault(r["classification"], 0)
+        self.by_stat[r.get("stat")][r["classification"]] += 1
+
+    def finish(self) -> dict:
+        return {"n": self.n, "by_classification": self.by, "by_stat": self.by_stat, "version": AUTOPSY_VERSION}
+
+
 def summarize(records: list) -> dict:
-    by = {}
+    acc = SummaryAccumulator()
     for r in records:
-        by[r["classification"]] = by.get(r["classification"], 0) + 1
-    by_stat = {}
-    for r in records:
-        by_stat.setdefault(r.get("stat"), {}).setdefault(r["classification"], 0)
-        by_stat[r.get("stat")][r["classification"]] += 1
-    return {"n": len(records), "by_classification": by, "by_stat": by_stat, "version": AUTOPSY_VERSION}
+        acc.add(r)
+    return acc.finish()

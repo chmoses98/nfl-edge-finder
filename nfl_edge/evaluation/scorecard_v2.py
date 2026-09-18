@@ -197,6 +197,306 @@ def paired_arms(rows: list) -> dict:
     return out
 
 
+# --------------------------------------------------------------------------------------------- streaming build
+#
+# build_scorecard() above is the definition. The accumulator below computes the same scorecard one row at a
+# time so the settlement driver can rebuild it from the WHOLE corpus without holding the corpus: every sum,
+# bin and cluster total is carried incrementally, bounded by the number of segments, games and arms rather
+# than by the number of rows. tests/test_postgame_memory_v2.py asserts the two agree.
+
+
+class _MetricAcc:
+    """metric_block(), incrementally. Sums are accumulated in row order, so the means come out identical."""
+
+    __slots__ = ("n", "sum_y", "sum_brier", "sum_ll", "sum_sharp", "bins", "tie", "m", "sum_brier_m", "sum_ll_m",
+                 "diff_sum", "diff_by_cluster", "hits_sum", "hits_n", "clusters")
+
+    def __init__(self):
+        self.n = self.tie = self.m = self.hits_n = 0
+        self.sum_y = self.sum_brier = self.sum_ll = self.sum_sharp = 0.0
+        self.sum_brier_m = self.sum_ll_m = self.diff_sum = self.hits_sum = 0.0
+        self.bins = {}
+        self.diff_by_cluster = {}
+        self.clusters = set()
+
+    def add(self, r: dict):
+        cv, y = _f(r.get("contract_value")), _f(r.get("settled_yes"))
+        if cv is None or y is None:
+            return
+        cl = r.get("game_id") or r.get("event_ticker") or r.get("ticker")
+        self.n += 1
+        self.sum_y += y
+        self.sum_brier += _brier(cv, y)
+        self.sum_ll += _logloss(cv, y)
+        self.sum_sharp += abs(cv - 0.5)
+        self.clusters.add(cl)
+        b = min(int(cv / 0.1), int(round(1 / 0.1)) - 1)
+        cnt = self.bins.get(b)
+        if cnt is None:
+            cnt = self.bins[b] = [0, 0.0, 0.0]
+        cnt[0] += 1; cnt[1] += cv; cnt[2] += y
+        mid = _f(r.get("mid"))
+        if mid is not None:
+            self.m += 1
+            self.sum_brier_m += _brier(mid, y)
+            self.sum_ll_m += _logloss(mid, y)
+            d = _brier(cv, y) - _brier(mid, y)
+            self.diff_sum += d
+            c = self.diff_by_cluster.get(cl)
+            if c is None:
+                c = self.diff_by_cluster[cl] = [0.0, 0]
+            c[0] += d; c[1] += 1
+            if abs(cv - mid) > 1e-9:
+                self.hits_n += 1
+                self.hits_sum += 1.0 if (cv > mid) == (y > mid) else 0.0
+        if r.get("settlement_kind") == "tie_split":
+            self.tie += 1
+
+    def finish(self) -> dict:
+        if not self.n:
+            return {"n": 0}
+        n = self.n
+        bins, ece = [], 0.0
+        for b in sorted(self.bins):
+            c, sp, sy = self.bins[b]
+            bins.append({"bin": f"{b*0.1:.1f}-{(b+1)*0.1:.1f}", "n": c, "mean_p": sp / c, "mean_y": sy / c})
+            ece += c / n * abs(sp / c - sy / c)
+        out = {"n": n, "n_games": len(self.clusters), "base_rate": self.sum_y / n, "brier": self.sum_brier / n,
+               "log_loss": self.sum_ll / n, "sharpness": self.sum_sharp / n, "calibration": {"bins": bins, "ece": ece},
+               "n_tie_split": self.tie}
+        if self.m:
+            m = self.m
+            out["market_n"] = m
+            out["market_brier"] = self.sum_brier_m / m
+            out["market_log_loss"] = self.sum_ll_m / m
+            mean = self.diff_sum / m
+            G = len(self.diff_by_cluster)
+            if G < 2:
+                se = None
+            else:
+                s = sum((tot - cnt * mean) ** 2 for tot, cnt in self.diff_by_cluster.values())
+                se = math.sqrt(s) / m * math.sqrt(G / (G - 1))
+            out["brier_minus_market"] = mean; out["brier_minus_market_se_clustered"] = se; out["clusters"] = G
+            out["brier_minus_market_z"] = (mean / se) if (se and se > 0) else None
+            out["directional_hit_rate"] = (self.hits_sum / self.hits_n) if self.hits_n else None
+            out["n_directional"] = self.hits_n
+        return out
+
+
+class _ExecAcc:
+    """executable_block(), incrementally."""
+
+    __slots__ = ("taken", "pnl", "unknown", "schedule", "as_of", "edge_min")
+
+    def __init__(self, schedule=None, as_of=None, edge_min: float = 0.05):
+        self.taken, self.pnl, self.unknown = 0, 0.0, 0
+        self.schedule, self.as_of, self.edge_min = schedule, as_of, edge_min
+
+    def add(self, r: dict):
+        from nfl_edge.execution import fees as F
+        cv, y = _f(r.get("contract_value")), _f(r.get("settled_yes"))
+        ya, na = _f(r.get("yes_ask")), _f(r.get("no_ask"))
+        if cv is None or y is None:
+            return
+        side = None
+        if ya is not None and 0 < ya < 1 and cv - ya >= self.edge_min:
+            side, price, payout = "YES", ya, y
+        elif na is not None and 0 < na < 1 and (1 - cv) - na >= self.edge_min:
+            side, price, payout = "NO", na, 1.0 - y
+        if side is None:
+            return
+        fee = 0.0
+        if self.schedule is not None:
+            try:
+                q = F.net_executable_ev(price, price, 1.0, self.schedule, series_ticker=r.get("series_ticker"), as_of=self.as_of)
+                if not q.is_known:
+                    self.unknown += 1; return
+                fee = -float(q.net_ev_dollars)
+            except Exception:  # noqa: BLE001
+                self.unknown += 1; return
+        self.taken += 1
+        self.pnl += payout - price - fee
+
+    def finish(self) -> dict:
+        return {"n_taken": self.taken, "pnl_per_contract": (self.pnl / self.taken) if self.taken else None, "pnl_total": self.pnl,
+                "n_fee_unknown": self.unknown, "edge_min": self.edge_min,
+                "note": "executable price = ask at observation; fee applied once per contract; no slippage model"}
+
+
+def _fam_key(r: dict) -> tuple:
+    return (r.get("engine"), r.get("stat_family") or r.get("market_family"))
+
+
+class _PairedAcc:
+    """paired_arms(), folded one game at a time.
+
+    A (snapshot, ticker) key never spans two games, so the per-key arm table only has to live for the game being
+    read. `arms` is the set of arms among ALL settled rows of the class, which is only known at the end, so each
+    game is folded with the arms seen so far and remembers which; if the final set differs, those games are
+    re-read through the driver's `reread(game_id)` callback and folded again. In practice every game carries
+    every arm and the callback is never used, but the result is exact either way.
+    """
+
+    __slots__ = ("arms", "fams", "by_key", "sums", "folded_with", "pending_game")
+
+    def __init__(self):
+        self.arms, self.fams = set(), set()
+        self.by_key = {}                                    # (snapshot, ticker) -> {arm: (cv, y, mid, fam_key)}
+        self.sums = {}                                      # game -> fam_key -> [n, {arm: brier_sum}, m_n, m_sum]
+        self.folded_with = {}                               # game -> frozenset(arms) used at fold time
+        self.pending_game = None
+
+    def add(self, r: dict, game: str):
+        arm = r.get("model_arm")
+        if arm:
+            self.arms.add(arm)
+        self.fams.add(_fam_key(r))
+        d = self.by_key.get((r.get("snapshot_id"), r.get("ticker")))
+        if d is None:
+            d = self.by_key[(r.get("snapshot_id"), r.get("ticker"))] = {}
+        d[arm] = (_f(r.get("contract_value")), _f(r.get("settled_yes")), _f(r.get("mid")), _fam_key(r))
+        self.pending_game = game
+
+    def end_game(self, game: str):
+        arms = sorted(self.arms)
+        table = self.sums.setdefault(game, {})
+        table.clear()
+        if len(arms) >= 2:
+            first = arms[0]
+            for d in self.by_key.values():
+                if not all(a in d for a in arms):
+                    continue
+                fk = next(iter(d.values()))[3]
+                t = table.get(fk)
+                if t is None:
+                    t = table[fk] = [0, {a: 0.0 for a in arms}, 0, 0.0]
+                t[0] += 1
+                for a in arms:
+                    cv, y, _mid, _fk = d[a]
+                    t[1][a] += _brier(cv, y)
+                cv0, y0, mid0, _ = d[first]
+                if mid0 is not None:
+                    t[2] += 1
+                    t[3] += _brier(mid0, y0)
+        self.folded_with[game] = frozenset(arms)
+        self.by_key = {}
+        self.pending_game = None
+
+    def finish(self, reread=None) -> dict:
+        if self.pending_game is not None:
+            self.end_game(self.pending_game)
+        final = frozenset(self.arms)
+        stale = [g for g, a in self.folded_with.items() if a != final]
+        if stale:
+            if reread is None:
+                raise RuntimeError(f"paired-arm fold is stale for {len(stale)} game(s) and no reread callback was given")
+            for g in stale:
+                self.by_key = {}
+                for r in reread(g):
+                    self.add(r, g)
+                self.end_game(g)
+        arms = sorted(self.arms)
+        out = {}
+        if len(arms) < 2:
+            return out
+        for fk in sorted(self.fams, key=lambda k: tuple(str(x) for x in k)):
+            n, per_arm, m_n, m_sum = 0, {a: 0.0 for a in arms}, 0, 0.0
+            for table in self.sums.values():
+                t = table.get(fk)
+                if not t:
+                    continue
+                n += t[0]; m_n += t[2]; m_sum += t[3]
+                for a in arms:
+                    per_arm[a] += t[1][a]
+            if n < 5:
+                continue
+            res = {"n": n}
+            for a in arms:
+                res[a] = per_arm[a] / n
+            if m_n:
+                res["market_mid"] = m_sum / m_n
+            out["/".join(str(x) for x in fk)] = res
+        return out
+
+
+class _ClassAcc:
+    __slots__ = ("n_rows", "n_settled", "overall", "exec", "segments", "paired")
+
+    def __init__(self, schedule, as_of):
+        self.n_rows = self.n_settled = 0
+        self.overall = _MetricAcc()
+        self.exec = _ExecAcc(schedule, as_of)
+        self.segments = {k: {} for k in SEGMENTS}
+        self.paired = _PairedAcc()
+
+
+class ScorecardAccumulator:
+    """build_scorecard(), one row at a time. Feed rows game by game and call end_game() between games."""
+
+    def __init__(self, *, schedule=None, as_of=None, min_segment_n: int = 5):
+        self.schedule, self.as_of, self.min_segment_n = schedule, as_of, min_segment_n
+        self.n_rows = 0
+        self.by_class: dict = {}
+        self._game = None
+
+    def add(self, r: dict, game: str | None = None):
+        game = game if game is not None else (r.get("game_id") or "SEASON")
+        if self._game is not None and game != self._game:
+            self.end_game()
+        self._game = game
+        self.n_rows += 1
+        cls = r.get("evidence_class") or "UNKNOWN"
+        c = self.by_class.get(cls)
+        if c is None:
+            c = self.by_class[cls] = _ClassAcc(self.schedule, self.as_of)
+        c.n_rows += 1
+        if _f(r.get("settled_yes")) is None or _f(r.get("contract_value")) is None:
+            return
+        c.n_settled += 1
+        c.overall.add(r)
+        c.exec.add(r)
+        for key in SEGMENTS:
+            v = r.get(key)
+            if key == "liquidity_band":
+                v = _band(r.get("liquidity"), LIQUIDITY_BANDS)
+            elif key == "width_band":
+                v = _band(r.get("quote_width"), WIDTH_BANDS)
+            seg = c.segments[key]
+            m = seg.get(str(v))
+            if m is None:
+                m = seg[str(v)] = [_MetricAcc(), 0]
+            m[0].add(r)
+            m[1] += 1
+        c.paired.add(r, game)
+
+    def end_game(self):
+        if self._game is None:
+            return
+        for c in self.by_class.values():
+            if c.paired.pending_game is not None:
+                c.paired.end_game(self._game)
+        self._game = None
+
+    def finish(self, reread=None) -> dict:
+        """`reread(game_id)` yields that game's corpus rows again; only needed if an evidence class gained an
+        arm after some games were folded (see _PairedAcc)."""
+        self.end_game()
+        out = {"version": SCORECARD_VERSION, "n_rows": self.n_rows, "by_evidence_class": {}}
+        for cls, c in self.by_class.items():
+            block = {"n_settled": c.n_settled, "n_unsettled": c.n_rows - c.n_settled, "overall": c.overall.finish(),
+                     "executable": c.exec.finish(),
+                     "segments": {k: {v: m.finish() for v, (m, cnt) in sorted(c.segments[k].items()) if cnt >= self.min_segment_n}
+                                  for k in SEGMENTS}}
+            scoped = None
+            if reread is not None:
+                def scoped(g, _cls=cls):
+                    return (r for r in reread(g) if (r.get("evidence_class") or "UNKNOWN") == _cls
+                            and _f(r.get("settled_yes")) is not None and _f(r.get("contract_value")) is not None)
+            block["paired_arms"] = c.paired.finish(scoped)
+            out["by_evidence_class"][cls] = block
+        return out
+
+
 def _fmt(v, nd=4):
     return "-" if v is None else (f"{v:.{nd}f}" if isinstance(v, float) else str(v))
 

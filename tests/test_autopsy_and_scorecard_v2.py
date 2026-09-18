@@ -164,3 +164,17 @@ def test_paired_arms_compare_only_common_contracts():
     pa = SC.paired_arms(rows)
     (k, v), = pa.items()
     assert v["n"] == 6 and v["DATA_PLAYER_DIST"] == pytest.approx(0.16) and v["MARKET_PLAYER_DIST"] == pytest.approx(0.25)
+
+
+def test_negative_yardage_on_real_opportunities_is_an_efficiency_miss_not_a_crash():
+    """A rusher who lost yards makes the actual/projected efficiency ratio negative; math.log raised a domain error
+    and the first real settlement run died on it, taking every later game with it. The ratio is undefined, and what
+    it would have measured is a miss of unbounded size."""
+    d = A.diagnose(rec(mu=60.0, muo=8.0), _book_with(w_targets=8, w_yards=-5))
+    assert d["classification"] == A.YARDS_PER_TARGET_MISS
+    assert d["components"]["efficiency"][0] is True and d["components"]["efficiency"][1] is None
+    assert any("efficiency ratio undefined" in e for e in d["evidence"])
+    assert d["actual"]["efficiency"] == pytest.approx(-5 / 8)
+    # exactly zero yards on real opportunities: the same undefined ratio, the same verdict
+    d0 = A.diagnose(rec(mu=60.0, muo=8.0), _book_with(w_targets=8, w_yards=0))
+    assert d0["classification"] == A.YARDS_PER_TARGET_MISS

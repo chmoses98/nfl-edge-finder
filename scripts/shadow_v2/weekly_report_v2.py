@@ -43,6 +43,21 @@ def load_rows(path):
         return [json.loads(l) for l in f if l.strip()]
 
 
+def load_slim_rows(path):
+    """The week's research rows reduced to the fields the scorecard and the health gate read, one row at a time.
+
+    A full research row is several kilobytes of Python objects and a week is a million of them; the report
+    reads a few dozen scalar fields, so it streams the file and keeps a fixed-slot summary per row."""
+    from nfl_edge.evaluation.research_slim import Interner, slim
+    intern = Interner()
+    out = []
+    with gzip.open(path, "rt") as f:
+        for line in f:
+            if line.strip():
+                out.append(slim(json.loads(line), intern))
+    return out
+
+
 def health(rows: list, board_rows: list, markers: list, season: int, week: int) -> dict:
     with_p = [r for r in rows if r.get("contract_value") is not None]
     kicked = [r for r in with_p if r.get("kickoff_utc") and datetime.fromisoformat(r["kickoff_utc"]) < datetime.now(timezone.utc)]
@@ -160,7 +175,7 @@ def main(argv=None):
     path = os.path.join(a.research, f"{label}.research.jsonl.gz")
     if not os.path.exists(path):
         path = os.path.join(md, "research", f"{label}.research.jsonl.gz")
-    rows = load_rows(path) if os.path.exists(path) else []
+    rows = load_slim_rows(path) if os.path.exists(path) else []
     board_rows = []
     for root in [a.board, os.path.join(md, "board")]:
         if root and os.path.isdir(root):
