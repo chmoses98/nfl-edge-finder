@@ -1,0 +1,131 @@
+{
+ "status": "WRITTEN",
+ "game_id": "2026_01_DEN_KC",
+ "evaluation_version": "arm-eval-1.0.0",
+ "batch_id": "20260920T051009Z",
+ "schema_version": null,
+ "written_at": "2026-09-20T05:12:10.414641+00:00",
+ "written": 26,
+ "unchanged": 0,
+ "evaluations_file": "arm-eval-1.0.0.20260920T051009Z.arm_game_evaluations.jsonl.gz",
+ "evaluations_sha256": "c9012bf9861c2da96ea68867dbf873748a3da253d59172b35e46677bff4752d0",
+ "prediction_ids_sha256": "f6f8063c1809009a836107a2c1aa32a1b1e2f7343b2d9349ac04891c7ba3eb30",
+ "content_hashes_sha256": "36e261b3511f20863b29980c1180bed71220fdd11e349194c2a47d968236f67f",
+ "by_settlement_status": {
+  "None": 26
+ },
+ "by_settlement_kind": {
+  "None": 26
+ },
+ "by_close_status": {
+  "None": 26
+ },
+ "by_family": {
+  "None": 26
+ },
+ "by_model_version": {
+  "None": 26
+ },
+ "kickoff_utc": "2026-09-15T00:15:00+00:00",
+ "game_evidence": {
+  "game_id": "2026_01_DEN_KC",
+  "game_status": "FINAL",
+  "home_team": "KC",
+  "away_team": "DEN",
+  "home_score": 31.0,
+  "away_score": 10.0,
+  "total_points": 41.0,
+  "margin_home": 21.0,
+  "overtime": 0,
+  "kickoff_utc": "2026-09-15T00:15:00+00:00",
+  "source": "nflverse/schedules/games.csv",
+  "final_proofs": [
+   "postgame_tables",
+   "espn_scoreboard"
+  ]
+ },
+ "result_sources": {
+  "schedules": "data/raw/nflverse/schedules/games.csv",
+  "pfr_crosswalk": "nflverse/players/players.parquet",
+  "missing": [
+   "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+   "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+  ],
+  "espn_final_status": [
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+    "status": 200,
+    "bytes": 5193,
+    "events": 0,
+    "retrieved_at": "2026-09-20T05:10:10.895183+00:00"
+   },
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260913",
+    "status": 200,
+    "bytes": 113152,
+    "events": 13,
+    "retrieved_at": "2026-09-20T05:10:11.080406+00:00"
+   },
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260914",
+    "status": 200,
+    "bytes": 13927,
+    "events": 1,
+    "retrieved_at": "2026-09-20T05:10:11.174814+00:00"
+   },
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260915",
+    "status": 200,
+    "bytes": 5193,
+    "events": 0,
+    "retrieved_at": "2026-09-20T05:10:11.836248+00:00"
+   },
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260918",
+    "status": 200,
+    "bytes": 5193,
+    "events": 0,
+    "retrieved_at": "2026-09-20T05:10:11.954826+00:00"
+   }
+  ]
+ },
+ "arm_snapshots": [
+  "20260910T163901Z",
+  "20260910T190602Z",
+  "20260910T205648Z",
+  "20260910T231431Z",
+  "20260911T002400Z",
+  "20260911T051059Z",
+  "20260911T114336Z",
+  "20260912T174733Z",
+  "20260912T220408Z",
+  "20260913T033623Z",
+  "20260913T035013Z",
+  "20260913T051312Z",
+  "20260913T120416Z",
+  "20260913T131338Z",
+  "20260913T162858Z",
+  "20260913T184825Z",
+  "20260913T190221Z",
+  "20260913T223043Z",
+  "20260913T232715Z",
+  "20260914T001817Z",
+  "20260914T012115Z",
+  "20260914T051744Z",
+  "20260914T124805Z",
+  "20260914T184416Z",
+  "20260914T193414Z",
+  "20260914T232436Z"
+ ],
+ "close_center": {
+  "status": "OK",
+  "margin": 1.5,
+  "total": 42.0,
+  "n_quotes": 77,
+  "method": "implied_game_lines over the last complete pregame quotes (incumbent estimator)",
+  "latest_quote_observed_ts": 1789430977.58253,
+  "minutes_to_kickoff": 5.373624499638876
+ },
+ "quote_rows_scanned": 41076,
+ "preregistration_sha": "ef0a095ace1ec698"
+}

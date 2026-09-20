@@ -1,0 +1,127 @@
+{
+ "status": "WRITTEN",
+ "game_id": "2026_01_MIA_LV",
+ "evaluation_version": "arm-eval-1.0.0",
+ "batch_id": "20260920T051009Z",
+ "schema_version": null,
+ "written_at": "2026-09-20T05:12:38.363477+00:00",
+ "written": 1309,
+ "unchanged": 0,
+ "evaluations_file": "arm-eval-1.0.0.20260920T051009Z.arm_contract_evaluations.jsonl.gz",
+ "evaluations_sha256": "5422a03ac156682e1660639ecf599c3db9af0b80cce0c1816567a3f7ed72ddab",
+ "prediction_ids_sha256": "95ba14ae7afa784a2383912a9f2b6ee89fdd3261764ed6ff30372f10f801ae73",
+ "content_hashes_sha256": "c387d579a247cf3a350df6768f7189e8908cf66d6411de082f42c927ea3a3aa3",
+ "by_settlement_status": {
+  "SETTLED": 1309
+ },
+ "by_settlement_kind": {
+  "binary": 1309
+ },
+ "by_close_status": {
+  "OK": 1258,
+  "OK_STALE": 51
+ },
+ "by_family": {
+  "BOTH_TEAMS_SCORE_N": 68,
+  "GAME_WINNER": 34,
+  "SPREAD": 425,
+  "TEAM_TOTAL": 459,
+  "TOTAL": 323
+ },
+ "by_model_version": {
+  "None": 1309
+ },
+ "kickoff_utc": "2026-09-13T20:25:00+00:00",
+ "game_evidence": {
+  "game_id": "2026_01_MIA_LV",
+  "game_status": "FINAL",
+  "home_team": "LV",
+  "away_team": "MIA",
+  "home_score": 27.0,
+  "away_score": 13.0,
+  "total_points": 40.0,
+  "margin_home": 14.0,
+  "overtime": 0,
+  "kickoff_utc": "2026-09-13T20:25:00+00:00",
+  "source": "nflverse/schedules/games.csv",
+  "final_proofs": [
+   "postgame_tables",
+   "espn_scoreboard"
+  ]
+ },
+ "result_sources": {
+  "schedules": "data/raw/nflverse/schedules/games.csv",
+  "pfr_crosswalk": "nflverse/players/players.parquet",
+  "missing": [
+   "data/raw/nflverse/stats_player/stats_player_week_2025.parquet",
+   "data/raw/nflverse/snap_counts/snap_counts_2025.parquet"
+  ],
+  "espn_final_status": [
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260911",
+    "status": 200,
+    "bytes": 5193,
+    "events": 0,
+    "retrieved_at": "2026-09-20T05:10:10.895183+00:00"
+   },
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260913",
+    "status": 200,
+    "bytes": 113152,
+    "events": 13,
+    "retrieved_at": "2026-09-20T05:10:11.080406+00:00"
+   },
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260914",
+    "status": 200,
+    "bytes": 13927,
+    "events": 1,
+    "retrieved_at": "2026-09-20T05:10:11.174814+00:00"
+   },
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260915",
+    "status": 200,
+    "bytes": 5193,
+    "events": 0,
+    "retrieved_at": "2026-09-20T05:10:11.836248+00:00"
+   },
+   {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260918",
+    "status": 200,
+    "bytes": 5193,
+    "events": 0,
+    "retrieved_at": "2026-09-20T05:10:11.954826+00:00"
+   }
+  ]
+ },
+ "arm_snapshots": [
+  "20260910T163901Z",
+  "20260910T190602Z",
+  "20260910T205648Z",
+  "20260910T231431Z",
+  "20260911T002400Z",
+  "20260911T051059Z",
+  "20260911T114336Z",
+  "20260912T174733Z",
+  "20260912T220408Z",
+  "20260913T033623Z",
+  "20260913T035013Z",
+  "20260913T051312Z",
+  "20260913T120416Z",
+  "20260913T131338Z",
+  "20260913T162858Z",
+  "20260913T184825Z",
+  "20260913T190221Z"
+ ],
+ "close_center": {
+  "status": "OK",
+  "margin": 2.5,
+  "total": 39.5,
+  "n_quotes": 77,
+  "method": "implied_game_lines over the last complete pregame quotes (incumbent estimator)",
+  "latest_quote_observed_ts": 1789331089.55005,
+  "minutes_to_kickoff": 0.1741658329963684
+ },
+ "quote_rows_scanned": 34420,
+ "preregistration_sha": "ef0a095ace1ec698"
+}
