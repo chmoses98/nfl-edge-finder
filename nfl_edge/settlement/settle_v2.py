@@ -10,6 +10,7 @@ families it settles) to the families v2 projects:
     PERIOD markets          winner / spread / total / team total / both-score for 1H, 2H, 1Q..4Q (play-by-play quarter scores)
     HALF_FULL_RESULT        composite: 1H result (period book) AND full-game result (schedule final, tie leg)
     PLAYER_STAT             every stat the incumbent settles, plus rush_rec_yards (sum of two proven columns)
+    GAME_PLAYER_LEADER      "most <stat> in THIS GAME": the argmax over every player in the game, 1/N on a tie
     SEASON_WINS             regular-season wins from the schedule once every game of the team's season is FINAL
 
 Rules that hold for every branch: the payout is derived from the QUESTION on the record (the same one the
@@ -36,7 +37,12 @@ REFUSED_PERIOD_UNAVAILABLE = "REFUSED_PERIOD_SCORES_UNAVAILABLE"
 REFUSED_INCONSISTENT = "REFUSED_RESULT_INCONSISTENT"
 REFUSED_TEAM = "REFUSED_TEAM_IDENTITY"
 REFUSED_SEASON_INCOMPLETE = "REFUSED_SEASON_INCOMPLETE"
+REFUSED_STATS_INCOMPLETE = "REFUSED_PLAYER_STATS_INCOMPLETE"
 KIND_BINARY, KIND_TIE_SPLIT = "binary", "tie_split"
+# The GAME_PLAYER_LEADER branch's own rule version. SETTLE_VERSION is deliberately NOT bumped: it keys the
+# immutable evaluation batches (`corpus.has_batch(game_id, SETTLE_VERSION)`), so raising it would re-settle
+# every already-settled game under a new version to add a branch none of them used.
+GAME_LEADER_RULE_VERSION = "settle-2.1.0"
 
 
 @dataclass
@@ -218,7 +224,74 @@ def settle_projection(rec: dict, book: ResultBook, period_book: PeriodBook | Non
             return _refuse(REFUSED_SEMANTICS, f"a leg could not be settled: {r1.reason} / {r2.reason}")
         y = 1.0 if (r1.settled_yes == 1.0 and r2.settled_yes == 1.0) else 0.0
         return Settlement(SETTLED, y, KIND_BINARY, f"1H leg {r1.settled_yes:g}, full leg {r2.settled_yes:g}", {"legs": [r1.evidence, r2.evidence]})
+    if fam == "GAME_PLAYER_LEADER":
+        return _settle_game_player_leader(rec, q, book, gid, g)
     return _refuse(REFUSED_UNSUPPORTED, f"no settlement branch for {fam}/{period}")
+
+
+def _settle_game_player_leader(rec: dict, q: dict, book: ResultBook, gid: str, g) -> Settlement:
+    """"<player> records the most <stat> among all players in the game": the argmax, with 1/N on a tie.
+
+    THE COMPARISON SET IS THE WHOLE GAME, so this is the one settlement branch whose correctness depends on
+    the result book being COMPLETE rather than merely containing the subject. `games_with_player_stats` is
+    the caller's explicit statement that the player-stats release contains this game; without it the
+    maximum would be taken over whatever rows happened to be loaded, which would settle confidently and
+    wrongly. So its absence is a refusal, not a zero.
+
+    Branches, from rules_secondary:
+      * `1/N` where N players tie for the highest value (`KIND_TIE_SPLIT`);
+      * a player who did not participate settles NO -- and "did not participate" is the result book's own
+        tri-state, so an UNPROVEN participation is a refusal rather than a NO;
+      * a maximum of zero is refused: whether a player who took snaps and recorded no yards "records the
+        most" when everyone recorded none is not pinned by the rules text, and it is not a case worth
+        guessing (no such game exists in the 2026 archive).
+
+    Verified against the archive: 32/32 settled 2026 events (16 KXNFLMOSTRECYDS + 16 KXNFLMOSTRSHYDS)
+    reproduce Kalshi's YES leg as the argmax of `stats_player_week` over every player in the game.
+    """
+    stat = rec.get("stat_family") or q.get("stat")
+    subject = rec.get("subject_id")
+    if not stat:
+        return _refuse(REFUSED_SEMANTICS, "leader record without a statistic")
+    if not subject:
+        return _refuse(REFUSED_TEAM, "leader record without a resolved player id")
+    if gid not in book.games_with_player_stats:
+        return _refuse(REFUSED_STATS_INCOMPLETE,
+                       f"the player-stats release does not contain {gid}: the maximum over all players in "
+                       "the game cannot be taken from an incomplete table", g.evidence())
+    rows = book.players_in_game(gid)
+    values = [(p, p.stat_value(stat)) for p in rows]
+    present = [(p, v) for p, v in values if v is not None]
+    if not present:
+        return _refuse(REFUSED_STATS_INCOMPLETE, f"no player in {gid} carries a {stat} value", g.evidence())
+    top = max(v for _, v in present)
+    winners = sorted(p.player_id for p, v in present if v == top)
+    me = book.player(gid, subject)
+    ev = {"family": "GAME_PLAYER_LEADER", "stat": stat, "game_id": gid, "players_compared": len(present),
+          "max_value": top, "winners": winners, "subject": subject,
+          "subject_value": (me.stat_value(stat) if me else None),
+          "subject_played": (me.played if me else None),
+          "comparison_set": "every player with a stats row for this game (games_with_player_stats proven)",
+          **g.evidence()}
+    if top <= 0:
+        return _refuse(REFUSED_SEMANTICS,
+                       f"every player in {gid} recorded {top:g} {stat}: 'records the most' is not pinned "
+                       "by the rules text when the maximum is zero", ev)
+    if subject in winners:
+        n = len(winners)
+        if n == 1:
+            return Settlement(SETTLED, 1.0, KIND_BINARY, f"{stat} {top:g} is the game maximum", ev,
+                              version=GAME_LEADER_RULE_VERSION)
+        return Settlement(SETTLED, round(1.0 / n, 6), KIND_TIE_SPLIT,
+                          f"{n} players tied at {stat} {top:g}: 1/{n}", ev, version=GAME_LEADER_RULE_VERSION)
+    # Not a winner. Participation does not need to be proven for this branch and deliberately is not
+    # consulted: the maximum is strictly positive and belongs to somebody else, so both of the rules'
+    # NO branches -- "did not participate" and "participated but was not the leader" -- pay the same $0.
+    # Refusing here for unproven participation would refuse a payout that no reading of the rules disputes.
+    mine = me.stat_value(stat) if me else None
+    why = (f"{stat} {mine:g} below the game maximum {top:g}" if mine is not None
+           else f"no recorded {stat} in a game whose maximum is {top:g}")
+    return Settlement(SETTLED, 0.0, KIND_BINARY, why, ev, version=GAME_LEADER_RULE_VERSION)
 
 
 def _settle_rush_rec(obs, book, exact_scalar_payout, exact_scalar_source, exact_scalar_unavailable_reason):

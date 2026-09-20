@@ -144,8 +144,15 @@ SERIES_FAMILY = {
     "KXNFLSEASONRUSHYDS": ("SEASON_PLAYER_STAT", "SEASON", None, "rushing_yards"),
     "KXNFLSEASONRSHTD": ("SEASON_PLAYER_STAT", "SEASON", None, "rushing_tds"),
     "KXNFLTSPEC": ("SEASON_PLAYER_SPECIAL", "SEASON", None, None),
-    "KXNFLMOSTRECYDS": ("SEASON_LEADER", "SEASON", None, "receiving_yards"),
-    "KXNFLMOSTRSHYDS": ("SEASON_LEADER", "SEASON", None, "rushing_yards"),
+    # NOT season leaders. Every KXNFLMOSTRECYDS / KXNFLMOSTRSHYDS event is ONE GAME
+    # (`KXNFLMOSTRECYDS-26SEP20CINHOU`) and every market reads "<player>: most receiving yards in the CIN
+    # vs HOU game", with rules_primary "records the most Receiving Yards among all players in the game for
+    # the Cincinnati vs Houston Pro Football game originally scheduled for Sep 20, 2026". The series TITLE
+    # is the generic "Pro Football Most Receiving Yards", which is what the SEASON_LEADER mapping was read
+    # from, and it is the only place in the contract where the word "season" could be inferred at all.
+    # See GAME_MOST_SERIES below and docs/KALSHI_MARKET_TAXONOMY.md for the settled-archive proof.
+    "KXNFLMOSTRECYDS": ("GAME_PLAYER_LEADER", "GAME", "FULL", "receiving_yards"),
+    "KXNFLMOSTRSHYDS": ("GAME_PLAYER_LEADER", "GAME", "FULL", "rushing_yards"),
     "KXSB": ("SUPER_BOWL_WINNER", "SEASON", None, None),
     "KXNFLAFCCHAMP": ("CONFERENCE_WINNER", "SEASON", None, None),
     "KXNFLNFCCHAMP": ("CONFERENCE_WINNER", "SEASON", None, None),
@@ -212,6 +219,16 @@ SERIES_FAMILY.update({
 # this list is the classifier's hard stop so nothing here ever gets an NFL family.
 NOT_NFL_PREFIXES = ("KXSBUX", "KXSBUDGET", "KXNFLX", "KXAFCA", "KXAFCC", "KXAFCON", "KXHEISMAN", "KXNCAA", "KXCZEF", "KXFOOTBALL1001")
 LEADER_RE = re.compile(r"^KXLEADERNFL")
+# `KXNFLMOST<STAT>` with a single-game event ticker is a GAME player-leader market; the same prefix with a
+# week event (`KXNFLWEEKMOST...`) or a season event is not. The mapping above names the two series that
+# exist today; this rule is what stops the next one Kalshi lists -- a passing-yards or receptions game
+# leader, say -- from being classified from the series title the way these two were. The scope is decided
+# by the EVENT TICKER, which is the only part of the contract that says which games it covers.
+GAME_MOST_SERIES = re.compile(r"^KXNFLMOST([A-Z0-9]+)$")
+GAME_MOST_STATS = {"RECYDS": "receiving_yards", "RSHYDS": "rushing_yards", "RUSHYDS": "rushing_yards",
+                   "PASSYDS": "passing_yards", "REC": "receptions", "RRYDS": "rush_rec_yards",
+                   "TDS": "touchdowns", "FFPTS": "fantasy_points", "RECTDS": "receiving_tds",
+                   "RSHTDS": "rushing_tds", "PASSTDS": "passing_tds"}
 DIVISION_RE = re.compile(r"^KXNFL(AFC|NFC)(EAST|NORTH|SOUTH|WEST)$")
 
 
@@ -325,6 +342,12 @@ def classify(m: dict) -> MarketSemantics:
         fam = SERIES_FAMILY["KXNFLEXACTWINS"]
     if fam is None and LEADER_RE.match(series):
         fam = ("SEASON_LEADER", "SEASON", None, series.replace("KXLEADERNFL", "").lower())
+    mm = GAME_MOST_SERIES.match(series)
+    if fam is None and mm and parse_event_ticker(event_ticker):
+        # a KXNFLMOST* series not in the table above, whose event ticker is a single game: game-scoped by
+        # the only evidence that decides scope. An unrecognised statistic keeps the family (so it is
+        # counted, priced as unsupported and visible) and carries the raw token as its statistic.
+        fam = ("GAME_PLAYER_LEADER", "GAME", "FULL", GAME_MOST_STATS.get(mm.group(1), mm.group(1).lower()))
     if fam is None and DIVISION_RE.match(series):
         fam = ("DIVISION_WINNER", "SEASON", None, None)
     if fam is None and series.startswith("KXNFLWINS-"):

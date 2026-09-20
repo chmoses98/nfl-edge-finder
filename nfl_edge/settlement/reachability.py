@@ -48,7 +48,11 @@ GAME, PLAYER, SEASON = "GAME", "PLAYER", "SEASON"
 SEASON_FAMILIES = ("SEASON_WINS", "SEASON_WINS_EXACT", "TEAM_WINS_BY_WEEK", "MAKE_PLAYOFFS", "DIVISION_WINNER")
 GAME_FAMILIES = ("GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL", "BOTH_TEAMS_SCORE_N", "WIN_MARGIN_BUCKET",
                  "PERIOD_WINNER", "BOTH_TEAMS_SCORE", "HALF_FULL_RESULT")
-PLAYER_FAMILIES = ("PLAYER_STAT",)
+# PLAYER scope: the branch needs a resolved GSIS id for the subject as well as the game. GAME_PLAYER_LEADER
+# compares the subject against every player in the game, so it needs the subject resolved for the same reason
+# a player prop does -- and additionally needs the game present in the stats release, which is a run-time fact
+# the settlement branch itself refuses on rather than something a record can carry.
+PLAYER_FAMILIES = ("PLAYER_STAT", "GAME_PLAYER_LEADER")
 
 _YEAR_RE = re.compile(r"-(\d{2})-")
 

@@ -402,6 +402,22 @@ def contract_question(sem: MarketSemantics, m: dict | None = None) -> Question:
                             semantic_confidence=LIKELY if sem.threshold is not None else AMBIGUOUS, overtime="INCLUDED",
                             notes=("team-level statistic under a player-stat series; no engine yet",))
         return _player_stat_question(sem, m)
+    if fam == "GAME_PLAYER_LEADER":
+        # "<player> records the most <stat> among all players in the game". PROVEN: rules_primary states
+        # the comparison set ("among all players in the game") and the game; rules_secondary pins both
+        # branches -- a tie pays 1/N to each tied player, and a player who does not participate settles NO.
+        # Reproduced on 32/32 settled events (16 receiving, 16 rushing, 2026 weeks 1-2) as the argmax of
+        # nflverse stats_player_week over every player in the game; the only two apparent disagreements
+        # were name suffixes ("James Cook III" vs "James Cook") on the same player.
+        return Question(EVENT, JOINT, sem.stat, "FULL", subject=sem.player_kalshi_id, subject_kind="player",
+                        event="GAME_STAT_LEADER",
+                        semantic_confidence=PROVEN if (sem.player_kalshi_id and sem.stat) else AMBIGUOUS,
+                        overtime="INCLUDED", tie_rule="SPLIT_1_OVER_N",
+                        notes=("YES iff the player records the strict maximum of the statistic among ALL "
+                               "players in the game; a tie of N players pays 1/N to each; a player who "
+                               "does not participate settles NO",
+                               "an order statistic over the whole participating set: not a function of one "
+                               "player's marginal distribution"))
     if fam == "HALF_FULL_RESULT":
         return _half_full_question(sem, m)
     if fam in ("PARLAY", "COMBO"):
