@@ -504,6 +504,17 @@ def _shadow_v2_section(g: dict, *, compact: bool) -> list:
     if states:
         a("_support states: " + ", ".join(f"`{k}` {v}" for k, v in states.items()) + "._")
         a("")
+    only = ((g.get("coverage") or {}).get("totals") or {}).get("shadow_v2")
+    if only is not None:
+        a(f"**{only} contract(s) in this game have no incumbent probability and a Shadow v2 research "
+          "projection.** Those are the rows that used to read as a price and `UNSUPPORTED_MODEL` and "
+          "nothing else.")
+        a("")
+    a("_A `PRICED` support state above is Shadow v2's own record state -- PROVEN semantics, a probability "
+      "written -- and not a production authority. Shadow v2 has no production authority of any kind: it is "
+      "research, it is not prospectively validated, and the incumbent's number is the only one this report "
+      "puts in a `model` column._")
+    a("")
     a(f"_{sv2.get('authority')}_")
     a("")
     a("_Per-contract Shadow v2 probabilities, engine versions, snapshot, cutoff and evidence class are on "
