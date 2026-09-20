@@ -40,7 +40,12 @@ from dataclasses import dataclass, field, asdict
 
 from nfl_edge.kalshi.classifier import KALSHI_TEAM_CODES, KALSHI_TO_NFLVERSE, MarketSemantics, classify
 
-SEMANTICS_VERSION = "semantics-1.0.0"
+# 1.1.0: GAME_PLAYER_LEADER -- "most <stat> in THIS GAME" -- gained a question of its own, an EVENT on the
+# JOINT engine with a SPLIT_1_OVER_N tie rule and PROVEN semantics. Until then those contracts were read as
+# SEASON_LEADER and fell through to the generic "family has no engine yet" branch. The version moves because
+# the grammar moved: `lineage.engine_versions.semantics` on every projection record is how a reader tells
+# which reading produced it.
+SEMANTICS_VERSION = "semantics-1.1.0"
 PROVEN, LIKELY, AMBIGUOUS, UNKNOWN = "PROVEN", "LIKELY", "AMBIGUOUS", "UNKNOWN"
 THRESHOLD, RANGE, EVENT, COMPOSITE = "THRESHOLD", "RANGE", "EVENT", "COMPOSITE"
 
