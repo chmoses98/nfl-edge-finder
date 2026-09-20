@@ -18,25 +18,48 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+import nfl_edge.handicap.analysis as ANALYSIS  # noqa: E402
 from nfl_edge.handicap.report_outputs import report_paths, verify_report_outputs  # noqa: E402
 
 BUILD = os.path.join(ROOT, "scripts", "handicap", "build_report.py")
 PUBLISH = os.path.join(ROOT, "scripts", "ci", "publish_handicap_report.py")
 
+def _game(gid, n_markets=2):
+    """A minimal packet game carrying real listed contracts, so the analysis artifact has rows to hold."""
+    markets = [{"ticker": f"KX-{gid}-{i}", "family": "TOTAL", "period": "FULL", "stat": "total_points",
+                "threshold": 40.0 + i, "operator": ">=", "support_state": "SUPPORTED",
+                "model_probability": 0.5, "analysis": {"analysis_state": "MODEL_PRICED", "bucket": "A",
+                                                       "reason": "incumbent pricer produced a probability"}}
+               for i in range(n_markets)]
+    return {"game_id": gid, "season": 2026, "week": 1, "home_team": "SEA", "away_team": "NE",
+            "kickoff_utc": "2026-09-09T20:00:00+00:00", "game_state": "PREGAME",
+            "counts": {"markets_listed": len(markets)}, "markets": markets,
+            "coverage": {"columns": ("listed", "silently_omitted"),
+                         "by_family": {"TOTAL|FULL": {"listed": len(markets), "silently_omitted": 0}},
+                         "totals": {"listed": len(markets), "silently_omitted": 0},
+                         "buckets": {"A": {"n": len(markets), "meaning": "validated"}}}}
+
+
 PACKET = {
     "handicap_run_id": "20260909T060000Z", "packet_sha": "abc123", "season": 2026, "week": 1,
-    "games": [{"game_id": "2026_01_NE_SEA"}, {"game_id": "2026_01_SF_LA"}],
+    "schema_version": "1.2.0", "sources": {}, "games": [_game("2026_01_NE_SEA"), _game("2026_01_SF_LA")],
+    "slate_summary": {"markets_listed_slate": 4,
+                      "coverage_matrix": {"columns": ("listed", "silently_omitted"), "by_family": {},
+                                          "totals": {"listed": 4, "silently_omitted": 0}, "buckets": {}}},
 }
 
 
 def write_report(d, *, games=("2026_01_NE_SEA", "2026_01_SF_LA"), status="SUCCESS", size=4096,
-                 manifest=True, slate=True):
+                 manifest=True, slate=True, analysis=True, packet=None):
+    packet = packet or PACKET
     os.makedirs(os.path.join(d, "games"), exist_ok=True)
     if slate:
         open(os.path.join(d, "slate.md"), "w").write("# slate\n" + "x" * 2048)
-    json.dump(PACKET, open(os.path.join(d, "packet.json"), "w"))
+    json.dump(packet, open(os.path.join(d, "packet.json"), "w"))
     for gid in games:
         open(os.path.join(d, "games", f"{gid}.md"), "w").write("y" * size)
+    if analysis:
+        ANALYSIS.write(d, {**packet, "games": [g for g in packet["games"] if g["game_id"] in games]})
     if manifest:
         json.dump({"report_status": status, "built_at": "2026-09-09T06:00:00+00:00",
                    "packet_sha": "abc123", "season": 2026, "week": 1,

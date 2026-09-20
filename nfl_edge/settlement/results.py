@@ -299,6 +299,16 @@ class ResultBook:
     def player(self, game_id: str, player_id: str):
         return self.players.get((game_id, player_id))
 
+    def players_in_game(self, game_id: str) -> list:
+        """Every player row this book holds for one game.
+
+        The loader reads the whole `stats_player_week` release without filtering, so for a game present in
+        `games_with_player_stats` this IS the full participating set -- which is what an order statistic
+        ("most receiving yards among all players in the game") needs. A caller that cannot prove the game
+        is in that set must refuse rather than take the maximum of whatever happens to be loaded.
+        """
+        return [p for (gid, _), p in self.players.items() if gid == game_id]
+
     def add_final_attestations(self, attestations: dict):
         self.final_attestations.update(attestations or {})
 

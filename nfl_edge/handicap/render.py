@@ -53,6 +53,7 @@ def render_markdown(packet: dict, max_players_per_game: int = 8,
       f"**{s['markets_supported_slate']}**")
     a(f"- ledger support states (all weeks): `{s['ledger_support_states']}`")
     a("")
+    L.extend(_slate_coverage_section(s))
     if s["major_skill_injuries_out"]:
         a(f"**Skill players ruled OUT ({len(s['major_skill_injuries_out'])})**")
         a("")
@@ -137,6 +138,57 @@ def render_markdown(packet: dict, max_players_per_game: int = 8,
     a("4. Record every serious decision, including passes, via the recommendation ledger "
       "(`scripts/handicap/validate_recommendations.py`, then commit to the `handicap-data` branch).")
     return "\n".join(L)
+
+
+def _slate_coverage_section(s: dict) -> list:
+    """**FULL-BOARD COVERAGE**, slate level: the one table that answers "did we scan everything?".
+
+    It is deliberately the first thing under the slate summary. `markets_supported_slate` counts only the
+    incumbent pricer, and reading it as coverage was how ~3,100 contracts with a legitimate Shadow v2
+    research projection came to be reported as nothing but `UNSUPPORTED_MODEL`.
+    """
+    cov = s.get("coverage_matrix") or {}
+    if not cov or not cov.get("totals"):
+        return []
+    L = []
+    a = L.append
+    t = cov["totals"]
+    a("### FULL-BOARD COVERAGE")
+    a("")
+    a(f"_{s.get('coverage_contract', '')}_")
+    a("")
+    a("| bucket | contracts | meaning |")
+    a("|---|---|---|")
+    for b in ("A", "B", "C", "D", "-", "!"):
+        rec = (cov.get("buckets") or {}).get(b) or {}
+        a(f"| **{b}** | {rec.get('n', 0)} | {rec.get('meaning', '')} |")
+    a("")
+    a(f"- listed: **{t.get('listed', 0)}** · executable books: **{t.get('executable', 0)}**")
+    a(f"- incumbent priced: **{t.get('incumbent_priced', 0)}** · coherent simulation: "
+      f"**{t.get('coherent_sim', 0)}** · Shadow v2 research: **{t.get('shadow_v2', 0)}**")
+    a(f"- manual handicap required: **{t.get('manual_research', 0)}** · research required: "
+      f"**{t.get('research_required', 0)}**")
+    a(f"- rules blocked: **{t.get('rules_blocked', 0)}** · identity blocked: "
+      f"**{t.get('identity_blocked', 0)}** · non-football: **{t.get('non_football', 0)}**")
+    a(f"- post-kickoff (stale): **{t.get('post_kickoff', 0)}**")
+    a(f"- **silently omitted: {t.get('silently_omitted', 0)}** — this must be 0.")
+    a("")
+    if t.get("silently_omitted"):
+        a("> **REPORTING INVARIANT VIOLATED** — a listed contract reached no accounting state. This "
+          "document is not a complete scan of the market universe.")
+        a("")
+    cols = cov.get("columns") or ()
+    a("| family / period | " + " | ".join(c.replace("_", " ") for c in cols) + " |")
+    a("|---" * (len(cols) + 1) + "|")
+    for key, row in sorted((cov.get("by_family") or {}).items(), key=lambda kv: -kv[1].get("listed", 0)):
+        fam, _, per = key.partition("|")
+        a(f"| {fam}{'/' + per if per else ''} | " + " | ".join(str(row.get(c, 0)) for c in cols) + " |")
+    a("")
+    a("_A Shadow v2 or coherent-simulation projection is RESEARCH. It is not validated, it is never mixed "
+      "into the incumbent's probability or its disagreement ranking, and it reaches no recommendation, "
+      "staking or preflight path._")
+    a("")
+    return L
 
 
 def render_game_markdown(g: dict, max_players: int = 14, max_markets: int = 60) -> str:
@@ -331,21 +383,144 @@ def _board_row(m: dict) -> str:
     The completeness check below identifies what was rendered by parsing the ticker out of these rows,
     which is the only reading that matches what a handicapper sees. A row builder that returned nothing for
     a market would shrink the board silently; instead it shows up as an unexpected omission.
+
+    THREE MODEL COLUMNS, NEVER ONE. `incumbent` is the validated pricer's probability or its refusal;
+    `shadow v2` is the Shadow v2 research projection for this exact ticker, from the arm that is an
+    independent football view of the question; `state` is the one accounting state the contract terminates
+    in. A row that reads `UNSUPPORTED_MODEL` in the incumbent column and carries a number in the Shadow v2
+    column is exactly the case this report used to hide: the incumbent does not price it, and the
+    repository nevertheless holds a legitimate research projection for it.
+
+    The Shadow v2 number is never merged into `model` and never enters `disagree`, which stays the
+    incumbent's own disagreement against the mid.
     """
     if not m.get("ticker"):
         return ""      # no identity, no row: it is reported as unaccountable rather than rendered as None
     who = m.get("player_name") or m.get("team") or ""
     line = f"{who} {m.get('stat') or ''} {m.get('threshold') if m.get('threshold') is not None else ''}".strip()
+    sv2 = m.get("shadow_v2") or {}
+    v2p = _num(sv2.get("p_yes")) if sv2.get("p_yes") is not None else "--"
+    v2s = sv2.get("support_state") or ("no v2 row" if not sv2 else "--")
+    state = (m.get("analysis") or {}).get("analysis_state") or "UNACCOUNTED"
     return (f"| `{m['ticker']}` | {m['family']}{'/' + m['period'] if m.get('period') else ''} | {line} | "
             f"{_num(m.get('yes_bid'))}/{_num(m.get('yes_ask'))} | {_num(m.get('no_bid'))}/{_num(m.get('no_ask'))} | "
             f"{_num(m.get('width'))} | {_num(m.get('volume'),0)} | {_num(m.get('open_interest'),0)} | "
-            f"{_num(m.get('model_probability'))} | {_sign(m.get('disagreement_vs_mid'))} | {m['support_state']} |")
+            f"{_num(m.get('model_probability'))} | {_sign(m.get('disagreement_vs_mid'))} | {m['support_state']} | "
+            f"{v2p} | {v2s} | {state} |")
 
 
 def _row_identity(row: str):
     """The ticker a rendered board row actually carries, or None if the row does not identify a contract."""
     parts = row.split("`")
     return parts[1] if len(parts) > 2 and parts[1] else None
+
+
+def _coverage_section(g: dict, *, compact: bool) -> list:
+    """**COVERAGE**: what happened to every contract listed for this game.
+
+    RUN NFL's contract is that every executable Kalshi contract for an unstarted game is examined and
+    accounted for. `UNSUPPORTED_MODEL` is a statement about one model, never a reason to hide a contract.
+    This table is how a reader checks that claim without doing arithmetic: every listed contract appears in
+    exactly one accounting state, the states are grouped into the four operator buckets, and
+    `silently omitted` must be **0**.
+    """
+    cov = g.get("coverage") or {}
+    if not cov:
+        return []
+    L, a = [], None
+    a = L.append
+    a("### COVERAGE — EVERY LISTED CONTRACT, ACCOUNTED FOR")
+    a("")
+    t = cov.get("totals") or {}
+    a(f"_{t.get('listed', 0)} contracts listed · {t.get('executable', 0)} with a real two-sided book · "
+      f"**{t.get('silently_omitted', 0)} silently omitted**._")
+    a("")
+    buckets = cov.get("buckets") or {}
+    a("| bucket | contracts | meaning |")
+    a("|---|---|---|")
+    for b in ("A", "B", "C", "D", "-", "!"):
+        rec = buckets.get(b) or {}
+        a(f"| **{b}** | {rec.get('n', 0)} | {rec.get('meaning', '')} |")
+    a("")
+    if (buckets.get("!") or {}).get("n"):
+        a("> **REPORTING INVARIANT VIOLATED** — a listed contract reached no accounting state. Treat this "
+          "document as an incomplete scan of the market universe.")
+        a("")
+    a("_A: the incumbent validated pricer answered. B: a research model answered — the coherent game "
+      "simulation or Shadow v2 — and a research answer authorises nothing. C: nothing automated answered, "
+      "but the question is pinned, the subject is identified and this packet carries the team profiles, "
+      "injuries, roles, weather and market ladder a handicapper needs — so handicap it by hand. D: an "
+      "explicit PASS, with the reason on the row in `packet.json`._")
+    a("")
+    if compact:
+        return L
+    cols = cov.get("columns") or ()
+    a("| family / period | " + " | ".join(c.replace("_", " ") for c in cols) + " |")
+    a("|---" * (len(cols) + 1) + "|")
+    for key, row in sorted((cov.get("by_family") or {}).items(), key=lambda kv: -kv[1].get("listed", 0)):
+        fam, _, per = key.partition("|")
+        a(f"| {fam}{'/' + per if per else ''} | " + " | ".join(str(row.get(c, 0)) for c in cols) + " |")
+    a("")
+    return L
+
+
+def _shadow_v2_section(g: dict, *, compact: bool) -> list:
+    """**SHADOW V2 RESEARCH VIEW**: the projections the incumbent has no opinion about.
+
+    Shadow v2 already held a research projection for thousands of contracts this report printed as
+    `UNSUPPORTED_MODEL` and nothing else -- on the 2026 week 2 board, every 1H / 2H / 1Q-4Q spread, total,
+    team total, period winner and both-teams-score contract. They are joined here by canonical ticker
+    identity, never by title.
+
+    Nothing in this section is validated. A `PROJECTABLE_NOT_YET_VALIDATED` state is printed as
+    `PROJECTABLE_NOT_YET_VALIDATED`, no number here reaches recommendation, staking or preflight, and the
+    market-derived player arms are labelled as such rather than presented as an independent football view.
+    """
+    sv2 = g.get("shadow_v2") or {}
+    if not sv2:
+        return []
+    L = []
+    a = L.append
+    a("### SHADOW V2 RESEARCH VIEW (NOT VALIDATED — AUTHORISES NOTHING)")
+    a("")
+    a(f"_snapshot `{sv2.get('snapshot_id')}` · arms {', '.join(sv2.get('arms_present') or []) or 'none'} · "
+      f"{sv2.get('with_v2_row', 0)} of {sv2.get('listed_contracts', 0)} listed contracts carry a v2 row · "
+      f"{sv2.get('projected', 0)} carry a research projection · {sv2.get('not_in_snapshot', 0)} not in the "
+      f"snapshot._")
+    a("")
+    if sv2.get("not_in_snapshot"):
+        a(f"_{sv2['not_in_snapshot']} listed contract(s) have no Shadow v2 row at all: {sv2.get('not_in_snapshot_reason')}. "
+          "They are accounted for in COVERAGE above, never dropped._")
+        a("")
+    by_engine = sv2.get("by_engine") or {}
+    if by_engine:
+        a("| v2 engine | projected | refused |")
+        a("|---|---|---|")
+        for eng in sorted(by_engine):
+            rec = by_engine[eng]
+            a(f"| {eng} | {rec.get('projected', 0)} | {rec.get('refused', 0)} |")
+        a("")
+    states = sv2.get("counts_by_support_state") or {}
+    if states:
+        a("_support states: " + ", ".join(f"`{k}` {v}" for k, v in states.items()) + "._")
+        a("")
+    only = ((g.get("coverage") or {}).get("totals") or {}).get("shadow_v2")
+    if only is not None:
+        a(f"**{only} contract(s) in this game have no incumbent probability and a Shadow v2 research "
+          "projection.** Those are the rows that used to read as a price and `UNSUPPORTED_MODEL` and "
+          "nothing else.")
+        a("")
+    a("_A `PRICED` support state above is Shadow v2's own record state -- PROVEN semantics, a probability "
+      "written -- and not a production authority. Shadow v2 has no production authority of any kind: it is "
+      "research, it is not prospectively validated, and the incumbent's number is the only one this report "
+      "puts in a `model` column._")
+    a("")
+    a(f"_{sv2.get('authority')}_")
+    a("")
+    a("_Per-contract Shadow v2 probabilities, engine versions, snapshot, cutoff and evidence class are on "
+      "every row of the MARKET BOARD below and in `packet.json` under each market's `shadow_v2` block._")
+    a("")
+    return L
 
 
 def _market_board_section(g: dict, *, max_markets=None) -> list:
@@ -467,8 +642,9 @@ def _market_board_section(g: dict, *, max_markets=None) -> list:
           "be identified, rendered or accounted for. Treat this report as an incomplete view of the market "
           "universe.")
         a("")
-    a("| ticker | family | line | YES bid/ask | NO bid/ask | width | vol | OI | model | disagree | state |")
-    a("|---|---|---|---|---|---|---|---|---|---|---|")
+    a("| ticker | family | line | YES bid/ask | NO bid/ask | width | vol | OI | incumbent | disagree | "
+      "incumbent state | shadow v2 | v2 state | accounting state |")
+    a("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     L.extend(rows)
     a("")
     return L
@@ -697,6 +873,13 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
 
     # the incumbent, second and unmistakably labelled: it is a diagnostic, not the current projection
     L.extend(_legacy_incumbent_section(g, max_players=max_players, compact=compact))
+
+    # WHAT WAS SCANNED, before what it says: the accounting comes first so a reader knows the board below
+    # is the whole board and knows what happened to every contract on it.
+    L.extend(_coverage_section(g, compact=compact))
+
+    # the Shadow v2 research layer: the projections the incumbent has no opinion about
+    L.extend(_shadow_v2_section(g, compact=compact))
 
     # markets -- with max_markets None (what the game file passes) this is the complete executable board
     L.extend(_market_board_section(g, max_markets=max_markets))

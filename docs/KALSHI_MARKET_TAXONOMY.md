@@ -18,6 +18,70 @@ what was actually observed in the 2026-09-04 discovery run (23,275 NFL markets a
 * Period variants: `KXNFL{1H,2H,1Q,2Q,3Q,4Q}{"",SPREAD,TOTAL,TEAMTOTAL,BTTS,TD}`, plus `KXNFL1HFT` (half-time/full-time double result).
 * Player-prop settlement nuance (series important_info): a player who is active but never takes a snap ⇒ market settles at a fair pre-game price, not NO. Inactive ⇒ same. This must be modelled as a separate outcome state, not as 0 yards.
 
+## Scope is decided by the EVENT TICKER, never by the series title
+
+A series title is marketing copy; the event ticker is the contract's own statement of which games it covers.
+`KXNFLMOSTRECYDS` is titled **"Pro Football Most Receiving Yards"**, and it was classified from that title
+as `SEASON_LEADER` / `SEASON` until 2026-09-20. It is not a season leader:
+
+* every event is ONE GAME — `KXNFLMOSTRECYDS-26SEP20CINHOU`;
+* every market title reads *"Ja'Marr Chase: most receiving yards in the CIN vs HOU game"*;
+* `rules_primary`: *"If Ja'Marr Chase records the most Receiving Yards **among all players in the game** for
+  the Cincinnati vs Houston Pro Football game originally scheduled for Sep 20, 2026, then the market
+  resolves to Yes."*
+* `rules_secondary`: *"If Ja'Marr Chase does not participate in the game the market will resolve to No. If
+  multiple players tie for the most yards, the markets will resolve to 1/N."*
+
+The cost of the mistake was not cosmetic. 194 contracts on the 2026 week 2 board never joined a scheduled
+game, so they could not be marked `POST_KICKOFF`, could not reach a settlement branch, and carried the
+catalog reason *"season / week aggregate read from the title"* — a description of a market that does not
+exist.
+
+They are now `GAME_PLAYER_LEADER` / GAME / FULL, and a generic rule catches any `KXNFLMOST<STAT>` series
+whose event ticker is a single game, so the next one Kalshi lists is not read off its title the same way.
+`KXNFLWEEKMOSTPASSYDS` / `KXNFLWEEKMOSTRECYDS` / `KXNFLWEEKMOSTRSHYDS` (event `26W2`, *"most receiving yards
+in Pro Football Week 2"*) genuinely ARE week-scoped and stay `WEEK_LEADER`; a negative control in
+`tests/test_game_player_leader.py` asserts they are not swept up.
+
+An audit of the whole 2026-09-19 discovery run for this class of mistake — every open contract whose event
+ticker parses as a single game while its family's scope is not GAME, and the converse — found these two
+series and nothing else.
+
+### GAME_PLAYER_LEADER: settlement proven, probability not
+
+| column | state |
+|---|---|
+| semantics | **PROVEN** — rules_primary names the comparison set and the game; rules_secondary pins both branches |
+| settlement | **SUPPORTED** (`settle-2.1.0`) — the argmax of `stats_player_week` over every player in the game, 1/N on a tie |
+| model support | **JOINT_MODEL_REQUIRED** |
+
+Settlement evidence: 290 of 290 settled 2026 markets across 32 events (16 `KXNFLMOSTRECYDS` + 16
+`KXNFLMOSTRSHYDS`) reproduce Kalshi's own `result`, with zero disagreements. The other 54 legs of that
+archive refuse on an unresolved Kalshi player id, which is a fail-closed refusal and not a settlement error.
+Exactly one leg per event settles YES. `tests/test_game_player_leader.py` re-runs one whole game's legs from
+a checked-in fixture of the real nflverse stats and Kalshi's real results.
+
+Why the probability is still refused: this is an **order statistic over the full participating player set**,
+not a function of any one player's marginal distribution.
+
+* Shadow v2's player engine produces one lattice distribution per (player, game, statistic) and carries no
+  dependence between players at all.
+* The coherent v1 simulation *does* draw every modelled player on common Monte Carlo rows — the right shape
+  for this question — but collects every player it does not model individually into one `OTHER:<team>`
+  bucket whose yards are a **sum** over several real players. Including that bucket overstates any single
+  unlisted player and biases every listed player's probability down; excluding it assigns the whole
+  "an unlisted player led" mass to the listed ones and biases them up. In 2026 weeks 1–2 a median of 13
+  players recorded receiving yards per game (range 10–16) and 7 recorded rushing yards (5–10), against a
+  median of 10 and 4 legs listed, so the unmodelled tail is not negligible.
+* The dependence structure the simulation does carry (Dirichlet-multinomial shares, i.i.d. per-touch banks)
+  was validated against MARGINAL ladders. An argmax is a different functional of the same joint and has
+  never been scored.
+
+"Player A's probability divided by the sum of independent player probabilities" would be fabricating
+independence and is prohibited. What a defensible implementation needs, in order: every participating player
+on the shared rows (not an `OTHER` aggregate), and a preregistered out-of-sample check of the argmax
+functional against these 32 settled events and the ones that follow.
+
 ## Semantics extracted per market
 family · scope (GAME/WEEK/SEASON/EVENT) · period · stat · game_date · away/home (Kalshi + nflverse codes) · subject team · player name / Kalshi player UUID / jersey · threshold K and operator (">=" for integer ladders, ">" floor for spreads, range for margin buckets, "event" otherwise) · yes_meaning · tie/none legs · confidence · notes.
 

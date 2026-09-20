@@ -15,6 +15,7 @@ Free-data NFL analytics, projection, and Kalshi market-pricing research platform
 | Game-model study vs closing line | `research/game_model/RESULTS.md` | no edge vs close (documented) |
 | Ladder calibration from the line, day-1 microstructure, quick effects, role features, player distribution families | `research/*/RESULTS.md` | see hypothesis registry |
 | Pricing primitives (ladder semantics, monotonicity checks) | `nfl_edge/pricing/ladder.py` | tested |
+| RUN NFL full-board coverage: every listed contract in exactly one accounting state, the Shadow v2 research view joined by ticker, and a machine-readable operator artifact | `nfl_edge/handicap/{coverage,shadow_v2_block,analysis}.py`, `docs/RUN_NFL.md` | silently omitted = 0, enforced by tests |
 | Coherent game-simulation projection layer (shadow): script-conditional volume, opportunity over the point-in-time eligible set, opponent-adjusted efficiency, one distribution per ladder, out-of-sample reconciliation weights | `nfl_edge/sim/`, `scripts/sim/`, `docs/SIMULATION_ENGINE.md`, `research/simulation_engine/` | walk-forward 2023–2025; prospective from Week 2 2026 |
 
 ## Run
@@ -25,4 +26,4 @@ python nfl_edge/data/silver.py && python nfl_edge/data/ids.py
 python scripts/research/game_model_study.py         # example study
 git fetch origin market-data                        # Kalshi observations
 ```
-Docs: `docs/ARCHITECTURE.md`, `docs/KALSHI_MARKET_TAXONOMY.md`, `docs/KALSHI_API_NOTES.md`, `docs/KALSHI_CAPTURE.md`, `docs/ROADMAP.md`, `docs/KNOWN_LIMITATIONS.md`, `research/hypothesis_registry/registry.md`.
+Docs: `docs/RUN_NFL.md`, `docs/PLAYER_PROP_COVERAGE.md`, `docs/ARCHITECTURE.md`, `docs/KALSHI_MARKET_TAXONOMY.md`, `docs/KALSHI_API_NOTES.md`, `docs/KALSHI_CAPTURE.md`, `docs/ROADMAP.md`, `docs/KNOWN_LIMITATIONS.md`, `research/hypothesis_registry/registry.md`.

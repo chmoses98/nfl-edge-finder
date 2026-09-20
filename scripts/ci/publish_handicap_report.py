@@ -19,6 +19,8 @@ So `handicap-reports` holds one thing: the newest good report, at a stable path 
     latest/slate.md               read this first
     latest/packet.json            the full machine record
     latest/games/<game_id>.md     the full canonical per-game document
+    latest/analysis/manifest.json the operator surface: coverage matrix, shard index, completeness invariants
+    latest/analysis/games/*.json  one shard per game, one row per executable contract
     state/horizons.json           which decision horizons have been captured (idempotency)
     history/index.jsonl           one manifest line per published run -- traceability without the bloat
 
@@ -59,6 +61,10 @@ Generated RUN NFL handicap packets. **Never merge into `main`.**
 * `latest/` — the newest successful report, replaced atomically on every successful run.
   * `latest/slate.md` — read this first.
   * `latest/games/<game_id>.md` — the full canonical per-game document.
+  * `latest/analysis/manifest.json` — the machine-readable operator surface: the full-board coverage
+    matrix, the per-game shard index and the completeness invariants (`zero_silently_omitted` must be
+    true). One shard per game under `latest/analysis/games/<game_id>.json`, one row per executable
+    contract, carrying the incumbent, coherent-simulation and Shadow v2 views of that contract.
   * `latest/manifest.json` — freshness: when it was built and how old the ledger, Kalshi capture and
     context captures were at that moment.
 * `state/horizons.json` — which decision horizons (T-24h / T-6h / T-90m / T-30m) have been captured.
@@ -276,7 +282,7 @@ def main():
         print(f"FAIL: refusing to publish a report whose status is "
               f"{manifest.get('report_status')!r}", file=sys.stderr)
         return 2
-    for rel in ("slate.md", "packet.json"):
+    for rel in ("slate.md", "packet.json", os.path.join("analysis", "manifest.json")):
         if not os.path.exists(os.path.join(src, rel)):
             print(f"FAIL: {rel} missing from {src}", file=sys.stderr)
             return 2

@@ -23,7 +23,7 @@ from nfl_edge.semantics.questions import (
 )
 
 # model support states
-CATALOG_VERSION = "catalog-1.1.0"       # 1.1.0: season settlement (wins-through-week, division, playoffs) is SUPPORTED
+CATALOG_VERSION = "catalog-1.2.0"       # 1.2.0: GAME_PLAYER_LEADER ("most X in THIS GAME"), split out of SEASON_LEADER
 PRICED = "PRICED"                       # validated engine; automatic pricing (incumbent game families)
 SHADOW = "SHADOW"                       # research engine; projections written as shadow-only
 RESEARCH_REQUIRED = "RESEARCH_REQUIRED"
@@ -165,6 +165,40 @@ for st, support, settle in (
             "settle-1.0.0" if settle == SETTLE_SUPPORTED and st != "rush_rec_yards" else "settle-2.0.0", _PLAYER_EV, reason=reason))
 _add(_e("PLAYER_H2H", "FULL", JOINT, None, LIKELY, "player A stat > player B stat", "tie rule unknown", "UNKNOWN", _GAME_OT, JOINT_MODEL_REQUIRED,
         SETTLE_PLANNED, _STATS, "settle-2.0.0", "titles", reason="joint distribution of two players; tie rule not pinned"))
+# ---------------------------------------------------------------- GAME player leader ("most X in this game")
+# Classified as SEASON_LEADER until 2026-09-20, from the series TITLE ("Pro Football Most Receiving Yards")
+# -- the only part of the contract that could be read as season-wide. Every event is one game, every
+# rules_primary names that game and the comparison set, and 32/32 settled events (2026 weeks 1-2) reproduce
+# from nflverse stats_player_week as the argmax over all players in the game.
+#
+# The model support is JOINT_MODEL_REQUIRED and it is not a placeholder. The question is an ORDER STATISTIC
+# over the full participating player set, which no marginal distribution can answer:
+#   * the Shadow v2 player engine produces one LatticeDistribution per (player, game, statistic) and carries
+#     no dependence between players at all;
+#   * the coherent v1 simulation DOES draw every modelled player on common Monte Carlo rows -- which is the
+#     right shape for this question -- but it collects every player it does not model individually into one
+#     `OTHER:<team>` bucket whose yards are a SUM over several real players. Including that bucket
+#     overstates any single unlisted player and biases every listed player's probability down; excluding it
+#     assigns the whole "an unlisted player led" mass to the listed ones and biases them up. In 2026 weeks
+#     1-2 a median of 13 players recorded receiving yards per game (10-16) and 7 recorded rushing yards
+#     (5-10), against a median of 10 and 4 legs listed, so the unmodelled tail is not negligible;
+#   * the dependence structure the simulation does carry (Dirichlet-multinomial shares, i.i.d. per-touch
+#     banks) was validated against MARGINAL ladders. An argmax is a different functional of the same joint
+#     and has never been scored.
+# Any of "player A probability / sum of independent player probabilities" would be fabricating independence
+# and is prohibited. Settlement, by contrast, needs no model and is SUPPORTED.
+_GAME_LEADER_RULE = ("player records the strict maximum of the statistic among ALL players in the game; a "
+                     "tie of N players pays 1/N to each; a player who does not participate settles NO")
+for _st in ("receiving_yards", "rushing_yards", "passing_yards", "receptions", "rush_rec_yards"):
+    _add(_e("GAME_PLAYER_LEADER", "FULL", JOINT, _st, PROVEN, _GAME_LEADER_RULE, "no push", "1/N split among tied players",
+            _GAME_OT, JOINT_MODEL_REQUIRED, SETTLE_SUPPORTED,
+            _STATS + " (argmax over every player in the game; reproduced on 32/32 settled 2026 events)",
+            "settle-2.1.0",
+            "rules_primary 'records the most <stat> among all players in the game for the <away> vs <home> "
+            "game originally scheduled for <date>'; rules_secondary 'If multiple players tie for the most "
+            "yards, the markets will resolve to 1/N'; 344 settled 2026 markets over 32 single-game events",
+            reason="order statistic over the full participating player set; no engine carries every "
+                   "participant on common draws (see the note above this entry)"))
 
 # ---------------------------------------------------------------- SEASON engine
 _add(_e("SEASON_WINS", "SEASON", SEASON, "season_wins", LIKELY, "regular-season wins >= K", "no push", "a tie is not a win (LIKELY)", "NA",

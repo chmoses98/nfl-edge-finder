@@ -32,6 +32,10 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from nfl_edge.handicap.sim_block import game_view as _sim_game_view, load_latest as _sim_load_latest, market_view as _sim_market_view
+import nfl_edge.handicap.coverage as COV          # module path, not `from nfl_edge.handicap import ...`:
+import nfl_edge.handicap.shadow_v2_block as SV2   # the report-isolation audit resolves a package-from
+                                                  # import to EVERY module in the package, which would make
+                                                  # the Airtable bridge reachable from the report path.
 
 # 1.1.0: the per-game `simulation` block gained the coherent simulation's own DISTRIBUTION SUMMARY per
 # player/stat (football p05/p25/p50/p75/p95, the market and reconciled medians), the ledger player name on
@@ -40,7 +44,14 @@ from nfl_edge.handicap.sim_block import game_view as _sim_game_view, load_latest
 # the same change -- the coherent simulation is now the primary player projection table and the incumbent
 # ladder-derived one is labelled LEGACY ... DIAGNOSTIC ONLY -- which is a material change to the document a
 # handicapper reads, so the packet schema moves with it rather than leaving readers to detect it.
-PACKET_SCHEMA_VERSION = "1.1.0"
+# 1.2.0: every listed market row gained a `shadow_v2` block -- the Shadow v2 research projection for that
+# exact ticker, by model arm, with its engine, versions, snapshot, cutoff, evidence class and support state
+# -- and an `analysis` block naming the one accounting state the contract terminates in
+# (`nfl_edge/handicap/coverage.py`). Each game and the slate gained a `coverage` matrix by family/period.
+# Additive: no 1.1.0 field changed name or meaning, and no Shadow v2 number is written into
+# `model_probability` or into any disagreement the incumbent ranks. Before this, thousands of contracts the
+# repository already held a research projection for were printed as UNSUPPORTED_MODEL and nothing else.
+PACKET_SCHEMA_VERSION = "1.2.0"
 
 # Movement horizons, in minutes before kickoff. Reported only where an observation exists.
 MOVEMENT_HORIZONS_MIN = [72 * 60, 48 * 60, 24 * 60, 12 * 60, 6 * 60, 3 * 60, 90, 60, 30]
@@ -937,7 +948,7 @@ def _health_flags(game_rows: list, weather: dict, injuries: dict, now, kickoff) 
 
 
 def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, now, implied, sim_rows=None,
-               sim_manifest=None):
+               sim_manifest=None, v2_rows=None, v2_manifest=None, v2_provenance=None):
     home = next((r.get("home_team") for r in rows if r.get("home_team")), None)
     away = next((r.get("away_team") for r in rows if r.get("away_team")), None)
     kickoff = _iso(next((r.get("kickoff_utc") for r in rows if r.get("kickoff_utc")), None))
@@ -945,9 +956,19 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
 
     markets = [market_row(r) for r in rows]
     sim_rows = sim_rows or {}
+    v2_rows = v2_rows or {}
+    v2_provenance = {} if v2_provenance is None else v2_provenance
     for m, r in zip(markets, rows):
         m["movement"] = movement_for(m["ticker"], movement, kickoff, now) if movement else None
         m["simulation"] = _sim_market_view(sim_rows.get(m["ticker"]))
+        # The Shadow v2 research view of this exact ticker, joined by canonical contract identity -- never
+        # by title, family or any other resemblance. A ticker the snapshot did not carry gets None, which
+        # the coverage accounting reads as "no v2 row at this snapshot" rather than as a refusal v2 made.
+        # Constant provenance goes into the packet-level table; only what varies per contract stays here.
+        m["shadow_v2"] = SV2.market_view(v2_rows.get(m["ticker"]), v2_provenance, packet_mid=m.get("mid"))
+    # Every listed contract now terminates in exactly one analysis state. This runs AFTER the incumbent,
+    # simulation and Shadow v2 views are attached, because the state is a function of all three.
+    COV.classify_game(markets)
 
     weather = weather_state(context_runs, game_id)
     inj_all = injury_state(context_runs, teams)
@@ -1017,6 +1038,12 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
             "unsupported_rules": sum(1 for m in markets if m["support_state"] == "UNSUPPORTED_RULES"),
             "mapping_unknown": sum(1 for m in markets if m["support_state"] == "UNSUPPORTED_IDENTITY"),
             "families": len({m["family"] for m in markets}),
+            # UNSUPPORTED_MODEL above is the INCUMBENT's state and says nothing about whether the contract
+            # was examined. These are the accounting states, and they partition the listed board.
+            "shadow_v2_projected": sum(1 for m in markets if SV2.has_probability(m.get("shadow_v2"))),
+            "analysis_states": {st: sum(1 for m in markets
+                                        if (m.get("analysis") or {}).get("analysis_state") == st)
+                                for st in COV.ANALYSIS_STATES},
         },
         "market_implied": market_view,
         "market_implied_by_period": periods,
@@ -1046,6 +1073,12 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
         # attached simulation run produced no row for is still accounted for instead of vanishing.
         "simulation": _sim_game_view([sim_rows[m["ticker"]] for m in markets if m["ticker"] in sim_rows], sim_manifest,
                                      names=_ledger_player_names(rows), listed=markets),
+        # The Shadow v2 research layer's own summary for this game, and the full-board coverage matrix that
+        # accounts for every listed contract. `coverage.matrix()["totals"]["silently_omitted"]` is the
+        # invariant a reader can check in one look: it must be 0.
+        "shadow_v2": SV2.game_view([m["shadow_v2"] for m in markets if m.get("shadow_v2")], v2_manifest,
+                                   listed=markets),
+        "coverage": COV.matrix(markets),
         "largest_disagreements": [
             {k: m.get(k) for k in ("ticker", "family", "stat", "player_name", "threshold", "mid",
                                    "yes_ask", "no_ask", "model_probability", "disagreement_vs_mid",
@@ -1148,13 +1181,20 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
     movement, n_move_files = load_movement(md_root, tickers, max_files=movement_files)
 
     sim_rows, sim_manifest = _sim_load_latest((md_root, root), at_or_before=now)
+    # The Shadow v2 research layer, joined by ticker. One snapshot, all its arms, restricted to this
+    # slate's games: taking the newest file per arm independently would let one arm read a later market
+    # than another and produce a set of numbers that were never simultaneously true.
+    v2_rows, v2_manifest = SV2.load_latest((md_root, root), at_or_before=now, game_ids=set(by_game))
+    v2_rows = v2_rows or {}
+    v2_provenance: dict = {}
     games = []
     for gid in sorted(by_game, key=lambda g: (
             _iso(next((r.get("kickoff_utc") for r in by_game[g] if r.get("kickoff_utc")), None))
             or datetime.max.replace(tzinfo=timezone.utc), g)):
         games.append(build_game(gid, by_game[gid], profiles=profiles, qb_profiles=qb_profiles,
                                 context_runs=context_runs, movement=movement, now=now, implied=implied,
-                                sim_rows=sim_rows, sim_manifest=sim_manifest))
+                                sim_rows=sim_rows, sim_manifest=sim_manifest,
+                                v2_rows=v2_rows, v2_manifest=v2_manifest, v2_provenance=v2_provenance))
 
     packet = {
         "schema_version": PACKET_SCHEMA_VERSION,
@@ -1173,6 +1213,18 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
             "simulation": ({k: v for k, v in sim_manifest.items() if k in ("run_id", "sim_version", "generated_at", "cutoff",
                                                                           "market_observed_at", "bundle_train_seasons", "weights", "sources")}
                            if sim_manifest else None),
+            "shadow_v2": ({"snapshot_id": v2_manifest.get("snapshot_id"),
+                           "arms": sorted(v2_manifest.get("arms") or {}),
+                           "arms_missing": v2_manifest.get("arms_missing") or [],
+                           "rows_joined": v2_manifest.get("tickers"),
+                           "refused_row_count": v2_manifest.get("refused_row_count"),
+                           # Every market row's `shadow_v2.provenance` (and each arm's) is a key into this
+                           # table: engine, engine version, distribution version, model version, schema,
+                           # evidence class, snapshot, market observation instant and data cutoff.
+                           "provenance": {k: v for k, v in v2_provenance.items() if k != "_by_key"},
+                           "primary_arm_basis": SV2.PRIMARY_ARM_BASIS,
+                           "authority": SV2.RESEARCH_ONLY}
+                          if v2_manifest else None),
         },
         "real_money_status": "NOT VALIDATED -- this packet recommends nothing and authorises nothing",
         "slate_summary": slate_summary(games, rows, manifest),
@@ -1212,12 +1264,25 @@ def slate_summary(games: list, all_rows: list, manifest: dict) -> dict:
             if fl["severity"] == "block":
                 issues.append({"game_id": g["game_id"], **fl})
 
+    slate_matrix = {}
+    for g in games:
+        slate_matrix = COV.merge_matrix(slate_matrix, g.get("coverage") or {})
     return {
         "games": len(games),
         "markets_listed_slate": sum(g["counts"]["markets_listed"] for g in games),
         "markets_supported_slate": sum(g["counts"]["supported"] for g in games),
         "markets_discovered_all_weeks": len(all_rows),
         "ledger_support_states": manifest.get("by_support_state"),
+        # THE full-board accounting. `coverage_matrix.totals.silently_omitted` must be 0: every listed
+        # contract on the slate terminates in exactly one analysis state, and the reader can see which.
+        "coverage_matrix": slate_matrix,
+        "shadow_v2_projected_slate": sum(g["counts"].get("shadow_v2_projected", 0) for g in games),
+        "coverage_contract": (
+            "RUN NFL examines every executable Kalshi contract for every requested unstarted NFL game. "
+            "UNSUPPORTED_MODEL is a statement about one model, never a reason to hide a contract. Every "
+            "listed contract terminates in exactly one analysis state, in one of four buckets: A validated "
+            "model view, B coherent/Shadow research view, C manual handicap from the packet's own football "
+            "and context data, D explicit PASS with a named reason."),
         "new_or_changed_injuries": new_inj[:40],
         "major_skill_injuries_out": major_inj[:40],
         "weather_concerns": weather_flags,

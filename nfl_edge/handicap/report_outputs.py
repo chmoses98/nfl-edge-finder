@@ -22,6 +22,10 @@ def report_paths(packet: dict) -> dict:
         "packet": "packet.json",
         "manifest": "manifest.json",
         "games": [f"games/{gid}.md" for gid in game_ids],
+        # The operator surface. A report that publishes a manifest promising shards that are not there is
+        # a partial publication, which is the failure this list exists to make impossible.
+        "analysis_manifest": "analysis/manifest.json",
+        "analysis_games": [f"analysis/games/{gid}.json" for gid in game_ids],
     }
 
 
@@ -46,4 +50,21 @@ def verify_report_outputs(out_dir: str, packet: dict, *, min_game_bytes: int = M
              and os.path.getsize(os.path.join(out_dir, rel)) < min_game_bytes]
     if small:
         problems.append(f"{len(small)} game file(s) under {min_game_bytes}B: {sorted(small)[:5]}")
+    # ---- the analysis artifact, checked by identity rather than by presence alone
+    if not os.path.exists(os.path.join(out_dir, paths["analysis_manifest"])):
+        problems.append("analysis/manifest.json is missing")
+    else:
+        from nfl_edge.handicap.analysis import verify as verify_analysis
+        res = verify_analysis(out_dir)
+        if not res["ok"]:
+            problems.append(f"analysis artifact is not publishable: {res['problems'][:5]}")
+        else:
+            listed = sum((g.get("counts") or {}).get("markets_listed", len(g.get("markets") or []))
+                         for g in packet.get("games") or [])
+            if res["tickers"] != listed:
+                problems.append(f"analysis artifact carries {res['tickers']} contracts, the packet lists "
+                                f"{listed}")
+    missing_shards = [rel for rel in paths["analysis_games"] if not os.path.exists(os.path.join(out_dir, rel))]
+    if missing_shards:
+        problems.append(f"{len(missing_shards)} analysis shard(s) missing: {sorted(missing_shards)[:5]}")
     return problems
