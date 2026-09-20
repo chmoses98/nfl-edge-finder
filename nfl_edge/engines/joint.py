@@ -24,7 +24,14 @@ JOINT_MODEL_REQUIRED = "JOINT_MODEL_REQUIRED"
 
 def classify_legs(q: Question) -> dict:
     if q.kind != COMPOSITE or not q.legs:
-        return {"route": None, "reason": "not a composite question"}
+        # Not every JOINT question is a composite of named legs. A game player-leader ("most receiving
+        # yards among all players in the game") is an ORDER STATISTIC over a population whose members are
+        # not enumerable as legs at all, and no shared simulation here carries every participant. It is
+        # refused for the same reason a mixed-engine parlay is -- the dependence is not modelled -- and the
+        # reason says which shape it is rather than only that it is not a composite.
+        return {"route": None, "reason": (f"{q.event or q.kind} is not a composite of enumerable legs: the "
+                                          "dependence it needs is over a population, and no shared "
+                                          "simulation here carries every member of it")}
     engines = {l.engine for l in q.legs}
     periods = {l.period for l in q.legs}
     if engines <= {GAME} and periods <= {"FULL"}:

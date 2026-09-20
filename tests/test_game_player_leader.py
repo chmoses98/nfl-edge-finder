@@ -273,3 +273,39 @@ def test_exactly_one_leg_of_each_leader_event_settled_yes():
     assert sorted(yes_by_series) == ["KXNFLMOSTRECYDS", "KXNFLMOSTRSHYDS"]
     for series, winners in yes_by_series.items():
         assert len(winners) == 1, f"{series} settled {len(winners)} legs YES: {winners}"
+
+
+# ---------------------------------------------------------------- 5. the refusal says what is missing
+
+def test_the_joint_engine_refuses_a_population_order_statistic_and_says_why():
+    """A game leader is not a composite of enumerable legs, and it must not be handed to the period engine.
+
+    It was: Shadow v2's dispatcher sent every non-composite JOINT question to the period engine, which
+    replied "event 'GAME_STAT_LEADER' is not a period score function" -- a parser fault, where the truth is
+    a modelling gap. 165 leader contracts of the 2026 week 2 board carried RESEARCH_REQUIRED ("no engine
+    yet") instead of JOINT_MODEL_REQUIRED ("the dependence is not modelled"), which are different research
+    problems and only one of them tells a reader what would have to be built.
+    """
+    from nfl_edge.engines import joint as JE
+    m = market()
+    q = contract_question(classify(m), m)
+    route = JE.classify_legs(q)
+    assert route["route"] is None
+    assert "population" in route["reason"] and "composite" in route["reason"]
+    ans = JE.answer(q, game_sim=None, period_sim=None, home="HOU", away="CIN")
+    assert ans["p_yes"] is None
+    assert ans["status"] == JE.JOINT_MODEL_REQUIRED
+
+
+def test_the_catalog_decides_the_support_state_when_no_engine_answered():
+    """`JOINT_MODEL_REQUIRED` in the catalog survives whatever the engine dispatch happened to try."""
+    import scripts.shadow_v2.project_slate_v2 as P2
+    m = market()
+    q = contract_question(classify(m), m)
+    entry = catalog_entry("GAME_PLAYER_LEADER", "FULL", "receiving_yards")
+    state, reason, p, cv = P2.support_state(
+        q, entry, pregame=True, confirmed=True, generated_before_kickoff=True, allow_historical=False,
+        answer={"p_yes": None, "reason": "event 'GAME_STAT_LEADER' is not a period score function"})
+    assert state == "JOINT_MODEL_REQUIRED", state
+    assert "order statistic" in reason
+    assert p is None and cv is None

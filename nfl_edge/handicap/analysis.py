@@ -76,16 +76,27 @@ _QUOTE_KEYS = ("yes_bid", "yes_ask", "no_bid", "no_ask", "mid", "width", "volume
 
 
 def _yes_meaning(m: dict) -> str:
-    """The exact YES rule, in one line, from the contract's own grammar."""
+    """The exact YES rule, in one line.
+
+    A ladder rung states itself: subject, statistic, period, operator, threshold. Everything else -- a
+    winner, a tie leg, a both-teams-score, a margin bucket, a game leader -- is an EVENT whose rule is not
+    in the ticker, so the family catalog's own `yes_rule` is quoted instead of inventing a paraphrase from
+    the family name. Only when the catalog has nothing to say does the row fall back to naming the family,
+    and it says so rather than implying a rule it does not have.
+    """
     who = m.get("player_name") or m.get("team") or ""
     stat = m.get("stat") or ""
     op, k = m.get("operator"), m.get("threshold")
     per = m.get("period") or "FULL"
-    if k is not None and op:
-        return f"YES iff {who + ' ' if who else ''}{stat} ({per}) {op} {k}".strip()
     if k is not None:
-        return f"YES iff {who + ' ' if who else ''}{stat} ({per}) >= {k}".strip()
-    return f"YES iff {m.get('family')} ({per}) resolves for {who or 'this strike'}".strip()
+        return f"YES iff {who + ' ' if who else ''}{stat} ({per}) {op or '>='} {k}".strip()
+    from nfl_edge.semantics.catalog import catalog_entry
+    entry = catalog_entry(m.get("family"), m.get("period"), m.get("stat"))
+    if entry is not None and entry.yes_rule:
+        subject = f" [subject: {who}]" if who else ""
+        return f"YES iff {entry.yes_rule} ({per}){subject}"
+    return (f"{m.get('family')} ({per}){' for ' + who if who else ''}: no catalog rule -- read "
+            "rules_primary on Kalshi before acting on this contract")
 
 
 def _sim(m: dict) -> dict | None:

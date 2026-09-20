@@ -104,6 +104,13 @@ def support_state(q: Q.Question, entry, *, pregame: bool, confirmed: bool, answe
         st = R.JOINT_MODEL_REQUIRED if (answer or {}).get("status") == JE.JOINT_MODEL_REQUIRED else \
             (R.IDENTITY_UNRESOLVED if (answer or {}).get("status") == "IDENTITY_UNRESOLVED" else
              (R.DATA_UNAVAILABLE if (answer or {}).get("status") == "DATA_UNAVAILABLE" else R.RESEARCH_REQUIRED))
+        # The CATALOG is the authority on WHY a family has no probability. A family recorded as
+        # JOINT_MODEL_REQUIRED stays JOINT_MODEL_REQUIRED whatever the engine dispatch happened to try, and
+        # keeps the catalog's reason: "no engine yet" and "the dependence between the legs is not modelled"
+        # are different research problems, and collapsing the second into the first loses the one fact a
+        # reader needs to know what would have to be built.
+        if entry is not None and entry.model_support == CAT.JOINT_MODEL_REQUIRED:
+            return R.JOINT_MODEL_REQUIRED, (entry.reason or reason), None, None
         return st, reason, None, None
     if not confirmed:
         return R.STALE_MARKET, "series not confirmed complete in this capture run", None, None
@@ -429,7 +436,12 @@ def main(argv=None):
             if qq.engine in (Q.GAME, Q.PERIOD, Q.JOINT) or qq.kind == Q.COMPOSITE:
                 if env is None:
                     ans = {"p_yes": None, "reason": "no game environment (no liquid implied lines and no consensus line)", "status": "DATA_UNAVAILABLE"}
-                elif qq.kind == Q.COMPOSITE:
+                elif qq.kind == Q.COMPOSITE or qq.engine == Q.JOINT:
+                    # A JOINT question that is not a composite -- a game player-leader, say -- has no shared
+                    # simulation to evaluate it on, and handing it to the PERIOD engine made it come back
+                    # "event 'GAME_STAT_LEADER' is not a period score function", which reads as a parser
+                    # fault rather than as the modelling gap it is. The joint engine's own refusal is the
+                    # honest answer: it carries status JOINT_MODEL_REQUIRED, which the support state keeps.
                     ans = JE.answer(qq, game_sim=env["gsim"], period_sim=env["psim"], home=env["home"], away=env["away"]); eng_ver, dist_ver = JE.ENGINE_VERSION, PE.DISTRIBUTION_VERSION
                 elif qq.engine == Q.GAME:
                     ans = GE.answer(env["gsim"], qq, env["home"], env["away"]); eng_ver, dist_ver = GE.ENGINE_VERSION, "game_env-0.2.0"
