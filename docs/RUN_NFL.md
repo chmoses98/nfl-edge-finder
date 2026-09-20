@@ -668,3 +668,22 @@ ever rewritten or force-pushed on this branch.
 
 Current sample: **zero resolved recommendations.** The scorecard reports that fact rather than printing
 zeros. CLV, calibration and ROI over a real prospective sample are what will answer it.
+
+---
+
+## Tomorrow morning, in four steps
+
+1. **Refresh.** Nothing needs triggering — the shadow cycle rebuilds the report every ~2 hours and the
+   horizon conductor guarantees a fresh one at T−24h / T−6h / T−90m / T−30m. If you want one now:
+   GitHub → **Actions** → **RUN NFL** → **Run workflow**, every field blank.
+2. **Point ChatGPT at the artifact.** `handicap-reports/latest/analysis/manifest.json`, then the shard for
+   each game you care about: `handicap-reports/latest/analysis/games/<game_id>.json`. The per-game
+   Markdown under `latest/games/` is the football narrative to read alongside it.
+3. **Say RUN NFL.**
+4. **Check one number.** `manifest.json` → `coverage.totals.silently_omitted` must be **0**, and
+   `analysis/manifest.json` → `invariants.zero_silently_omitted` must be **true**. If either is not, the
+   report is telling you it is an incomplete scan; read the named tickers rather than the summary.
+
+There is no second modelling surface to go and find. The incumbent's probability, the coherent
+simulation's, and Shadow v2's are on the same row of the same file, each with its own support state, and
+every contract that has none of them says which of the four buckets it is in and why.
