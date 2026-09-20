@@ -87,6 +87,22 @@ def settlement_row(r: dict, s, now: datetime, *, season_scope: bool = False) -> 
     return row
 
 
+def _write_crosschecks(corpus, planner, key: str, batch: str, *, dry_run: bool):
+    """One cross-check batch for one game directory, conflicts first.
+
+    A batch holds rows of both evidence tiers -- the terminal verdicts reached this run and the provisional
+    observations of tickers the exchange has not resolved yet -- so the manifest records the split. A conflict
+    here now means what it is supposed to mean: two TERMINAL readings of the same prediction disagree.
+    """
+    if planner.conflicts:
+        raise ST.EvaluationConflict(planner.conflicts)
+    plan = planner.plan()
+    if dry_run:
+        return
+    corpus.write_batch(key, [], evaluation_version=XC.CROSSCHECK_VERSION, batch=batch, plan=plan,
+                       manifest_extra=XC.batch_manifest(plan["new"]))
+
+
 class Accounting:
     """Every probability-carrying record examined this run, by where it went. `silently_dropped` is derived."""
 
@@ -322,7 +338,12 @@ def main(argv=None):
         for row, _ in corpus.iter_rows(gdir):
             corpus_rows += 1
             acc.add(row, game=gdir)
-            xrow = XC.crosscheck_rows([row], xres)[0]
+            # The cross-check is stamped with the evidence lifecycle it belongs to before it is offered to the
+            # corpus: a terminal verdict is one immutable identity per prediction, while "the exchange has not
+            # resolved this yet" is a provisional observation filed under its own evidence vintage. Without that
+            # distinction the later, truthful AGREE contradicted the earlier EXCHANGE_MISSING and the corpus
+            # refused the whole batch (see nfl_edge/settlement/crosscheck.py).
+            xrow = XC.versioned(XC.crosscheck_rows([row], xres)[0], now=now)
             xsum_acc.add(xrow)
             xkey = row.get("game_id") or "SEASON"           # season settlement rows cross-check under one directory
             xp = xc_planners.get(xkey)
@@ -331,19 +352,13 @@ def main(argv=None):
             xp.offer(xrow)
         acc.end_game()
         for xkey in [k for k in list(xc_planners) if k != "SEASON"]:
-            xp = xc_planners.pop(xkey)
-            if xp.conflicts:
-                raise ST.EvaluationConflict(xp.conflicts)
-            if not a.dry_run:
-                xc_corpus.write_batch(xkey, [], evaluation_version=XC.CROSSCHECK_VERSION, batch=batch, plan=xp.plan())
+            _write_crosschecks(xc_corpus, xc_planners.pop(xkey), xkey, batch, dry_run=a.dry_run)
     for xkey, xp in xc_planners.items():
-        if xp.conflicts:
-            raise ST.EvaluationConflict(xp.conflicts)
-        if not a.dry_run:
-            xc_corpus.write_batch(xkey, [], evaluation_version=XC.CROSSCHECK_VERSION, batch=batch, plan=xp.plan())
+        _write_crosschecks(xc_corpus, xp, xkey, batch, dry_run=a.dry_run)
     scorecard = acc.finish(reread=lambda g: (row for row, _ in corpus.iter_rows(g)))
     xsum = xsum_acc.finish()
-    log(f"exchange cross-check: {xsum['n']} rows, {xsum['by_agreement']}, disagreements {xsum['n_disagreements']}"
+    log(f"exchange cross-check: {xsum['n']} rows, {xsum['by_evidence_tier']}, {xsum['by_agreement']}, "
+        f"disagreements {xsum['n_disagreements']}"
         f"{' in ' + ', '.join(xsum['families_with_disagreement']) if xsum['families_with_disagreement'] else ''}")
     for d in xsum["disagreements"][:10]:
         log(f"  ::warning::SETTLEMENT DISAGREEMENT {d['ticker']}: derived {d['derived_settled_yes']} vs exchange {d['exchange_payout']}")
@@ -368,7 +383,8 @@ def main(argv=None):
                             "unreachable": acct.unreachable, "unreachable_detail": acct.unreachable_detail,
                             "silently_dropped": acct.silently_dropped()},
                "accounting": acct.to_dict(), "index": isum, "sidecars": sidecars.stats(), "per_game": per_game,
-               "exchange_crosscheck": {k: xsum[k] for k in ("n", "by_agreement", "comparable", "agreement_rate",
+               "exchange_crosscheck": {k: xsum[k] for k in ("n", "by_agreement", "by_evidence_tier", "provisional",
+                                                            "terminal", "comparable", "agreement_rate",
                                                             "n_disagreements", "families_with_disagreement")},
                "exchange_sources": xres.summary(),
                "perf": {"seconds": round(time.time() - t0, 1), "max_rss_mb": round(_rss_mb(), 1)}}

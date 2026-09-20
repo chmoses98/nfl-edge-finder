@@ -257,19 +257,36 @@ def diagnose(row: dict, book: ResultBook, *, now: datetime | None = None, versio
     z = out["robust_z"]
     out["large_miss"] = bool(z is not None and abs(z) >= Z_LARGE)
     opp_lr = eff_lr = None
+    eff_undefined = False
     if muo and out["actual_opportunity"] is not None:
         opp_lr = math.log((out["actual_opportunity"] + 0.5) / (muo + 0.5))
         out["opportunity_log_ratio"] = opp_lr
     if out["projected_efficiency"] and out["actual_efficiency"] is not None and out["projected_efficiency"] > 0:
-        eff_lr = math.log((out["actual_efficiency"] + 1e-6) / (out["projected_efficiency"] + 1e-6))
-        out["efficiency_log_ratio"] = eff_lr
+        ratio = (out["actual_efficiency"] + 1e-6) / (out["projected_efficiency"] + 1e-6)
+        if ratio > 0:
+            eff_lr = math.log(ratio)
+            out["efficiency_log_ratio"] = eff_lr
+        else:
+            # Real football produces negative yardage: a sack, a tackle for loss, a lateral. Against a positive
+            # projected efficiency the ratio is zero or negative and has no real logarithm -- and `math.log` of
+            # it raised `ValueError: math domain error`, which took the whole autopsy step of the postgame
+            # workflow with it. What the missing logarithm would have measured is a miss of UNBOUNDED size, not
+            # a small one, so the component is recorded as materially off and the ratio stays None. Clamping to
+            # a tiny positive number to keep `math.log` running would invent a finite number that no evidence
+            # supports. Shadow v2 reached the same conclusion first (nfl_edge/engines/player/autopsy_v2.py).
+            eff_undefined = True
+            out["efficiency_log_ratio"] = None      # stated, not left to be inferred from an absent key
     opp_off = opp_lr is not None and abs(opp_lr) > LOG_RATIO_LARGE
-    eff_off = eff_lr is not None and abs(eff_lr) > LOG_RATIO_LARGE
+    eff_off = eff_undefined or (eff_lr is not None and abs(eff_lr) > LOG_RATIO_LARGE)
+    # an undefined ratio outranks any finite opportunity miss, because its magnitude is unbounded
+    eff_mag = float("inf") if eff_undefined else (abs(eff_lr) if eff_lr is not None else None)
     if opp_off:
         out["tags"].append("opportunity off")
     if eff_off:
         out["tags"].append("efficiency off")
-    if opp_off and (not eff_off or abs(opp_lr) >= abs(eff_lr)):
+    if eff_undefined:
+        out["tags"].append("efficiency ratio undefined")
+    if opp_off and (not eff_off or abs(opp_lr) >= eff_mag):
         out["classification"] = OPPORTUNITY_MISS
         out["evidence"].append(f"projected opportunity {muo:.1f}, actual {out['actual_opportunity']:.0f}")
         tv = team_volume(book, gid, out["team"], TEAM_VOLUME_OF.get(opp_col))
@@ -280,7 +297,13 @@ def diagnose(row: dict, book: ResultBook, *, now: datetime | None = None, versio
             out["evidence"].append(f"team {TEAM_VOLUME_OF.get(opp_col)} {tv['actual']:.0f} vs prior mean {tv['prior_mean']:.1f} ({tv['basis']})")
     elif eff_off:
         out["classification"] = EFFICIENCY_MISS
-        out["evidence"].append(f"projected efficiency {out['projected_efficiency']:.2f}, actual {out['actual_efficiency']:.2f}; opportunity within range")
+        if eff_undefined:
+            out["evidence"].append(
+                f"projected efficiency {out['projected_efficiency']:.2f}, actual {out['actual_efficiency']:.2f} on "
+                f"{out['actual_opportunity']:.0f} opportunities: the ratio is not positive, so no real log ratio exists; "
+                f"recorded as a large efficiency miss with no ratio invented")
+        else:
+            out["evidence"].append(f"projected efficiency {out['projected_efficiency']:.2f}, actual {out['actual_efficiency']:.2f}; opportunity within range")
     elif z is None:
         out["classification"] = INSUFFICIENT_DATA
         out["evidence"].append("no quantiles to standardise the miss and no component out of range")
