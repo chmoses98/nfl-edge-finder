@@ -76,9 +76,19 @@ RESEARCH_ONLY = "RESEARCH ONLY -- a Shadow v2 projection is not validated and au
 # Repeating it on every row of every arm is what took `packet.json` from 43MB to 96MB on the 2026 week 2
 # slate -- past the point where the report branch can be published at all -- for eleven thousand copies of
 # the same fifteen strings.
-_PROVENANCE_KEYS = ("model_arm", "engine", "engine_version", "distribution_version", "model_version",
-                    "schema_version", "evidence_class", "snapshot_id", "observed_at", "data_cutoff",
-                    "horizon_label")
+# WHAT MAY BE SHARED AND WHAT MAY NOT. `_PROVENANCE_ID` is the KEY: two rows share a provenance entry only
+# when every one of these agrees, and `evidence_class` is among them for a reason that cost a wrong artifact
+# to find. It is NOT constant within an arm -- a post-kickoff game's rows are HISTORICAL_RESEARCH while the
+# pregame slate's are PROSPECTIVE_FROZEN -- so keying without it let whichever row was read first stamp its
+# evidence class on every other row of the same arm, and a table built from a 16-game board reported all
+# seven entries as HISTORICAL_RESEARCH while 7,830 genuinely prospective probabilities pointed at them.
+#
+# `observed_at` is the per-TICKER market observation instant and can never be shared at all, so it is not in
+# the table; a row whose own market observation differs from the packet's says so through
+# `quoted_against_different_market`.
+_PROVENANCE_ID = ("model_arm", "engine", "engine_version", "distribution_version", "model_version",
+                  "evidence_class", "horizon_label")
+_PROVENANCE_KEYS = _PROVENANCE_ID + ("schema_version", "snapshot_id", "data_cutoff")
 
 def _stamp(dt: datetime | None) -> str | None:
     return dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ") if dt else None
@@ -163,9 +173,8 @@ def _probability(row: dict) -> tuple[float | None, float | None, str | None]:
 
 
 def provenance_key(row: dict) -> str:
-    """The identity of one row's constant provenance within a snapshot (arm + engine + every version)."""
-    return "|".join(str(row.get(k) or "") for k in ("model_arm", "engine", "engine_version",
-                                                    "distribution_version", "model_version"))
+    """The identity of one row's shareable provenance: arm, engine, every version, evidence class, horizon."""
+    return "|".join(str(row.get(k) or "") for k in _PROVENANCE_ID)
 
 
 def register_provenance(row: dict, table: dict) -> str:

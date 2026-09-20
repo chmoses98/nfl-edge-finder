@@ -349,3 +349,82 @@ def test_a_research_row_in_the_analysis_artifact_is_labelled_as_research(tmp_pat
     assert "not validated" in notes["shadow_v2"]
     assert "PROJECTABLE_NOT_YET_VALIDATED means exactly that" in notes["shadow_v2"]
     assert "did not beat the market overall" in notes["coherent_simulation"]
+
+
+def test_no_probability_in_the_artifact_is_unlabelled(tmp_path):
+    """Every displayed probability carries its real support state and its authority.
+
+    A number with no state beside it is the failure this whole layer exists to prevent: the reader cannot
+    tell a validated pricer's output from a research projection, and the research one is the larger set.
+    """
+    markets = [
+        market(ticker="A", support="SUPPORTED", model_p=0.61),
+        market(ticker="B", v2=SV2.market_view({"BOARD_V2": v2_row(ticker="B")}, {})),
+        market(ticker="C", sim={"p_football": 0.4, "p_reconciled": 0.42, "reconcile_weight": 0.25,
+                                "support_state": "PRICED"}),
+        market(ticker="D", family="GAME_EVENT", period="FULL", support="UNSUPPORTED_RULES"),
+    ]
+    ANALYSIS.write(str(tmp_path), _packet(markets))
+    shard = json.load(open(tmp_path / "analysis" / "games" / "2026_02_CIN_HOU.json"))
+    for r in shard["rows"]:
+        assert r["analysis_state"] and r["bucket"] and r["reason"], r["ticker"]
+        if r["incumbent"]["model_probability"] is not None:
+            assert r["incumbent"]["support_state"], r["ticker"]
+        v2 = r.get("shadow_v2") or {}
+        if v2.get("p_yes") is not None:
+            assert v2["support_state"], r["ticker"]
+            assert v2["primary_arm"] and v2["provenance"], r["ticker"]
+        sim = r.get("coherent_simulation") or {}
+        for key in ("p_football", "p_reconciled"):
+            if sim.get(key) is not None:
+                assert sim["support_state"], r["ticker"]
+    # and the authority notes are on the shard, once, for all three layers
+    assert set(shard["authority_notes"]) == {"incumbent", "coherent_simulation", "shadow_v2"}
+    # the provenance a v2 probability points at is resolvable from the manifest
+    man = json.load(open(tmp_path / "analysis" / "manifest.json"))
+    prov = ((man["models"].get("shadow_v2") or {}).get("provenance")) or {}
+    for r in shard["rows"]:
+        ref = (r.get("shadow_v2") or {}).get("provenance")
+        if ref and prov:
+            assert ref in prov, f"{r['ticker']} points at provenance {ref} the manifest does not carry"
+
+
+def test_provenance_is_never_shared_across_different_evidence_classes():
+    """A provenance entry may be shared only by rows it is actually true of.
+
+    `evidence_class` is NOT constant within a model arm: a post-kickoff game's rows are
+    HISTORICAL_RESEARCH while the pregame slate's are PROSPECTIVE_FROZEN. Keying the table without it let
+    whichever row was read first stamp its evidence class on every other row of the same arm -- on a real
+    16-game board that reported all seven entries as HISTORICAL_RESEARCH while 7,830 genuinely prospective
+    probabilities pointed at them, which is a no-hindsight claim turned upside down.
+    """
+    table = {}
+    pre = SV2.market_view({"BOARD_V2": v2_row(ticker="PRE")}, table)
+    post = SV2.market_view({"BOARD_V2": v2_row(ticker="POST", state="POST_KICKOFF", p=None,
+                                               evidence_class="HISTORICAL_RESEARCH")}, table)
+    assert pre["provenance"] != post["provenance"], "two evidence classes may not share one entry"
+    assert table[pre["provenance"]]["evidence_class"] == "PROSPECTIVE_FROZEN"
+    assert table[post["provenance"]]["evidence_class"] == "HISTORICAL_RESEARCH"
+    # and the per-ticker market observation instant is never in the shared table at all
+    assert "observed_at" not in table[pre["provenance"]]
+
+
+def test_every_displayed_probability_resolves_to_a_prospective_provenance(tmp_path):
+    """The invariant the bug above broke, checked the way a reader would check it."""
+    table = {}
+    markets = [
+        market(ticker="PRE", v2=SV2.market_view({"BOARD_V2": v2_row(ticker="PRE")}, table)),
+        market(ticker="POST", support="POST_KICKOFF_EXCLUDED",
+               v2=SV2.market_view({"BOARD_V2": v2_row(ticker="POST", state="POST_KICKOFF", p=None,
+                                                      evidence_class="HISTORICAL_RESEARCH")}, table)),
+    ]
+    packet = _packet(markets)
+    packet["sources"] = {"shadow_v2": {"snapshot_id": "s", "provenance": {k: v for k, v in table.items() if k != "_by_key"}}}
+    ANALYSIS.write(str(tmp_path), packet)
+    man = json.load(open(tmp_path / "analysis" / "manifest.json"))
+    prov = man["models"]["shadow_v2"]["provenance"]
+    shard = json.load(open(tmp_path / "analysis" / "games" / "2026_02_CIN_HOU.json"))
+    for r in shard["rows"]:
+        b = r.get("shadow_v2") or {}
+        if b.get("p_yes") is not None:
+            assert prov[b["provenance"]]["evidence_class"] == "PROSPECTIVE_FROZEN", r["ticker"]
