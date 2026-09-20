@@ -40,6 +40,7 @@ from nfl_edge.evaluation import research_record as RR, scorecard_v3 as S3       
 from nfl_edge.evaluation.research_slim import Interner, slim                         # noqa: E402
 from nfl_edge.projection.store import INDEX_DIRNAME, ProjectionIndex, ScanStats, SidecarCache, iter_projections  # noqa: E402
 from nfl_edge.research import hypothesis_registry_v2 as HR                            # noqa: E402
+from nfl_edge.settlement import crosscheck as XC                                      # noqa: E402
 from nfl_edge.shadow import evaluation_store as ST                                    # noqa: E402
 
 NO_GAME = ""                                     # the unit that holds season-market rows (no game_id)
@@ -61,7 +62,7 @@ def _median(vals):
     return None if not vals else vals[len(vals) // 2]
 
 
-def corpus_index(root_local: str, root_md: str, suffix: str, game_id: str | None = None) -> dict:
+def corpus_index(root_local: str, root_md: str, suffix: str, game_id: str | None = None, rank=None) -> dict:
     """One evaluation per prediction, chosen deterministically when a prediction has more than one.
 
     The corpus is keyed by (prediction_id, evaluation_version) precisely because a prediction can be evaluated
@@ -70,17 +71,22 @@ def corpus_index(root_local: str, root_md: str, suffix: str, game_id: str | None
     single byte of evidence changing. The highest evaluation_version wins, and the choice is recorded on the row
     (`evaluation_version_*`) so a reader can see which reading they are looking at.
 
+    `rank` overrides that ordering for a corpus whose versions are not a single ascending rule. The exchange
+    cross-check is one: its versions are evidence TIERS, and a terminal verdict outranks every provisional
+    observation of the same prediction no matter which was written first (nfl_edge/settlement/crosscheck.py).
+
     `game_id` scopes the read to one game directory (a `*` suffix, e.g. "SEASON*", to a directory family), so
     the export holds one game's evaluations at a time rather than the whole corpus.
     """
     c = ST.EvaluationCorpus(root_local, read_roots=[root_md], suffix=suffix)
+    key = rank or (lambda row: str(row.get("evaluation_version")))
     out: dict = {}
     for row, _f in c.iter_rows(game_id):
-        pid, ver = row.get("prediction_id"), row.get("evaluation_version")
+        pid, k = row.get("prediction_id"), key(row)
         cur = out.get(pid)
-        if cur is None or str(ver) > str(cur[0]):
-            out[pid] = (ver, row)
-    return {pid: row for pid, (_ver, row) in out.items()}
+        if cur is None or k > cur[0]:
+            out[pid] = (k, row)
+    return {pid: row for pid, (_k, row) in out.items()}
 
 
 def build_rows(projections: list, sidecars: dict, closes: dict, clvs: dict, settlements: dict, autopsies: dict,
@@ -313,7 +319,7 @@ def main(argv=None):
                 clvs = {}
                 settlements = corpus_index(os.path.join(a.staging, "settlements"), os.path.join(md, "settlements"), "settlements_v2", "SEASON_*")
                 autopsies = {}
-                crosschecks = corpus_index(os.path.join(a.staging, "crosscheck"), os.path.join(md, "crosscheck"), "crosscheck_v2", "SEASON")
+                crosschecks = corpus_index(os.path.join(a.staging, "crosscheck"), os.path.join(md, "crosscheck"), "crosscheck_v2", "SEASON", rank=XC.rank)
                 stream = (p for p in iter_projections(files=files, stats=scan) if not p.get("game_id"))
             else:
                 files = index.files_for_game(unit)
@@ -321,7 +327,7 @@ def main(argv=None):
                 clvs = corpus_index(os.path.join(a.staging, "clv"), os.path.join(md, "clv"), "clv_v2", unit)
                 settlements = corpus_index(os.path.join(a.staging, "settlements"), os.path.join(md, "settlements"), "settlements_v2", unit)
                 autopsies = corpus_index(os.path.join(a.staging, "autopsy"), os.path.join(md, "autopsy"), "autopsy_v2", unit)
-                crosschecks = corpus_index(os.path.join(a.staging, "crosscheck"), os.path.join(md, "crosscheck"), "crosscheck_v2", unit)
+                crosschecks = corpus_index(os.path.join(a.staging, "crosscheck"), os.path.join(md, "crosscheck"), "crosscheck_v2", unit, rank=XC.rank)
                 stream = iter_projections(files=files, game_ids=[unit], season=(a.season if a.week else None),
                                           week=(a.week or None), stats=scan)
             # one game: build every research row, keep (sort key, serialised row, execution row, slim row)

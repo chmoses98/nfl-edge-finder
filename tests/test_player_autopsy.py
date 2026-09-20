@@ -1,6 +1,9 @@
 """The player-projection autopsy: deterministic classification on synthetic known cases, honest about missing usage."""
 import json
+import math
 import os
+
+import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 from nfl_edge.settlement.results import result_book_from_records                              # noqa: E402
@@ -135,3 +138,102 @@ def test_ranking_is_deterministic_and_by_standardised_surprise():
     zs = [abs(r["robust_z"]) for r in a]
     assert zs == sorted(zs, reverse=True)
     assert a[0]["threshold"] == 70                                  # 68 is the median; 70 is the nearest rung
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# NEGATIVE AND ZERO EFFICIENCY
+#
+# Real NFL outcomes go backwards. A sack, a tackle for loss, a lateral: the yardage is negative, so actual
+# efficiency is negative, so `actual / projected` is not positive and has NO real logarithm. The incumbent
+# autopsy called `math.log` on it unconditionally and the scheduled postgame workflow died mid-run:
+#
+#     File "nfl_edge/shadow/player_autopsy.py", line 264, in diagnose
+#       eff_lr = math.log((out["actual_efficiency"] + 1e-6) / (out["projected_efficiency"] + 1e-6))
+#     ValueError: math domain error
+#
+# Shadow v2 met this first and settled the semantics (nfl_edge/engines/player/autopsy_v2.py): the component is a
+# miss of unbounded size, the ratio stays None, and no tiny positive number is substituted to keep the logarithm
+# running. These pin the same treatment here, and pin that nothing about the ordinary positive case moved -- the
+# autopsy corpus is write-once, so a changed diagnosis of an already-published row is a hard conflict.
+# ---------------------------------------------------------------------------------------------------------------
+def receiver(pid, targets, rec_yds, receptions=None, team="H", name="R"):
+    return {"player_id": pid, "player_name": name, "position": "WR", "team": team, "has_stats_row": True,
+            "stats": {"carries": 0.0, "rushing_yards": 0.0, "attempts": 0.0, "targets": float(targets),
+                      "receptions": float(targets if receptions is None else receptions),
+                      "receiving_yards": float(rec_yds)}}
+
+
+Q_REC = {"p05": 10.0, "p25": 30.0, "p50": 45.0, "p75": 62.0, "p95": 95.0}
+
+
+def test_negative_rushing_yards_are_diagnosed_instead_of_raising():
+    """Five carries for minus six yards against a projection of 4.0 per carry."""
+    b = book([player("p1", 5, -6)], [snap("p1", 30)])
+    r = PA.diagnose(ledger_row("p1", "rushing_yards", mu=68.0, muo=17.0, eff=4.0, q=Q_RUSH, threshold=70), b)
+    assert r["actual_efficiency"] == -1.2 and r["projected_efficiency"] == 4.0
+    assert r["efficiency_log_ratio"] is None, "no real logarithm exists; none may be invented"
+    assert r["classification"] == PA.EFFICIENCY_MISS
+    assert "efficiency off" in r["tags"] and "efficiency ratio undefined" in r["tags"]
+    assert any("not positive" in e and "no real log ratio" in e for e in r["evidence"]), \
+        "the evidence must say WHY the ratio is absent, not leave a silent null"
+
+
+def test_negative_receiving_yards_are_diagnosed_instead_of_raising():
+    b = book([receiver("p2", 4, -3)], [snap("p2", 35)])
+    row = ledger_row("p2", "receiving_yards", mu=45.0, muo=6.0, eff=7.5, q=Q_REC, threshold=45, name="R")
+    r = PA.diagnose(row, b)
+    assert r["actual_efficiency"] == -0.75 and r["efficiency_log_ratio"] is None
+    assert r["classification"] == PA.EFFICIENCY_MISS and "efficiency ratio undefined" in r["tags"]
+
+
+def test_an_undefined_efficiency_ratio_outranks_a_finite_opportunity_miss():
+    """Its magnitude is unbounded, so it cannot lose a comparison of magnitudes to a finite one."""
+    b = book([player("p1", 8, -10)], [snap("p1", 30)])          # workload also missed: 8 carries against 17
+    r = PA.diagnose(ledger_row("p1", "rushing_yards", mu=68.0, muo=17.0, eff=4.0, q=Q_RUSH, threshold=70), b)
+    assert r["opportunity_log_ratio"] is not None and abs(r["opportunity_log_ratio"]) > PA.LOG_RATIO_LARGE
+    assert "opportunity off" in r["tags"]
+    assert r["classification"] == PA.EFFICIENCY_MISS and r["efficiency_log_ratio"] is None
+
+
+def test_zero_efficiency_keeps_a_real_finite_log_ratio():
+    """Zero is not the broken case: with the epsilon the ratio is still positive, so the logarithm is real."""
+    b = book([player("p1", 16, 0)], [snap("p1", 40)])
+    r = PA.diagnose(ledger_row("p1", "rushing_yards", mu=68.0, muo=17.0, eff=4.0, q=Q_RUSH, threshold=70), b)
+    assert r["actual_efficiency"] == 0.0
+    assert r["efficiency_log_ratio"] is not None and r["efficiency_log_ratio"] < -PA.LOG_RATIO_LARGE
+    assert r["classification"] == PA.EFFICIENCY_MISS
+    assert "efficiency ratio undefined" not in r["tags"], "a real logarithm exists here; nothing is undefined"
+
+
+def test_an_ordinary_positive_efficiency_miss_is_untouched():
+    b = book([player("p1", 18, 30)], [snap("p1", 40)])
+    r = PA.diagnose(ledger_row("p1", "rushing_yards", mu=68.0, muo=17.0, eff=4.0, q=Q_RUSH, threshold=70), b)
+    assert r["actual_efficiency"] == pytest.approx(30 / 18)
+    assert r["efficiency_log_ratio"] == pytest.approx(math.log((30 / 18 + 1e-6) / (4.0 + 1e-6)))
+    assert r["classification"] == PA.EFFICIENCY_MISS
+    assert "efficiency ratio undefined" not in r["tags"]
+    assert any("opportunity within range" in e for e in r["evidence"]), "the existing evidence wording is unchanged"
+
+
+def test_the_positive_fixtures_classify_exactly_as_they_did():
+    """The autopsy corpus is write-once: a re-diagnosis that moved would conflict with what is published."""
+    b = book([player("p1", 8, 34), player("p2", 18, 30), player("p3", 16, 70)],
+             [snap("p1", 30), snap("p2", 40), snap("p3", 40)])
+    got = {p: PA.diagnose(ledger_row(p, "rushing_yards", mu=68.0, muo=17.0, eff=4.0, q=Q_RUSH, threshold=70), b)
+           for p in ("p1", "p2", "p3")}
+    assert got["p1"]["classification"] == PA.OPPORTUNITY_MISS
+    assert got["p2"]["classification"] == PA.EFFICIENCY_MISS
+    assert got["p3"]["classification"] == PA.NO_LARGE_MISS
+    for r in got.values():
+        assert "efficiency ratio undefined" not in r["tags"]
+        assert r["efficiency_log_ratio"] is not None
+
+
+def test_a_whole_game_autopsy_survives_a_player_with_negative_yardage():
+    """The failure took the entire settlement step with it, not just the one row that caused it."""
+    b = book([player("p1", 5, -6), player("p2", 18, 30), player("p3", 16, 70)],
+             [snap("p1", 30), snap("p2", 40), snap("p3", 40)])
+    rows = [ledger_row(p, "rushing_yards", mu=68.0, muo=17.0, eff=4.0, q=Q_RUSH, threshold=70) for p in ("p1", "p2", "p3")]
+    out = PA.autopsy_game(rows, b)
+    assert len(out) == 3
+    assert {r["player_id"] for r in out} == {"p1", "p2", "p3"}
