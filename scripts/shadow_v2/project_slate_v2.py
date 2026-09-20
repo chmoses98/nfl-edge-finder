@@ -560,6 +560,10 @@ def main(argv=None):
             "flags": {"has_probability": sum(1 for r in all_rows if (r.get("flags") or {}).get("has_probability")),
                       "has_probability_and_settleable": sum(1 for r in all_rows if (r.get("flags") or {}).get("has_probability") and (r.get("flags") or {}).get("settlement_supported")),
                       "betting_authorized": 0, "execution_supported": 0, "prospectively_validated": 0},
+            # A fitted model with no prospective row to apply it to is a coverage hole that the per-row
+            # DATA_UNAVAILABLE states alone do not name. Stated once, at run level, so it is visible in the
+            # summary rather than only at the bottom of eleven thousand rows.
+            "population_empty": dict(getattr(player, "population_empty", {}) or {}),
             "settlement_matrix": settlement_matrix(all_rows), "context_coverage": context_coverage(all_rows),
             "horizon_quality": dict(Counter((r.get("horizon_quality") or {}).get("horizon_quality") for r in all_rows)), "snapshot_reused": reused, "lineage": lineage,
             "artifact_bytes": sum(os.path.getsize(w["path"]) for w in written.values() if w.get("path") and os.path.exists(w["path"]))}
@@ -787,6 +791,11 @@ class PlayerArms:
         self.bundle = None
         self.qb = {}
         self.positions = {}
+        # statistic -> why NO prospective row satisfied its population mask, when that is the real reason a
+        # distribution is absent. Without it every such contract reports "no data distribution for
+        # statistic 'passing_yards'", which is a statement about the engine and is false: the engine fits
+        # passing_yards on 6,753 quarterback-games. See `population_empty` below.
+        self.population_empty = {}
 
     def answer(self, arm, t, q, qq):
         kid, gid, stat = q.get("player_kalshi_id"), q.get("game_id"), q.get("stat")
@@ -821,7 +830,12 @@ class PlayerArms:
         est = ENGINE_STATS.get(stat)
         d = self.data.get((gsis, gid, est)) if est else None
         if d is None:
-            return {"p_yes": None, "reason": (f"no data distribution for statistic {stat!r}" if est else f"statistic {stat!r} has no data model"), "status": "DATA_UNAVAILABLE"}, lineage, feat, {}
+            # Name the real cause where it is known. "no data distribution for statistic 'passing_yards'"
+            # reads as "this engine cannot model passing yards", which is false.
+            why = self.population_empty.get(est) if est else None
+            return {"p_yes": None,
+                    "reason": why or (f"no data distribution for statistic {stat!r}" if est else f"statistic {stat!r} has no data model"),
+                    "status": "DATA_UNAVAILABLE"}, lineage, feat, {}
         fr = self.feat.get((gsis, gid), {})
         feat.update(team=fr.get("team"), projected_team_volume=fr.get(VOLUME_FEATURE.get(est) or ""), projected_share=fr.get(SHARE_FEATURE.get(est) or ""),
                     projected_snap_share=fr.get("ewma_snap_share"), projected_qb_id=self.qb.get((gid, fr.get("team"))), n_prior=fr.get("n_prior"),
@@ -947,6 +961,21 @@ def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger) -> Player
         pm = pdist.population_mask(feat, model.spec.pop)
         rows = feat[pm]
         if not len(rows):
+            # A fitted model with no prospective row to apply it to. Say which mask emptied, not "no
+            # distribution": on the 2026 week 2 board this is every quarterback passing statistic --
+            # passing_yards, passing_tds, attempts, completions, interceptions, 642 pregame contracts --
+            # and the cause is a point-in-time guard working correctly, not a missing engine. The QB mask is
+            # `(position == "QB") & qb_starter`, `qb_starter` is read from the schedule's
+            # home_qb_id / away_qb_id, and `mask_target_season` blanks those for every UNPLAYED game because
+            # nflverse fills them in during the week and finalises them after kickoff. So no prospective row
+            # can satisfy the mask until this engine has its own point-in-time starting-quarterback source.
+            P.population_empty[stat] = (
+                f"the {model.spec.pop} population mask selected no prospective row, so the fitted "
+                f"{stat} model has nothing to apply" + (
+                    "; `qb_starter` comes from the schedule's home_qb_id/away_qb_id, which the "
+                    "point-in-time mask blanks for every unplayed game, and this engine has no other "
+                    "starting-quarterback source" if model.spec.pop == "QB" else ""))
+            log(f"::warning::{stat}: {P.population_empty[stat]}")
             continue
         dists = model.distributions(rows)
         for (pid, gid), d in zip(zip(rows.player_id, rows.game_id), dists):

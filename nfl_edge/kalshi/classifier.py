@@ -214,6 +214,34 @@ SERIES_FAMILY.update({
     "KXLEADERPINT": ("SEASON_LEADER", "SEASON", None, "interceptions_thrown"), "KXAFC": ("CONFERENCE_WINNER", "SEASON", None, None),
     "KXNFC": ("CONFERENCE_WINNER", "SEASON", None, None), "KXWPMOTY": ("AWARD", "SEASON", None, "wpmoy"),
 })
+# Series Kalshi listed during the 2026 season that the registry had not caught up with. Every family here is
+# read from the contract's own `rules_primary` (2026-09-19 discovery run), never from the series title --
+# see GAME_MOST_SERIES above for what reading a title costs. None is game-scoped, so none of them is a RUN
+# NFL pregame contract; classifying them takes 817 open contracts out of UNKNOWN_NEEDS_CLASSIFICATION and
+# gives each a named family and a real reason. They remain outside every capture tier (the drift report's
+# CAPTURE_GAP), which is a separate remediation: the provisional list, not a hand-edited registry.
+SERIES_FAMILY.update({
+    # "If <player> finishes highest in total full-PPR fantasy points for all TEs in Week 2 of the 2026 Pro
+    # Football regular season" -- a weekly, position-scoped fantasy leader.
+    "KXNFLFFWEEKLEAD": ("WEEK_LEADER", "WEEK", None, "fantasy_points"),
+    # "... finishes within the top 5 highest in total full-PPR fantasy points for all TEs in Week 2 ..."
+    "KXNFLFFWEEKTOP": ("WEEK_LEADER", "WEEK", None, "fantasy_points"),
+    # "If <player> records the most full-PPR fantasy points in Week 15 through Week 17 ..."
+    "KXNFLFFPLAYOFFLEADER": ("SEASON_FANTASY", "SEASON", None, "fantasy_points"),
+    # "If <player> records at least 241 full-PPR fantasy points in the 2026-27 regular season"
+    "KXNFLFFSEASONTOTAL": ("SEASON_FANTASY", "SEASON", None, "fantasy_points"),
+    "KXNFLFFPTSLADDER": ("SEASON_FANTASY", "SEASON", None, "fantasy_points"),
+    # "If <player> wins the NFC Offensive Player of the Month award for September ..." -- a vote, not football
+    "KXNFLPOTM": ("AWARD", "SEASON", None, "potm"),
+    "KXNFLROTM": ("AWARD", "SEASON", None, "rotm"),
+    # "If Washington is the highest scoring team in Week 2 ..." / "If there is at least one game that ends
+    # in a tie in Week 2 ..." -- both range over a whole week's games, not one game.
+    "KXNFLWEEKHIGHSCORE": ("WEEK_EVENT", "WEEK", None, "team_points"),
+    "KXNFLWEEKTIE": ("WEEK_EVENT", "WEEK", None, "tie"),
+    # "If there is a play from scrimmage of at least 99 yards in the 2026-27 regular season"
+    "KXNFLLONGESTPLAY": ("SEASON_SPECIAL", "SEASON", None, "longest_play"),
+    "KXTENNCOACH": ("COACH_EVENT", "SEASON", None, None),
+})
 # Series that share a prefix with NFL tickers but are unrelated (Starbucks, Netflix, budget resolutions,
 # soccer confederations, college). The registry builder uses Kalshi's own `tags` to decide NFL membership;
 # this list is the classifier's hard stop so nothing here ever gets an NFL family.

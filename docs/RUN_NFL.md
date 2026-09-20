@@ -21,7 +21,7 @@ When it finishes, the report is in two places:
 
 | where | what |
 |---|---|
-| **[`handicap-reports/latest/`](../../tree/handicap-reports/latest)** | the newest good report, always at the same URL — `slate.md`, `packet.json`, `games/<game_id>.md`, `manifest.json` |
+| **[`handicap-reports/latest/`](../../tree/handicap-reports/latest)** | the newest good report, always at the same URL — `slate.md`, `packet.json`, `games/<game_id>.md`, `manifest.json`, `analysis/` |
 | the run's **artifact**, `run-nfl-<season>-w<week>-<run_id>` | the same tree, immutable, kept 90 days — this is the history |
 
 So tonight's opener is at `handicap-reports/latest/games/2026_01_NE_SEA.md`, and the run summary links
@@ -38,10 +38,98 @@ straight to it.
   game-centre forecasts of the three-arm experiment into their own corpus on `market-data`. It never touches this
   report and this report never reads it (`docs/PROSPECTIVE_THREE_ARM_EXPERIMENT.md`).
 
-**ChatGPT.** When the user says *RUN NFL — Pats Seahawks*, read the newest generated report:
-`handicap-reports/latest/slate.md` first, then `handicap-reports/latest/games/2026_01_NE_SEA.md`. Check
-`latest/manifest.json` for how old it is. **No Airtable is involved.** Airtable begins only later, and only
-if a serious wager candidate is deliberately promoted to **PREFLIGHT NFL** (step 4 below).
+**ChatGPT.** When the user says *RUN NFL — Pats Seahawks*:
+
+1. read `handicap-reports/latest/analysis/manifest.json` — it says what was scanned, and `invariants`
+   says whether the scan is complete (`zero_silently_omitted` must be true);
+2. read `handicap-reports/latest/analysis/games/2026_01_NE_SEA.json` — **every executable contract of that
+   game is one row**, with the incumbent, coherent-simulation and Shadow v2 views side by side;
+3. read `handicap-reports/latest/games/2026_01_NE_SEA.md` for the football narrative — team profiles,
+   injuries, roles, weather, key questions, best expressions, correlation groups;
+4. `latest/slate.md` is the triage view across the slate; it is deliberately not a complete scan.
+
+Check `latest/manifest.json` for how old it all is. **No Airtable is involved.** Airtable begins only
+later, and only if a serious wager candidate is deliberately promoted to **PREFLIGHT NFL** (step 4 below).
+
+---
+
+## What RUN NFL means
+
+**RUN NFL means every executable Kalshi contract for every requested unstarted NFL game is examined and
+accounted for.**
+
+`UNSUPPORTED_MODEL` is a statement about ONE model. It does **not** mean "do not show this contract", it
+does not mean the contract was skipped, and it does not mean the repository has nothing to say about it. It
+means only: *this automated model does not produce an authoritative probability here.*
+
+That distinction used to be impossible to see. On the 2026 week 2 board, every 1H / 2H / 1Q–4Q spread,
+total, team total, period winner and both-teams-score contract — about 3,100 rows — was printed as a price
+and the word `UNSUPPORTED_MODEL`, while Shadow v2's period engine held 2,790 research projections for those
+exact tickers in `market-data` at the same instant. Nothing in the report said so.
+
+So every listed contract now terminates in exactly one **accounting state**, and each state belongs to one
+of four operator buckets:
+
+| bucket | meaning | accounting states |
+|---|---|---|
+| **A** | a validated/production model view is available | `MODEL_PRICED` |
+| **B** | a coherent / Shadow **research** view is available — research authorises nothing | `COHERENT_SIM_PROJECTED`, `SHADOW_V2_PROJECTED` |
+| **C** | no automated pricing authority, but the question is pinned, the subject is identified and this packet already carries the team profiles, injuries, roles, weather and market ladder a handicapper needs — **handicap it by hand** | `MANUAL_HANDICAP` |
+| **D** | cannot defensibly price: an explicit PASS with the reason on the row | `RESEARCH_REQUIRED`, `SEMANTICS_UNRESOLVED`, `IDENTITY_UNRESOLVED`, `NON_FOOTBALL` |
+| **–** | the game has started: outside the pregame window this report covers | `POST_KICKOFF` |
+
+Precedence is A > B > C > D, with `POST_KICKOFF` ahead of all of them, and that precedence is what makes
+the states a partition. A contract the incumbent prices **and** Shadow v2 projects is counted once, under A,
+and its Shadow v2 number is still on its row.
+
+`SILENTLY_OMITTED` exists only so it can be asserted to be zero. A contract reaching it is a defect in
+`nfl_edge/handicap/coverage.py`, not a category of market, and every surface says so loudly when one does.
+
+### The COVERAGE MATRIX
+
+`slate.md`, every `games/<game_id>.md`, `packet.json`, `manifest.json` and `analysis/manifest.json` all
+carry the same matrix, by market family and period:
+
+    listed · executable · incumbent priced · coherent sim · shadow v2 · manual research ·
+    research required · rules blocked · identity blocked · non football · post kickoff · SILENTLY OMITTED
+
+**Silently omitted must be 0.** `tests/test_run_nfl_coverage.py` enforces the partition, and
+`nfl_edge/handicap/analysis.py:verify()` refuses to publish an artifact where it is not.
+
+### What Shadow v2 is, and is not, allowed to do here
+
+A Shadow v2 or coherent-simulation probability is **research**. It is never written into
+`model_probability`, never enters the incumbent's disagreement ranking, and never reaches recommendation,
+staking or preflight — asserted statically over the real-money modules by
+`test_no_research_projection_field_is_readable_from_the_real_money_path`.
+`PROJECTABLE_NOT_YET_VALIDATED` is printed as `PROJECTABLE_NOT_YET_VALIDATED`; nothing relabels it to make
+the report look better.
+
+Per market family, `BOARD_V2` is the arm that answers; for the player ladders the primary arm is
+`DATA_PLAYER_DIST`, because it is the only one that is an independent football view.
+`MARKET_PLAYER_DIST` is reconstructed **from** the Kalshi ladder and `HYBRID_PLAYER_DIST` blends the two:
+both are reported beside it, flagged `market_derived`, and never promoted into the primary slot.
+
+### The analysis artifact — what to hand a ChatGPT session
+
+`slate.md` is a triage view and says so; a full game file is ~40k tokens. Neither is a thing a model can
+hold in one hand and answer *"did we scan every market for this game?"* from. So:
+
+    latest/analysis/manifest.json          vintages, counts, the coverage matrix, the shard index,
+                                           and `invariants` — `zero_silently_omitted` must be true
+    latest/analysis/games/<game_id>.json   every listed contract of that game, one row each
+
+Each row carries identity, the exact YES meaning, both sides' executable quotes, width, volume, open
+interest, the capture the quotes came from, the incumbent's state and probability, the coherent
+simulation's football/market/reconciled probabilities and the weight that produced the third, Shadow v2's
+engine, state and research probability, the accounting state, the bucket, and — where nothing automated
+answered — the manual-review reason. Model versions, cutoffs and snapshot ids are the same for thousands of
+rows, so they live once in the manifest's `models` block and in each shard's `capture` header; a row points
+at them rather than repeating them.
+
+Completeness is checked **by identity**: every listed ticker appears in exactly one shard exactly once, and
+the manifest records each shard's row count and sha256. A shard that disagrees with its manifest entry is a
+partial publication and fails the build, so a half-written artifact is never published as a whole one.
 
 ---
 
@@ -282,10 +370,12 @@ Runtime ~8s for a 16-game slate. Outputs:
 
 | file | what it is |
 |---|---|
-| `packet.json` | complete machine record — every market, every ladder, every flag (~12MB) |
-| `slate.md` | **read this first** — summary, priority ranking, one compact block per game (~21k tokens) |
-| `games/<game_id>.md` | one full document per game, ~30KB each |
-| `manifest.json` | vintages, SHAs, counts — written by `build_report.py`, not by `run_nfl.py` |
+| `packet.json` | complete machine record — every market, every ladder, every flag (~53MB for a 16-game slate) |
+| `slate.md` | **read this first** — summary, full-board coverage matrix, priority ranking, one compact block per game |
+| `games/<game_id>.md` | one full document per game: coverage, the Shadow v2 research view, and the complete executable market board |
+| `manifest.json` | vintages, SHAs, counts and the coverage totals — written by `build_report.py`, not by `run_nfl.py` |
+| `analysis/manifest.json` | **the operator surface** — coverage matrix, shard index, completeness invariants |
+| `analysis/games/<game_id>.json` | one shard per game, one row per executable contract |
 
 `--max-ledger-age-min 240` refuses to build from a stale snapshot rather than emitting a confidently stale
 packet.

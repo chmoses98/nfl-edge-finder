@@ -132,8 +132,38 @@ def test_player_stat_question_carries_participation_semantics():
 
 
 def test_unknown_series_is_unknown_and_not_priceable():
-    sem, q = question_from_market({"ticker": "KXNFLPOTM-SEP26NFCOFFENSE-TMCMILLAN4", "event_ticker": "KXNFLPOTM-SEP26NFCOFFENSE", "series_ticker": "KXNFLPOTM", "title": "x"})
+    """A series the taxonomy has never seen stays UNKNOWN and is never priceable.
+
+    The example used to be KXNFLPOTM, which the 2026-09-19 drift report caught as one of nine NFL series
+    Kalshi had listed and the registry had not: it is now classified as AWARD from its own rules text ("If
+    <player> wins the NFC Offensive Player of the Month award for September"). A genuinely absent series
+    takes its place, because the property under test is "unknown stays unknown", not "this ticker".
+    """
+    sem, q = question_from_market({"ticker": "KXNFLNOSUCHSERIES-27-XYZ", "event_ticker": "KXNFLNOSUCHSERIES-27",
+                                   "series_ticker": "KXNFLNOSUCHSERIES", "title": "x"})
+    assert sem.family == "UNKNOWN_NEEDS_CLASSIFICATION"
     assert q.semantic_confidence == UNKNOWN and q.engine == "NONE" and not q.priceable
+
+
+def test_the_series_the_registry_lagged_on_are_classified_from_their_rules_text_and_none_is_priceable():
+    """Nine NFL series with 817 open contracts sat in UNKNOWN_NEEDS_CLASSIFICATION for up to 14.7 days.
+
+    Each is now classified from its own `rules_primary`, never from the series title, and each keeps the
+    scope its rules state: a weekly fantasy leader is WEEK, a month award is SEASON, a season-long longest
+    play is SEASON. None is game-scoped and none becomes priceable -- being named is not being modelled.
+    """
+    cases = {
+        "KXNFLFFWEEKLEAD": ("WEEK_LEADER", "WEEK"), "KXNFLFFWEEKTOP": ("WEEK_LEADER", "WEEK"),
+        "KXNFLFFPLAYOFFLEADER": ("SEASON_FANTASY", "SEASON"), "KXNFLFFSEASONTOTAL": ("SEASON_FANTASY", "SEASON"),
+        "KXNFLPOTM": ("AWARD", "SEASON"), "KXNFLROTM": ("AWARD", "SEASON"),
+        "KXNFLWEEKHIGHSCORE": ("WEEK_EVENT", "WEEK"), "KXNFLWEEKTIE": ("WEEK_EVENT", "WEEK"),
+        "KXNFLLONGESTPLAY": ("SEASON_SPECIAL", "SEASON"),
+    }
+    for series, (family, scope) in cases.items():
+        sem, q = question_from_market({"ticker": f"{series}-26W2-X", "event_ticker": f"{series}-26W2",
+                                       "series_ticker": series, "title": "x"})
+        assert (sem.family, sem.scope) == (family, scope), series
+        assert not q.priceable, f"{series} was named, not modelled"
 
 
 def test_catalog_only_proven_supported_families_are_priceable_by_rule():

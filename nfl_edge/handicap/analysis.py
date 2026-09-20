@@ -56,10 +56,16 @@ AUTHORITY_NOTES = {
     "incumbent": ("`incumbent.model_probability` is the only probability produced by a deployed pricer, and "
                   "even it authorises no bet: the model has been shown redundant to the closing market on "
                   "player props and behind it on game outcomes."),
-    "coherent_simulation": ("RESEARCH. A non-zero `reconcile_weight` means only that this limited "
-                            "market/football blend earned non-zero research weight under the preregistered "
-                            "procedure. The football-only model did not beat the market overall and large "
-                            "historical disagreements were dangerous. It is not a validated bet signal."),
+    "coherent_simulation": (
+        "RESEARCH. `any_td` is the ONLY statistic with a non-zero deployed reconciliation weight (0.25); "
+        "every other family deploys at 0, so its reconciled probability sits at the MARKET mean with the "
+        "football shape and is reported but never ranked. A non-zero weight means only that this limited "
+        "market/football blend earned non-zero research weight under the preregistered procedure -- fitted "
+        "on 2025 weeks 1-9 and confirmed on weeks 10-22. It does NOT make touchdown props validated bets: "
+        "the football-only model did not beat the market overall on any family (any_td Brier 0.1583 vs the "
+        "market's 0.1570 over 3,720 settled rungs), and where the two disagreed by more than 0.10 the "
+        "market won on every family. A large disagreement is a warning, not an opportunity. See "
+        "research/simulation_engine/RECONCILIATION.md."),
     "shadow_v2": ("RESEARCH ONLY. Shadow v2 is not validated for real money. "
                   "PROJECTABLE_NOT_YET_VALIDATED means exactly that, and no number here reaches "
                   "recommendation, staking or preflight."),
