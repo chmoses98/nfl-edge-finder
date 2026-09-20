@@ -17,6 +17,9 @@ OUTPUTS (under --out, default data/handicap/<run_id>/)
   packet.json            complete machine-readable record -- every market, every ladder, every flag
   slate.md               the document to read first: summary, priority ranking, one compact block per game
   games/<game_id>.md     one full document per game, for the games the priority ranking says to open
+  analysis/manifest.json the operator surface: coverage matrix, shard index, completeness invariants
+  analysis/games/*.json  one shard per game, one row per executable contract -- the artifact to hand a
+                         ChatGPT session that has to scan the whole slate without reading 40k tokens a game
 
 FAILURE MODES
   no ledger              exits 2 -- run scripts/shadow/price_slate.py, or point --market-data at a real
@@ -40,6 +43,7 @@ from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
+import nfl_edge.handicap.analysis as ANALYSIS  # noqa: E402  (module path: see report_isolation)
 from nfl_edge.handicap.packet import build_packet, load_latest_ledger  # noqa: E402
 from nfl_edge.handicap.render import render_game_markdown, render_markdown  # noqa: E402
 
@@ -103,6 +107,15 @@ def main():
                 f.write(render_game_markdown(g))
             n_game_files += 1
 
+    # The analysis artifact is written LAST, after the documents, and verified by identity before this
+    # command reports success. A partial publication is a failure, not a quieter success.
+    amanifest = ANALYSIS.write(out, packet)
+    averify = ANALYSIS.verify(out)
+    if not averify["ok"]:
+        for p_ in averify["problems"][:10]:
+            print(f"FAIL: analysis artifact: {p_}", file=sys.stderr)
+        return 8
+
     s = packet["slate_summary"]
     print(f"\nRUN NFL complete in {time.time() - t0:.1f}s")
     print(f"  season {packet['season']} week {packet['week']}  run_id {packet['handicap_run_id']}  "
@@ -114,7 +127,18 @@ def main():
           f"weather flagged {len(s['weather_concerns'])}")
     blocked = s["blocking_data_issues"]
     print(f"  blocking data issues: {len(blocked)}" + (f"  {blocked}" if blocked else ""))
-    print(f"  written to {out}  (packet.json, slate.md, {n_game_files} game files)")
+    print(f"  written to {out}  (packet.json, slate.md, {n_game_files} game files, "
+          f"analysis/ {averify['games']} shards / {averify['tickers']} contracts)")
+    cm = s.get("coverage_matrix") or {}
+    t = cm.get("totals") or {}
+    print(f"  coverage: A {(cm.get('buckets') or {}).get('A', {}).get('n', 0)}  "
+          f"B {(cm.get('buckets') or {}).get('B', {}).get('n', 0)}  "
+          f"C {(cm.get('buckets') or {}).get('C', {}).get('n', 0)}  "
+          f"D {(cm.get('buckets') or {}).get('D', {}).get('n', 0)}  "
+          f"post-kickoff {t.get('post_kickoff', 0)}  "
+          f"SILENTLY OMITTED {t.get('silently_omitted', 0)}")
+    print(f"  shadow v2 research projections surfaced: {s.get('shadow_v2_projected_slate', 0)}"
+          f"  (snapshot {((amanifest.get('models') or {}).get('shadow_v2') or {}).get('snapshot_id')})")
     print("\n  top priority for handicap:")
     for g in s["game_priority_for_handicap"][:5]:
         print(f"    {g['rank']}. {g['game_id']}  score {g['priority_score']}  {'; '.join(g['reasons'][:3])}")

@@ -301,10 +301,23 @@ def main():
         "counts": {
             "games": s["games"],
             "markets_listed": s["markets_listed_slate"],
+            # `markets_supported` counts the INCUMBENT pricer only. It is not a coverage number and reading
+            # it as one is how thousands of contracts with a legitimate Shadow v2 research projection came
+            # to be reported as nothing but UNSUPPORTED_MODEL. `coverage` below is the coverage number.
             "markets_supported": s["markets_supported_slate"],
+            "shadow_v2_projected": s.get("shadow_v2_projected_slate"),
             "blocking_data_issues": len(s["blocking_data_issues"]),
             "new_or_changed_injuries": len(s["new_or_changed_injuries"]),
             "weather_concerns": len(s["weather_concerns"]),
+        },
+        # The full-board accounting, in the manifest so a reader can check completeness without opening a
+        # 50MB packet. `silently_omitted` must be 0.
+        "coverage": {
+            "totals": ((s.get("coverage_matrix") or {}).get("totals") or {}),
+            "buckets": {b: rec.get("n") for b, rec in
+                        ((s.get("coverage_matrix") or {}).get("buckets") or {}).items()},
+            "contract": s.get("coverage_contract"),
+            "analysis_artifact": "analysis/manifest.json",
         },
         "freshness_policy": {
             "max_ledger_age_min": a.max_ledger_age_min,
@@ -411,6 +424,8 @@ def _report(a, m, out, now):
                            ("games", m["counts"]["games"]),
                            ("markets_listed", m["counts"]["markets_listed"]),
                            ("markets_supported", m["counts"]["markets_supported"]),
+                           ("shadow_v2_projected", m["counts"].get("shadow_v2_projected")),
+                           ("silently_omitted", ((m.get("coverage") or {}).get("totals") or {}).get("silently_omitted")),
                            ("artifact_name", m["artifact_name"] or ""),
                            ("report_dir", out)):
                 f.write(f"{k}={val if val is not None else ''}\n")
@@ -441,7 +456,14 @@ def _report(a, m, out, now):
             f"| minutes to first kickoff | {m['minutes_to_first_kickoff']} |",
             f"| games | {m['counts']['games']} |",
             f"| markets listed | {m['counts']['markets_listed']} |",
-            f"| markets model-supported | {m['counts']['markets_supported']} |",
+            f"| markets model-supported (incumbent only) | {m['counts']['markets_supported']} |",
+            f"| shadow v2 research projections surfaced | {m['counts'].get('shadow_v2_projected')} |",
+            f"| coverage A / B / C / D | {(m.get('coverage') or {}).get('buckets', {}).get('A')} / "
+            f"{(m.get('coverage') or {}).get('buckets', {}).get('B')} / "
+            f"{(m.get('coverage') or {}).get('buckets', {}).get('C')} / "
+            f"{(m.get('coverage') or {}).get('buckets', {}).get('D')} |",
+            f"| **silently omitted (must be 0)** | "
+            f"{((m.get('coverage') or {}).get('totals') or {}).get('silently_omitted')} |",
             f"| blocking data-health issues | {m['counts']['blocking_data_issues']} |",
             f"| artifact | `{m['artifact_name'] or 'n/a'}` |",
             f"| horizons captured | {', '.join(m['horizon_ids']) or 'n/a'} |",
