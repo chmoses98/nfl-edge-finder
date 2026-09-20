@@ -344,12 +344,23 @@ def main(argv=None):
         qq, sem = qs[t], sems[t]
         gid = q.get("game_id")
         ko = kick.get(gid) if gid else None
-        entry = CAT.catalog_entry(q.get("family"), q.get("period"), q.get("stat"))
+        # THE FAMILY IS RE-DERIVED, NOT READ BACK. `q["family"]` is what the CAPTURE job's classifier
+        # decided when it wrote the quote, which is append-only and correctly never rewritten -- so after a
+        # taxonomy fix it stays stale until the next capture. This run already re-derived the semantics for
+        # its own question (`sems[t]`), and letting the record's family and its catalog entry come from a
+        # different classifier version than its question is how a record ends up carrying a PROVEN
+        # order-statistic question under a family whose catalog entry says "season / week aggregate read
+        # from the title". One classifier, one version, recorded in `lineage.engine_versions.semantics`;
+        # the capture's own reading is kept beside it as `capture_family` when the two disagree.
+        family = (sem.family if sem and sem.family else q.get("family"))
+        period = (sem.period if sem and sem.period else q.get("period"))
+        stat = (sem.stat if sem and sem.stat else q.get("stat"))
+        entry = CAT.catalog_entry(family, period, stat)
         obs = _dt(q.get("observed_at"))
         pregame = bool(q.get("pregame", True)) and (ko is None or obs < ko)
         gen_before = ko is None or now < ko
         base = dict(snapshot_id=snapshot_id, ticker=t, series_ticker=q.get("series_ticker"), event_ticker=q.get("event_ticker"),
-                    market_family=q.get("family"), period=q.get("period") or ("FULL" if gid else None), stat_family=q.get("stat"),
+                    market_family=family, period=period or ("FULL" if gid else None), stat_family=stat,
                     question=qq.to_dict(), threshold=qq.k, range_lo=qq.lo, range_hi=qq.hi, operator=qq.op,
                     yes_semantics=(entry.yes_rule if entry else None), semantic_confidence=qq.semantic_confidence,
                     settlement_rule_version=(entry.settlement_rule_version if entry else None), game_id=gid,
@@ -362,7 +373,12 @@ def main(argv=None):
                     yes_bid=fnum(q.get("yes_bid_dollars")), yes_ask=fnum(q.get("yes_ask_dollars")), no_bid=fnum(q.get("no_bid_dollars")), no_ask=fnum(q.get("no_ask_dollars")),
                     volume=fnum(q.get("volume_fp")), open_interest=fnum(q.get("open_interest_fp")), liquidity=fnum(q.get("liquidity_dollars")),
                     market_confirmed=q.get("series_ticker") in confirmed,
-                    market_quality={"minutes_since_price_change": ages.get(t), "has_book": t in books, "discovery_record": t in disc_markets},
+                    market_quality={"minutes_since_price_change": ages.get(t), "has_book": t in books, "discovery_record": t in disc_markets,
+                                    # What the CAPTURE job's classifier called this contract, recorded only
+                                    # when it disagrees with this run's reading -- the signature of a
+                                    # taxonomy fix the append-only capture stream has not caught up with.
+                                    **({"capture_family": q.get("family")}
+                                       if q.get("family") and q.get("family") != family else {})},
                     evidence_class=(R.PROSPECTIVE_FROZEN if gen_before else R.HISTORICAL_RESEARCH),
                     # per record, because the quote's own last-change instant differs per ticker even though
                     # the cutoff and the frontier are run-level
@@ -797,6 +813,39 @@ class PlayerArms:
         # passing_yards on 6,753 quarterback-games. See `population_empty` below.
         self.population_empty = {}
 
+    def _why_no_distribution(self, stat, est, gsis, gid) -> str:
+        """Which condition actually stopped this (player, game, statistic) getting a distribution.
+
+        Checked in the order the engine checks them: is the statistic modelled at all, was the model
+        fitted, is there a prospective feature row for this player-game, and does that row satisfy the
+        model's population mask. The quarterback case is the one that matters on a live board -- the mask
+        is `(position == "QB") & qb_starter`, `qb_starter` comes from the schedule's
+        home_qb_id / away_qb_id, and `mask_target_season` blanks those for every UNPLAYED game because
+        nflverse fills them in during the week and finalises them after kickoff. So for a pregame contract
+        no row can satisfy it, and 642 quarterback passing contracts of the 2026 week 2 board were
+        reporting a missing engine instead.
+        """
+        if not est:
+            return f"statistic {stat!r} has no data model"
+        model = (self.bundle.models.get(est) if self.bundle else None)
+        if model is None:
+            return f"statistic {stat!r} is modelled but the bundle fitted no {est!r} model this run"
+        pop = getattr(model.spec, "pop", None)
+        fr = self.feat.get((gsis, gid))
+        if fr is None:
+            return (f"no prospective feature row for this player-game, so the fitted {est!r} model "
+                    "has nothing to apply")
+        if pop == "QB" and not fr.get("qb_starter"):
+            return ("not a point-in-time starting quarterback: `qb_starter` is read from the schedule's "
+                    "home_qb_id/away_qb_id, which the point-in-time mask blanks for every unplayed game, "
+                    f"so no pregame row satisfies the QB population mask the {est!r} model is fitted on")
+        if pop in ("REC", "SKILL") and fr.get("position") not in ("RB", "WR", "TE"):
+            return f"position {fr.get('position')!r} is outside the {pop} population the {est!r} model is fitted on"
+        if pop == "RB" and fr.get("position") != "RB":
+            return f"position {fr.get('position')!r} is outside the RB population the {est!r} model is fitted on"
+        return (self.population_empty.get(est)
+                or f"the fitted {est!r} model produced no distribution for this player-game")
+
     def answer(self, arm, t, q, qq):
         kid, gid, stat = q.get("player_kalshi_id"), q.get("game_id"), q.get("stat")
         gsis, conf = self.identity.get(kid, (None, "UNRESOLVED"))
@@ -830,11 +879,11 @@ class PlayerArms:
         est = ENGINE_STATS.get(stat)
         d = self.data.get((gsis, gid, est)) if est else None
         if d is None:
-            # Name the real cause where it is known. "no data distribution for statistic 'passing_yards'"
-            # reads as "this engine cannot model passing yards", which is false.
-            why = self.population_empty.get(est) if est else None
-            return {"p_yes": None,
-                    "reason": why or (f"no data distribution for statistic {stat!r}" if est else f"statistic {stat!r} has no data model"),
+            # Name the real cause. "no data distribution for statistic 'passing_yards'" reads as "this
+            # engine cannot model passing yards", which is false -- it is fitted on 6,753 quarterback-games.
+            # What is actually missing is a prospective ROW the fitted model can be applied to, and which
+            # condition failed is knowable per (player, game).
+            return {"p_yes": None, "reason": self._why_no_distribution(stat, est, gsis, gid),
                     "status": "DATA_UNAVAILABLE"}, lineage, feat, {}
         fr = self.feat.get((gsis, gid), {})
         feat.update(team=fr.get("team"), projected_team_volume=fr.get(VOLUME_FEATURE.get(est) or ""), projected_share=fr.get(SHARE_FEATURE.get(est) or ""),

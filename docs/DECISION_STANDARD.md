@@ -189,6 +189,15 @@ this market and therefore requires model lineage; anything else requires a `supp
 
 `UNSUPPORTED_IDENTITY` can **never** carry a RECOMMENDED record — see §6.
 
+**`UNSUPPORTED_MODEL` is a statement about the incumbent pricer, not about the contract.** It does not mean
+the contract was skipped and it does not mean the repository has nothing to say about it: a research model
+may hold a projection for that exact ticker, and thousands did while the report printed nothing but the
+word. RUN NFL therefore terminates every listed contract in one accounting state, in one of four operator
+buckets, and the report carries a coverage matrix in which `silently omitted` must be 0 — see
+[`RUN_NFL.md`](RUN_NFL.md) §"What RUN NFL means". A research probability still has no authority here: it
+never becomes `model_probability`, never satisfies the `SUPPORTED` lineage requirement above, and never
+reaches preflight.
+
 ### PASS is deliberately cheaper
 
 `PASS`, `WATCHLIST` and `RESEARCH_ALERT` keep the light treatment. The rule deciding which side of the line a
