@@ -471,3 +471,29 @@ def test_the_latest_sim_artifact_is_chosen_by_run_stamp_not_by_root_path(tmp_pat
     _, man3 = sim_block.load_latest((md, repo), at_or_before=datetime(2026, 9, 16, 21, 40, tzinfo=timezone.utc))
     assert man3["run_id"] == "20260916T213544Z", "an artifact stamped after the instant may not be selected"
     assert sim_block.load_latest((md, repo), at_or_before=datetime(2026, 9, 16, 21, 0, tzinfo=timezone.utc)) == (None, None)
+
+
+def test_coherence_report_asserts_the_quarterback_passing_touchdown_identity(bundle_and_frames, bank):
+    """The engine credits the starter a share of the team's passing touchdowns and routes the remainder
+    to the next quarterback, or to OTHER when there is none, so this identity holds BY CONSTRUCTION --
+    which is why it was never asserted.  An identity that holds by construction and is never checked is
+    one a later change to that routing can break silently, and the fail-closed production path can only
+    refuse a game whose failure coherence_report actually reports.  Attempts and passing yards were
+    already covered; passing touchdowns were not."""
+    b, tf, pf = bundle_and_frames
+    b = _bundle_with_a_starter_tail(b)
+    gi = _one_qb_game(tf, pf)
+    res = S.simulate(gi, b, n=3000, bank=bank)
+    rep = S.coherence_report(res)
+
+    key = f"{gi.home.team}:qb_pass_td==pass_td"
+    assert key in rep, "the quarterback passing-touchdown identity must be reported, not merely true"
+    assert rep[key] == 0
+    assert rep["ok"], "adding the check must not fail a game that satisfies it"
+
+    # ... and the teeth: a violation is actually caught rather than reported as zero
+    qb = res.player[gi.home.qb1]
+    qb["pass_td"] = qb["pass_td"] + 1
+    broken = S.coherence_report(res)
+    assert broken[key] == 1
+    assert not broken["ok"], "a broken passing-touchdown identity must fail the game"

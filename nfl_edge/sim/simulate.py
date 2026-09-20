@@ -19,8 +19,9 @@ is the SAME simulated game, which is what makes the outputs coherent:
                                                    +--> touchdown allocation inside the team's TD count
 
 Invariants (checked by ``coherence_report``): sum of player carries == team rush attempts; sum of targets
-== team targets; QB passing yards == sum of receiving yards; completions == receptions; TDs reconcile with
-the team count; every count is a non-negative integer; ladders are monotone by construction.
+== team targets; QB passing yards == sum of receiving yards; completions == receptions; sum of quarterback
+attempts, passing yards AND passing touchdowns == the team's; TDs reconcile with the team count; every
+count is a non-negative integer; ladders are monotone by construction.
 """
 from __future__ import annotations
 
@@ -402,6 +403,15 @@ def coherence_report(res: SimResult, tol: int = 0) -> dict:
         if qbs:
             out[f"{team}:qb_attempts==pass_att"] = int(np.abs(sum(v["attempts"] for v in qbs) - T["pass_att"]).max())
             out[f"{team}:qb_pass_yards==pass_yards"] = float(np.abs(sum(v["pass_yards"] for v in qbs) - T["pass_yards"]).max())
+            # The engine assigns the starter a share of the team's passing touchdowns and credits the
+            # remainder to the next quarterback, or to the OTHER bucket when no second quarterback is
+            # available, so this identity holds by construction -- which is exactly why it was never
+            # asserted.  An identity that holds by construction and is never checked is one a later
+            # change to that routing can break silently, and the fail-closed production path can only
+            # refuse a game whose failure coherence_report actually reports.  Asserting it costs nothing
+            # today (max violation 0 on every game of the first two live Week 2 slates) and closes the
+            # gap that attempts and yards were already covered against.
+            out[f"{team}:qb_pass_td==pass_td"] = int(np.abs(sum(v["pass_td"] for v in qbs) - T["pass_td"]).max())
     out["home+away==total"] = float(np.abs(res.home_points + res.away_points - res.total).max())
     out["home-away==margin"] = float(np.abs(res.home_points - res.away_points - res.margin).max())
     out["ok"] = all(v <= max(tol, 1e-9) for k, v in out.items() if k != "ok")
