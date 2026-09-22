@@ -84,6 +84,12 @@ def settlement_row(r: dict, s, now: datetime, *, season_scope: bool = False) -> 
         row["market_identification"] = (r.get("projection_lineage") or {}).get("identification")
         row["availability_state"] = (r.get("feature_lineage") or {}).get("availability_state")
     row.update(s.to_dict())
+    # A season-scoped row is stamped with the evidence lifecycle it belongs to: a settlement is terminal and
+    # keeps one identity forever, while "the season has not determined this yet" is an observation filed under
+    # its own evidence vintage. Without that distinction each week's truthful reading contradicted the last
+    # week's and the corpus refused the whole batch (nfl_edge/settlement/settle_v2.py).
+    if season_scope:
+        row = S2.season_versioned(row)
     return row
 
 
@@ -114,6 +120,7 @@ class Accounting:
         self.unreachable = 0
         self.unreachable_detail: list = []
         self.season_pass_game_rows = 0               # game rows met in the season pass (they belong to game passes)
+        self.season_already_terminal = 0             # season records whose terminal settlement is already published
         self.no_probability = 0                      # refusals: nothing to settle, by construction (from the index)
         self.by_status = Counter()
 
@@ -124,12 +131,14 @@ class Accounting:
                                             "reachability": rr})
 
     def silently_dropped(self) -> int:
-        return self.examined - (self.game_dispatched + self.season_dispatched + self.unreachable)
+        return self.examined - (self.game_dispatched + self.season_dispatched + self.unreachable
+                                + self.season_already_terminal)
 
     def to_dict(self) -> dict:
         return {"projection_scan": self.scan.to_dict(), "scan_reconciles": self.scan.reconciles(),
                 "probability_rows_examined": self.examined, "game_scoped_dispatched": self.game_dispatched,
                 "season_scoped_dispatched": self.season_dispatched, "unreachable": self.unreachable,
+                "season_already_terminal_not_re_offered": self.season_already_terminal,
                 "season_pass_game_rows_deferred_to_game_passes": self.season_pass_game_rows,
                 "rows_without_probability_not_examined": self.no_probability,
                 "silently_dropped": self.silently_dropped()}
@@ -289,6 +298,19 @@ def main(argv=None):
             yield r
         yield from season_rows_from_games
 
+    # A season record whose TERMINAL settlement is already published is immutable and is never settled again --
+    # the same discipline as skipping a game that already holds a batch, and for the same two reasons: it cannot
+    # change, and re-offering it under the terminal identity would file a second copy of a settled row that
+    # every scorecard metric would then count twice. Read once per season directory, ids only.
+    season_terminal: dict = {}
+
+    def terminal_ids(season: int) -> set:
+        got = season_terminal.get(season)
+        if got is None:
+            got = season_terminal[season] = {row.get("prediction_id") for row, _ in corpus.iter_rows(f"SEASON_{season}")
+                                             if S2.season_evidence_tier(row) == S2.SEASON_TERMINAL}
+        return got
+
     n_season = 0
     for r in season_stream():
         acct.examined += 1
@@ -300,6 +322,9 @@ def main(argv=None):
             acct.note_unreachable(r, {**rr, "state": RE.MISSING_KEYS, "missing": ["game_id"]})
             continue
         season = int(rr["season"] if rr.get("season") is not None else r["season"])
+        if r["record_id"] in terminal_ids(season):
+            acct.season_already_terminal += 1
+            continue
         pl = season_planners.get(season)
         if pl is None:
             pl = season_planners[season] = corpus.planner(f"SEASON_{season}")
@@ -309,14 +334,22 @@ def main(argv=None):
         n_season += 1
         acct.by_status[row["settlement_status"]] += 1
         pl.offer(row)
+    season_tiers = Counter()
     for season, pl in sorted(season_planners.items()):
         key = f"SEASON_{season}"
         pc = pl.counts()
-        log(f"  {key}: {pc['new'] + pc['unchanged'] + pc['conflicts']} rows -> new {pc['new']}, unchanged {pc['unchanged']}, conflicts {pc['conflicts']}")
+        plan = pl.plan()
+        tiers = S2.season_batch_manifest(plan["new"])
+        season_tiers.update(tiers["by_evidence_tier"])
+        log(f"  {key}: {pc['new'] + pc['unchanged'] + pc['conflicts']} rows -> new {pc['new']}, unchanged {pc['unchanged']}, "
+            f"conflicts {pc['conflicts']}; new by evidence tier {tiers['by_evidence_tier']}")
         if pl.conflicts:
             raise ST.EvaluationConflict(pl.conflicts)
         if not a.dry_run:
-            man = corpus.write_batch(key, [], evaluation_version=S2.SETTLE_VERSION, batch=batch, plan=pl.plan())
+            # One batch carries both tiers at once, so the manifest names the split rather than letting the
+            # provisional half be invisible in the file it lives in.
+            man = corpus.write_batch(key, [], evaluation_version=S2.SETTLE_VERSION, batch=batch, plan=plan,
+                                     manifest_extra=tiers)
             written += man.get("written", 0)
     del season_planners
     if acct.silently_dropped() != 0:
@@ -382,6 +415,7 @@ def main(argv=None):
                "dispatch": {"game_scoped": acct.game_dispatched, "season_scoped": acct.season_dispatched,
                             "unreachable": acct.unreachable, "unreachable_detail": acct.unreachable_detail,
                             "silently_dropped": acct.silently_dropped()},
+               "season_new_by_evidence_tier": dict(season_tiers),
                "accounting": acct.to_dict(), "index": isum, "sidecars": sidecars.stats(), "per_game": per_game,
                "exchange_crosscheck": {k: xsum[k] for k in ("n", "by_agreement", "by_evidence_tier", "provisional",
                                                             "terminal", "comparable", "agreement_rate",

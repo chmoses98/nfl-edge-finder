@@ -41,6 +41,7 @@ from nfl_edge.evaluation.research_slim import Interner, slim                    
 from nfl_edge.projection.store import INDEX_DIRNAME, ProjectionIndex, ScanStats, SidecarCache, iter_projections  # noqa: E402
 from nfl_edge.research import hypothesis_registry_v2 as HR                            # noqa: E402
 from nfl_edge.settlement import crosscheck as XC                                      # noqa: E402
+from nfl_edge.settlement import settle_v2 as S2                                        # noqa: E402
 from nfl_edge.shadow import evaluation_store as ST                                    # noqa: E402
 
 NO_GAME = ""                                     # the unit that holds season-market rows (no game_id)
@@ -71,9 +72,11 @@ def corpus_index(root_local: str, root_md: str, suffix: str, game_id: str | None
     single byte of evidence changing. The highest evaluation_version wins, and the choice is recorded on the row
     (`evaluation_version_*`) so a reader can see which reading they are looking at.
 
-    `rank` overrides that ordering for a corpus whose versions are not a single ascending rule. The exchange
-    cross-check is one: its versions are evidence TIERS, and a terminal verdict outranks every provisional
-    observation of the same prediction no matter which was written first (nfl_edge/settlement/crosscheck.py).
+    `rank` overrides that ordering for a corpus whose versions are not a single ascending rule. Two are: the
+    exchange cross-check (nfl_edge/settlement/crosscheck.py) and the season-scoped settlements
+    (`S2.season_rank`). Both file evidence TIERS rather than successive rules, so a terminal verdict outranks
+    every provisional observation of the same prediction no matter which was written first -- and plain string
+    ordering would do the opposite, since `settle-2.0.0+provisional.<vintage>` sorts above `settle-2.0.0`.
 
     `game_id` scopes the read to one game directory (a `*` suffix, e.g. "SEASON*", to a directory family), so
     the export holds one game's evaluations at a time rather than the whole corpus.
@@ -317,7 +320,7 @@ def main(argv=None):
                 files = index.files_with_no_game_rows()
                 closes = corpus_index(os.path.join(a.staging, "closes"), os.path.join(md, "closes"), "closes_v2", "SEASON")
                 clvs = {}
-                settlements = corpus_index(os.path.join(a.staging, "settlements"), os.path.join(md, "settlements"), "settlements_v2", "SEASON_*")
+                settlements = corpus_index(os.path.join(a.staging, "settlements"), os.path.join(md, "settlements"), "settlements_v2", "SEASON_*", rank=S2.season_rank)
                 autopsies = {}
                 crosschecks = corpus_index(os.path.join(a.staging, "crosscheck"), os.path.join(md, "crosscheck"), "crosscheck_v2", "SEASON", rank=XC.rank)
                 stream = (p for p in iter_projections(files=files, stats=scan) if not p.get("game_id"))
@@ -325,7 +328,7 @@ def main(argv=None):
                 files = index.files_for_game(unit)
                 closes = corpus_index(os.path.join(a.staging, "closes"), os.path.join(md, "closes"), "closes_v2", unit)
                 clvs = corpus_index(os.path.join(a.staging, "clv"), os.path.join(md, "clv"), "clv_v2", unit)
-                settlements = corpus_index(os.path.join(a.staging, "settlements"), os.path.join(md, "settlements"), "settlements_v2", unit)
+                settlements = corpus_index(os.path.join(a.staging, "settlements"), os.path.join(md, "settlements"), "settlements_v2", unit, rank=S2.season_rank)
                 autopsies = corpus_index(os.path.join(a.staging, "autopsy"), os.path.join(md, "autopsy"), "autopsy_v2", unit)
                 crosschecks = corpus_index(os.path.join(a.staging, "crosscheck"), os.path.join(md, "crosscheck"), "crosscheck_v2", unit, rank=XC.rank)
                 stream = iter_projections(files=files, game_ids=[unit], season=(a.season if a.week else None),

@@ -253,11 +253,10 @@ class EvaluationCorpus:
 NEW, NOOP, CONFLICT, REPEAT = "NEW", "NOOP", "CONFLICT", "REPEAT"
 
 
-def _load_row(path: str, prediction_id, evaluation_version) -> dict:
-    for row in read_rows(path):
-        if row.get("prediction_id") == prediction_id and row.get("evaluation_version") == evaluation_version:
-            return row
-    return {}
+# How many conflicts are described field by field. The COUNT is always exact and every conflict is always
+# raised; beyond this many, the identity and the file are recorded without the diff. EvaluationConflict prints
+# 20, so nothing a human reads is lost, and a storm cannot hold tens of thousands of evidence dicts in memory.
+CONFLICT_DETAIL_KEEP = 200
 
 
 class BatchPlanner:
@@ -265,6 +264,15 @@ class BatchPlanner:
 
     Unchanged rows are counted, not kept. That is what lets a driver settle a game of tens of thousands of
     records, or examine every season-scoped record on every run, with memory that scales with what is new.
+
+    A HASH MISMATCH MUST NOT COST A FILE RE-READ. Deciding a mismatch needs the stored row itself: either to
+    rescue it as a no-op (a hash written before a hashing change) or to name the fields that differ. Fetching
+    that row by scanning its batch file made the cost of disagreement quadratic -- one full gzip re-parse per
+    conflicting row -- and a real conflict storm therefore never reached its own error message. Week 2 of 2026
+    hit exactly that: 11,662 season-scoped rows conflicting against a 21,888-row batch cost 0.44s each, 86
+    minutes of pure re-parsing, so the job was killed by its 90-minute timeout before the raise and the run
+    looked like it had simply published nothing. Each batch file is now parsed at most ONCE per planner, and
+    only when a mismatch actually needs it -- the reconciling path (`new` / `noop`) still reads no rows at all.
     """
 
     def __init__(self, corpus: EvaluationCorpus, game_id: str | None):
@@ -275,6 +283,16 @@ class BatchPlanner:
         self.conflicts: list = []
         self.repeated = 0
         self._seen: set = set()
+        self._rows_by_file: dict = {}        # path -> {(prediction_id, evaluation_version): row}, built on demand
+
+    def _stored_row(self, path: str, key: tuple) -> dict:
+        """The row a batch file holds under this identity, parsing that file at most once per planner."""
+        idx = self._rows_by_file.get(path)
+        if idx is None:
+            idx = self._rows_by_file[path] = {}
+            for row in read_rows(path):
+                idx.setdefault((row.get("prediction_id"), row.get("evaluation_version")), row)
+        return idx.get(key) or {}
 
     def offer(self, row: dict, *, stamped: bool = False) -> str:
         row = row if stamped else stamp(row)
@@ -291,12 +309,13 @@ class BatchPlanner:
         if prev_hash == row["content_hash"]:
             self.noop += 1
             return NOOP
-        prev_row = _load_row(prev_file, key[0], key[1])
+        prev_row = self._stored_row(prev_file, key)
         if content_hash(prev_row) == row["content_hash"]:
             self.noop += 1                   # a stored hash that predates a hashing change; the content agrees
             return NOOP
-        fields = {k: (prev_row.get(k), row.get(k)) for k in sorted(set(prev_row) | set(row))
-                  if k not in VOLATILE_FIELDS and k != "content_hash" and prev_row.get(k) != row.get(k)}
+        fields = ({k: (prev_row.get(k), row.get(k)) for k in sorted(set(prev_row) | set(row))
+                   if k not in VOLATILE_FIELDS and k != "content_hash" and prev_row.get(k) != row.get(k)}
+                  if len(self.conflicts) < CONFLICT_DETAIL_KEEP else {})
         self.conflicts.append({"prediction_id": row["prediction_id"],
                                "evaluation_version": row.get("evaluation_version"),
                                "existing_file": os.path.relpath(prev_file, os.path.dirname(prev_file) or "."),
