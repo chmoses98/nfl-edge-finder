@@ -17,6 +17,35 @@ Usage: publish_market_data.py --src data/kalshi --message "..." [--branch market
 from __future__ import annotations
 import argparse, os, shutil, subprocess, sys, time
 
+# A push the remote will refuse however many times it is retried. A racing publisher is a retry; a file the
+# server will not accept, or a hook that declines, is not -- retrying it eight times only delays the report.
+FATAL_PUSH_ERRORS = (
+    ("GH001", "a file in the commit exceeds GitHub's 100 MB file size limit"),
+    ("exceeds GitHub's file size limit", "a file in the commit exceeds GitHub's 100 MB file size limit"),
+    ("pre-receive hook declined", "the remote's pre-receive hook declined the push"),
+    ("protected branch", "the branch is protected against this push"),
+    ("permission denied", "the token cannot write to this branch"),
+)
+
+
+def rejected_for_good(stderr: str) -> str | None:
+    """The reason a push can never succeed on retry, or None if it might be a race."""
+    low = (stderr or "").lower()
+    for needle, why in FATAL_PUSH_ERRORS:
+        if needle.lower() in low:
+            return why
+    return None
+
+
+def unpushed(wt: str, branch: str) -> int:
+    """Commits this worktree holds that origin does not. Never 0 after a rejected push."""
+    r = subprocess.run(["git", "rev-list", "--count", f"origin/{branch}..HEAD"], cwd=wt, text=True, capture_output=True)
+    try:
+        return int((r.stdout or "").strip() or 0)
+    except ValueError:
+        return 1                      # cannot tell: assume there is something to push rather than claim success
+
+
 def sh(cmd, cwd=None, check=True, capture=False):
     print("+", " ".join(cmd), flush=True)
     r = subprocess.run(cmd, cwd=cwd, check=False, text=True, capture_output=capture)
@@ -67,13 +96,23 @@ def main():
                     continue
                 shutil.copy2(os.path.join(root, fn), os.path.join(dest, rel, fn))
         sh(["git", "add", "-A", "--", a.src], cwd=wt)
-        if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=wt).returncode == 0:
+        staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=wt).returncode != 0
+        if staged:
+            sh(["git", "commit", "-q", "-m", a.message], cwd=wt)
+        elif not unpushed(wt, a.branch):
             print("no changes to publish"); return 0
-        sh(["git", "commit", "-q", "-m", a.message], cwd=wt)
+        # else: a commit from an earlier attempt is still unpushed. Falling through to push it again is the
+        # whole point of the retry; returning 0 here reported a REJECTED push as a successful publish. That is
+        # how 413,128 settlement rows -- the entire 2026 week-2 Sunday slate -- were staged, committed,
+        # refused by the remote for an oversized file, and then announced as published by a green job.
         r = subprocess.run(["git", "push", "-u", "origin", a.branch], cwd=wt, text=True, capture_output=True)
         if r.returncode == 0:
             print("published", a.branch); return 0
         print("push failed:", r.stderr[-500:])
+        fatal = rejected_for_good(r.stderr)
+        if fatal:
+            print(f"REFUSED BY THE REMOTE, and no retry can change it: {fatal}")
+            return 4
         if not exists:
             time.sleep(3 * attempt); continue
         sh(["git", "fetch", "origin", a.branch], cwd=wt)
@@ -90,6 +129,11 @@ def main():
         r = subprocess.run(["git", "push", "-u", "origin", a.branch], cwd=wt, text=True, capture_output=True)
         if r.returncode == 0:
             print("published after rebase", a.branch); return 0
+        print("push failed:", r.stderr[-500:])
+        fatal = rejected_for_good(r.stderr)
+        if fatal:
+            print(f"REFUSED BY THE REMOTE, and no retry can change it: {fatal}")
+            return 4
     print("FAILED to publish after retries"); return 3
 
 if __name__ == "__main__":
