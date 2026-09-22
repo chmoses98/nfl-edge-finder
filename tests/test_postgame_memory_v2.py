@@ -360,7 +360,13 @@ def test_the_settle_driver_reads_only_the_files_of_the_games_it_settles_and_skip
         assert not ({os.path.basename(p) for p in call} & {os.path.basename(files[k]) for k in ("S1.D", "S2.B", "S3.B", "S3.D")}), \
             "a settled game's files are never re-read"
     assert sorted(glob.glob(str(out / "**" / "*"), recursive=True)) == before
-    assert s2["accounting"]["silently_dropped"] == 0 and s2["dispatch"]["season_scoped"] == 1, "season rows are still examined every run"
+    # Season rows are still EXAMINED every run, so none can silently disappear -- but this one reached a
+    # TERMINAL settlement on the first run (ATL's only game in the fixture is final), and a terminal season
+    # settlement is immutable and never settled again. It is accounted for as such rather than re-dispatched:
+    # re-offering it under the terminal identity would file a second copy of a settled row, and every scorecard
+    # metric reads the corpus row by row (nfl_edge/settlement/settle_v2.py).
+    assert s2["accounting"]["silently_dropped"] == 0, "season rows are still accounted for every run"
+    assert s2["dispatch"]["season_scoped"] == 0 and s2["accounting"]["season_already_terminal_not_re_offered"] == 1
     # a forced game is examined even though its batch exists, and is a no-op
     assert run_settle(mod, monkeypatch, md, out, "--game", G1) == 0
     s3 = trailing_json(capsys.readouterr().out)

@@ -20,6 +20,8 @@ unprovable is REFUSED with the reason. The active-never-snap scalar branch is de
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 
 from nfl_edge.settlement import season_settlement as SS
@@ -43,6 +45,103 @@ KIND_BINARY, KIND_TIE_SPLIT = "binary", "tie_split"
 # immutable evaluation batches (`corpus.has_batch(game_id, SETTLE_VERSION)`), so raising it would re-settle
 # every already-settled game under a new version to add a branch none of them used.
 GAME_LEADER_RULE_VERSION = "settle-2.1.0"
+
+# ------------------------------------------------------- the evidence lifecycle of a SEASON-SCOPED settlement
+# A GAME settlement is immutable the moment it exists: a final score does not change, and a game that is not
+# yet final is DEFERRED by the driver rather than written. Season-scoped families are not like that. They are
+# examined on every run from week 1 onward -- so that none can silently disappear -- and for most of the season
+# the only truthful answer is "the evidence has not arrived yet". That answer is an OBSERVATION OF A MOMENT,
+# and it moves under its own feet: `SEASON_WINS` refuses with how many of the team's games are still unplayed,
+# and TEAM_WINS_BY_WEEK attaches the wins and the pending game ids it counted. Every one of those changes the
+# instant a game goes final.
+#
+# Filing all of it under one flat version made each week's truthful reading contradict the previous week's, and
+# the write-once corpus -- correctly, given what it was told -- refused the whole batch. Week 2 of 2026:
+# `EvaluationConflict: 11662 evaluation(s) contradict an already-published truth; nothing was written`, with
+# `settlement_reason: existing='16 of 17 games not final' new='15 of 17 games not final'`. The corpus was not
+# wrong; the identity was. This is the same defect, and the same remedy, as the exchange cross-check's
+# terminal/provisional split (nfl_edge/settlement/crosscheck.py) -- which is where the vocabulary comes from:
+#
+#   TERMINAL     SETTLED, and every refusal that is about the RECORD rather than about the evidence
+#                (ambiguous semantics, an unknown team). settle-2.0.0+terminal. ONE identity per prediction,
+#                forever; two contradictory terminal readings still collide and still fail the run loudly,
+#                which is the point -- that would mean a settled answer changed and a human must look.
+#
+#   PROVISIONAL  REFUSED_SEASON_INCOMPLETE: "as of this evidence, the season had not determined this".
+#                settle-2.0.0+provisional.<vintage>, where <vintage> digests the evidence actually observed.
+#                Re-running against unchanged evidence is a NO-OP, so an idle rerun writes nothing; evidence
+#                that MOVED files a new row beside the old one. Nothing is rewritten and nothing is deleted,
+#                so the week-by-week history of a season contract stays readable in full and the eventual
+#                terminal settlement joins it rather than replacing it.
+#
+# WHY TERMINAL GETS ITS OWN VERSION TOO, rather than keeping the flat one. The rows already published carry the
+# flat settle-2.0.0, and 29,792 of them are REFUSED_SEASON_INCOMPLETE -- a provisional observation filed under
+# an identity that claimed to be final. Leaving terminal on the flat version would mean that in January, when
+# those same contracts finally settle, the settlement collided with the stale refusal sitting on its key and
+# the run failed exactly as it does now. A distinct terminal identity retires that key instead: the published
+# rows are never re-offered, never rewritten, and the eventual settlement is a NEW truth beside them.
+#
+# Rows published before this lifecycle existed are left exactly as they are -- a published observation is never
+# rewritten -- and `season_rank` classifies them by their own substance, so a legacy SETTLED row still outranks
+# every provisional observation of the same prediction.
+SEASON_TERMINAL = "TERMINAL"
+SEASON_PROVISIONAL = "PROVISIONAL"
+# The one refusal that means "the evidence has not arrived yet" rather than "this record cannot be settled".
+PROVISIONAL_SEASON_STATUSES = (REFUSED_SEASON_INCOMPLETE,)
+SEASON_TERMINAL_VERSION = f"{SETTLE_VERSION}+terminal"
+SEASON_PROVISIONAL_PREFIX = f"{SETTLE_VERSION}+provisional."
+# What a provisional season row OBSERVED, as opposed to what it concluded. The vintage digest is taken over
+# exactly these, so a row is re-filed only when the season evidence itself moved.
+SEASON_EVIDENCE_FIELDS = ("settlement_status", "settlement_reason", "settlement_evidence")
+
+
+def season_evidence_tier(row: dict) -> str:
+    """Which tier a season row belongs to, read off its own substance so legacy rows classify like the rest."""
+    return SEASON_PROVISIONAL if row.get("settlement_status") in PROVISIONAL_SEASON_STATUSES else SEASON_TERMINAL
+
+
+def season_evidence_vintage(row: dict) -> str:
+    """A digest of the season evidence this row saw. Deterministic; no wall clock."""
+    payload = json.dumps({k: row.get(k) for k in SEASON_EVIDENCE_FIELDS}, sort_keys=True, default=str)
+    return hashlib.sha1(payload.encode()).hexdigest()[:12]
+
+
+def season_evaluation_version(row: dict) -> str:
+    """The corpus identity a season-scoped settlement row belongs under."""
+    if season_evidence_tier(row) == SEASON_PROVISIONAL:
+        return SEASON_PROVISIONAL_PREFIX + season_evidence_vintage(row)
+    return SEASON_TERMINAL_VERSION
+
+
+def season_versioned(row: dict) -> dict:
+    """Stamp a season-scoped settlement with its evidence lifecycle. Never mutates the row it is given."""
+    tier = season_evidence_tier(row)
+    return {**row, "evidence_tier": tier, "provisional": tier == SEASON_PROVISIONAL,
+            "evidence_vintage": season_evidence_vintage(row), "evaluation_version": season_evaluation_version(row)}
+
+
+def season_rank(row: dict) -> tuple:
+    """Sort key for choosing ONE season settlement per prediction: terminal first, then the later observation.
+
+    Classified by the row's own `settlement_status` rather than by its version string, so the rows published
+    before the lifecycle existed are ranked on their substance like everything else. Without this, plain string
+    ordering put `settle-2.0.0+provisional.<vintage>` above `settle-2.0.0` and a stale "not determined yet"
+    observation would outrank the settlement that superseded it.
+    """
+    tier = row.get("evidence_tier") or season_evidence_tier(row)
+    return (1 if tier == SEASON_TERMINAL else 0, str(row.get("evaluated_at") or ""),
+            str(row.get("evaluation_version") or ""))
+
+
+def season_batch_manifest(rows) -> dict:
+    """What a published season batch holds, by identity and by tier, so the provisional half is never invisible."""
+    versions, tiers = {}, {}
+    for r in rows:
+        v = str(r.get("evaluation_version"))
+        versions[v] = versions.get(v, 0) + 1
+        t = r.get("evidence_tier") or season_evidence_tier(r)
+        tiers[t] = tiers.get(t, 0) + 1
+    return {"by_evaluation_version": dict(sorted(versions.items())), "by_evidence_tier": dict(sorted(tiers.items()))}
 
 
 @dataclass

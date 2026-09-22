@@ -32,12 +32,12 @@ Only TERMINAL statuses count (`finalized` / `settled`); `determined` is excluded
 still be disputed and amended (nfl_edge/settlement/kalshi_settlement.py). A non-terminal exchange record is
 reported as such, never as a disagreement.
 
-Version: crosscheck-1.0.0.
+Version: crosscheck-1.1.0.
 
 EVIDENCE IS TIME-EVOLVING; THE COMPARISON RULE IS NOT
 -----------------------------------------------------
-The derived football settlement is immutable: a game's score does not change, so a settlement row written once is
-written forever. Exchange evidence is not like that. A ticker is EXCHANGE_MISSING at the first postgame run
+A GAME's derived football settlement is immutable: its score does not change, so a settlement row written once
+is written forever. Exchange evidence is not like that. A ticker is EXCHANGE_MISSING at the first postgame run
 because the exchange has not resolved it yet, EXCHANGE_NON_TERMINAL while it is merely `determined`, and only
 later does a terminal `settled`/`finalized` record appear. All three are truthful readings of DIFFERENT moments.
 
@@ -47,19 +47,28 @@ terminal row contradict the earlier provisional one, and the corpus -- correctly
 the whole batch: `EvaluationConflict: 3420 evaluation(s) contradict an already-published truth`. The corpus was
 not wrong; the identity was. So the lifecycle is made explicit in the version itself:
 
-    TERMINAL     AGREE / DISAGREE / NOT_COMPARABLE / DERIVED_MISSING   crosscheck-1.0.0+terminal
-                 A conclusion drawn from a terminal exchange record (or from the immutable derived side alone).
-                 ONE identity per prediction, forever. Re-running over the same terminal evidence is a NO-OP;
-                 two CONTRADICTORY terminal readings still collide and still fail the run loudly, which is the
-                 whole point of the corpus -- that case means the exchange amended a settled result, and a human
-                 must look.
+    TERMINAL     AGREE / DISAGREE / NOT_COMPARABLE / DERIVED_MISSING   crosscheck-1.1.0+terminal
+                 A conclusion drawn from a terminal exchange record and a derived settlement that can no longer
+                 change. ONE identity per prediction, forever. Re-running over the same terminal evidence is a
+                 NO-OP; two CONTRADICTORY terminal readings still collide and still fail the run loudly, which
+                 is the whole point of the corpus -- that case means the exchange amended a settled result, and
+                 a human must look.
 
-    PROVISIONAL  EXCHANGE_MISSING / EXCHANGE_NON_TERMINAL             crosscheck-1.0.0+provisional.<vintage>
-                 An observation, not a conclusion: "as of this evidence, the exchange had not resolved this".
-                 `<vintage>` is a digest of the exchange evidence observed, so re-running against unchanged
+    PROVISIONAL  EXCHANGE_MISSING / EXCHANGE_NON_TERMINAL,            crosscheck-1.1.0+provisional.<vintage>
+                 or a derived settlement that is itself provisional
+                 An observation, not a conclusion: "as of this evidence, this was not resolved yet".
+                 `<vintage>` is a digest of the evidence observed on BOTH sides, so re-running against unchanged
                  evidence is a NO-OP (no daily churn in a published corpus), while evidence that MOVED files a
                  new row beside the old one. Nothing is rewritten and nothing is deleted: the provisional history
                  of a ticker is readable in full, and the eventual terminal row joins it rather than replacing it.
+
+WHY 1.1.0. Both halves of that rule were wrong about season-scoped settlements, and the corpus on disk records
+it: 50,025 published rows are a cross-check of a season settlement that refused with a count of games not yet
+played, filed under a vintage that digested only the exchange half -- so the next run, with the count changed,
+contradicted them; and 1,617 more are DERIVED_MISSING on such a refusal, filed under +terminal as though the
+refusal were final. Rows written under the old rule cannot be re-offered under it without reproducing those
+collisions, so the version is bumped: every row filed by the 1.0.0 rule is retired where it lies, never
+rewritten and never deleted, and `rank()` keeps ordering the whole history by substance.
 
 `rank()` is how a reader picks one: terminal outranks provisional, and within a tier the later observation wins.
 That makes research's choice deterministic when several vintages exist, and it never shows a provisional
@@ -79,7 +88,7 @@ from datetime import datetime, timezone
 
 from nfl_edge.settlement import kalshi_settlement as KS
 
-CROSSCHECK_VERSION = "crosscheck-1.0.0"
+CROSSCHECK_VERSION = "crosscheck-1.1.0"
 
 AGREE = "AGREE"
 DISAGREE = "DISAGREE"                        # hard research-quality warning
@@ -96,21 +105,42 @@ SRC_SNAPSHOT = "kalshi_settlement_snapshot"
 # ---------------------------------------------------------------------------------------------- evidence tiers
 TERMINAL = "TERMINAL"                        # a conclusion; one identity per prediction, forever
 PROVISIONAL = "PROVISIONAL"                  # an observation of evidence that had not arrived yet
-# The two agreements that say "the exchange has not spoken yet". Everything else is a conclusion drawn from
-# terminal exchange evidence or from the immutable derived side, and is therefore final.
+# The two agreements that say "the exchange has not spoken yet". They are not the only way a cross-check can
+# still be an observation: the DERIVED side can also be waiting on evidence, which is what
+# PROVISIONAL_DERIVED_STATUSES below covers.
 PROVISIONAL_AGREEMENTS = (EXCHANGE_MISSING, EXCHANGE_NON_TERMINAL)
 
 TERMINAL_VERSION = f"{CROSSCHECK_VERSION}+terminal"
 PROVISIONAL_PREFIX = f"{CROSSCHECK_VERSION}+provisional."
 
 # What a cross-check OBSERVED, as opposed to what it concluded. The vintage digest is taken over exactly these,
-# so a provisional row is re-filed only when the exchange evidence itself moved.
+# so a provisional row is re-filed only when the evidence it saw actually moved.
+# The derived side is included because it is NOT always immutable -- see PROVISIONAL_DERIVED_STATUSES. When
+# only the exchange half was digested, a cross-check built on a season settlement that refused with "16 of 17
+# games not final" kept the same vintage after the count changed to "15 of 17", so the same identity carried
+# two different rows and the corpus refused the batch.
 EVIDENCE_FIELDS = ("agreement", "exchange_status", "exchange_result", "exchange_settlement_ts",
-                   "exchange_settlement_value", "exchange_expiration_value", "exchange_source", "reason")
+                   "exchange_settlement_value", "exchange_expiration_value", "exchange_source", "reason",
+                   "derived_status", "derived_reason", "derived_settled_yes", "derived_kind")
+# A DERIVED settlement that is itself an observation rather than a conclusion. The module opened by saying the
+# derived football settlement is immutable, and for a GAME it is -- a final score does not change, and a game
+# that is not final is deferred rather than settled. Season-scoped families are the exception: they are
+# examined from week 1 onward and refuse with a count of games not yet played, which falls every week. A
+# cross-check of one is therefore provisional on BOTH sides, and calling it terminal filed an observation as a
+# conclusion (nfl_edge/settlement/settle_v2.py).
+PROVISIONAL_DERIVED_STATUSES = ("REFUSED_SEASON_INCOMPLETE",)
 
 
-def evidence_tier(agreement: str | None) -> str:
-    return PROVISIONAL if agreement in PROVISIONAL_AGREEMENTS else TERMINAL
+def evidence_tier(agreement: str | None, derived_status: str | None = None) -> str:
+    """A cross-check is a conclusion only when NEITHER side is still waiting for evidence."""
+    if agreement in PROVISIONAL_AGREEMENTS or derived_status in PROVISIONAL_DERIVED_STATUSES:
+        return PROVISIONAL
+    return TERMINAL
+
+
+def row_tier(row: dict) -> str:
+    """The tier of a cross-check row, from its stamp if it has one and from its substance otherwise."""
+    return row.get("evidence_tier") or evidence_tier(row.get("agreement"), row.get("derived_status"))
 
 
 def evidence_vintage(row: dict) -> str:
@@ -121,7 +151,7 @@ def evidence_vintage(row: dict) -> str:
 
 def evaluation_version(row: dict) -> str:
     """The corpus identity this cross-check belongs under. See the module docstring."""
-    if evidence_tier(row.get("agreement")) == PROVISIONAL:
+    if row_tier(row) == PROVISIONAL:
         return PROVISIONAL_PREFIX + evidence_vintage(row)
     return TERMINAL_VERSION
 
@@ -133,7 +163,7 @@ def versioned(row: dict, *, now=None) -> dict:
     the same evidence is a no-op and the stored timestamp keeps naming the FIRST time that evidence was seen --
     which is exactly what makes it a usable ordering key for `rank()`.
     """
-    tier = evidence_tier(row.get("agreement"))
+    tier = row_tier(row)
     now = now or datetime.now(timezone.utc)
     return {**row, "evidence_tier": tier, "evidence_vintage": evidence_vintage(row),
             "provisional": tier == PROVISIONAL, "evaluation_version": evaluation_version(row),
@@ -151,7 +181,7 @@ def batch_manifest(rows) -> dict:
     for r in rows:
         v = r.get("evaluation_version")
         versions[str(v)] = versions.get(str(v), 0) + 1
-        t = r.get("evidence_tier") or evidence_tier(r.get("agreement"))
+        t = row_tier(r)
         tiers[t] = tiers.get(t, 0) + 1
     return {"by_evaluation_version": dict(sorted(versions.items())), "by_evidence_tier": dict(sorted(tiers.items()))}
 
@@ -162,7 +192,7 @@ def rank(row: dict) -> tuple:
     Classified by the row's own `agreement` rather than by its version string, so rows written before the
     lifecycle existed (no evaluation_version) are ranked on their substance like everything else.
     """
-    tier = row.get("evidence_tier") or evidence_tier(row.get("agreement"))
+    tier = row_tier(row)
     return (1 if tier == TERMINAL else 0, str(row.get("evaluated_at") or ""), str(row.get("evaluation_version") or ""))
 
 
@@ -326,7 +356,7 @@ class SummaryAccumulator:
         self.by_agreement[a] = self.by_agreement.get(a, 0) + 1
         # Every reading is counted under its evidence tier, provisional ones included. A ticker the exchange has
         # not resolved yet is a gap in COVERAGE, not an absence of evidence, and it must stay visible as such.
-        t = r.get("evidence_tier") or evidence_tier(r.get("agreement"))
+        t = row_tier(r)
         self.by_tier[t] = self.by_tier.get(t, 0) + 1
         fam = r.get("market_family") or "UNKNOWN"
         d = self.by_family.setdefault(fam, {"n": 0, AGREE: 0, DISAGREE: 0, EXCHANGE_MISSING: 0})
