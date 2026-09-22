@@ -172,7 +172,12 @@ def git(*args, cwd):
 
 @pytest.fixture
 def origin_and_repo(tmp_path):
-    """A real bare remote and a real clone, so the publisher's git usage is exercised, not imitated."""
+    """A real bare remote and a real clone, so the publisher's git usage is exercised, not imitated.
+
+    The clone stays on `main` and `market-data` lives only on the remote, exactly as it does on a runner: the
+    publisher checks the data branch out into its OWN worktree, and git refuses that if the branch is already
+    checked out somewhere else.
+    """
     origin, repo = tmp_path / "origin.git", tmp_path / "repo"
     subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
     subprocess.run(["git", "clone", "-q", str(origin), str(repo)], check=True)
@@ -181,8 +186,9 @@ def origin_and_repo(tmp_path):
     (repo / "seed").write_text("seed\n")
     git("add", "-A", cwd=repo)
     git("commit", "-q", "-m", "seed", cwd=repo)
-    git("branch", "-M", "market-data", cwd=repo)
-    git("push", "-q", "-u", "origin", "market-data", cwd=repo)
+    git("branch", "-M", "main", cwd=repo)
+    git("push", "-q", "-u", "origin", "main", cwd=repo)
+    git("push", "-q", "origin", "main:market-data", cwd=repo)
     src = repo / "data" / "shadow" / "v2"
     src.mkdir(parents=True)
     (src / "settlements.txt").write_text("413128 rows\n")
@@ -247,8 +253,8 @@ def test_a_hopeless_rejection_is_not_retried_eight_times(origin_and_repo):
 def test_unpushed_counts_the_commits_the_remote_does_not_have(origin_and_repo):
     _origin, repo = origin_and_repo
     mod = load_publisher()
-    assert mod.unpushed(str(repo), "market-data") == 0
+    assert mod.unpushed(str(repo), "main") == 0
     (repo / "another").write_text("x\n")
     git("add", "-A", cwd=repo)
     git("commit", "-q", "-m", "local only", cwd=repo)
-    assert mod.unpushed(str(repo), "market-data") == 1
+    assert mod.unpushed(str(repo), "main") == 1, "an unpushed commit must never read as nothing to publish"
