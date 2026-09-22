@@ -66,6 +66,20 @@ jobs:
         id: closes
         run: |
           python3 scripts/shadow_v2/pair_closes_v2.py --market-data /tmp/md --out data/shadow/v2 --github-output "$GITHUB_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/pair_closes_v2.log"
+      # THE IMMUTABLE EVIDENCE IS PUBLISHED BEFORE THE DERIVED REBUILD, not with it. The settlement, close and
+      # CLV batches are write-once evidence that costs forty minutes of settlement to produce; the research
+      # export is derived, rebuildable, the slowest thing in the job, and the part that grows fastest with the
+      # corpus. Publishing them in one commit meant the derived half could take the evidence down with it, and
+      # it did: run 35681158381 settled all fourteen week-2 Sunday games, then had the whole push rejected
+      # because that run's `2026_wk02.research.jsonl.gz` had reached 160.92 MB against GitHub's 100 MB file
+      # limit. Two publishes, evidence first, is the same rule the research step's `continue-on-error` already
+      # states for the case where it fails outright -- now it holds for running long or pushing too big as well.
+      - name: Publish the settlement, close and CLV batches, autopsies and scorecard
+        id: publish_evidence
+        if: steps.settle.outputs.status == 'WROTE' || steps.closes.outputs.status == 'WROTE' || steps.settle.outputs.index_written != '0'
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
+            --message "shadow v2 settlements ${{ steps.settle.outputs.batch_id }} (${{ steps.settle.outputs.written }} records) + closes ${{ steps.closes.outputs.written }}"
       # Derived, rebuildable research table + scorecard v3 + weekly report + health gate. Failure here must not
       # block publishing the immutable batches above.
       - name: Rebuild the research export, scorecard v3, weekly report and health gate
@@ -82,10 +96,11 @@ jobs:
           for f in settle_v2 pair_closes_v2 research_export_v2 weekly_report_v2; do
             if [ -f "$RUNNER_TEMP/$f.log" ]; then echo "::group::$f (last 60 lines)"; tail -60 "$RUNNER_TEMP/$f.log"; echo "::endgroup::"; fi
           done
-      # The projection index (data/shadow/v2/projection_index, one JSON per immutable projection file) is published
-      # with the batches so the next run reuses it instead of re-indexing the archive.
-      - name: Publish the settlement, close and CLV batches, autopsies, scorecard, research export and report
-        if: steps.settle.outputs.status == 'WROTE' || steps.closes.outputs.status == 'WROTE' || steps.settle.outputs.index_written != '0'
+      # The derived half, in its own commit. The projection index (data/shadow/v2/projection_index, one JSON per
+      # immutable projection file) rides with whichever publish runs first, so the next run reuses it instead of
+      # re-indexing the archive. A no-op when the rebuild changed nothing.
+      - name: Publish the research export, scorecard v3 and weekly report
+        if: steps.research.outcome == 'success'
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
-            --message "shadow v2 settlements ${{ steps.settle.outputs.batch_id }} (${{ steps.settle.outputs.written }} records) + closes ${{ steps.closes.outputs.written }}"
+            --message "shadow v2 research export + scorecard + weekly report (batch ${{ steps.settle.outputs.batch_id }})"

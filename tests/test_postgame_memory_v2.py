@@ -723,7 +723,7 @@ def test_the_settle_workflow_keeps_live_logs_and_publishes_the_index():
         assert "| tail" not in run, f"{name!r} still hides its output until exit"
         assert "tee" in run and "$RUNNER_TEMP" in run
     assert "Show where a failed driver died" in steps
-    assert "index_written" in steps["Publish the settlement, close and CLV batches, autopsies, scorecard, research export and report"]["if"]
+    assert "index_written" in steps["Publish the settlement, close and CLV batches, autopsies and scorecard"]["if"]
     assert doc["jobs"]["settle"]["timeout-minutes"] >= 60
 
 

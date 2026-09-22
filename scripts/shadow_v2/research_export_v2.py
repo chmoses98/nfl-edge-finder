@@ -37,6 +37,7 @@ from nfl_edge.evaluation import availability_events as AE                       
 from nfl_edge.evaluation import coverage as CV                                       # noqa: E402
 from nfl_edge.evaluation import execution_depth as XD                                # noqa: E402
 from nfl_edge.evaluation import research_record as RR, scorecard_v3 as S3            # noqa: E402
+from nfl_edge.evaluation import research_parts as RP                                 # noqa: E402
 from nfl_edge.evaluation.research_slim import Interner, slim                         # noqa: E402
 from nfl_edge.projection.store import INDEX_DIRNAME, ProjectionIndex, ScanStats, SidecarCache, iter_projections  # noqa: E402
 from nfl_edge.research import hypothesis_registry_v2 as HR                            # noqa: E402
@@ -204,13 +205,17 @@ def flat_row(row: dict, types: dict) -> dict:
     return out
 
 
-def write_parquet_in_chunks(flat_path: str, pq_path: str, types: dict, *, chunk_rows: int = 10000) -> dict:
+def write_parquet_in_chunks(flat_path: str, out: str, label: str, types: dict, *, chunk_rows: int = 10000) -> dict:
     """The parquet from the flat ndjson, one row group at a time, under a schema fixed from the observed types.
 
     polars' ndjson sink materialises the whole file (about 1.6x its size in memory) whatever the schema, which
     put the week-1 export back on the archive's scale. pyarrow writes row groups from bounded chunks instead.
     A column whose values were only ever null is a string column; a column mixing numbers and strings is
     written as strings (str() of the value), which polars would have refused outright.
+
+    Written in PARTS, rolled between row groups, because the remote refuses any file over 100 MB and this one
+    grows with the slate -- 45 MB through week 1, 77 MB once week 2's Sunday games were settled
+    (nfl_edge/evaluation/research_parts.py).
     """
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -229,15 +234,18 @@ def write_parquet_in_chunks(flat_path: str, pq_path: str, types: dict, *, chunk_
 
     schema = pa.schema([(k, arrow_type(v)) for k, v in types.items()])
     coerce = [k for k, v in types.items() if arrow_type(v) == pa.string() and (v - {"NoneType"}) - {"str"}]
-    writer = pq.ParquetWriter(pq_path, schema)
+    roll = RP.RollingWriter(out, label, "parquet",
+                            open_part=lambda p: pq.ParquetWriter(p, schema),
+                            close_part=lambda w: w.close())
     chunk, n, groups = [], 0, 0
 
     def flush():
         nonlocal groups
         if chunk:
-            writer.write_table(pa.Table.from_pylist(chunk, schema=schema))
+            roll.w.write_table(pa.Table.from_pylist(chunk, schema=schema))
             chunk.clear()
             groups += 1
+            roll.maybe_roll()          # between row groups only: a row group is never split across parts
     try:
         with open(flat_path) as f:
             for line in f:
@@ -253,8 +261,9 @@ def write_parquet_in_chunks(flat_path: str, pq_path: str, types: dict, *, chunk_
                     flush()
         flush()
     finally:
-        writer.close()
-    return {"rows": n, "row_groups": groups, "columns": len(schema), "coerced_to_string": sorted(coerce)}
+        paths = roll.close()
+    return {"rows": n, "row_groups": groups, "columns": len(schema), "coerced_to_string": sorted(coerce),
+            "parts": [os.path.basename(p) for p in paths]}
 
 
 def _ae_record(p: dict) -> dict:
@@ -297,7 +306,6 @@ def main(argv=None):
     sidecars = SidecarCache(roots)
     label = a.label or (f"{a.season}_wk{a.week:02d}" if a.week else f"{a.season}_all")
     os.makedirs(a.out, exist_ok=True)
-    jl = os.path.join(a.out, f"{label}.research.jsonl.gz")
     tmpdir = tempfile.mkdtemp(prefix="research_export_", dir=a.out)
     flat_path = os.path.join(tmpdir, "flat.ndjson")               # nested values json-encoded, for the parquet sink
     exec_path = os.path.join(tmpdir, "execution_rows.ndjson")
@@ -314,7 +322,12 @@ def main(argv=None):
     scan = ScanStats()
     n_rows = n_prob = n_players = 0
     per_unit = []
-    with gzip.GzipFile(jl, "wb", mtime=0) as raw, open(flat_path, "w") as flat:
+    # The research rows go out in parts: one file per week grew past the 100 MB the remote will accept, and
+    # took the week's settlement evidence down with it (nfl_edge/evaluation/research_parts.py).
+    jl_roll = RP.RollingWriter(a.out, label, "jsonl.gz",
+                               open_part=lambda p: gzip.GzipFile(p, "wb", mtime=0),
+                               close_part=lambda w: w.close())
+    with open(flat_path, "w") as flat:
         for unit in units:
             if unit == NO_GAME:
                 files = index.files_with_no_game_rows()
@@ -354,10 +367,11 @@ def main(argv=None):
                         ae_records.append(_ae_record(p))
             built.sort(key=lambda t: t[0])
             for _key, line, flat_line, s, exec_src in built:
-                raw.write(line + b"\n")
+                jl_roll.w.write(line + b"\n")
                 flat.write(flat_line + "\n")
                 slim_rows.append(s)
                 exec_acc.add(exec_src)
+            jl_roll.maybe_roll()       # at unit boundaries: one game's rows stay together in one part
             events.extend(AE.transitions(ae_records))
             n_rows += u_rows; n_players += u_players
             per_unit.append({"unit": unit or "NO_GAME", "rows": u_rows, "players": u_players, "files": len(files),
@@ -365,13 +379,17 @@ def main(argv=None):
             log(f"  {unit or 'NO_GAME'}: {u_rows} rows from {len(files)} file(s); joined closes {len(closes)}, clv {len(clvs)}, "
                 f"settlements {len(settlements)}, autopsies {len(autopsies)} (rss {_rss_mb():.0f} MB)")
             del built, closes, clvs, settlements, autopsies, crosschecks, ae_records
+    jl_parts = jl_roll.close()
+    jl = jl_parts[0] if jl_parts else RP.part_path(a.out, label, "jsonl.gz", 1)
+    log(f"research rows: {len(jl_parts)} part(s) -> {', '.join(f'{os.path.basename(p)} {os.path.getsize(p) / 2**20:.0f} MB' for p in jl_parts)}")
     exec_tmp.close()
     rows = slim_rows
     pq, pq_info = None, None
     try:
-        pq = os.path.join(a.out, f"{label}.research.parquet")
-        pq_info = write_parquet_in_chunks(flat_path, pq, flat_types)
-        log(f"parquet: {pq_info['rows']} rows in {pq_info['row_groups']} row groups, {pq_info['columns']} columns (rss {_rss_mb():.0f} MB)")
+        pq_info = write_parquet_in_chunks(flat_path, a.out, label, flat_types)
+        pq = RP.part_path(a.out, label, "parquet", 1)
+        log(f"parquet: {pq_info['rows']} rows in {pq_info['row_groups']} row groups, {pq_info['columns']} columns, "
+            f"{len(pq_info['parts'])} part(s) (rss {_rss_mb():.0f} MB)")
     except Exception as e:  # noqa: BLE001
         log(f"parquet export skipped: {e}")
         pq = None
@@ -440,7 +458,9 @@ def main(argv=None):
                      "projection_scan": scan.to_dict(), "scan_reconciles": scan.reconciles(), "index": isum,
                      "sidecars": sidecars.stats(), "projection_rows": n_rows, "probability_rows": n_prob, "player_rows": n_players},
            "perf": {"seconds": round(time.time() - t0, 1), "max_rss_mb": round(_rss_mb(), 1)},
-           "files": {"jsonl": jl, "parquet": pq, "parquet_info": pq_info}}
+           "files": {"jsonl": jl, "parquet": pq, "parquet_info": pq_info,
+                     "jsonl_parts": [os.path.basename(x) for x in jl_parts],
+                     "parquet_parts": (pq_info or {}).get("parts") or []}}
     json.dump(cov, open(os.path.join(a.out, f"{label}.export_summary.json"), "w"), indent=1, default=str)
     log(json.dumps({k: v for k, v in cov.items() if k != "scope"}, indent=1, default=str))
     log(json.dumps({"scope": {k: v for k, v in cov["scope"].items() if k != "per_unit"}}, indent=1, default=str))

@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
+from nfl_edge.evaluation import research_parts as RP                                    # noqa: E402
 from nfl_edge.evaluation import scorecard_v3 as S3                                      # noqa: E402
 from nfl_edge.evaluation.clv import SIGN_CONVENTION                                     # noqa: E402
 from nfl_edge.projection import horizons as HZ                                          # noqa: E402
@@ -43,18 +44,24 @@ def load_rows(path):
         return [json.loads(l) for l in f if l.strip()]
 
 
-def load_slim_rows(path):
+def load_slim_rows(paths):
     """The week's research rows reduced to the fields the scorecard and the health gate read, one row at a time.
 
     A full research row is several kilobytes of Python objects and a week is a million of them; the report
-    reads a few dozen scalar fields, so it streams the file and keeps a fixed-slot summary per row."""
+    reads a few dozen scalar fields, so it streams the file and keeps a fixed-slot summary per row.
+
+    Takes every PART of the week's export, in order: one file per week outgrew what the remote will accept
+    (nfl_edge/evaluation/research_parts.py). A week written before the split is a single part and reads the
+    same way.
+    """
     from nfl_edge.evaluation.research_slim import Interner, slim
     intern = Interner()
     out = []
-    with gzip.open(path, "rt") as f:
-        for line in f:
-            if line.strip():
-                out.append(slim(json.loads(line), intern))
+    for path in ([paths] if isinstance(paths, str) else paths):
+        with gzip.open(path, "rt") as f:
+            for line in f:
+                if line.strip():
+                    out.append(slim(json.loads(line), intern))
     return out
 
 
@@ -172,10 +179,10 @@ def main(argv=None):
     a = ap.parse_args(argv)
     label = f"{a.season}_wk{a.week:02d}"
     md = os.path.join(a.market_data, "data", "shadow", "v2")
-    path = os.path.join(a.research, f"{label}.research.jsonl.gz")
-    if not os.path.exists(path):
-        path = os.path.join(md, "research", f"{label}.research.jsonl.gz")
-    rows = load_slim_rows(path) if os.path.exists(path) else []
+    paths = RP.parts(a.research, label, "jsonl.gz") or RP.parts(os.path.join(md, "research"), label, "jsonl.gz")
+    if paths:
+        print(f"research rows from {len(paths)} part(s): {', '.join(os.path.basename(p) for p in paths)}", flush=True)
+    rows = load_slim_rows(paths) if paths else []
     board_rows = []
     for root in [a.board, os.path.join(md, "board")]:
         if root and os.path.isdir(root):
