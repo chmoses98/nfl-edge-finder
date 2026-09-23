@@ -105,7 +105,7 @@ def health(rows: list, board_rows: list, markers: list, season: int, week: int) 
                                         "role_known_pct": pct(sum(1 for r in player_p if r.get("ctx_role_certainty") in ("HIGH", "MEDIUM")), len(player_p)),
                                         "availability_known_pct": pct(sum(1 for r in player_p if r.get("ctx_availability_state") not in (None, "UNKNOWN")), len(player_p)),
                                         "weather_known_pct": pct(sum(1 for r in player_p if r.get("ctx_weather_state") == "KNOWN"), len(player_p))},
-            "AUTOPSY_COVERAGE": {"data_arm_settled": sum(1 for r in with_p if r.get("model_arm") == "DATA_PLAYER_DIST" and r.get("settled_yes") is not None),
+            "AUTOPSY_COVERAGE": {"data_arm_settled": sum(1 for r in with_p if r.get("model_arm") in ("DATA_PLAYER_DIST", "DATA_PLAYER_V3") and r.get("settled_yes") is not None),
                                  "autopsied": sum(1 for r in with_p if r.get("autopsy_classification")), "by_class": dict(Counter(r.get("autopsy_classification") for r in with_p if r.get("autopsy_classification")))},
             "UNSUPPORTED_RETENTION": {"board_rows_retained": len(board_rows), "unsupported_states": dict(Counter(b.get("terminal_state") for b in nfl_board if b.get("terminal_state") not in ("PRICED", "PROJECTABLE_NOT_YET_VALIDATED")))}}
 
