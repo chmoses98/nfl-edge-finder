@@ -29,6 +29,12 @@ V3_INPUTS_VERSION = "player-inputs-3.0.0"
 COMPLETE_AFTER_HOURS = 4.0
 
 
+def pregame_games(kickoffs: dict, cutoff: datetime) -> set:
+    """The games a prospective row may be built for: kickoff strictly after the cutoff. A played game's props can
+    stay listed (quoted POST_KICKOFF) for days; they are never "upcoming", and must never be kept out of history."""
+    return {g for g, k in kickoffs.items() if k is not None and k > cutoff}
+
+
 def completed_current_season(hist: pd.DataFrame, target_season: int, kickoffs: dict, cutoff: datetime,
                              exclude_games=()) -> tuple[pd.DataFrame, dict]:
     """Keep every prior-season row, and target-season rows only for games finished before the cutoff."""

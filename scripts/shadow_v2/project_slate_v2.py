@@ -1004,8 +1004,13 @@ def build_player_v3(P: PlayerArms, a, prows, player_map, sched, positions, envs,
         log(f"::warning::v3: target-season statistics unavailable ({type(exc).__name__}); v3 uses prior seasons only")
         hist_all = pdist.load_player_games(ROOT, range(2013, a.target_season))
         cur_state = f"unavailable: {type(exc).__name__}"
-    upcoming_games = {q.get("game_id") for q in prows}
-    hist_v3, info = PV3.completed_current_season(hist_all, a.target_season, kick, run_ts, exclude_games=upcoming_games)
+    # Only games that have NOT kicked off get a prospective row. A played game's props can stay listed for days
+    # (they are quoted POST_KICKOFF and never priced); treating them as "upcoming" excluded every played 2026 game
+    # from the history -- the first production run used 0 current-season games -- and gave each a phantom
+    # prospective row that decayed the player's EWMA. The history bound is the completion rule alone.
+    pregame = PV3.pregame_games(kick, run_ts)
+    prows = [q for q in prows if q.get("game_id") in pregame]
+    hist_v3, info = PV3.completed_current_season(hist_all, a.target_season, kick, run_ts, exclude_games=pregame)
     info["current_season_state"] = cur_state
     if info.get("newest_game_kickoff"):
         ledger.record("player_stats_current_season", info["newest_game_kickoff"], kind="nflverse",
