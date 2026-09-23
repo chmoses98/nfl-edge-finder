@@ -1,0 +1,42 @@
+name: Workflow health (run outcomes)
+
+# Names what actually happened to every run of the last 48 hours: SUCCESS, FAILED_BY_CODE, PUBLICATION_FAILED,
+# TIMED_OUT, CANCELLED_BY_CONCURRENCY or EXTERNALLY_CANCELLED (scripts/ops/workflow_outcomes.py). GitHub reports a
+# job timeout, a superseded pending run and an explicit cancel all as "cancelled"; on 2026-09-22 telling them apart
+# took an hour of log reading. The table is written to the run summary and the JSON is kept on market-data.
+# Read-only against the Actions API; it changes no workflow and cancels nothing.
+
+on:
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: workflow-health
+  cancel-in-progress: true
+
+jobs:
+  outcomes:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Classify every recent run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ops/workflow_outcomes.py --repo "${{ github.repository }}" --hours 48 --out data/ops/workflow_outcomes
+      - name: Keep the classification on market-data
+        continue-on-error: true
+        run: python3 scripts/ci/publish_market_data.py --src data/ops/workflow_outcomes --message "workflow outcomes $(date -u +%Y-%m-%dT%H:%M:%SZ)"

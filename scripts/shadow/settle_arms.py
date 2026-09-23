@@ -37,13 +37,23 @@ from nfl_edge.shadow import evaluation_store as ST                            # 
 from nfl_edge.shadow.quote_history import load_game_quotes                    # noqa: E402
 
 
-def bank_from_schedule(target_season: int, games=None) -> ResidualBank:
+def bank_from_schedule(target_season: int, games=None, before_gameday: str | None = None) -> ResidualBank:
     """The incumbent's residual population from the bronze schedule alone (no play-by-play needed here).
 
     `games` may be supplied (a polars frame in the silver `games` shape); by default the bronze games.csv the
-    workflow has just downloaded is read. Tests inject a frame, so the closing centre needs no live file."""
+    workflow has just downloaded is read. Tests inject a frame, so the closing centre needs no live file.
+
+    `before_gameday` bounds the population to games played on an EARLIER calendar date than the game being
+    evaluated. Without it the bank was "every game with a result at the moment the job ran", so the closing
+    centre of an already-settled game drifted each time a later game finished: the Week-1 batches published on
+    2026-09-20 were contradicted by every rerun once the Week-2 results landed on 2026-09-22, the run failed
+    CONFLICT, and nothing -- the Week-2 evaluations included -- was published from then on. Bounded, the
+    evaluation of a game is a function of that game, not of the day it was computed."""
     if games is None:
         games = SV.load_games()
+    if before_gameday is not None and "gameday" in games.columns:
+        import polars as pl
+        games = games.filter(pl.col("gameday").cast(pl.Utf8) < str(before_gameday))
     bank, _meta = IC.incumbent_bank(games, target_season)
     return bank
 
@@ -113,10 +123,18 @@ def main():
     ccorpus = ST.EvaluationCorpus(a.out, read_roots=[published], suffix=AE.CONTRACT_SUFFIX)
     batch = ST.batch_id(now)
     capture_root = os.path.join(a.market_data, "data", "kalshi", "capture")
-    bank = None
     written = unchanged = conflicts = 0
-    deferred, done = [], []
+    deferred, done, skipped = [], [], []
     for gid in sorted(by_game):
+        # A game that already holds a published batch under this evaluation version is not re-derived on the
+        # automatic path: its evidence is immutable, and re-deriving it can only either agree (a no-op) or
+        # contradict it with a later state of the world (a CONFLICT that blocks every OTHER game in the run).
+        # An operator who wants the contradiction check runs it explicitly with --game, which still fails
+        # closed exactly as before.
+        if not a.game and gcorpus.evaluated_prediction_ids(gid, a.eval_version):
+            skipped.append(gid)
+            print(f"  SKIP {gid}: already evaluated under {a.eval_version} (published batch is immutable)", flush=True)
+            continue
         game = book.games.get(gid)
         state, reason = book.readiness(gid, needs_player_stats=False, now=now)
         if state != READY:
@@ -130,8 +148,7 @@ def main():
             qs = quotes.get(t, [])
             pregame = [q for q in qs if q.get("observed_ts") is not None and q["observed_ts"] < kickoff_ts]
             closes[t] = (E.pick_close(qs, kickoff_ts), len(pregame))
-        if bank is None:
-            bank = bank_from_schedule(int(game.season or now.year))
+        bank = bank_from_schedule(int(game.season or now.year), before_gameday=(game.kickoff_utc or "")[:10] or None)
         liquid = {t: c for t, (c, _n) in closes.items()
                   if c and c.get("yes_bid") is not None and c.get("yes_ask") is not None}
         close_center = AE.closing_center(liquid, crecs, bank, game.home_team, game.away_team)
@@ -166,7 +183,7 @@ def main():
         done.append(gid)
     status = "CONFLICT" if conflicts else ("WROTE" if written else "NO_OP")
     summary = {"batch_id": batch, "evaluation_version": a.eval_version, "games_done": done, "deferred": deferred,
-               "written": written, "unchanged": unchanged, "conflicts": conflicts, "status": status, "dry_run": a.dry_run}
+               "skipped_already_evaluated": skipped, "written": written, "unchanged": unchanged, "conflicts": conflicts, "status": status, "dry_run": a.dry_run}
     print(json.dumps(summary, indent=1, default=str))
     _emit(a.github_output, {"status": status, "written": written, "unchanged": unchanged, "games_deferred": len(deferred),
                             "batch_id": batch})

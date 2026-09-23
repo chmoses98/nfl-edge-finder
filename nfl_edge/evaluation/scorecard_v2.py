@@ -161,6 +161,24 @@ def segment(rows, key, min_n=1):
     return {k: metric_block(v) for k, v in sorted(by.items()) if len(v) >= min_n}
 
 
+def effective_counts(rs: list) -> dict:
+    """Physical evidence rows vs effective predictions (see _ClassAcc.season_best); the batch twin of the accumulator."""
+    best, n_game, n_game_settled = {}, 0, 0
+    for r in rs:
+        ok = _f(r.get("settled_yes")) is not None and _f(r.get("contract_value")) is not None
+        if r.get("evidence_tier") is not None and r.get("prediction_id"):
+            rank = (1 if r.get("evidence_tier") == "TERMINAL" else 0, str(r.get("evaluated_at") or ""))
+            cur = best.get(r["prediction_id"])
+            if cur is None or rank > cur[0]:
+                best[r["prediction_id"]] = (rank, ok)
+        else:
+            n_game += 1; n_game_settled += int(ok)
+    n_eff = n_game + len(best)
+    n_eff_settled = n_game_settled + sum(1 for (_rk, ok) in best.values() if ok)
+    return {"n_evidence_rows": len(rs), "n_effective_predictions": n_eff, "n_settled_effective": n_eff_settled,
+            "n_unresolved_effective": n_eff - n_eff_settled, "n_superseded_provisional_rows": len(rs) - n_eff}
+
+
 def build_scorecard(rows: list, *, schedule=None, as_of=None, min_segment_n: int = 5) -> dict:
     by_class = defaultdict(list)
     for r in rows:
@@ -168,7 +186,7 @@ def build_scorecard(rows: list, *, schedule=None, as_of=None, min_segment_n: int
     out = {"version": SCORECARD_VERSION, "n_rows": len(rows), "by_evidence_class": {}}
     for cls, rs in by_class.items():
         settled = [r for r in rs if _f(r.get("settled_yes")) is not None and _f(r.get("contract_value")) is not None]
-        block = {"n_settled": len(settled), "n_unsettled": len(rs) - len(settled), "overall": metric_block(settled),
+        block = {"n_settled": len(settled), "n_unsettled": len(rs) - len(settled), **effective_counts(rs), "overall": metric_block(settled),
                  "executable": executable_block(settled, schedule, as_of), "segments": {k: segment(settled, k, min_segment_n) for k in SEGMENTS}}
         # arm-vs-arm on the same contracts (paired), per stat family
         block["paired_arms"] = paired_arms(settled)
@@ -420,10 +438,16 @@ class _PairedAcc:
 
 
 class _ClassAcc:
-    __slots__ = ("n_rows", "n_settled", "overall", "exec", "segments", "paired")
+    __slots__ = ("n_rows", "n_settled", "overall", "exec", "segments", "paired", "season_best", "n_game_rows", "n_game_settled")
 
     def __init__(self, schedule, as_of):
         self.n_rows = self.n_settled = 0
+        # EFFECTIVE IDENTITY. A season contract's "not decided yet" is filed once per evidence vintage (every run
+        # until the season decides it), so the physical corpus holds many rows per prediction and n_rows -
+        # n_settled counted every superseded vintage as an unsettled prediction. Game rows are one per
+        # prediction; season rows keep only their best (terminal over provisional, then latest) per prediction.
+        self.season_best = {}
+        self.n_game_rows = self.n_game_settled = 0
         self.overall = _MetricAcc()
         self.exec = _ExecAcc(schedule, as_of)
         self.segments = {k: {} for k in SEGMENTS}
@@ -450,7 +474,16 @@ class ScorecardAccumulator:
         if c is None:
             c = self.by_class[cls] = _ClassAcc(self.schedule, self.as_of)
         c.n_rows += 1
-        if _f(r.get("settled_yes")) is None or _f(r.get("contract_value")) is None:
+        settled_ok = _f(r.get("settled_yes")) is not None and _f(r.get("contract_value")) is not None
+        if r.get("evidence_tier") is not None and r.get("prediction_id"):
+            rank = (1 if r.get("evidence_tier") == "TERMINAL" else 0, str(r.get("evaluated_at") or ""))
+            cur = c.season_best.get(r["prediction_id"])
+            if cur is None or rank > cur[0]:
+                c.season_best[r["prediction_id"]] = (rank, settled_ok)
+        else:
+            c.n_game_rows += 1
+            c.n_game_settled += int(settled_ok)
+        if not settled_ok:
             return
         c.n_settled += 1
         c.overall.add(r)
@@ -483,7 +516,15 @@ class ScorecardAccumulator:
         self.end_game()
         out = {"version": SCORECARD_VERSION, "n_rows": self.n_rows, "by_evidence_class": {}}
         for cls, c in self.by_class.items():
-            block = {"n_settled": c.n_settled, "n_unsettled": c.n_rows - c.n_settled, "overall": c.overall.finish(),
+            n_eff = c.n_game_rows + len(c.season_best)
+            n_eff_settled = c.n_game_settled + sum(1 for (_rk, ok) in c.season_best.values() if ok)
+            block = {"n_settled": c.n_settled, "n_unsettled": c.n_rows - c.n_settled,
+                     # physical rows vs effective predictions: n_unsettled above counts every provisional season
+                     # vintage; these count each prediction once, at its best evidence
+                     "n_evidence_rows": c.n_rows, "n_effective_predictions": n_eff, "n_settled_effective": n_eff_settled,
+                     "n_unresolved_effective": n_eff - n_eff_settled,
+                     "n_superseded_provisional_rows": c.n_rows - n_eff,
+                     "overall": c.overall.finish(),
                      "executable": c.exec.finish(),
                      "segments": {k: {v: m.finish() for v, (m, cnt) in sorted(c.segments[k].items()) if cnt >= self.min_segment_n}
                                   for k in SEGMENTS}}
@@ -505,7 +546,11 @@ def render(sc: dict, title="Shadow v2 scorecard") -> str:
     L = [f"# {title}", "", f"scorecard {sc['version']}; rows {sc['n_rows']}", ""]
     for cls, b in sc["by_evidence_class"].items():
         o = b["overall"]
-        L += [f"## Evidence class: {cls}", "", f"settled {b['n_settled']}, unsettled {b['n_unsettled']}", ""]
+        L += [f"## Evidence class: {cls}", "",
+              (f"effective predictions {b['n_effective_predictions']}: settled {b['n_settled_effective']}, unresolved "
+               f"{b['n_unresolved_effective']}; evidence rows {b['n_evidence_rows']} (superseded provisional season vintages "
+               f"{b['n_superseded_provisional_rows']})" if "n_effective_predictions" in b else
+               f"settled {b['n_settled']}, unsettled {b['n_unsettled']}"), ""]
         if o.get("n"):
             L += ["| metric | model | market (mid) |", "|---|---|---|",
                   f"| n | {o['n']} | {o.get('market_n', '-')} |", f"| Brier | {_fmt(o['brier'])} | {_fmt(o.get('market_brier'))} |",

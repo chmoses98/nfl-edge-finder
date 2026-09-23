@@ -630,3 +630,39 @@ state, every output file and the exit code. Only additive manifest keys and the 
 No capture code was refactored for it. Mutating `main()`'s inline sort leaves the old unit test green and fails
 the new one, which is the whole point.
 
+
+---
+
+## 14. Player model v3, role context, abstention, production eligibility (2026-09-23)
+
+The 2026 week-2 player arm trailed the market by +0.036 Brier. The cause was input wiring, not modelling
+(research/player_engine_v3/RESULTS.md): `mask_target_season` blanks every target-season line (correctly), and the
+data arm's `design()` read the NaN implied total as **0.0** -- a zero-point team -- and its history stopped at the
+previous season. Held out on 2025, the first defect alone reproduces the whole deficit.
+
+* **DATA_PLAYER_V3** (`data-player-dist-3.0.0`, `nfl_edge/engines/player/prospective_v3.py`, `features_v3.py`):
+  market-implied game environment at the snapshot (no environment -> refusal, never a zero), completed
+  current-season games (kicked off >= 4 h before the cutoff), depth-chart QB1 as the starting quarterback (passing
+  statistics were DATA_UNAVAILABLE on every pregame row before), recency and structural-opportunity features.
+  **HYBRID_PLAYER_V3** (`hybrid-player-dist-2.0.0`) is the 0.85-market mixture. Historically v3 improves on v2 by
+  0.0013 Brier and still trails the market by +0.0086; no hybrid beats the market. Both are RESEARCH_ONLY. The v2
+  arms keep running unchanged for continuity and are DISABLED for every consumer.
+* **Role context** (`nfl_edge/context/role.py`, context-1.3.0): the depth chart is now downloaded by both v2 data
+  workflows (it never was: 0% coverage), read point-in-time per team, keyed by each player's best OFFENSIVE
+  placement (a kick returner is no longer charted as `KR`), with a derived group order, role class and a conservative
+  role certainty (HIGH / MEDIUM / LOW / UNKNOWN) and its reasons.
+* **Injury coverage, honestly**: `injury_known_pct` counted `NOT_LISTED` while the context emits
+  `NOT_LISTED_AT_THIS_VINTAGE`, so it silently measured "percent LISTED". It now counts a designation or absence from
+  a MATURE report as known and reports the strict and weak shares beside it.
+* **Abstention** (`nfl_edge/engines/player/abstention.py`, schema projection-2.3.0 `abstention`): one state per
+  player projection; large disagreement (> 5pp, historically where the model is worst) is PROJECTION_LOW_CONFIDENCE.
+* **Production eligibility** (docs/PRODUCTION_ELIGIBILITY.md): game-clustered, written rules, machine-readable
+  `data/shadow/v2/eligibility/latest.json`, consumed by RUN NFL.
+* **Autopsy 3.1.0**: a component outside its range is a cause only when there was a large miss (67% of week-2
+  SNAP_MISS rows were not); the summary also counts distinct player-game-statistics. Data-arm v3 is autopsied too.
+* **Horizon delivery** (`nfl_edge/evaluation/capture_health.py`) is measured against the schedule; `missed_markers`
+  could only ever say 0. The **horizon conductor** (`shadow-v2-horizon-conductor.yml`) dispatches the freeze when due,
+  because GitHub started the `*/15` horizon cron only every 2-5 hours (on 2026-09-20 the 1pm cluster's T-90m freeze
+  never happened).
+* **Scorecard effective identities**: provisional season vintages are evidence rows, not unsettled predictions;
+  `n_effective_predictions / n_settled_effective / n_unresolved_effective / n_superseded_provisional_rows`.

@@ -32,6 +32,7 @@ import pandas as pd
 
 from nfl_edge.engines.player.dist import LatticeDistribution
 from nfl_edge.engines.player.features_v2 import V2_FEATURES
+from nfl_edge.engines.player.features_v3 import V3_EXTRA
 from nfl_edge.research import player_distributions as pdist
 
 VERSION = "data-player-dist-2.0.0"
@@ -75,8 +76,14 @@ def ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# v3 (data-player-dist-3.0.0): v2 + recency and structural opportunity (nfl_edge/engines/player/features_v3.py)
+V3_DESIGN = V2_DESIGN + list(V3_EXTRA)
+FEATURE_SETS = {"v1": V1_DESIGN, "v2": V2_DESIGN, "v3": V3_DESIGN}
+VERSION_BY_FEATURE_SET = {"v1": VERSION, "v2": VERSION, "v3": "data-player-dist-3.0.0"}
+
+
 def design(df: pd.DataFrame, spec: pdist.StatSpec, col: str, feature_set: str) -> np.ndarray:
-    cols = V1_DESIGN if feature_set == "v1" else V2_DESIGN
+    cols = FEATURE_SETS.get(feature_set, V2_DESIGN)
     X = [np.ones(len(df))]
     for c in cols:
         if c == "ewma_stat":
@@ -209,7 +216,7 @@ def fit_bundle(hist: pd.DataFrame, target_season: int, *, feature_set: str = "v2
                verbose=print) -> DataPlayerBundle:
     families = {**DEFAULT_FAMILY, **(families or {})}
     stats = stats or list(STATS) + ["rush_rec_yards"]
-    b = DataPlayerBundle(VERSION, target_season, feature_set)
+    b = DataPlayerBundle(VERSION_BY_FEATURE_SET.get(feature_set, VERSION), target_season, feature_set)
     hist = ensure_columns(hist)
     for stat in stats:
         spec_name = STATS.get(stat, stat)

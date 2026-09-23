@@ -565,7 +565,11 @@ SCIENTIFIC_PINS = {
     "nfl_edge/handicap/gates.py": "2821835860e32f3e",                # the real-money gates
     "nfl_edge/settlement/settle.py": "1f24b396ae07569a",             # settlement
     "nfl_edge/settlement/semantics.py": "e877fba94b93a122",          # contract value vs event probability
-    "scripts/shadow/settle_arms.py": "3727927428c0ef1d",             # arm settlement
+    # DELIBERATE, REVIEWED EDIT (2026-09-23): the closing-centre bank is bounded to games played before the
+    # evaluated game's date, and the automatic path skips a game that already holds a published batch under the
+    # current evaluation version. Before, the bank was "every result at run time", so every rerun after the Week-2
+    # results landed contradicted the published Week-1 batches and the CONFLICT blocked all Week-2 evaluations.
+    "scripts/shadow/settle_arms.py": "ad6b9b1af7c67481",             # arm settlement
     "scripts/shadow/three_arm_snapshot.py": "a058813cf06dcc96",      # the three-arm experiment snapshot
 }
 # `nfl_edge/pricing/` is pinned as a TREE (filenames + contents), so adding or deleting a pricer is as loud

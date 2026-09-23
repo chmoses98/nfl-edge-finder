@@ -22,7 +22,9 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
-SCHEMA_VERSION = "projection-2.2.0"
+# 2.3.0: `abstention` -- the projection's own statement of whether it knows enough to be an input
+# (nfl_edge/engines/player/abstention.py). Empty on non-player records.
+SCHEMA_VERSION = "projection-2.3.0"
 PROSPECTIVE_FROZEN = "PROSPECTIVE_FROZEN"
 HISTORICAL_RESEARCH = "HISTORICAL_RESEARCH"
 VOLATILE_FIELDS = ("generated_at",)
@@ -146,6 +148,9 @@ class ProjectionRecord:
     # market/model timing: whether this row is a like-for-like comparison or the model read later
     # information than the market it is scored against. Never only in lineage -- research filters on it.
     information_sync: dict = field(default_factory=dict)
+    # Abstention state, reasons and production_eligible (schema 2.3.0). A probability under an ABSTAIN_* state is
+    # kept for prospective scoring of the rule itself and must never be used as an input.
+    abstention: dict = field(default_factory=dict)
     # ---- research-only comparisons (never "edge")
     model_market_disagreement_mid: float | None = None   # contract_value - mid  (probability benchmarking)
     yes_ask_disagreement: float | None = None            # contract_value - yes_ask (economics side, pre-fee)

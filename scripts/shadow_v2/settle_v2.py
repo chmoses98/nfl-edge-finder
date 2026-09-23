@@ -250,14 +250,14 @@ def main(argv=None):
             # autopsy v2: ONE AUTOPSY PER ELIGIBLE PREDICTION (every DATA_PLAYER_DIST record with a probability),
             # keyed by prediction_id; MARKET_PLAYER_DIST is excluded because a causal diagnosis of a ladder-implied
             # price would be manufactured, not measured. The sidecar is fetched for this snapshot only.
-            if r.get("model_arm") == "DATA_PLAYER_DIST":
+            if r.get("model_arm") in ("DATA_PLAYER_DIST", "DATA_PLAYER_V3"):
                 side_car = sidecars.get(r.get("snapshot_id")) or {}
                 full_ctx = (side_car.get("player_contexts") or {}).get((r.get("player_context") or {}).get("player_context_id"))
                 d = AU.diagnose({**r, "team": (r.get("feature_lineage") or {}).get("team")}, book, now=now, context=full_ctx)
                 au_planner.offer({"prediction_id": r["record_id"], "evaluation_version": AU.AUTOPSY_VERSION,
                                   "evaluated_at": now.isoformat(), "model_arm": r.get("model_arm"),
                                   "horizon_label": r.get("horizon_label"), "snapshot_id": r.get("snapshot_id"),
-                                  "autopsy_denominator": "one per eligible DATA_PLAYER_DIST prediction (every horizon)", **d})
+                                  "autopsy_denominator": "one per eligible data-arm prediction (DATA_PLAYER_DIST / DATA_PLAYER_V3, every horizon)", **d})
                 n_au += 1
         acct.examined += n_prob - n_season_deferred
         acct.game_dispatched += n_disp

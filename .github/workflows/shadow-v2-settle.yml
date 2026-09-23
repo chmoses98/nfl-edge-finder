@@ -90,10 +90,12 @@ jobs:
           echo "active week: $WEEK"
           python3 scripts/shadow_v2/research_export_v2.py --market-data /tmp/md --staging data/shadow/v2 --out data/shadow/v2/research --season 2026 --week "$WEEK" 2>&1 | tee "$RUNNER_TEMP/research_export_v2.log"
           python3 scripts/shadow_v2/weekly_report_v2.py --market-data /tmp/md --research data/shadow/v2/research --out data/shadow/v2/reports --season 2026 --week "$WEEK" 2>&1 | tee "$RUNNER_TEMP/weekly_report_v2.log"
+          # fail-soft: a failed eligibility build must never cost the week its research publication
+          python3 scripts/shadow_v2/eligibility_v2.py --reports data/shadow/v2/reports --market-data /tmp/md --out data/shadow/v2/eligibility 2>&1 | tee "$RUNNER_TEMP/eligibility_v2.log" || echo "::warning::production-eligibility build failed; the previous latest.json stays in force"
       - name: Show where a failed driver died
         if: failure() || steps.research.outcome == 'failure'
         run: |
-          for f in settle_v2 pair_closes_v2 research_export_v2 weekly_report_v2; do
+          for f in settle_v2 pair_closes_v2 research_export_v2 weekly_report_v2 eligibility_v2; do
             if [ -f "$RUNNER_TEMP/$f.log" ]; then echo "::group::$f (last 60 lines)"; tail -60 "$RUNNER_TEMP/$f.log"; echo "::endgroup::"; fi
           done
       # The derived half, in its own commit. The projection index (data/shadow/v2/projection_index, one JSON per

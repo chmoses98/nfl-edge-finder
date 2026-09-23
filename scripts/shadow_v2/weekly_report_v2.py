@@ -24,9 +24,11 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 from nfl_edge.evaluation import research_parts as RP                                    # noqa: E402
+from nfl_edge.evaluation import eligibility as EL                                       # noqa: E402
 from nfl_edge.evaluation import scorecard_v3 as S3                                      # noqa: E402
 from nfl_edge.evaluation.clv import SIGN_CONVENTION                                     # noqa: E402
 from nfl_edge.projection import horizons as HZ                                          # noqa: E402
+from nfl_edge.shadow_v2 import context as CX                                           # noqa: E402
 
 REPORT_VERSION = "weekly-report-1.0.0"
 
@@ -91,8 +93,16 @@ def health(rows: list, board_rows: list, markers: list, season: int, week: int) 
                                        "by_quality": dict(Counter(r.get("close_quality") for r in kicked)), "missing_reasons": dict(Counter(r.get("close_reason") for r in kicked if r.get("close_status") in (None, "CLV_CLOSE_MISSING")).most_common(8))},
             "CLV_COVERAGE": {"kicked_off_rows": len(kicked), "clv_ok": sum(1 for r in kicked if r.get("clv_status") == "CLV_OK"), "pct_clv": pct(sum(1 for r in kicked if r.get("clv_status") == "CLV_OK"), len(kicked)),
                              "no_view": sum(1 for r in kicked if r.get("clv_status") == "NO_VIEW")},
-            "PLAYER_CONTEXT_COVERAGE": {"player_probability_rows": len(player_p), "injury_known_pct": pct(sum(1 for r in player_p if r.get("ctx_injury_state") in ("LISTED", "NOT_LISTED")), len(player_p)),
+            "PLAYER_CONTEXT_COVERAGE": {"player_probability_rows": len(player_p),
+                                        # known = a designation on the report, or absence from a MATURE report; the
+                                        # strict "listed" share and the weak "absent from a partial report" share are
+                                        # reported beside it so neither reading can hide the other (context.injury_knowledge)
+                                        "injury_known_pct": pct(sum(1 for r in player_p if CX.injury_knowledge(r.get("ctx_injury_state"), r.get("ctx_injury_report_maturity")) in (CX.INJURY_DESIGNATION_KNOWN, CX.INJURY_NO_DESIGNATION)), len(player_p)),
+                                        "injury_listed_pct": pct(sum(1 for r in player_p if r.get("ctx_injury_state") == "LISTED"), len(player_p)),
+                                        "injury_weak_pct": pct(sum(1 for r in player_p if CX.injury_knowledge(r.get("ctx_injury_state"), r.get("ctx_injury_report_maturity")) == CX.INJURY_WEAK), len(player_p)),
                                         "depth_chart_known_pct": pct(sum(1 for r in player_p if r.get("ctx_depth_chart_rank") is not None), len(player_p)),
+                                        "role_certainty": dict(Counter(r.get("ctx_role_certainty") or "ABSENT" for r in player_p)),
+                                        "role_known_pct": pct(sum(1 for r in player_p if r.get("ctx_role_certainty") in ("HIGH", "MEDIUM")), len(player_p)),
                                         "availability_known_pct": pct(sum(1 for r in player_p if r.get("ctx_availability_state") not in (None, "UNKNOWN")), len(player_p)),
                                         "weather_known_pct": pct(sum(1 for r in player_p if r.get("ctx_weather_state") == "KNOWN"), len(player_p))},
             "AUTOPSY_COVERAGE": {"data_arm_settled": sum(1 for r in with_p if r.get("model_arm") == "DATA_PLAYER_DIST" and r.get("settled_yes") is not None),
@@ -110,6 +120,13 @@ def render(sc: dict, h: dict, rows: list, label: str) -> str:
         counts = {kk: vv for kk, vv in v.items() if "pct" not in kk}
         L.append(f"| {k} | {json.dumps(counts, default=str)[:300]} | {json.dumps(pcts)} |")
     L += ["", "## Horizon health", "", f"records by horizon: {h['HORIZON_COMPLETENESS']['records_by_horizon']}; quality: {h['HORIZON_COMPLETENESS']['quality']}; markers: {h['HORIZON_COMPLETENESS']['markers']}", ""]
+    hd = h.get("HORIZON_DELIVERY") or {}
+    if hd.get("rows"):
+        L += [f"delivery against the schedule: owed {hd['owed']}, delivered {hd['delivered']} ({hd.get('delivered_pct')}%), on time "
+              f"{hd.get('on_time_pct')}%; {hd['counts']}", "", "| cluster | horizon | status | snapshot | lateness (min) | cause |", "|---|---|---|---|---|---|"]
+        for r in hd["rows"]:
+            L.append(f"| {r['cluster_key']} | T-{r['horizon_min']}m | {r['status']} | {r.get('snapshot_id') or '-'} | {_f(r.get('lateness_min'), 1)} | {r.get('cause') or ''} |")
+        L.append("")
     sy = sc.get("synchronization") or {}
     if sy:
         L += ["## Market/model synchronization", "",
@@ -199,7 +216,26 @@ def main(argv=None):
                     pass
     sc = S3.build(rows)
     h = health(rows, board_rows, markers, a.season, a.week)
+    # HORIZON DELIVERY against the schedule (nfl_edge/evaluation/capture_health.py). A missed horizon writes no
+    # marker, so counting MISSED markers (the `missed_markers` above) can only ever say 0; this says what was owed.
+    try:
+        from nfl_edge.data.nfl_calendar import load_schedule, slate_id as _slate_id
+        from nfl_edge.evaluation import capture_health as CH
+        sched, _src = load_schedule(ROOT, market_data=a.market_data)
+        wk_games = [g for g in sched if g["season"] == a.season and g["week"] == a.week and g.get("game_type") == "REG"]
+        h["HORIZON_DELIVERY"] = CH.horizon_delivery(_slate_id(a.season, "REG", a.week), wk_games, markers, datetime.now(timezone.utc))
+        h["HORIZON_COMPLETENESS"]["missed_markers"] = len(h["HORIZON_DELIVERY"]["missed"])
+        h["HORIZON_COMPLETENESS"]["missed_markers_note"] = "computed against the schedule (a missed horizon writes no marker)"
+    except Exception as exc:  # noqa: BLE001 -- the delivery block is additive; its absence is stated, never fatal
+        h["HORIZON_DELIVERY"] = {"state": "UNAVAILABLE", "reason": f"{type(exc).__name__}: {str(exc)[:160]}"}
     os.makedirs(a.out, exist_ok=True)
+    # PRODUCTION-ELIGIBILITY INPUTS for this week: per (arm, family, game) sums only -- a few hundred KB -- so the
+    # cumulative eligibility document (scripts/shadow_v2/eligibility_v2.py) combines weeks without the rows.
+    acc = EL.Accumulator()
+    for r in rows:
+        acc.add(r)
+    json.dump({"eligibility_version": EL.ELIGIBILITY_VERSION, "label": label, "games": acc.to_json()},
+              open(os.path.join(a.out, f"{label}.eligibility_inputs.json"), "w"), default=str)
     json.dump(h, open(os.path.join(a.out, f"{label}.health.json"), "w"), indent=1, default=str)
     open(os.path.join(a.out, f"{label}.WEEKLY_REPORT.md"), "w").write(render(sc, h, rows, label))
     print(json.dumps({k: v for k, v in h.items() if k not in ("season", "week")}, indent=1, default=str)[:4000])

@@ -1,0 +1,39 @@
+name: Shadow v2 horizon conductor
+
+# GitHub cron is best-effort: the */15 horizon workflow was started only every two to five hours in practice, and
+# on 2026-09-20 that cost the 1pm cluster a 159-minute-late T-6h freeze and its entire T-90m freeze. This keeps ONE
+# small runner looping the stdlib horizon gate every five minutes and DISPATCHES shadow-v2-horizons.yml when a
+# freeze is owed and none is already queued or running (scripts/shadow_v2/horizon_conductor_v2.py). It projects
+# nothing itself; the horizon workflow's own gate still decides what it serves.
+#
+# SHADOW / RESEARCH ONLY. INERT UNTIL MERGED (schedule from the default branch only; job guarded).
+
+on:
+  schedule:
+    - cron: '37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: shadow-v2-horizon-conductor
+  cancel-in-progress: false
+
+jobs:
+  conduct:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Loop the horizon gate; dispatch the freeze when one is due
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/shadow_v2/horizon_conductor_v2.py --minutes 345 --interval 300 \
+            --workflow shadow-v2-horizons.yml --ref main

@@ -80,9 +80,35 @@ def test_a_market_derived_player_arm_is_never_the_primary_view():
             "MARKET_PLAYER_DIST": v2_row(arm="MARKET_PLAYER_DIST", engine="PLAYER", p=0.55),
             "HYBRID_PLAYER_DIST": v2_row(arm="HYBRID_PLAYER_DIST", engine="PLAYER", p=0.48)}
     b = SV2.market_view(arms, {})
-    assert b["primary_arm"] == "DATA_PLAYER_DIST" and b["p_yes"] == 0.41
+    # a snapshot written before v3: the legacy independent arm keeps the primary slot, but it carries a known
+    # input defect, so it is DISABLED and shows no number -- the market-derived arms are NOT promoted into its place
+    assert b["primary_arm"] == "DATA_PLAYER_DIST" and b["p_yes"] is None and b["eligibility"] == "DISABLED"
+    assert "DISABLED" in b["probability_withheld_reason"]
     assert b["other_arms"]["MARKET_PLAYER_DIST"]["market_derived"] is True
     assert b["other_arms"]["HYBRID_PLAYER_DIST"]["market_derived"] is True
+    assert b["other_arms"]["MARKET_PLAYER_DIST"]["p_yes"] == 0.55
+    assert b["other_arms"]["HYBRID_PLAYER_DIST"]["p_yes"] is None          # blends the defective arm
+    # with v3 present, v3 is the independent view, labelled with its research-only status and its abstention
+    arms["DATA_PLAYER_V3"] = dict(v2_row(arm="DATA_PLAYER_V3", engine="PLAYER", p=0.44), abstention={"state": "ABSTAIN_MODEL_UNVALIDATED"})
+    arms["HYBRID_PLAYER_V3"] = v2_row(arm="HYBRID_PLAYER_V3", engine="PLAYER", p=0.53)
+    b3 = SV2.market_view(arms, {})
+    assert b3["primary_arm"] == "DATA_PLAYER_V3" and b3["p_yes"] == 0.44
+    assert b3["eligibility"] == "RESEARCH_ONLY" and b3["abstention"] == "ABSTAIN_MODEL_UNVALIDATED"
+    assert b3["other_arms"]["HYBRID_PLAYER_V3"]["market_derived"] is True
+
+
+def test_an_eligibility_document_labels_every_arm_and_never_exceeds_the_arm_status():
+    """The status comes from the evidence document; a family can never be more trusted than its arm, and an arm
+    the document has never measured is RESEARCH_ONLY, never TRUSTED."""
+    doc = {"arms": {"BOARD_V2": "WATCH"},
+           "families": {"BOARD_V2|ALL": {"status": "WATCH", "reasons": ["16 games"]},
+                        "BOARD_V2|period_total_1H": {"status": "LIMITED", "reasons": ["x"]},
+                        "MARKET_PLAYER_DIST|ALL": {"status": "WATCH", "reasons": ["16 games"]}}}
+    b = SV2.market_view({"BOARD_V2": v2_row()}, {}, eligibility=doc)
+    assert b["eligibility"] == "WATCH"                  # the family said LIMITED; the arm caps it at WATCH
+    assert b["p_yes"] == 0.92
+    p = SV2.market_view({"DATA_PLAYER_V3": v2_row(arm="DATA_PLAYER_V3", engine="PLAYER", p=0.3)}, {}, eligibility=doc)
+    assert p["eligibility"] == "RESEARCH_ONLY" and p["p_yes"] == 0.3
 
 
 def test_a_row_that_is_not_prospectively_frozen_carries_no_probability_into_the_report():

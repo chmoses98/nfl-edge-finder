@@ -19,7 +19,9 @@ _SCORECARD = ("settled_yes", "contract_value", "game_id", "ticker", "h_mid", "c_
               "model_closer_than_horizon", "exec_pnl_gross", "exec_pnl_net", "h_width", "h_liquidity",
               "evidence_class", "information_skew_seconds", "family_group")
 _HEALTH = ("kickoff_utc", "flag_settlement_supported", "settlement_status", "close_status", "close_reason",
-           "ctx_depth_chart_rank", "ctx_weather_state", "autopsy_classification", "record_id", "snapshot_id")
+           "ctx_depth_chart_rank", "ctx_weather_state", "autopsy_classification", "record_id", "snapshot_id",
+           "ctx_injury_state", "ctx_injury_report_maturity", "ctx_role_certainty", "ctx_availability_state",
+           "abstention_state", "week", "clv_mid_toward_model", "close_quality", "synchronization_state")
 _EXPORT = ("depth_pair_state", "depth_pair_reason", "depth_pair_horizon_quality", "depth_pair_age_min")
 SLIM_FIELDS = tuple(dict.fromkeys(_SCORECARD + tuple(S3.SEGMENTS) + _HEALTH + _EXPORT))
 

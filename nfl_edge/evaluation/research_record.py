@@ -118,6 +118,10 @@ def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement
            "dist_p25": (proj.get("distribution_summary") or {}).get("p25"),
            "dist_p50": (proj.get("distribution_summary") or {}).get("p50"),
            "dist_p75": (proj.get("distribution_summary") or {}).get("p75"),
+           # abstention (schema 2.3.0): the projection's own confidence statement; absent on older records
+           "abstention_state": (proj.get("abstention") or {}).get("state"),
+           "abstention_large_disagreement": (proj.get("abstention") or {}).get("large_disagreement"),
+           "production_eligible": (proj.get("abstention") or {}).get("production_eligible"),
            "settlement_reachability": (proj.get("settlement_reachability") or {}).get("state"),
            "settlement_reachability_reason": (proj.get("settlement_reachability") or {}).get("reason"),
            "injury_report_maturity": pc.get("injury_report_maturity"),

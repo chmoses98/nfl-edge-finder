@@ -100,7 +100,7 @@ def synthetic_bank(target_season):
 
 def run(monkeypatch, md, out, *extra):
     monkeypatch.setattr(settle_arms, "build_result_book", lambda *a, **k: PP.result_book())
-    monkeypatch.setattr(settle_arms, "bank_from_schedule", lambda season, games=None: synthetic_bank(season))
+    monkeypatch.setattr(settle_arms, "bank_from_schedule", lambda season, games=None, **_k: synthetic_bank(season))
     monkeypatch.setattr(sys, "argv", ["settle_arms.py", "--market-data", md, "--out", str(out), "--game", GAME,
                                       "--game", PP.PENDING_GAME, "--no-espn-final", *extra])
     return settle_arms.main()
@@ -152,7 +152,7 @@ def test_a_rerun_writes_nothing_and_a_contradiction_fails_closed(monkeypatch, tr
     assert PP.tree_digest(str(out)) == before
     # the same game with a different final score is a different truth: refused, nothing written
     monkeypatch.setattr(settle_arms, "build_result_book", lambda *a, **k: PP.result_book(score_override=(20, 27)))
-    monkeypatch.setattr(settle_arms, "bank_from_schedule", lambda season, games=None: synthetic_bank(season))
+    monkeypatch.setattr(settle_arms, "bank_from_schedule", lambda season, games=None, **_k: synthetic_bank(season))
     monkeypatch.setattr(sys, "argv", ["settle_arms.py", "--market-data", md, "--out", str(out), "--game", GAME, "--no-espn-final"])
     assert settle_arms.main() == 4
     assert PP.tree_digest(str(out)) == before
@@ -179,3 +179,40 @@ def test_the_validator_rejects_a_hybrid_that_is_not_the_preregistered_blend(tmp_
     problems = []
     validate.check_snapshots(REC.arms_root(md), problems)
     assert any("0.70/0.30" in p for p in problems)
+
+
+def test_the_automatic_path_never_re_derives_a_published_game(monkeypatch, tree):
+    """Regression (2026-09-22 .. 23): every automatic run re-derived the already-published Week-1 batches, their
+    closing centres had drifted, and the resulting CONFLICT stopped the Week-2 games from ever being published.
+    Without --game, a game that already holds a batch under this version is skipped and named, not re-litigated,
+    and a changed world (here: a different bank) cannot make the run fail."""
+    md, out = tree
+    assert run(monkeypatch, md, out) == 0
+    before = PP.tree_digest(str(out))
+    drifted = lambda season, games=None, **_k: synthetic_bank(season + 1)        # noqa: E731 -- a different population
+    monkeypatch.setattr(settle_arms, "build_result_book", lambda *a, **k: PP.result_book())
+    monkeypatch.setattr(settle_arms, "bank_from_schedule", drifted)
+    monkeypatch.setattr(settle_arms, "fetch_espn_scoreboard", lambda *a, **k: ([], {}))
+    # the automatic path: no --game, candidates from the lookback window
+    monkeypatch.setattr(sys, "argv", ["settle_arms.py", "--market-data", md, "--out", str(out), "--no-espn-final",
+                                      "--lookback-days", "100000"])
+    assert settle_arms.main() == 0
+    assert PP.tree_digest(str(out)) == before
+
+
+def test_the_closing_centre_bank_is_bounded_to_earlier_game_days():
+    """The bank is a function of the evaluated game, never of the day the job ran: a result from the game's own
+    day or later cannot enter it, so a rerun after more games finish reproduces the same closing centre."""
+    import polars as pl
+    rows = []
+    for i, day in enumerate(["2024-09-08", "2024-12-29", "2025-09-07", "2025-09-14", "2025-09-21"]):
+        for j in range(40):
+            rows.append({"game_id": f"g{i}_{j}", "season": int(day[:4]), "game_type": "REG", "gameday": day,
+                         "result": float((j % 15) - 7), "spread_line": 3.0, "total": 44.0 + (j % 9), "total_line": 45.5,
+                         "overtime": 0})
+    games = pl.DataFrame(rows)
+    early = settle_arms.bank_from_schedule(2025, games=games, before_gameday="2025-09-14")
+    late = settle_arms.bank_from_schedule(2025, games=games.filter(pl.col("gameday") < "2025-09-15"), before_gameday="2025-09-14")
+    full = settle_arms.bank_from_schedule(2025, games=games)
+    assert len(early.m) == len(late.m) == 120        # 2024 x2 + 2025-09-07; the game's own day excluded
+    assert len(full.m) == 200
