@@ -20,7 +20,9 @@ SCORECARD_VERSION = "scorecard-3.0.0"
 DESCRIPTIVE, HYPOTHESIS_GENERATING, PREREGISTERED_TEST, CONFIRMATORY = "DESCRIPTIVE", "HYPOTHESIS_GENERATING", "PREREGISTERED_TEST", "CONFIRMATORY"
 SEGMENTS = ("horizon_label", "horizon_quality", "engine", "model_arm", "family_group", "market_family", "stat_family", "player_position", "probability_band",
             "price_band", "disagreement_band", "width_band", "liquidity_band", "ctx_availability_state", "ctx_injury_state", "close_quality", "ladder_identification",
-            "semantic_confidence", "support_state", "model_side", "synchronization_state", "settlement_reachability")
+            "semantic_confidence", "support_state", "model_side", "synchronization_state", "settlement_reachability",
+            # player-model diagnostics (schema 2.3.0 / context-1.3.0): absent on older rows, which land in "None"
+            "abstention_state", "ctx_role_certainty")
 SYNCHRONIZED = "SYNCHRONIZED"
 EPS = 1e-6
 

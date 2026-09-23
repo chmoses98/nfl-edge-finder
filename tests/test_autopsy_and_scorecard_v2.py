@@ -49,6 +49,9 @@ def rec(pid="w1", *, mu=60.0, muo=8.0, tv=34.0, share=0.24, snap=0.85, qb_id="q1
                                 "projected_snap_share": snap, "projected_qb_id": qb_id}}
 
 
+TIGHT = {"p025": 30, "p05": 38, "p25": 50, "p50": 58, "p75": 66, "p95": 80, "p975": 90}   # a band the outcomes below fall far outside
+
+
 def _book_with(w_targets=8, w_yards=60, w_snaps=51, qb_att=34, qb_pid="q1"):
     p1, s1 = wr("w1", w_targets, w_yards, w_snaps)
     p2, s2 = qb(qb_pid, qb_att)
@@ -70,13 +73,32 @@ def test_availability_miss_when_expected_starter_never_played():
 
 
 def test_team_volume_miss_when_the_offence_threw_far_less_than_projected():
-    d = A.diagnose(rec(tv=34.0, share=0.24), _book_with(w_targets=4, w_yards=20, qb_att=17))
+    d = A.diagnose(rec(tv=34.0, share=0.24, q=TIGHT), _book_with(w_targets=4, w_yards=20, qb_att=17))
     assert d["classification"] == A.TEAM_VOLUME_MISS
 
 
 def test_target_share_miss_when_volume_was_right_but_the_share_was_not():
-    d = A.diagnose(rec(tv=34.0, share=0.24), _book_with(w_targets=2, w_yards=15, qb_att=34))
+    d = A.diagnose(rec(tv=34.0, share=0.24, q=TIGHT), _book_with(w_targets=2, w_yards=15, qb_att=34))
     assert d["classification"] == A.TARGET_SHARE_MISS
+
+
+def test_a_component_off_without_a_large_miss_is_recorded_not_blamed():
+    """autopsy-3.1.0: a snap share 30 points from its projection is not the CAUSE of anything when the outcome sat
+    inside the model's own band. Under 3.0.0 this row said SNAP_MISS; 67% of week-2 SNAP_MISS rows were like it."""
+    d = A.diagnose(rec(snap=0.85), _book_with(w_targets=8, w_yards=55, w_snaps=33, qb_att=34))
+    assert not d["large_miss"]
+    assert d["classification"] == A.NO_LARGE_MISS and "snap_share" in d["components_off"]
+
+
+def test_the_summary_counts_each_player_game_statistic_once():
+    acc = A.SummaryAccumulator()
+    for snap in ("s1", "s2"):
+        for k in (40, 50, 60, 70):
+            acc.add({"classification": A.SNAP_MISS if snap == "s1" else A.NO_LARGE_MISS, "stat": "receiving_yards",
+                     "model_arm": "DATA_PLAYER_V3", "game_id": "g", "player_id": "p", "snapshot_id": snap})
+    out = acc.finish()
+    assert out["n"] == 8 and out["n_player_game_stats"] == 1
+    assert out["by_classification_player_game_stat"] == {"DATA_PLAYER_V3": {A.NO_LARGE_MISS: 1}}   # the latest snapshot's class
 
 
 def test_snap_share_miss_precedes_share_in_the_causal_order():
@@ -85,17 +107,17 @@ def test_snap_share_miss_precedes_share_in_the_causal_order():
 
 
 def test_qb_environment_miss_when_a_different_passer_threw_the_attempts():
-    d = A.diagnose(rec(qb_id="q1"), _book_with(w_targets=3, w_yards=15, qb_pid="q9"))
+    d = A.diagnose(rec(qb_id="q1", q=TIGHT), _book_with(w_targets=3, w_yards=15, qb_pid="q9"))
     assert d["classification"] == A.QB_ENVIRONMENT_MISS
 
 
 def test_efficiency_miss_when_opportunity_landed_but_yards_did_not():
-    d = A.diagnose(rec(mu=60.0, muo=8.0), _book_with(w_targets=8, w_yards=15))
+    d = A.diagnose(rec(mu=60.0, muo=8.0, q=TIGHT), _book_with(w_targets=8, w_yards=15))
     assert d["classification"] == A.YARDS_PER_TARGET_MISS, "receiving yards: the efficiency miss is named by its mechanism"
     # with a frozen catch-rate projection, a catch-rate collapse is named before yards per target
     ctx = {"player_ewma": {"ewma_receptions": 6.0, "ewma_targets": 8.0}}
     p, sn = wr("w1", 8, 15, 51); p["stats"]["receptions"] = 1.0
-    d = A.diagnose(rec(mu=60.0, muo=8.0), book([p, qb("q1", 34)[0]], [sn, qb("q1", 34)[1], {"player_id": "ol", "team": "H", "offense_snaps": 60.0, "defense_snaps": 0.0, "st_snaps": 0.0}]), context=ctx)
+    d = A.diagnose(rec(mu=60.0, muo=8.0, q=TIGHT), book([p, qb("q1", 34)[0]], [sn, qb("q1", 34)[1], {"player_id": "ol", "team": "H", "offense_snaps": 60.0, "defense_snaps": 0.0, "st_snaps": 0.0}]), context=ctx)
     assert d["classification"] == A.CATCH_RATE_MISS and d["projected"]["catch_rate"] == 0.75
 
 
@@ -178,3 +200,28 @@ def test_negative_yardage_on_real_opportunities_is_an_efficiency_miss_not_a_cras
     # exactly zero yards on real opportunities: the same undefined ratio, the same verdict
     d0 = A.diagnose(rec(mu=60.0, muo=8.0), _book_with(w_targets=8, w_yards=0))
     assert d0["classification"] == A.YARDS_PER_TARGET_MISS
+
+
+def test_provisional_season_vintages_are_evidence_rows_not_unsettled_predictions():
+    """One season contract observed 'not decided yet' on three runs, then decided: four physical rows, ONE
+    prediction, settled. n_unsettled (physical) keeps its old meaning; the effective counts say what is true."""
+    rows = []
+    for i, day in enumerate(("2026-09-14", "2026-09-21", "2026-09-28")):
+        rows.append({"prediction_id": "s1", "evidence_class": "PROSPECTIVE_FROZEN", "evidence_tier": "PROVISIONAL",
+                     "evaluated_at": f"{day}T00:00:00+00:00", "settlement_status": "REFUSED_SEASON_INCOMPLETE",
+                     "contract_value": 0.4, "settled_yes": None, "game_id": None})
+    rows.append({"prediction_id": "s1", "evidence_class": "PROSPECTIVE_FROZEN", "evidence_tier": "TERMINAL",
+                 "evaluated_at": "2027-01-05T00:00:00+00:00", "settlement_status": "SETTLED", "contract_value": 0.4,
+                 "settled_yes": 1.0, "mid": 0.45, "game_id": None})
+    rows.append({"prediction_id": "s2", "evidence_class": "PROSPECTIVE_FROZEN", "evidence_tier": "PROVISIONAL",
+                 "evaluated_at": "2026-09-21T00:00:00+00:00", "contract_value": 0.2, "settled_yes": None, "game_id": None})
+    b = SC.build_scorecard(rows)["by_evidence_class"]["PROSPECTIVE_FROZEN"]
+    assert b["n_unsettled"] == 4                                   # physical: every superseded vintage
+    assert b["n_effective_predictions"] == 2 and b["n_settled_effective"] == 1 and b["n_unresolved_effective"] == 1
+    assert b["n_superseded_provisional_rows"] == 3
+    acc = SC.ScorecardAccumulator()
+    for r in rows:
+        acc.add(r, game="SEASON")
+    a = acc.finish()["by_evidence_class"]["PROSPECTIVE_FROZEN"]
+    for k in ("n_effective_predictions", "n_settled_effective", "n_unresolved_effective", "n_superseded_provisional_rows"):
+        assert a[k] == b[k], k

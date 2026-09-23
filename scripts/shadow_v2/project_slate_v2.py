@@ -41,6 +41,8 @@ from nfl_edge.engines import coherence as CE, game as GE, joint as JE, period as
 from nfl_edge.engines.player import data_dist as DD, hybrid_dist as HD, market_dist as MD   # noqa: E402
 from nfl_edge.handicap.horizons import cluster_kickoffs, parse_horizon_id                  # noqa: E402
 from nfl_edge.engines.player.features_v2 import add_v2_features                             # noqa: E402
+from nfl_edge.engines.player.features_v3 import add_v3_features                             # noqa: E402
+from nfl_edge.engines.player import abstention as AB, prospective_v3 as PV3                  # noqa: E402
 from nfl_edge.evaluation import clv as CLV                                                 # noqa: E402
 from nfl_edge.evaluation import execution_depth as XD                                      # noqa: E402
 from nfl_edge.execution.fees import load_fee_schedule                                      # noqa: E402
@@ -64,7 +66,12 @@ MODEL_VERSION = "shadow-v2-1.0.0"
 ARM_BOARD = "BOARD_V2"
 BOOK_WINDOW_MIN = 72.0 * 60                 # the capture fetches books only inside this window (scripts/kalshi/capture.py)
 ARM_DATA, ARM_MARKET, ARM_HYBRID = "DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST"
-PLAYER_ARMS = (ARM_DATA, ARM_MARKET, ARM_HYBRID)
+# v3 arms (data-player-dist-3.0.0): the v2 arms are kept, unchanged, for continuity of their prospective record and
+# are DISABLED in the eligibility layer because of their input defect (nfl_edge/engines/player/prospective_v3.py)
+ARM_DATA_V3, ARM_HYBRID_V3 = "DATA_PLAYER_V3", "HYBRID_PLAYER_V3"
+PLAYER_ARMS = (ARM_DATA, ARM_MARKET, ARM_HYBRID, ARM_DATA_V3, ARM_HYBRID_V3)
+DATA_ARMS = (ARM_DATA, ARM_DATA_V3)
+HYBRID_ARMS = (ARM_HYBRID, ARM_HYBRID_V3)
 ENGINE_STATS = {"passing_yards": "passing_yards", "passing_tds": "passing_tds", "interceptions": "interceptions", "attempts": "attempts",
                 "completions": "completions", "rushing_yards": "rushing_yards", "carries": "carries", "receiving_yards": "receiving_yards",
                 "receptions": "receptions", "touchdowns": "touchdowns", "rush_rec_yards": "rush_rec_yards"}
@@ -261,7 +268,7 @@ def main(argv=None):
     # ---- player engine (three arms)
     player = None
     if not a.skip_player:
-        player = build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger)
+        player = build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger, envs=envs, kick=kick, ctx=ctx)
 
     lineage = ctx.lineage_block(snapshot_id=snapshot_id, discovery_run=(os.path.basename(ddir) if ddir else None),
                                 engine_versions={"game": GE.ENGINE_VERSION, "period": PE.ENGINE_VERSION, "joint": JE.ENGINE_VERSION, "season": SE.ENGINE_VERSION,
@@ -471,8 +478,9 @@ def main(argv=None):
         # ---- player engine -> three arms
         for arm in PLAYER_ARMS:
             ans, lineage, feat, dsum = (player.answer(arm, t, q, qq) if player else ({"p_yes": None, "reason": "player engine skipped"}, {}, {}, {}))
-            eng_ver = {ARM_DATA: DD.VERSION, ARM_MARKET: MD.VERSION, ARM_HYBRID: HD.VERSION}[arm]
-            dist_ver = {ARM_DATA: "lattice-1.0.0", ARM_MARKET: "lattice-1.0.0", ARM_HYBRID: "lattice-1.0.0"}[arm]
+            eng_ver = {ARM_DATA: DD.VERSION, ARM_MARKET: MD.VERSION, ARM_HYBRID: HD.VERSION,
+                       ARM_DATA_V3: DD.VERSION_BY_FEATURE_SET["v3"], ARM_HYBRID_V3: HD.VERSION_V3}[arm]
+            dist_ver = "lattice-1.0.0"
             if ans.get("p_yes") is not None:
                 ans["validated"] = False                                  # every player arm is shadow / research
             st, reason, p, cv = support_state(qq, entry, pregame=pregame, confirmed=base["market_confirmed"], answer=ans,
@@ -480,13 +488,27 @@ def main(argv=None):
             gsis = lineage.get("gsis_id")
             pkey = (gsis or q.get("player_kalshi_id"), gid)
             if pkey not in player_ctx_cache:
-                fr = player.feat.get((gsis, gid), {}) if (player and gsis) else {}
+                # the v3 row when there is one: it carries the current season (last game, games this season, last team),
+                # which the frozen context -- and the role certainty built from it -- must reflect
+                fr = ((player.feat_v3.get((gsis, gid)) or player.feat.get((gsis, gid), {})) if (player and gsis) else {})
                 avail = player.avail.get(gsis) if (player and gsis and player.avail) else None
                 full = CX.player_context(ctx, gsis=gsis, team=(fr.get("team") or q.get("team")), week=base.get("week"), game_id=gid, kickoff=ko,
                                          feat_row=fr, avail=avail, position=(player.positions.get(gsis) if (player and gsis) else None))
                 player_ctx_cache[pkey] = (context_id(full), full)
             pc_id, full = player_ctx_cache[pkey]
             base["player_context"] = CX.compact_player_context(full, pc_id)
+            # ABSTENTION: the projection's own statement of whether it knows enough. The probability stays on the
+            # record (so the rule itself is scored prospectively); authority does not.
+            mk_ = player.market.get((q.get("player_kalshi_id"), gid, q.get("stat"))) if player else None
+            _mid = base.get("yes_bid"), base.get("yes_ask")
+            _dis = (None if cv is None or None in _mid else 100.0 * (cv - (_mid[0] + _mid[1]) / 2.0))
+            abst = AB.decide(arm=arm, engine_version=eng_ver, stat=ENGINE_STATS.get(q.get("stat")),
+                             identity_confidence=lineage.get("identity_confidence"),
+                             availability_state=((full.get("availability") or {}).get("state")),
+                             role_certainty=((full.get("role") or {}).get("role_certainty")),
+                             game_env_known=gid in envs, qb_starter_known=(player.qb1_known.get((gsis, gid)) if player else None),
+                             ladder_identification=(mk_ or {}).get("identification"), disagreement_pp=_dis,
+                             market_arm=(arm == ARM_MARKET)) if p is not None else {}
             base["flags"] = QU.status_flags(support_state=st, semantic_confidence=qq.semantic_confidence, identity_confidence=lineage.get("identity_confidence"),
                                             subject_kind="player", settlement_support=(entry.settlement if entry else None), engine=Q.PLAYER)
             base["depth"] = depth_block(cv, base, book_row, book_why, q, fee_sched, run_ts)
@@ -495,7 +517,8 @@ def main(argv=None):
                                      identity_confidence=lineage.get("identity_confidence"), projection_lineage=lineage, feature_lineage=feat,
                                      distribution_summary=dsum, data_quality={"catalog_support": (entry.model_support if entry else None),
                                                                               "availability_sources": (player.availability_sources if player else None)},
-                                     p_yes_low=ans.get("p_low"), p_yes_high=ans.get("p_high"), **{**base, "subject_id": lineage.get("gsis_id") or base["subject_id"]})
+                                     p_yes_low=ans.get("p_low"), p_yes_high=ans.get("p_high"), abstention=abst,
+                                     **{**base, "subject_id": lineage.get("gsis_id") or base["subject_id"]})
             rec.record_id = R.record_id(snapshot_id, t, arm, eng_ver, dist_ver)
             arm_rows[arm].append(rec.finalize().to_dict())
 
@@ -592,6 +615,9 @@ def main(argv=None):
             # DATA_UNAVAILABLE states alone do not name. Stated once, at run level, so it is visible in the
             # summary rather than only at the bottom of eleven thousand rows.
             "population_empty": dict(getattr(player, "population_empty", {}) or {}),
+            "player_v3": dict(getattr(player, "v3_info", {}) or {}),
+            "abstention": {arm: dict(Counter((r.get("abstention") or {}).get("state") for r in rows if r.get("p_yes") is not None))
+                           for arm, rows in arm_rows.items()},
             "settlement_matrix": settlement_matrix(all_rows), "context_coverage": context_coverage(all_rows),
             "horizon_quality": dict(Counter((r.get("horizon_quality") or {}).get("horizon_quality") for r in all_rows)), "snapshot_reused": reused, "lineage": lineage,
             "artifact_bytes": sum(os.path.getsize(w["path"]) for w in written.values() if w.get("path") and os.path.exists(w["path"]))}
@@ -769,8 +795,11 @@ def context_coverage(rows: list) -> dict:
         return (round(100.0 * sum(1 for r in rs if pred(r)) / len(rs), 1) if rs else None)
     pc = lambda r: r.get("player_context") or {}  # noqa: E731
     return {"n_player_probability_rows": len(pl_rows),
-            "injury_report_known_pct": frac(lambda r: pc(r).get("injury_state") in ("LISTED", "NOT_LISTED"), pl_rows),
-            "depth_chart_known_pct": frac(lambda r: pc(r).get("depth_chart_vintage") is not None, pl_rows),
+            "injury_report_known_pct": frac(lambda r: CX.injury_knowledge(pc(r).get("injury_state"), pc(r).get("injury_report_maturity"))
+                                            in (CX.INJURY_DESIGNATION_KNOWN, CX.INJURY_NO_DESIGNATION), pl_rows),
+            "injury_report_listed_pct": frac(lambda r: pc(r).get("injury_state") == "LISTED", pl_rows),
+            "depth_chart_known_pct": frac(lambda r: pc(r).get("depth_chart_rank") is not None, pl_rows),
+            "role_known_pct": frac(lambda r: pc(r).get("role_certainty") in ("HIGH", "MEDIUM"), pl_rows),
             "availability_known_pct": frac(lambda r: pc(r).get("availability_state") not in (None, "UNKNOWN"), pl_rows),
             "weather_known_pct": frac(lambda r: pc(r).get("weather_state") == "KNOWN", pl_rows),
             "team_volume_known_pct": frac(lambda r: pc(r).get("team_pass_attempts") is not None, pl_rows),
@@ -824,6 +853,13 @@ class PlayerArms:
         # statistic 'passing_yards'", which is a statement about the engine and is false: the engine fits
         # passing_yards on 6,753 quarterback-games. See `population_empty` below.
         self.population_empty = {}
+        # v3 (data-player-dist-3.0.0): its own distributions, feature rows and bundle; never mixed with v2's
+        self.data_v3 = {}
+        self.feat_v3 = {}
+        self.bundle_v3 = None
+        self.v3_info = {}
+        self.v3_refusal = {}        # (gsis, gid) -> why v3 has no row for this player-game
+        self.qb1_known = {}         # (gsis, gid) -> the team had a point-in-time depth-chart QB1
 
     def _why_no_distribution(self, stat, est, gsis, gid) -> str:
         """Which condition actually stopped this (player, game, statistic) getting a distribution.
@@ -877,6 +913,8 @@ class PlayerArms:
         if yb is not None and ya is not None:
             mid = (yb + ya) / 2.0
         mk = self.market.get((kid, gid, stat))
+        if arm in (ARM_DATA_V3, ARM_HYBRID_V3):
+            return self._answer_v3(arm, gsis, gid, stat, k, mk, mid, p_plays, p_nosnap, lineage, feat)
         if arm == ARM_MARKET:
             if not mk or mk.get("identification") in (None, MD.NONE, MD.UNDERIDENTIFIED):
                 return {"p_yes": None, "reason": f"market ladder {(mk or {}).get('identification') or 'absent'}: {(mk or {}).get('reason') or 'too few two-sided rungs'}"}, lineage, feat, {}
@@ -918,7 +956,107 @@ class PlayerArms:
         return {"p_yes": p_ev, "contract_value": cv.contract_value}, lineage, feat, s
 
 
-def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger) -> PlayerArms:
+    def _answer_v3(self, arm, gsis, gid, stat, k, mk, mid, p_plays, p_nosnap, lineage, feat):
+        if gsis is None:
+            return {"p_yes": None, "reason": "Kalshi player id not resolved to a GSIS id", "status": "IDENTITY_UNRESOLVED"}, lineage, feat, {}
+        est = ENGINE_STATS.get(stat)
+        d = self.data_v3.get((gsis, gid, est)) if est else None
+        if d is None:
+            why = self.v3_refusal.get((gsis, gid)) or (
+                f"statistic {stat!r} has no v3 data model" if not est or not self.bundle_v3 or est not in self.bundle_v3.models
+                else f"no v3 distribution for this player-game ({est}): population mask or missing feature row")
+            return {"p_yes": None, "reason": why, "status": "DATA_UNAVAILABLE"}, lineage, feat, {}
+        fr = self.feat_v3.get((gsis, gid), {})
+        feat.update(team=fr.get("team"), projected_team_volume=fr.get(VOLUME_FEATURE.get(est) or ""), projected_share=fr.get(SHARE_FEATURE.get(est) or ""),
+                    projected_snap_share=fr.get("ewma_snap_share"), last_snap_share=fr.get("last_snap_share"), n_cur_season=fr.get("n_cur_season"),
+                    projected_qb_id=fr.get("_depth_qb1"), n_prior=fr.get("n_prior"), shrink_w=fr.get("shrink_w"),
+                    qb_changed_recent=fr.get("qb_changed_recent"), implied_total=fr.get("implied_total"), env_source=fr.get("env_source"),
+                    inputs_version=PV3.V3_INPUTS_VERSION)
+        if arm == ARM_DATA_V3:
+            dist = d
+            lineage.update(family=d.meta.get("family"), feature_set="v3", bundle_sha=(self.bundle_v3.artifact_sha if self.bundle_v3 else None),
+                           inputs_version=PV3.V3_INPUTS_VERSION)
+        else:
+            h = HD.hybrid(d, (mk or {}).get("_dist"), market_identification=(mk or {}).get("identification"), w_market=HD.V3_WEIGHT_MARKET,
+                          structure=HD.V3_STRUCTURE)
+            if h["status"] != "OK":
+                return {"p_yes": None, "reason": f"hybrid unavailable: {h['reason']}"}, lineage, feat, {}
+            dist = h["dist"]
+            lineage.update(structure=h["structure"], w_market=h["w_market"], study_verdict=HD.V3_STUDY_VERDICT, data_version=DD.VERSION_BY_FEATURE_SET["v3"])
+        p_ev = dist.survival(k)
+        cv = sem_mod.player_prop_contract_value(p_ev, p_plays, p_nosnap, mid)
+        s = dist.summary()
+        s.update(mu=dist.meta.get("mu"), mu_opp=dist.meta.get("mu_opp"), eff=dist.meta.get("eff"),
+                 quantiles={"p025": dist.quantile(0.025), "p05": s["p05"], "p25": s["p25"], "p50": s["p50"], "p75": s["p75"], "p95": s["p95"], "p975": dist.quantile(0.975)})
+        return {"p_yes": p_ev, "contract_value": cv.contract_value}, lineage, feat, s
+
+
+def build_player_v3(P: PlayerArms, a, prows, player_map, sched, positions, envs, kick, run_ts, ledger, ctx, stats_needed, cfg, priors, log=print):
+    """DATA_PLAYER_V3: market-implied game environment, current-season history, depth-chart QB1, v3 features.
+
+    Every input is bounded at the cutoff: the environment is the Kalshi-implied centre of THIS snapshot, the
+    current-season rows are games that finished >= 4 h before the cutoff, the QB1 is the newest chart at or
+    before the cutoff. Failures refuse (DATA_UNAVAILABLE with the reason); nothing falls back to a zero."""
+    try:
+        hist_all = pdist.load_player_games(ROOT, range(2013, a.target_season + 1))
+        cur_state = "loaded"
+    except (FileNotFoundError, OSError) as exc:
+        log(f"::warning::v3: target-season statistics unavailable ({type(exc).__name__}); v3 uses prior seasons only")
+        hist_all = pdist.load_player_games(ROOT, range(2013, a.target_season))
+        cur_state = f"unavailable: {type(exc).__name__}"
+    upcoming_games = {q.get("game_id") for q in prows}
+    hist_v3, info = PV3.completed_current_season(hist_all, a.target_season, kick, run_ts, exclude_games=upcoming_games)
+    info["current_season_state"] = cur_state
+    if info.get("newest_game_kickoff"):
+        ledger.record("player_stats_current_season", info["newest_game_kickoff"], kind="nflverse",
+                      n_games=info["target_season_games_used"], guard="games kicked off >= 4h before the cutoff")
+    book = (ctx.depth or {}).get("book") if ctx else None
+    qb1 = {t: book.qb1(t) for t in (book.by_team if book else {})} if book else {}
+    upcoming = upcoming_from_markets(prows, player_map, sched, a.target_season, positions, {})
+    if not len(upcoming):
+        P.v3_info = {**info, "n_upcoming": 0}
+        return
+    upcoming = PV3.attach_market_environment(upcoming, envs)
+    upcoming = PV3.depth_qb_starters(upcoming, qb1)
+    for r in upcoming.itertuples():
+        P.qb1_known[(r.player_id, r.game_id)] = bool(r.qb1_known)
+        if not r.env_known:
+            P.v3_refusal[(r.player_id, r.game_id)] = "no market-implied game environment at the cutoff: v3 refuses rather than price a zero-point team"
+    combined = build_prospective_rows(hist_v3, upcoming.drop(columns=["qb1_known"]))
+    combined = pdist.add_ewma_features(combined, halflife=cfg["halflife"], season_carry=cfg["season_carry"], shrink_k=cfg["shrink_k"], priors=priors)
+    combined = add_v2_features(combined, halflife=cfg["halflife"], season_carry=cfg["season_carry"], shrink_k=cfg["shrink_k"])
+    try:
+        combined = opportunity.attach_role_features(combined, halflife=cfg["halflife"], season_carry=cfg["season_carry"], shrink_k=cfg["shrink_k"])
+    except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
+        log(f"::warning::v3 role features unavailable ({type(exc).__name__})")
+    combined = add_v3_features(DD.ensure_columns(combined))
+    feat = combined[combined.is_prospective == True].reset_index(drop=True)   # noqa: E712
+    histf = combined[combined.is_prospective != True]                          # noqa: E712
+    P.bundle_v3 = DD.fit_bundle(histf, a.target_season, feature_set="v3", stats=stats_needed, verbose=log)
+    keep = [c for c in feat.columns if c.startswith("ewma_") or c.startswith("share_recent") or c.startswith("pit_") or c.startswith("last")
+            or c in ("team", "position", "opponent_team", "home", "implied_total", "spread_team", "qb_changed_recent", "n_prior", "shrink_w",
+                     "w_eff", "qb_starter", "n_cur_season", "changed_team", "env_known", "env_source", "proj_targets_struct", "proj_carries_struct")]
+    for _, r in feat.iterrows():
+        row = {c: r[c] for c in keep}
+        row["_depth_qb1"] = qb1.get(r["team"])
+        P.feat_v3[(r["player_id"], r["game_id"])] = row
+    ok = PV3.usable_rows(feat)
+    n_dist = 0
+    for stat, model in P.bundle_v3.models.items():
+        pm = pdist.population_mask(feat, model.spec.pop) & ok
+        rows = feat[pm]
+        if not len(rows):
+            continue
+        for (pid, gid), d in zip(zip(rows.player_id, rows.game_id), model.distributions(rows)):
+            P.data_v3[(pid, gid, stat)] = d
+            n_dist += 1
+    P.v3_info = {**info, "n_upcoming": int(len(upcoming)), "n_env_known": int(upcoming.env_known.sum()),
+                 "n_qb1_known_teams": len(qb1), "n_distributions": n_dist, "bundle_sha": P.bundle_v3.artifact_sha,
+                 "version": P.bundle_v3.version}
+    log(f"v3: {n_dist} distributions (bundle {P.bundle_v3.artifact_sha}); {json.dumps(P.v3_info, default=str)}")
+
+
+def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger, envs=None, kick=None, ctx=None) -> PlayerArms:
     P = PlayerArms()
     # The identity registries are committed repository artefacts, not captures: they are versioned by the
     # commit that produced them and do not move under a run. The audit's point stands anyway -- their shas were
@@ -1042,6 +1180,12 @@ def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger) -> Player
         for (pid, gid), d in zip(zip(rows.player_id, rows.game_id), dists):
             P.data[(pid, gid, stat)] = d
     log(f"data distributions: {len(P.data)} (bundle {P.bundle.artifact_sha})")
+    # ---- v3 arms (independent of the v2 path above, which stays exactly as it was)
+    try:
+        build_player_v3(P, a, prows, player_map, sched, positions, envs or {}, kick or {}, run_ts, ledger, ctx, stats_needed, cfg, priors, log=log)
+    except Exception as exc:  # noqa: BLE001 -- a v3 failure must never cost the run its board and v2 records
+        log(f"::warning::v3 player arms unavailable: {type(exc).__name__}: {str(exc)[:200]}")
+        P.v3_info = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
     return P
 
 

@@ -65,4 +65,5 @@ def test_v2_writes_only_under_its_own_tree_and_never_imports_the_incumbent_price
     assert "data/shadow/ledger" not in src and "LedgerWriter" not in src
     for frozen in ("nfl_edge.handicap.gates", "nfl_edge.handicap.risk", "nfl_edge.handicap.preflight", "risk_policy.json", "nfl_edge.shadow.ledger"):
         assert frozen not in src, f"v2 must not import or read {frozen}"
-    assert P.PLAYER_ARMS == ("DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST")
+    # the v2 arms are kept unchanged; the v3 arms (data-player-dist-3.0.0) are added beside them, never in place
+    assert P.PLAYER_ARMS == ("DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "DATA_PLAYER_V3", "HYBRID_PLAYER_V3")

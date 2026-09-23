@@ -36,6 +36,7 @@ import nfl_edge.handicap.coverage as COV          # module path, not `from nfl_e
 import nfl_edge.handicap.shadow_v2_block as SV2   # the report-isolation audit resolves a package-from
                                                   # import to EVERY module in the package, which would make
                                                   # the Airtable bridge reachable from the report path.
+import nfl_edge.evaluation.eligibility as EL      # production eligibility of every model arm (stdlib-only)
 
 # 1.1.0: the per-game `simulation` block gained the coherent simulation's own DISTRIBUTION SUMMARY per
 # player/stat (football p05/p25/p50/p75/p95, the market and reconciled medians), the ledger player name on
@@ -948,7 +949,7 @@ def _health_flags(game_rows: list, weather: dict, injuries: dict, now, kickoff) 
 
 
 def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, now, implied, sim_rows=None,
-               sim_manifest=None, v2_rows=None, v2_manifest=None, v2_provenance=None):
+               sim_manifest=None, v2_rows=None, v2_manifest=None, v2_provenance=None, v2_eligibility=None):
     home = next((r.get("home_team") for r in rows if r.get("home_team")), None)
     away = next((r.get("away_team") for r in rows if r.get("away_team")), None)
     kickoff = _iso(next((r.get("kickoff_utc") for r in rows if r.get("kickoff_utc")), None))
@@ -965,7 +966,8 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
         # by title, family or any other resemblance. A ticker the snapshot did not carry gets None, which
         # the coverage accounting reads as "no v2 row at this snapshot" rather than as a refusal v2 made.
         # Constant provenance goes into the packet-level table; only what varies per contract stays here.
-        m["shadow_v2"] = SV2.market_view(v2_rows.get(m["ticker"]), v2_provenance, packet_mid=m.get("mid"))
+        m["shadow_v2"] = SV2.market_view(v2_rows.get(m["ticker"]), v2_provenance, packet_mid=m.get("mid"),
+                                         eligibility=v2_eligibility)
     # Every listed contract now terminates in exactly one analysis state. This runs AFTER the incumbent,
     # simulation and Shadow v2 views are attached, because the state is a function of all three.
     COV.classify_game(markets)
@@ -1187,6 +1189,9 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
     v2_rows, v2_manifest = SV2.load_latest((md_root, root), at_or_before=now, game_ids=set(by_game))
     v2_rows = v2_rows or {}
     v2_provenance: dict = {}
+    # PRODUCTION ELIGIBILITY: the newest evidence document at or before this build (published by the Shadow v2
+    # settle job). Absent -> every arm is RESEARCH_ONLY and every known-defect arm DISABLED, never TRUSTED.
+    v2_eligibility = load_eligibility((md_root, root), at_or_before=now)
     games = []
     for gid in sorted(by_game, key=lambda g: (
             _iso(next((r.get("kickoff_utc") for r in by_game[g] if r.get("kickoff_utc")), None))
@@ -1194,7 +1199,8 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
         games.append(build_game(gid, by_game[gid], profiles=profiles, qb_profiles=qb_profiles,
                                 context_runs=context_runs, movement=movement, now=now, implied=implied,
                                 sim_rows=sim_rows, sim_manifest=sim_manifest,
-                                v2_rows=v2_rows, v2_manifest=v2_manifest, v2_provenance=v2_provenance))
+                                v2_rows=v2_rows, v2_manifest=v2_manifest, v2_provenance=v2_provenance,
+                                v2_eligibility=v2_eligibility))
 
     packet = {
         "schema_version": PACKET_SCHEMA_VERSION,
@@ -1226,6 +1232,7 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
                            "authority": SV2.RESEARCH_ONLY}
                           if v2_manifest else None),
         },
+        "production_eligibility": eligibility_summary(v2_eligibility),
         "real_money_status": "NOT VALIDATED -- this packet recommends nothing and authorises nothing",
         "slate_summary": slate_summary(games, rows, manifest),
         "games": games,
@@ -1233,6 +1240,48 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
     packet["packet_sha"] = hashlib.sha1(
         json.dumps(packet, sort_keys=True, default=str).encode()).hexdigest()[:20]
     return packet
+
+
+ELIGIBILITY_DIR = os.path.join("data", "shadow", "v2", "eligibility")
+
+
+def load_eligibility(roots, at_or_before=None) -> dict | None:
+    """The newest `<stamp>.eligibility.json` at or before the instant, over all roots (point in time: a packet
+    built for an earlier instant never reads a later evidence document)."""
+    stamp = at_or_before.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ") if at_or_before else None
+    best = None
+    for root in roots:
+        if not root:
+            continue
+        for path in glob.glob(os.path.join(root, ELIGIBILITY_DIR, "*.eligibility.json")):
+            s_ = os.path.basename(path).split(".")[0]
+            if (stamp is None or s_ <= stamp) and (best is None or s_ > best[0]):
+                best = (s_, path)
+    if best is None:
+        return None
+    try:
+        with open(best[1]) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def eligibility_summary(doc: dict | None) -> dict:
+    """What the packet says about authority, once: every arm's status and every family's, with the evidence."""
+    if not doc:
+        return {"state": "NO_EVIDENCE_DOCUMENT", "arms": {a: EL.status_for(None, a)["status"] for a in
+                                                          ("BOARD_V2", "MARKET_PLAYER_DIST", "DATA_PLAYER_V3", "HYBRID_PLAYER_V3",
+                                                           "DATA_PLAYER_DIST", "HYBRID_PLAYER_DIST")},
+                "rule": "without an evidence document nothing is more than RESEARCH_ONLY"}
+    fams = {k: {kk: v.get(kk) for kk in ("status", "n_games", "n_weeks", "delta_brier_game_mean", "delta_brier_se",
+                                            "clv_game_mean", "reasons")}
+            for k, v in (doc.get("families") or {}).items()}
+    return {"state": "OK", "eligibility_version": doc.get("eligibility_version"), "as_of": doc.get("as_of"),
+            "sources": doc.get("sources"), "unit_of_evidence": doc.get("unit_of_evidence"), "arms": doc.get("arms"),
+            "families": fams, "known_defects": doc.get("known_defects"),
+            "how_to_read": ("TRUSTED may be relied on as primary evidence; LIMITED may inform a handicap beside the market; "
+                            "WATCH is supporting evidence only; RESEARCH_ONLY is displayed and never an input; DISABLED shows "
+                            "no number. Large model-market disagreement is historically where the models are WORST.")}
 
 
 def slate_summary(games: list, all_rows: list, manifest: dict) -> dict:

@@ -32,7 +32,12 @@ from datetime import datetime, timezone
 from nfl_edge.settlement.results import ResultBook
 from nfl_edge.shadow.player_autopsy import IQR_FLOOR, LOG_RATIO_LARGE, TEAM_VOLUME_LOG_RATIO, Z_LARGE, _percentile, team_volume
 
-AUTOPSY_VERSION = "autopsy-3.0.0"
+# 3.1.0 (2026-09-23): a component outside its range is the CAUSE of a miss only when there was a large miss. Under
+# 3.0.0 any component off -- most often a snap share 10 points from its projection, which is ordinary week-to-week
+# noise -- was reported as the classification even when the outcome sat comfortably inside the model's band: 38,469
+# of the 57,132 week-2 SNAP_MISS rows (67%) were not large misses at all. Those rows are now NO_LARGE_MISS with the
+# off component kept in `components_off`, so the component rates stay measurable without being read as causes.
+AUTOPSY_VERSION = "autopsy-3.1.0"
 SHARE_ABS_LARGE = 0.10               # absolute share miss (targets/carries/snaps) that counts as "off"
 SHARE_LOG_LARGE = math.log(1.5)
 TAIL_LO, TAIL_HI = "p025", "p975"
@@ -227,11 +232,23 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None, contex
     order = [("role", ROLE_MISS), ("snap_share", SNAP_MISS), ("route_share", ROUTE_MISS), ("qb_environment", QB_ENVIRONMENT_MISS),
              ("team_volume", TEAM_VOLUME_MISS), ("target_share", TARGET_SHARE_MISS), ("carry_share", CARRY_SHARE_MISS),
              ("opportunity", None), ("catch_rate", CATCH_RATE_MISS), ("efficiency", EFFICIENCY_LABEL.get(stat, YARDS_PER_TARGET_MISS))]
-    if not out["large_miss"] and not any(v and v[0] for v in comps.values()):
-        out["classification"] = NO_LARGE_MISS if z is not None else INSUFFICIENT_DATA
-        if z is None:
+    off = [k for k, v in comps.items() if v and v[0]]
+    out["components_off"] = off
+    if not out["large_miss"]:
+        # no large miss: nothing to explain. A component outside its range is recorded, never promoted to a cause.
+        if z is None and not off:
+            out["classification"] = INSUFFICIENT_DATA
             out["evidence"].append("no quantiles to standardise the miss and no component out of range")
-        return out
+        elif z is None:
+            # without quantiles "large" cannot be judged; keep the 3.0.0 behaviour (first component off) for these
+            pass
+        else:
+            out["classification"] = NO_LARGE_MISS
+            if off:
+                out["evidence"].append(f"inside the model's band; components outside their own range: {off}")
+            return out
+        if z is None and not off:
+            return out
     for key, label in order:
         v = comps.get(key)
         if v and v[0]:
@@ -274,15 +291,33 @@ class SummaryAccumulator:
 
     def __init__(self):
         self.n, self.by, self.by_stat = 0, {}, {}
+        # the INDEPENDENT unit: one (game, player, statistic) is diagnosed at every rung of its ladder and every
+        # snapshot, so row counts multiply one outcome by ~100. The latest snapshot's modal class is kept per key.
+        self._pgs = {}
 
     def add(self, r: dict):
         self.n += 1
         self.by[r["classification"]] = self.by.get(r["classification"], 0) + 1
         self.by_stat.setdefault(r.get("stat"), {}).setdefault(r["classification"], 0)
         self.by_stat[r.get("stat")][r["classification"]] += 1
+        key = (r.get("model_arm"), r.get("game_id"), r.get("player_id"), r.get("stat"))
+        snap = r.get("snapshot_id") or ""
+        cur = self._pgs.get(key)
+        if cur is None or snap > cur[0]:
+            self._pgs[key] = (snap, {r["classification"]: 1})
+        elif snap == cur[0]:
+            cur[1][r["classification"]] = cur[1].get(r["classification"], 0) + 1
 
     def finish(self) -> dict:
-        return {"n": self.n, "by_classification": self.by, "by_stat": self.by_stat, "version": AUTOPSY_VERSION}
+        pgs = {}
+        for (arm, _g, _p, _s), (_snap, counts) in self._pgs.items():
+            cls = max(sorted(counts), key=counts.get)
+            pgs.setdefault(arm or "?", {}).setdefault(cls, 0)
+            pgs[arm or "?"][cls] += 1
+        return {"n": self.n, "by_classification": self.by, "by_stat": self.by_stat, "version": AUTOPSY_VERSION,
+                "n_player_game_stats": len(self._pgs), "by_classification_player_game_stat": pgs,
+                "unit_note": "by_classification counts rung x snapshot rows; by_classification_player_game_stat counts "
+                             "each (game, player, statistic) once, at its latest snapshot's modal class"}
 
 
 def summarize(records: list) -> dict:

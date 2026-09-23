@@ -687,3 +687,14 @@ zeros. CLV, calibration and ROI over a real prospective sample are what will ans
 There is no second modelling surface to go and find. The incumbent's probability, the coherent
 simulation's, and Shadow v2's are on the same row of the same file, each with its own support state, and
 every contract that has none of them says which of the four buckets it is in and why.
+
+
+## Production eligibility in the packet (2026-09-23)
+
+`packet.production_eligibility` carries the newest evidence document at or before the build
+(`data/shadow/v2/eligibility/<stamp>.eligibility.json`): every arm's and every family's status with its game count,
+game-level Brier delta vs the market and CLV. Every `shadow_v2` arm answer carries `eligibility`; player arms also
+carry `abstention`. A DISABLED arm shows no number (`probability_withheld_reason` says why). For player props the
+primary independent arm is DATA_PLAYER_V3 (RESEARCH_ONLY); on the current evidence the MARKET is the better
+player-prop distribution and the packet says so. Large model-market disagreement is labelled as the place the models
+are historically worst -- it is never a ranking of edges. Nothing here recommends a bet.

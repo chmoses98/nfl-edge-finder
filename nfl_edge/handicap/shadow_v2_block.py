@@ -59,14 +59,19 @@ import json
 import os
 from datetime import datetime, timezone
 
+import nfl_edge.evaluation.eligibility as EL          # stdlib-only; module paths for the report-isolation audit
+import nfl_edge.evaluation.research_record as RR       # family_group(): the key eligibility is decided on
+
 DIRNAME = os.path.join("data", "shadow", "v2", "projections")
 BOARD_ARM = "BOARD_V2"
-PLAYER_ARMS = ("DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST")
+PLAYER_ARMS = ("DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "DATA_PLAYER_V3", "HYBRID_PLAYER_V3")
 ARMS = (BOARD_ARM,) + PLAYER_ARMS
-# the arm that is an INDEPENDENT football view of the question, per engine. Anything not named here falls
-# back to BOARD_V2, which is the arm that owns every non-player family.
-INDEPENDENT_ARM_BY_ENGINE = {"PLAYER": "DATA_PLAYER_DIST"}
-MARKET_DERIVED_ARMS = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST")
+# the arm that is an INDEPENDENT football view of the question, per engine, in order of preference. Anything not
+# named here falls back to BOARD_V2, which is the arm that owns every non-player family. DATA_PLAYER_V3 first:
+# DATA_PLAYER_DIST carries a known input defect (nfl_edge/evaluation/eligibility.py KNOWN_DEFECTS) and is primary
+# only on a snapshot written before v3 existed -- where its probability is withheld as DISABLED.
+INDEPENDENT_ARMS_BY_ENGINE = {"PLAYER": ("DATA_PLAYER_V3", "DATA_PLAYER_DIST")}
+MARKET_DERIVED_ARMS = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3")
 PROBABILITY_STATES = ("PRICED", "PROJECTABLE_NOT_YET_VALIDATED")
 PROSPECTIVE_FROZEN = "PROSPECTIVE_FROZEN"
 RESEARCH_ONLY = "RESEARCH ONLY -- a Shadow v2 projection is not validated and authorises nothing"
@@ -192,7 +197,7 @@ def register_provenance(row: dict, table: dict) -> str:
     return by_key[key]
 
 
-def arm_view(row: dict, table: dict) -> dict:
+def arm_view(row: dict, table: dict, eligibility: dict | None = None) -> dict:
     """One arm's answer for one contract: only what varies per contract, plus a provenance id.
 
     Everything that is the same for every contract this arm answered -- the engine and its version, the
@@ -202,7 +207,16 @@ def arm_view(row: dict, table: dict) -> dict:
     settlement branch is folded in), and `reason` only where there is no probability to explain.
     """
     p, cv, withheld = _probability(row)
-    out = {"state": row.get("support_state"), "p_yes": p, "provenance": register_provenance(row, table)}
+    # PRODUCTION ELIGIBILITY (nfl_edge/evaluation/eligibility.py): every arm answer says what authority it has.
+    # A DISABLED arm (a known defect) shows no number at all; every other status is printed beside the number.
+    elig = EL.status_for(eligibility, row.get("model_arm") or "", RR.family_group(row))
+    if elig["status"] == EL.DISABLED and p is not None:
+        p, cv, withheld = None, None, f"arm DISABLED: {elig['reason'][:160]}"
+    out = {"state": row.get("support_state"), "p_yes": p, "provenance": register_provenance(row, table),
+           "eligibility": elig["status"]}
+    ab = row.get("abstention") or {}
+    if ab.get("state"):
+        out["abstention"] = ab["state"]
     if cv is not None and (p is None or abs(float(cv) - float(p)) > 1e-12):
         out["contract_value"] = cv
     if p is None and row.get("support_reason"):
@@ -220,7 +234,8 @@ def _arm_is_market_derived(row: dict) -> bool:
     return row.get("model_arm") in MARKET_DERIVED_ARMS
 
 
-def market_view(arms: dict | None, table: dict | None = None, *, packet_mid: float | None = None) -> dict | None:
+def market_view(arms: dict | None, table: dict | None = None, *, packet_mid: float | None = None,
+                eligibility: dict | None = None) -> dict | None:
     """The per-market Shadow v2 block: the independent arm's answer, plus any other arm that answered.
 
     `support_state` is the PRIMARY arm's state and nothing else. Taking the best state across arms would
@@ -250,13 +265,14 @@ def market_view(arms: dict | None, table: dict | None = None, *, packet_mid: flo
     table = {} if table is None else table
     engines = {arm: (row.get("engine") or "NONE") for arm, row in arms.items()}
     engine = next((e for e in engines.values() if e and e != "NONE"), next(iter(engines.values()), None))
-    primary = INDEPENDENT_ARM_BY_ENGINE.get(engine, BOARD_ARM)
+    primary = next((a for a in INDEPENDENT_ARMS_BY_ENGINE.get(engine, (BOARD_ARM,)) if a in arms),
+                   INDEPENDENT_ARMS_BY_ENGINE.get(engine, (BOARD_ARM,))[0])
     if primary not in arms:
         # the engine's independent arm did not answer this contract: report the board arm if it did, and
         # otherwise say which arms are present rather than promoting a market-derived one into the slot.
         primary = BOARD_ARM if BOARD_ARM in arms else None
     prow = arms.get(primary) or {}
-    pv = arm_view(prow, table) if primary else {}
+    pv = arm_view(prow, table, eligibility) if primary else {}
     out = {
         "primary_arm": primary,
         "support_state": pv.get("state"),
@@ -265,14 +281,17 @@ def market_view(arms: dict | None, table: dict | None = None, *, packet_mid: flo
         "provenance": pv.get("provenance"),
         "semantic_confidence": prow.get("semantic_confidence"),
         "settlement_reachability": (prow.get("settlement_reachability") or {}).get("state"),
+        "eligibility": pv.get("eligibility"),
     }
+    if pv.get("abstention"):
+        out["abstention"] = pv["abstention"]
     for k in ("contract_value", "reason", "probability_withheld_reason", "p_yes_low", "p_yes_high"):
         if k in pv:
             out["support_reason" if k == "reason" else k] = pv[k]
     sync = (prow.get("information_sync") or {}).get("synchronization_state")
     if sync and sync != "SYNCHRONIZED":
         out["information_sync"] = sync
-    others = {arm: arm_view(row, table) for arm, row in sorted(arms.items()) if arm != primary}
+    others = {arm: arm_view(row, table, eligibility) for arm, row in sorted(arms.items()) if arm != primary}
     if others:
         out["other_arms"] = others
     v2mid = prow.get("mid")
@@ -293,10 +312,13 @@ def any_arm_probability(block: dict | None) -> bool:
     return bool(block and any(v.get("p_yes") is not None for v in (block.get("arms") or {}).values()))
 
 
-PRIMARY_ARM_BASIS = ("BOARD_V2 owns every non-player family; DATA_PLAYER_DIST is the only player arm that "
-                     "is an independent football view of the statistic. MARKET_PLAYER_DIST is reconstructed "
-                     "FROM the Kalshi ladder and HYBRID_PLAYER_DIST blends the two: both are reported, "
-                     "flagged `market_derived`, and never promoted into the primary slot.")
+PRIMARY_ARM_BASIS = ("BOARD_V2 owns every non-player family; DATA_PLAYER_V3 is the player arm that is an "
+                     "independent football view of the statistic (DATA_PLAYER_DIST, its defective predecessor, "
+                     "is primary only on snapshots written before v3 and is DISABLED). MARKET_PLAYER_DIST is "
+                     "reconstructed FROM the Kalshi ladder and the HYBRID arms blend the two: they are reported, "
+                     "flagged `market_derived`, and never promoted into the primary slot. Being primary says "
+                     "nothing about authority: every arm answer carries its production-eligibility status, and "
+                     "on the current evidence the MARKET is the better player-prop distribution.")
 
 
 def game_view(blocks: list, manifest: dict | None, *, listed: list | None = None) -> dict:

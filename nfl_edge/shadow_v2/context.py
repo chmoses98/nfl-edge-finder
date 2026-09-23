@@ -22,11 +22,15 @@ import json
 import os
 from datetime import datetime, timezone
 
+from nfl_edge.context import role as RO
 from nfl_edge.shadow_v2 import pit
 from nfl_edge.shadow_v2 import vintage_snapshots as VS
 
 UNKNOWN = "UNKNOWN"
-CONTEXT_VERSION = "context-1.2.0"       # 1.2.0: injury-report maturity, official inactives, point-in-time ledger
+# 1.2.0: injury-report maturity, official inactives, point-in-time ledger
+# 1.3.0: depth chart actually loaded (per-team newest chart <= cutoff, best offensive placement, group order) and a
+#        structured `role` block (role class, certainty, reasons, provenance) on every player context
+CONTEXT_VERSION = "context-1.3.0"
 # injury-report states. Absence from a half-filed report is not a clean bill of health, so it has its own state.
 NOT_LISTED_AT_VINTAGE = "NOT_LISTED_AT_THIS_VINTAGE"
 REPORT_NOT_AVAILABLE = "REPORT_NOT_AVAILABLE"
@@ -39,6 +43,27 @@ ROUTE_SOURCE = "nflverse pbp_participation (offense_players per play, 2016-2025)
 ROUTE_MISSING = "no prior game with participation coverage for this player (rookie, or a season the participation release does not cover)"
 RZ_SOURCE = "nflverse play-by-play yardline_100 <= 20 (red zone), <= 5 (goal line) opportunity shares; point-in-time EWMA over strictly prior games"
 RZ_MISSING = "no prior red-zone opportunity for this player in the participation window"
+
+
+INJURY_DESIGNATION_KNOWN = "DESIGNATION_KNOWN"          # on this week's report: its status is knowledge
+INJURY_NO_DESIGNATION = "NO_DESIGNATION_MATURE_REPORT"   # absent from a MATURE report: evidence of no designation
+INJURY_WEAK = "NO_DESIGNATION_PARTIAL_REPORT"             # absent from a half-filed report: weak evidence, not knowledge
+INJURY_UNKNOWN = "UNKNOWN"
+
+
+def injury_knowledge(state, maturity) -> str:
+    """What an injury-report state actually tells us, for coverage reporting.
+
+    The weekly report's `injury_known_pct` counted `state in ("LISTED", "NOT_LISTED")`, but the context has emitted
+    `NOT_LISTED_AT_THIS_VINTAGE` since context-1.2.0, so the metric silently became "percent LISTED" (12.9% on
+    2026 week 2) while ~70% of rows were absences from a MATURE report -- a real statement about the player. The
+    opposite error is just as bad: absence from a half-filed early-week report is not a clean bill of health.
+    Both are therefore reported, separately, and only the first two classes count as known."""
+    if state == "LISTED":
+        return INJURY_DESIGNATION_KNOWN
+    if state in (NOT_LISTED_AT_VINTAGE, "NOT_LISTED"):
+        return INJURY_NO_DESIGNATION if maturity == MATURE else INJURY_WEAK
+    return INJURY_UNKNOWN
 
 
 def _or_unknown(v):
@@ -159,26 +184,33 @@ class ContextSources:
             return None
 
     def _depth_charts(self):
+        """The newest OFFENSIVE chart at or before the cutoff, per team (nfl_edge/context/role.py).
+
+        Previously: (1) the v2 workflows never downloaded the file, so this returned None on every runner and
+        every record said UNKNOWN; (2) the rank map was keyed by gsis and overwritten row by row, so a starting
+        receiver who returns kicks came back as ("KR", 1). The role book keeps each player's best offensive
+        placement and derives the order inside his position group."""
         p = os.path.join(self.root, "data", "raw", "nflverse", "depth_charts", f"depth_charts_{self.season}.parquet")
         if not os.path.exists(p):
+            self.ledger.record_absent("depth_charts", "depth chart file absent", kind="nflverse")
             return None
         try:
-            import polars as pl
-            d = pl.read_parquet(p).select("dt", "team", "gsis_id", "pos_abb", "pos_rank", "player_name")
-            vintages = sorted(v for v in d["dt"].unique().to_list() if v and _dt(v) <= self.as_of)
-            if not vintages:
-                self.ledger.record_absent("depth_charts", "no depth chart at or before the snapshot instant", kind="nflverse")
-                return {"vintage": None, "reason": "no depth chart at or before the snapshot instant", "path": os.path.relpath(p, self.root)}
-            latest = vintages[-1]
-            sub = d.filter(pl.col("dt") == latest)
-            rank = {}; qb1 = {}; by_team = {}
-            for r in sub.iter_rows(named=True):
-                rank[r["gsis_id"]] = (r["pos_abb"], r["pos_rank"])
-                by_team.setdefault(r["team"], []).append((r["gsis_id"], r["pos_abb"], r["pos_rank"]))
-                if r["pos_abb"] == "QB" and r["pos_rank"] == 1:
-                    qb1[r["team"]] = r["gsis_id"]
-            self.ledger.record("depth_charts", latest, kind="nflverse", path=os.path.relpath(p, self.root))
-            return {"vintage": latest, "rank": rank, "qb1": qb1, "by_team": by_team, "path": os.path.relpath(p, self.root), "meta": self.source_meta(os.path.relpath(p, self.root))}
+            book = RO.DepthChartBook.load(self.root, self.season, self.as_of)
+            if not book.entries:
+                self.ledger.record_absent("depth_charts", book.reason or "no depth chart at or before the snapshot instant", kind="nflverse")
+                return {"vintage": None, "reason": book.reason or "no depth chart at or before the snapshot instant",
+                        "path": os.path.relpath(p, self.root), "book": book}
+            latest = max(book.vintage.values())
+            # `rank` keeps the chart's own rank of the player's best offensive placement (ESPN pos_rank / legacy
+            # depth_team); the derived order inside the position group is `group_rank`
+            rank = {g: (e.group, e.slot_rank) for g, e in book.entries.items()}
+            group_rank = {g: e.group_rank for g, e in book.entries.items()}
+            qb1 = {t: book.qb1(t) for t in book.by_team if book.qb1(t)}
+            by_team = {t: [(e.gsis_id, e.group, e.group_rank) for g in grp.values() for e in g] for t, grp in book.by_team.items()}
+            self.ledger.record("depth_charts", latest, kind="nflverse", path=os.path.relpath(p, self.root),
+                               n_teams=len(book.vintage), oldest_team_chart=min(book.vintage.values()))
+            return {"vintage": latest, "rank": rank, "group_rank": group_rank, "qb1": qb1, "by_team": by_team, "book": book,
+                    "path": os.path.relpath(p, self.root), "meta": self.source_meta(os.path.relpath(p, self.root))}
         except Exception as e:  # noqa: BLE001
             self.log(f"depth charts unavailable: {e}")
             return None
@@ -310,8 +342,37 @@ class ContextSources:
         if not self.depth.get("vintage"):
             return {"state": UNKNOWN, "reason": self.depth.get("reason")}
         pr = self.depth["rank"].get(gsis)
-        return {"state": ("LISTED" if pr else "NOT_LISTED"), "vintage": self.depth["vintage"], "position": (pr[0] if pr else None), "rank": (pr[1] if pr else None),
-                "team_qb1": self.depth["qb1"].get(team), "source_retrieved_at": self.depth["meta"].get("retrieved_at")}
+        book = self.depth.get("book")
+        team_vintage = (book.vintage.get(team) if book else None) or self.depth["vintage"]
+        return {"state": ("LISTED" if pr else "NOT_LISTED"), "vintage": team_vintage, "position": (pr[0] if pr else None), "rank": (pr[1] if pr else None),
+                "group_rank": (self.depth.get("group_rank") or {}).get(gsis),
+                "team_qb1": self.depth["qb1"].get(team), "source_retrieved_at": (self.depth.get("meta") or {}).get("retrieved_at")}
+
+    def teammate_statuses(self, team: str | None, week: int | None) -> dict:
+        """gsis -> this week's report status (or practice status) for one team, from the same report vintage."""
+        if self.injuries is None or not team or self.injuries.get("no_vintage_at_cutoff"):
+            return {}
+        wk = int(week or 0)
+        return {g: (r.get("report_status") or r.get("practice_status") or "") for (g, w), r in self.injuries["rows"].items()
+                if w == wk and r.get("team") == team}
+
+    def role_block(self, *, gsis, team, week, position, feat_row: dict | None, availability_state: str | None) -> dict:
+        """Structured role context (nfl_edge/context/role.py) at this cutoff: role class, certainty, reasons."""
+        book = (self.depth or {}).get("book")
+        if book is None:
+            book = RO.DepthChartBook(cutoff=self.as_of, reason=(self.depth or {}).get("reason") or "depth chart file absent")
+        fr = feat_row or {}
+
+        def g(k):
+            v = fr.get(k)
+            return None if v is None or (isinstance(v, float) and v != v) else v
+        recent = g("last_snap_share")
+        if recent is None and g("n_prior"):
+            recent = g("ewma_snap_share")
+        return RO.assess(book, gsis_id=gsis, team=team, position=position, recent_snap_share=recent,
+                         n_current_season_games=g("n_cur_season"), last_team=g("last_team"),
+                         availability_state=availability_state, teammate_status=self.teammate_statuses(team, week),
+                         observed_at=self.as_of.isoformat())
 
     def teammate_block(self, team: str | None, week: int | None, exclude: str | None) -> dict:
         """Skill-position teammates with an injury designation this week, from the same report vintage."""
@@ -344,8 +405,10 @@ def player_context(src: ContextSources, *, gsis, team, week, game_id, kickoff, f
     def g(k):
         v = fr.get(k)
         return None if v is None or (isinstance(v, float) and v != v) else v
-    return {"context_version": CONTEXT_VERSION, "position": position or g("position") or UNKNOWN, "team": team,
+    pos = position or g("position") or UNKNOWN
+    return {"context_version": CONTEXT_VERSION, "position": pos, "team": team,
             "availability": av, "injury_report": inj, "official_inactive": src.inactive_block(gsis, game_id), "depth_chart": dep,
+            "role": src.role_block(gsis=gsis, team=team, week=week, position=pos, feat_row=fr, availability_state=av.get("state")),
             "qb_identity": {"schedule_listed": g("_schedule_qb"), "depth_chart_qb1": dep.get("team_qb1"), "qb_changed_recent": g("qb_changed_recent")},
             "teammates": src.teammate_block(team, week, gsis),
             # Route participation and red-zone opportunity are REAL, not proxies: nflverse pbp_participation
@@ -425,6 +488,10 @@ def compact_player_context(full: dict, cid: str) -> dict:
             "official_inactive_state": oi.get("official_inactive_state"), "official_inactive_source": oi.get("source"),
             "official_inactive_observed_at": oi.get("observed_at"), "official_inactive_confidence": oi.get("confidence"),
             "depth_chart_rank": dep.get("rank"), "depth_chart_vintage": dep.get("vintage"),
+            "depth_chart_group": dep.get("position"), "depth_chart_group_rank": dep.get("group_rank"),
+            "role_class": (full.get("role") or {}).get("role_class"),
+            "role_certainty": (full.get("role") or {}).get("role_certainty"),
+            "role_change_pending": (full.get("role") or {}).get("role_change_pending"),
             "qb_schedule": qb.get("schedule_listed"), "qb_depth_chart": qb.get("depth_chart_qb1"), "qb_changed_recent": qb.get("qb_changed_recent"),
             "teammates_out_or_doubtful": (full.get("teammates") or {}).get("n_out_or_doubtful"),
             "snap_share": use.get("snap_share"), "target_share": use.get("target_share"), "carry_share": use.get("carry_share"),

@@ -48,3 +48,16 @@ def hybrid(data: LatticeDistribution | None, market: LatticeDistribution | None,
     if not ok:
         return {"status": "UNAVAILABLE", "reason": f"blend invalid: {why}", "dist": None}
     return {"status": "OK", "dist": d, "structure": structure, "w_market": w_market, "version": VERSION}
+
+
+# HYBRID_PLAYER_V3: the same preregistered structure over DATA_PLAYER_V3 (data-player-dist-3.0.0). Its weight is
+# chosen by the same protocol (2025 weeks 1-9 select, weeks 10-18 confirm; research/player_engine_v3/RESULTS.md)
+# and is never fitted on the season being scored.
+VERSION_V3 = "hybrid-player-dist-2.0.0"
+V3_STRUCTURE = MIXTURE
+# Selection (2025 weeks 1-9, T-90m) among the hybrids {0.5, 0.7, 0.85}: 0.85 (+0.00049 +/- 0.00054 vs market);
+# confirmation (weeks 10-18): +0.00009 +/- 0.00027 -- indistinguishable from the market, never better. Including
+# the market itself in the candidate set, the protocol selects the MARKET. The hybrid is therefore research: it
+# exists to learn prospectively whether a small data component ever adds information, not as an input.
+V3_WEIGHT_MARKET = 0.85
+V3_STUDY_VERDICT = "market selected; best hybrid (0.85 market) indistinguishable from the market on 2025 weeks 10-18"
