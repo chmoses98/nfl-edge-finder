@@ -61,6 +61,18 @@ def test_current_season_history_is_bounded_to_completed_games():
     assert info["target_season_games_used"] == 1 and info["target_season_rows_dropped"] == 2
 
 
+def test_a_played_game_with_listed_props_is_history_not_a_prospect():
+    """Regression (first production run, 2026-09-23 12:22): every game with a quoted player market was treated as
+    upcoming, so the played week-1/2 games -- whose props were still listed -- were excluded from history and the
+    arm used 0 current-season games. Only games that have not kicked off are prospects."""
+    kick = {"w1": CUT - timedelta(days=7), "w2": CUT - timedelta(days=1), "w3": CUT + timedelta(days=1)}
+    pre = PV3.pregame_games(kick, CUT)
+    assert pre == {"w3"}
+    hist = pd.DataFrame({"season": [2026, 2026], "game_id": ["w1", "w2"], "player_id": ["p", "p"]})
+    kept, info = PV3.completed_current_season(hist, 2026, kick, CUT, exclude_games=pre)
+    assert set(kept.game_id) == {"w1", "w2"} and info["target_season_games_used"] == 2
+
+
 def test_the_starting_quarterback_is_the_depth_chart_qb1():
     up = pd.DataFrame({"player_id": ["qbA", "qbB", "wr"], "team": ["KC", "KC", "KC"], "game_id": ["g"] * 3})
     out = PV3.depth_qb_starters(up, {"KC": "qbA"})
