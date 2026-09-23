@@ -8,9 +8,9 @@
   "pct_captured": 91.0
  },
  "PROJECTION_COVERAGE": {
-  "records": 1000781,
+  "records": 1040734,
   "has_probability": 417766,
-  "pct_of_records": 41.7,
+  "pct_of_records": 40.1,
   "contracts_with_probability": 9482,
   "contracts_total": 12769,
   "pct_contracts": 74.3
@@ -30,7 +30,8 @@
   "markers": {
    "CAPTURED": 23
   },
-  "missed_markers": 0
+  "missed_markers": 8,
+  "missed_markers_note": "computed against the schedule (a missed horizon writes no marker)"
  },
  "SETTLEMENT_COVERAGE": {
   "probability_rows": 417766,
@@ -66,8 +67,14 @@
  },
  "PLAYER_CONTEXT_COVERAGE": {
   "player_probability_rows": 274713,
-  "injury_known_pct": 12.9,
+  "injury_known_pct": 71.5,
+  "injury_listed_pct": 12.9,
+  "injury_weak_pct": 25.2,
   "depth_chart_known_pct": 0.0,
+  "role_certainty": {
+   "ABSENT": 274713
+  },
+  "role_known_pct": 0.0,
   "availability_known_pct": 94.2,
   "weather_known_pct": 100.0
  },
@@ -94,11 +101,258 @@
   "unsupported_states": {
    "RESEARCH_REQUIRED": 4011,
    "SEMANTICS_AMBIGUOUS": 228,
-   "CAPTURE_ONLY": 99,
+   "CAPTURE_ONLY": 96,
    "NON_FOOTBALL_MODEL": 1518,
    "NOT_CAPTURED": 874,
    "UNSUPPORTED": 22,
    "IDENTITY_UNRESOLVED": 33
   }
+ },
+ "HORIZON_DELIVERY": {
+  "capture_health_version": "capture-health-1.0.0",
+  "slate_id": "2026-REG-02",
+  "as_of": "2026-09-23T14:06:13.387126+00:00",
+  "counts": {
+   "DELIVERED_DEGRADED": 9,
+   "MISSED": 8,
+   "DELIVERED_LATE": 3
+  },
+  "owed": 20,
+  "delivered": 12,
+  "delivered_pct": 60.0,
+  "on_time_pct": 0.0,
+  "missed": [
+   "2026-REG-02|20260918T0015Z|T-90m",
+   "2026-REG-02|20260918T0015Z|T-30m",
+   "2026-REG-02|20260920T1700Z|T-90m",
+   "2026-REG-02|20260920T1700Z|T-30m",
+   "2026-REG-02|20260920T2005Z|T-30m",
+   "2026-REG-02|20260921T0020Z|T-30m",
+   "2026-REG-02|20260922T0015Z|T-90m",
+   "2026-REG-02|20260922T0015Z|T-30m"
+  ],
+  "rows": [
+   {
+    "horizon_id": "2026-REG-02|20260918T0015Z|T-1440m",
+    "cluster_key": "20260918T0015Z",
+    "horizon_min": 1440,
+    "trigger_utc": "2026-09-17T00:15:00+00:00",
+    "kickoff_utc": "2026-09-18T00:15:00+00:00",
+    "n_games": 1,
+    "snapshot_id": "20260917T011600Z",
+    "lateness_min": 61.0,
+    "status": "DELIVERED_DEGRADED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260918T0015Z|T-360m",
+    "cluster_key": "20260918T0015Z",
+    "horizon_min": 360,
+    "trigger_utc": "2026-09-17T18:15:00+00:00",
+    "kickoff_utc": "2026-09-18T00:15:00+00:00",
+    "n_games": 1,
+    "snapshot_id": "20260917T192102Z",
+    "lateness_min": 66.0,
+    "status": "DELIVERED_DEGRADED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260918T0015Z|T-90m",
+    "cluster_key": "20260918T0015Z",
+    "horizon_min": 90,
+    "trigger_utc": "2026-09-17T22:45:00+00:00",
+    "kickoff_utc": "2026-09-18T00:15:00+00:00",
+    "n_games": 1,
+    "status": "MISSED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260918T0015Z|T-30m",
+    "cluster_key": "20260918T0015Z",
+    "horizon_min": 30,
+    "trigger_utc": "2026-09-17T23:45:00+00:00",
+    "kickoff_utc": "2026-09-18T00:15:00+00:00",
+    "n_games": 1,
+    "status": "MISSED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260920T1700Z|T-1440m",
+    "cluster_key": "20260920T1700Z",
+    "horizon_min": 1440,
+    "trigger_utc": "2026-09-19T17:00:00+00:00",
+    "kickoff_utc": "2026-09-20T17:00:00+00:00",
+    "n_games": 8,
+    "snapshot_id": "20260919T183916Z",
+    "lateness_min": 99.3,
+    "status": "DELIVERED_DEGRADED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260920T1700Z|T-360m",
+    "cluster_key": "20260920T1700Z",
+    "horizon_min": 360,
+    "trigger_utc": "2026-09-20T11:00:00+00:00",
+    "kickoff_utc": "2026-09-20T17:00:00+00:00",
+    "n_games": 8,
+    "snapshot_id": "20260920T133947Z",
+    "lateness_min": 159.8,
+    "status": "DELIVERED_DEGRADED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260920T1700Z|T-90m",
+    "cluster_key": "20260920T1700Z",
+    "horizon_min": 90,
+    "trigger_utc": "2026-09-20T15:30:00+00:00",
+    "kickoff_utc": "2026-09-20T17:00:00+00:00",
+    "n_games": 8,
+    "status": "MISSED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260920T1700Z|T-30m",
+    "cluster_key": "20260920T1700Z",
+    "horizon_min": 30,
+    "trigger_utc": "2026-09-20T16:30:00+00:00",
+    "kickoff_utc": "2026-09-20T17:00:00+00:00",
+    "n_games": 8,
+    "status": "MISSED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260920T2005Z|T-1440m",
+    "cluster_key": "20260920T2005Z",
+    "horizon_min": 1440,
+    "trigger_utc": "2026-09-19T20:05:00+00:00",
+    "kickoff_utc": "2026-09-20T20:05:00+00:00",
+    "n_games": 5,
+    "snapshot_id": "20260919T204744Z",
+    "lateness_min": 42.7,
+    "status": "DELIVERED_LATE"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260920T2005Z|T-360m",
+    "cluster_key": "20260920T2005Z",
+    "horizon_min": 360,
+    "trigger_utc": "2026-09-20T14:05:00+00:00",
+    "kickoff_utc": "2026-09-20T20:05:00+00:00",
+    "n_games": 5,
+    "snapshot_id": "20260920T165815Z",
+    "lateness_min": 173.2,
+    "status": "DELIVERED_DEGRADED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260920T2005Z|T-90m",
+    "cluster_key": "20260920T2005Z",
+    "horizon_min": 90,
+    "trigger_utc": "2026-09-20T18:35:00+00:00",
+    "kickoff_utc": "2026-09-20T20:05:00+00:00",
+    "n_games": 5,
+    "snapshot_id": "20260920T192322Z",
+    "lateness_min": 48.4,
+    "status": "DELIVERED_DEGRADED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260920T2005Z|T-30m",
+    "cluster_key": "20260920T2005Z",
+    "horizon_min": 30,
+    "trigger_utc": "2026-09-20T19:35:00+00:00",
+    "kickoff_utc": "2026-09-20T20:05:00+00:00",
+    "n_games": 5,
+    "status": "MISSED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260921T0020Z|T-1440m",
+    "cluster_key": "20260921T0020Z",
+    "horizon_min": 1440,
+    "trigger_utc": "2026-09-20T00:20:00+00:00",
+    "kickoff_utc": "2026-09-21T00:20:00+00:00",
+    "n_games": 1,
+    "snapshot_id": "20260920T003738Z",
+    "lateness_min": 17.6,
+    "status": "DELIVERED_LATE"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260921T0020Z|T-360m",
+    "cluster_key": "20260921T0020Z",
+    "horizon_min": 360,
+    "trigger_utc": "2026-09-20T18:20:00+00:00",
+    "kickoff_utc": "2026-09-21T00:20:00+00:00",
+    "n_games": 1,
+    "snapshot_id": "20260920T192322Z",
+    "lateness_min": 63.4,
+    "status": "DELIVERED_DEGRADED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260921T0020Z|T-90m",
+    "cluster_key": "20260921T0020Z",
+    "horizon_min": 90,
+    "trigger_utc": "2026-09-20T22:50:00+00:00",
+    "kickoff_utc": "2026-09-21T00:20:00+00:00",
+    "n_games": 1,
+    "snapshot_id": "20260920T231401Z",
+    "lateness_min": 24.0,
+    "status": "DELIVERED_LATE"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260921T0020Z|T-30m",
+    "cluster_key": "20260921T0020Z",
+    "horizon_min": 30,
+    "trigger_utc": "2026-09-20T23:50:00+00:00",
+    "kickoff_utc": "2026-09-21T00:20:00+00:00",
+    "n_games": 1,
+    "status": "MISSED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260922T0015Z|T-1440m",
+    "cluster_key": "20260922T0015Z",
+    "horizon_min": 1440,
+    "trigger_utc": "2026-09-21T00:15:00+00:00",
+    "kickoff_utc": "2026-09-22T00:15:00+00:00",
+    "n_games": 1,
+    "snapshot_id": "20260921T013300Z",
+    "lateness_min": 78.0,
+    "status": "DELIVERED_DEGRADED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260922T0015Z|T-360m",
+    "cluster_key": "20260922T0015Z",
+    "horizon_min": 360,
+    "trigger_utc": "2026-09-21T18:15:00+00:00",
+    "kickoff_utc": "2026-09-22T00:15:00+00:00",
+    "n_games": 1,
+    "snapshot_id": "20260921T192246Z",
+    "lateness_min": 67.8,
+    "status": "DELIVERED_DEGRADED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260922T0015Z|T-90m",
+    "cluster_key": "20260922T0015Z",
+    "horizon_min": 90,
+    "trigger_utc": "2026-09-21T22:45:00+00:00",
+    "kickoff_utc": "2026-09-22T00:15:00+00:00",
+    "n_games": 1,
+    "status": "MISSED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   },
+   {
+    "horizon_id": "2026-REG-02|20260922T0015Z|T-30m",
+    "cluster_key": "20260922T0015Z",
+    "horizon_min": 30,
+    "trigger_utc": "2026-09-21T23:45:00+00:00",
+    "kickoff_utc": "2026-09-22T00:15:00+00:00",
+    "n_games": 1,
+    "status": "MISSED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+   }
+  ]
  }
 }
