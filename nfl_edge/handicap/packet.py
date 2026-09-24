@@ -642,8 +642,10 @@ def role_state(context_runs: list, teams: set) -> dict:
         "available": bool(out),
         "capture_run_id": cur["run_id"],
         "source": "sleeper depth chart",
-        "caveat": ("Depth-chart order is a stated intention, not a measured snap share. No 2026 snaps have "
-                   "been played, so no in-season usage exists to confirm it."),
+        # Week-independent on purpose: this block does not know the week, and "no snaps have been played"
+        # was printed verbatim in week 3.
+        "caveat": ("Depth-chart order is a stated intention, not a measured snap share; where in-season usage "
+                   "exists it is in the player projections, and it outranks this order."),
         "by_team": out,
     }
 

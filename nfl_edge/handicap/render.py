@@ -863,6 +863,14 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
                 if lst:
                     bits.append(f"**{pos}**: " + ", ".join(
                         f"{x['player']}{'*' if x.get('injury_status') else ''}" for x in lst[:4]))
+            # Sleeper charts receivers by ALIGNMENT (left / right / slot), not as "WR". Rendering only "WR" hid
+            # every receiver on most teams -- week 3 showed GB with no receivers at all. Each slot is its own
+            # depth ladder, so it is shown as one, with the slot named.
+            slots = [(slot, roles[t].get(slot) or []) for slot in ("LWR", "RWR", "SWR")]
+            if any(lst for _slot, lst in slots):
+                bits.append("**WR by slot**: " + "; ".join(
+                    f"{slot} " + ", ".join(f"{x['player']}{'*' if x.get('injury_status') else ''}" for x in lst[:3])
+                    for slot, lst in slots if lst))
             a(f"- **{t}** — " + " · ".join(bits))
         a("")
         a(f"_{(g.get('roles') or {}).get('caveat')}  (* = carries an injury designation)_")

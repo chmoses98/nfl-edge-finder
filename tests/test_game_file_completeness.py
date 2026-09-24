@@ -139,3 +139,22 @@ def test_the_slate_document_keeps_the_canonical_label_too(game):
     out = render_markdown(packet, compact=True)
     assert "DISAGREEMENT ONLY" in out
     assert "not a bet ranking" in out.lower() or "NOT a bet ranking" in out
+
+
+def test_receivers_charted_by_slot_are_rendered_not_dropped():
+    """Sleeper charts receivers as LWR / RWR / SWR. Rendering only "WR" showed GB with no receivers in week 3."""
+    game = json.load(open(FIXTURE))
+    game["roles"]["by_team"]["NE"]["LWR"] = [{"player": "Left One", "depth_chart_order": 1, "injury_status": None}]
+    game["roles"]["by_team"]["NE"]["SWR"] = [{"player": "Slot One", "depth_chart_order": 1, "injury_status": "Q"}]
+    md = render_game_markdown(game)
+    line = next(ln for ln in md.splitlines() if ln.startswith("- **NE**"))
+    assert "**WR by slot**: LWR Left One;" in line and "SWR Slot One*" in line
+    assert "RWR Romeo Doubs" in line            # the fixture's own slot receivers, silently dropped before
+
+
+def test_the_role_caveat_does_not_claim_no_snaps_have_been_played():
+    from nfl_edge.handicap.packet import role_state
+    run = {"run_id": "r", "sleeper": {"players": {"1": {"team": "NE", "position": "WR", "depth_chart_position": "LWR",
+                                                        "depth_chart_order": 1, "full_name": "Left One"}}}}
+    out = role_state([run], {"NE"})
+    assert "No 2026 snaps" not in out["caveat"] and out["by_team"]["NE"]["LWR"][0]["player"] == "Left One"
