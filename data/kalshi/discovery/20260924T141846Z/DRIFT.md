@@ -1,0 +1,100 @@
+# Discovery -> registry drift (20260924T141846Z)
+
+Registry holds 392 series; discovery lists 473 NFL candidates.
+
+| quantity | n |
+|---|---|
+| new_series | 20 |
+| new_series_open_markets | 1316 |
+| unclassified_series | 8 |
+| capture_gap_contracts | 1398 |
+| capture_gap_contracts_outside_registry | 1316 |
+
+## NEW_SERIES (not in the reviewed registry)
+
+| series | family | open | first seen | lag (days) | title |
+|---|---|---|---|---|---|
+| KXNFLWEEKHIGHSCORE | WEEK_EVENT | 480 | 20260924T141846Z | 0.0 | NFL Highest Scoring Team of the Week |
+| KXNFLFFWEEKLEAD | WEEK_LEADER | 252 | 20260924T141846Z | 0.0 | Weekly Fantasy Football Leader |
+| KXNFLPOTM | AWARD | 201 | 20260924T141846Z | 0.0 | NFL Player of the Month |
+| KXNFLFFWEEKTOP | WEEK_LEADER | 146 | 20260924T141846Z | 0.0 | Weekly Fantasy Football Top Players |
+| KXNFLFFPLAYOFFLEADER | SEASON_FANTASY | 75 | 20260924T141846Z | 0.0 | Fantasy Football Playoffs Leader |
+| KXNFLROTM | AWARD | 60 | 20260924T141846Z | 0.0 | NFL Rookie of the Month |
+| KXNFLFFSEASONTOTAL | SEASON_FANTASY | 36 | 20260924T141846Z | 0.0 | Pro Football Player's Fantasy Season Total |
+| KXNFLMVPSPECIALS | UNKNOWN_NEEDS_CLASSIFICATION | 14 | 20260924T141846Z | 0.0 | NFL MVP Award Specials |
+| KXSBLSPREAD | SUPER_BOWL_EVENT | 12 | 20260924T141846Z | 0.0 | Slovakia SBL Spread |
+| KXSBLTOTAL | SUPER_BOWL_EVENT | 11 | 20260924T141846Z | 0.0 | Slovakia SBL Total |
+| KXNFLLADDERREC | UNKNOWN_NEEDS_CLASSIFICATION | 6 | 20260924T141846Z | 0.0 | Receptions Ladder |
+| KXNFLLADDERRECYDS | UNKNOWN_NEEDS_CLASSIFICATION | 6 | 20260924T141846Z | 0.0 | Receiving Yards Ladder |
+| KXNFLLONGESTPLAY | SEASON_SPECIAL | 5 | 20260924T141846Z | 0.0 | NFL Longest Touchdown |
+| KXNFLFFPTSLADDER | SEASON_FANTASY | 4 | 20260924T141846Z | 0.0 | Fantasy Ladder |
+| KXNFLLADDERRSHYDS | UNKNOWN_NEEDS_CLASSIFICATION | 3 | 20260924T141846Z | 0.0 | Rushing Yards Ladder |
+| KXNFLDPOYSPECIALS | UNKNOWN_NEEDS_CLASSIFICATION | 2 | 20260924T141846Z | 0.0 | NFL Defensive Player of the Year Specials |
+| KXNFLOPOYSPECIALS | UNKNOWN_NEEDS_CLASSIFICATION | 2 | 20260924T141846Z | 0.0 | NFL Offensive Player of the Year Specials |
+| KXNFLHKANE | UNKNOWN_NEEDS_CLASSIFICATION | 1 | 20260924T141846Z | 0.0 | Harry Kane Pro Football signing |
+| KXNFLESCALATORREC | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20260924T141846Z | 0.0 | Receptions Escalator |
+| KXNFLWEEKTIE | WEEK_EVENT | 0 | 20260924T141846Z | 0.0 | NFL Weekly Tie |
+
+## UNCLASSIFIED
+
+| series | open | title |
+|---|---|---|
+| KXNFLMVPSPECIALS | 14 | NFL MVP Award Specials |
+| KXNFLLADDERREC | 6 | Receptions Ladder |
+| KXNFLLADDERRECYDS | 6 | Receiving Yards Ladder |
+| KXNFLLADDERRSHYDS | 3 | Rushing Yards Ladder |
+| KXNFLDPOYSPECIALS | 2 | NFL Defensive Player of the Year Specials |
+| KXNFLOPOYSPECIALS | 2 | NFL Offensive Player of the Year Specials |
+| KXNFLHKANE | 1 | Harry Kane Pro Football signing |
+| KXNFLESCALATORREC | 0 | Receptions Escalator |
+
+## CAPTURE_GAP (open contracts never confirmed open by any capture run)
+
+| series | open | never seen | in registry | tier |
+|---|---|---|---|---|
+| KXNFLWEEKHIGHSCORE | 480 | 480 | False | None |
+| KXNFLFFWEEKLEAD | 252 | 252 | False | None |
+| KXNFLPOTM | 201 | 201 | False | None |
+| KXNFLFFWEEKTOP | 146 | 146 | False | None |
+| KXNFLFFPLAYOFFLEADER | 75 | 75 | False | None |
+| KXNFLROTM | 60 | 60 | False | None |
+| KXNFLFFSEASONTOTAL | 36 | 36 | False | None |
+| KXNFLRECYDS | 830 | 26 | True | FULL_MICROSTRUCTURE |
+| KXNFLTD | 565 | 26 | True | FULL_MICROSTRUCTURE |
+| KXNFLFIRSTTD | 310 | 14 | True | FULL_MICROSTRUCTURE |
+| KXNFLMVPSPECIALS | 14 | 14 | False | None |
+| KXNFLRSHYDS | 464 | 12 | True | FULL_MICROSTRUCTURE |
+| KXSBLSPREAD | 12 | 12 | False | None |
+| KXSBLTOTAL | 11 | 11 | False | None |
+| KXNFLLADDERREC | 6 | 6 | False | None |
+| KXNFLLADDERRECYDS | 6 | 6 | False | None |
+| KXNFLLONGESTPLAY | 5 | 5 | False | None |
+| KXNFLFFPTSLADDER | 4 | 4 | False | None |
+| KXSBLGAME | 10 | 4 | True | DAILY |
+| KXNFLLADDERRSHYDS | 3 | 3 | False | None |
+| KXNFLDPOYSPECIALS | 2 | 2 | False | None |
+| KXNFLOPOYSPECIALS | 2 | 2 | False | None |
+| KXNFLHKANE | 1 | 1 | False | None |
+
+## NEW_MARKET_STRUCTURES: 34 contracts on PROVEN families did not parse PROVEN
+
+* KXNFLFG-26SEP24ATLGB-GB4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP24ATLGB-GB3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP24ATLGB-GB2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP24ATLGB-GB1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP24ATLGB-ATL4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP24ATLGB-ATL3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP24ATLGB-ATL2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26SEP24ATLGB-ATL1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-BROBINSON15 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-MPENIX9 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-GB-BMELTON16 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-CWOERNER89 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-ZBRANCH17 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-OZACCHEAUS14 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-NO-TD (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-KPITTS8 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-JDOTSON4 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-DLONDON5 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-BROBINSON7 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26SEP24ATLGB-ATL-ATLDST (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
