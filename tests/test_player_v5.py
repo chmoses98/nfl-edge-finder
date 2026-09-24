@@ -195,6 +195,10 @@ def test_production_evidence_reads_the_point_in_time_injury_vintage_availability
     res = PV5.resolve_slate([("ATL", "g1", 2), ("KC", "g2", 2)], ctx=ctx, avail=None, kick={"g1": KICK, "g2": KICK}, cutoff=CUT)
     assert res[("ATL", "g1")]["effective_projected_qb"] == "00-cousins" and res[("ATL", "g1")]["depth_chart_qb1"] == "00-penix"
     assert res[("KC", "g2")]["qb_resolution_reason"] == QR.CHART_QB1_AVAILABLE
+    # a blank designation from a pandas-built vintage (NaN) is "not designated", not an UNKNOWN status
+    ctx.injuries["rows"][("00-mahomes", 2)] = {"report_status": float("nan")}
+    nan = PV5.resolve_slate([("KC", "g2", 2)], ctx=ctx, avail=None, kick={"g2": KICK}, cutoff=CUT)[("KC", "g2")]
+    assert nan["qb_resolution_reason"] == QR.CHART_QB1_AVAILABLE
     # the report's row for ANOTHER week is not evidence about this game
     assert PV5.resolve_slate([("ATL", "g1", 1)], ctx=ctx, avail=None, kick={"g1": KICK}, cutoff=CUT)[("ATL", "g1")]["effective_projected_qb"] == "00-penix"
     # no injury vintage at the cutoff: the availability capture still counts; without either the state is UNKNOWN

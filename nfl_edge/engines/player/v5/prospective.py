@@ -68,7 +68,8 @@ def team_evidence(qbs, *, ctx, avail, week: int, game_id: str, book=None) -> tup
         rows = inj.get("rows") or {}
         for q in qbs:
             r = rows.get((q, int(week)))
-            if r and r.get("report_status"):
+            # a blank designation (None, or NaN from a pandas-built vintage) is "not designated", never a status
+            if r and isinstance(r.get("report_status"), str) and r["report_status"].strip():
                 ev.append(QR.QbEvidence(q, str(r["report_status"]), QR.SRC_INJURY_REPORT, at))
     by = (getattr(avail, "by_gsis", None) or {}) if avail is not None else {}
     if by:
