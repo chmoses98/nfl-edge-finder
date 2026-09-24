@@ -54,15 +54,19 @@ def test_a_test_window_before_the_generation_window_is_refused_even_without_over
 def test_transition_enforces_order_and_the_binding_registered_window(tmp_path):
     p = str(tmp_path / "h.jsonl")
     _add(p, gen=W(2026, 5, 5), fut=W(2026, 6, 12))
+    pre = lambda win: HR.preregister("H", test_window=win, thresholds=HR.PREREGISTERED_THRESHOLDS,   # noqa: E731
+                                     evaluation_plan="p", path=p)
+    with pytest.raises(HR.RegistryError, match="only through preregister"):
+        HR.transition("H", "PREREGISTERED", test_window=W(2026, 7, 10), path=p)      # a bare transition freezes nothing
     with pytest.raises(HR.RegistryError):
-        HR.transition("H", "PREREGISTERED", test_window=W(2026, 1, 4), path=p)       # before generation
+        pre(W(2026, 1, 4))                                                            # before generation
     with pytest.raises(HR.RegistryError, match="binding"):
-        HR.transition("H", "PREREGISTERED", test_window=W(2026, 6, 18), path=p)      # outside the registered window
-    r = HR.transition("H", "PREREGISTERED", test_window=W(2026, 7, 10), path=p)
+        pre(W(2026, 6, 18))                                                           # outside the registered window
+    r = pre(W(2026, 7, 10))
     assert r["registered_future_test_window"] == W(2026, 6, 12) and r["test_window"] == W(2026, 7, 10)
     HR.transition("H", "TESTING", path=p)
     with pytest.raises(HR.RegistryError):
-        HR.transition("H", "SUPPORTED", test_window=W(2026, 6, 10), path=p)          # wider than the chosen window
+        HR.transition("H", "SUPPORTED", test_window=W(2026, 6, 10), result={"z": 3}, path=p)   # wider than the chosen window
     assert HR.current(p)["H"]["status"] == "TESTING"
 
 

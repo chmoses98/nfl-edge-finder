@@ -271,6 +271,10 @@ def main(argv=None):
     try:
         localized = localized_signals(sc, a, md, label)
         json.dump(localized, open(os.path.join(a.out, f"{label}.localized_signals.json"), "w"), indent=1, default=str)
+        # SHORTLIST FOR OWNER REVIEW, on its own: discovery candidates a rule picked for a person to consider.
+        # Not tests; nothing is preregistered by writing it (scripts/research/preregister_candidate_v2.py does that).
+        json.dump(localized.get("shortlist"), open(os.path.join(a.out, f"{label}.preregistration_shortlist.json"), "w"),
+                  indent=1, default=str)
     except Exception as exc:  # noqa: BLE001 -- the section is additive; its absence is stated in the report, never fatal
         print(f"localized-signal section unavailable: {type(exc).__name__}: {exc}", flush=True)
     open(os.path.join(a.out, f"{label}.WEEKLY_REPORT.md"), "w").write(render(sc, h, rows, label, localized))

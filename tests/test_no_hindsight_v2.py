@@ -182,9 +182,11 @@ def test_hypothesis_registry_separates_generation_and_confirmation_evidence(tmp_
                generation_window={"season": 2026, "week_lo": 1, "week_hi": 1}, future_test_window={"season": 2026, "week_lo": 1, "week_hi": 3}, generated_by="t", path=path)
     with pytest.raises(HR.RegistryError):
         HR.transition("HG-1", "SUPPORTED", path=path)                                   # GENERATED -> SUPPORTED is not a legal transition
-    HR.transition("HG-1", "PREREGISTERED", path=path); HR.transition("HG-1", "TESTING", path=path)
+    HR.preregister("HG-1", test_window={"season": 2026, "week_lo": 2, "week_hi": 18}, thresholds=HR.PREREGISTERED_THRESHOLDS,
+                   evaluation_plan="model_minus_market_brier, clustered by game", path=path)
+    HR.transition("HG-1", "TESTING", path=path)
     with pytest.raises(HR.RegistryError):
-        HR.transition("HG-1", "SUPPORTED", test_window={"season": 2026, "week_lo": 1, "week_hi": 2}, path=path)
+        HR.transition("HG-1", "SUPPORTED", test_window={"season": 2026, "week_lo": 1, "week_hi": 2}, result={"z": 2.3}, path=path)
     r = HR.transition("HG-1", "SUPPORTED", test_window={"season": 2026, "week_lo": 2, "week_hi": 5}, result={"z": 2.3}, path=path)
     assert r["evidence_type"] == "CONFIRMATORY" and len(HR.load(path)) == 4 and HR.current(path)["HG-1"]["status"] == "SUPPORTED"
     assert HR.load(path)[1]["previous_hash"] == HR.load(path)[0]["line_hash"], "every transition chains to the previous line"
