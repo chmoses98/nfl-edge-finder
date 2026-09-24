@@ -1,0 +1,73 @@
+name: Owner actual wagers (ledger check + postmortem)
+
+# The owner's REAL placed wagers arrive on `handicap-data` through kalshi-bet-router's pull requests. This keeps
+# them honest and visible without anyone asking:
+#
+#   1. validate the whole ledger with this repository's own rules (scripts/handicap/validate_routed_ledger.py) --
+#      the same check the router's auto-merge gate runs before landing a delivery;
+#   2. write the OWNER ACTUAL PLACED WAGERS postmortem, season and per week: stake, fees, gross, net, ROI (only
+#      when every figure is established), W/L/pending, by market family and game, and CLV against the canonical
+#      close of the exact contract (scripts/handicap/actual_wager_postmortem.py);
+#   3. go RED when a wager is more than 3 days past its game date with no settlement record -- a settlement that
+#      was never delivered, the one reconciliation failure the destination can see on its own.
+#
+# PRIVACY: the documents carry economics and are published as FILES to market-data, like the ledger itself on
+# handicap-data. The log prints counts and states only. Accounting only: nothing here reads or feeds a model.
+#
+# stdlib-only; no dependency install. Started by its own cron and by every horizon-conductor link.
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: actual-wagers
+  cancel-in-progress: false
+
+jobs:
+  postmortem:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Check out the actual-wager ledger and the canonical closes
+        run: |
+          git fetch --depth=1 origin handicap-data
+          git worktree add -f /tmp/hd origin/handicap-data
+          git fetch --depth=1 --filter=blob:none origin market-data
+          git worktree add -f --no-checkout /tmp/md origin/market-data
+          git -C /tmp/md sparse-checkout set --no-cone 'data/shadow/v2/closes/'
+          git -C /tmp/md checkout -q
+          echo "close files: $(find /tmp/md/data/shadow/v2/closes -name '*.closes_v2.jsonl.gz' | wc -l)"
+      - name: Validate the ledger (this repository's own rules)
+        run: python3 scripts/handicap/validate_routed_ledger.py --handicap-root /tmp/hd
+      - name: Write the owner actual-wager postmortem
+        id: postmortem
+        continue-on-error: true
+        run: |
+          S=$(date -u +%Y)
+          python3 scripts/handicap/actual_wager_postmortem.py --handicap-root /tmp/hd \
+            --closes-root /tmp/md/data/shadow/v2/closes --season "$S" --out data/handicap/actual_wagers \
+            --fail-on-overdue-days 3 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Publish the postmortem to market-data
+        run: |
+          test -d data/handicap/actual_wagers || { echo "::error::no postmortem was written"; exit 1; }
+          python3 scripts/ci/publish_market_data.py --src data/handicap/actual_wagers \
+            --message "owner actual-wager postmortem $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      - name: A settlement is overdue
+        if: steps.postmortem.outcome == 'failure'
+        run: |
+          echo "::error::The postmortem step failed (a wager past its game date has no settlement, or the step errored). See above."
+          exit 1

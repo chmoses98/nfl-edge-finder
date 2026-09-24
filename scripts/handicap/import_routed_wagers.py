@@ -126,6 +126,10 @@ def main(argv=None) -> int:
                 "refused": result["refused"],
                 "refusals": [{"row": i, "reason": r} for i, r in result["refusals"]],
                 "idsWritten": result["ids_written"],
+                # One receipt per payload row, in the shared vocabulary the router's
+                # auto-merge gate reads (`kalshi_router.receipts.normalise` takes an
+                # object carrying `rows`). Ids and verdicts only -- never economics.
+                "rows": result["receipts"],
             }, handle, indent=2, sort_keys=True)
             handle.write("\n")
 

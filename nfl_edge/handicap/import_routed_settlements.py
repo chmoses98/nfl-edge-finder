@@ -22,10 +22,12 @@ refuses to clobber, so asking it to write blindly would raise rather than no-op.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from dataclasses import fields as dataclass_fields
 
 from nfl_edge.handicap import schema, store
+from nfl_edge.handicap.import_routed_wagers import conflicting_fields
 from nfl_edge.handicap.wager_settlements import (
     SCHEMA_VERSION,
     WagerSettlement,
@@ -92,19 +94,35 @@ def build_record(row: dict, wager: dict) -> WagerSettlement:
     return record
 
 
+#: What makes an already-filed settlement THE SAME settlement as an incoming row. A market settles once; a
+#: second observation that disagrees about the result or the money is not a correction to apply quietly -- it
+#: is a CONFLICT, refused and named, and the terminal record already filed is never regressed or rewritten.
+IDENTITY_FIELDS = (
+    "source_bet_key", "season", "week", "market_ticker", "side", "settlement_status", "settled_at",
+    "result", "gross_return", "net_profit_loss", "refusals", "venue",
+)
+
+
 def import_rows(root: str, rows: list) -> dict:
-    """Write every settlement whose wager is on disk. Returns counts and reasons."""
+    """Write every settlement whose wager is on disk. Returns counts, reasons and one receipt per row.
+
+    Receipts use the shared vocabulary NEW / DUPLICATE_NOOP / CONFLICT / REFUSED with the router's
+    `source_bet_key` and this ledger's minted `settlement_id`, which is what the router's auto-merge gate
+    reads. A settlement for a wager not (yet) in the ledger is REFUSED with its reason -- visible, and retried
+    by the next settlement run once the wager has landed.
+    """
     wagers = {
         record["source_bet_key"]: record
         for record in store.read_kind(root, "imported_wagers")
         if record.get("source_bet_key")
     }
 
-    written, already_present, refusals = [], [], []
+    written, already_present, refusals, receipts = [], [], [], []
 
     for index, row in enumerate(rows):
+        key = row.get("source_bet_key") if isinstance(row, dict) else None
         try:
-            wager = wagers.get(row.get("source_bet_key"))
+            wager = wagers.get(key)
             if wager is None:
                 raise SettlementRefused(
                     "no imported wager with this source_bet_key; a settlement "
@@ -114,6 +132,8 @@ def import_rows(root: str, rows: list) -> dict:
             record = build_record(row, wager)
         except SettlementRefused as exc:
             refusals.append((index, str(exc)))
+            receipts.append({"row": index, "source_bet_key": key, "settlement_id": None,
+                             "status": "REFUSED", "success": False, "reason": str(exc)})
             continue
 
         path = store.record_path(
@@ -121,10 +141,25 @@ def import_rows(root: str, rows: list) -> dict:
             record.settlement_id,
         )
         if os.path.exists(path):
+            with open(path, encoding="utf-8") as handle:
+                existing = json.load(handle)
+            differ = conflicting_fields(existing, record.to_dict(), IDENTITY_FIELDS)
+            if differ:
+                reason = ("a settlement for this wager is already filed and disagrees on "
+                          f"{differ}; refusing rather than rewriting or regressing it")
+                refusals.append((index, reason))
+                receipts.append({"row": index, "source_bet_key": key, "settlement_id": record.settlement_id,
+                                 "status": "CONFLICT", "success": False, "reason": reason,
+                                 "conflicting_fields": [{"field": f} for f in differ]})
+                continue
             already_present.append(record.settlement_id)
+            receipts.append({"row": index, "source_bet_key": key, "settlement_id": record.settlement_id,
+                             "status": "DUPLICATE_NOOP", "success": True})
             continue
         schema.write_record(path, record.to_dict())
         written.append(record.settlement_id)
+        receipts.append({"row": index, "source_bet_key": key, "settlement_id": record.settlement_id,
+                         "status": "NEW", "success": True})
 
     return {
         "written": len(written),
@@ -132,4 +167,5 @@ def import_rows(root: str, rows: list) -> dict:
         "refused": len(refusals),
         "refusals": refusals,
         "ids_written": written,
+        "receipts": receipts,
     }

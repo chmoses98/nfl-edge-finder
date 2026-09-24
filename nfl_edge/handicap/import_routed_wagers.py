@@ -37,6 +37,8 @@ different batch id is still the same wager rather than a second one.
 from __future__ import annotations
 
 import hashlib
+import json
+import math
 import os
 from dataclasses import fields as dataclass_fields
 
@@ -151,32 +153,95 @@ def build_record(row: dict, games: list) -> ImportedWager:
     return record
 
 
+#: The fields that make an already-filed wager THE SAME wager as an incoming row. Provenance (the import batch,
+#: the entry method, notes) is deliberately absent: the same order re-delivered under a different batch label is
+#: still the same wager, by the identity rule above. Every economic and placement fact is present, so a
+#: re-delivery that DISAGREES about a stake, a fee or a week is a conflict -- never a quiet no-op.
+IDENTITY_FIELDS = (
+    "source_bet_key", "season", "week", "game_date", "market_ticker", "side", "executed_at",
+    "contracts", "actual_price", "stake", "fees_paid", "fees_are_estimated", "fee_state", "venue",
+)
+
+
+def _same(a, b) -> bool:
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a is b
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return math.isclose(float(a), float(b), rel_tol=0.0, abs_tol=1e-9)
+    return a == b
+
+
+def conflicting_fields(existing: dict, incoming: dict, fields=IDENTITY_FIELDS) -> list:
+    """FIELD NAMES where an already-filed record and an incoming one disagree. Names only, never values."""
+    return [f for f in fields if not _same(existing.get(f), incoming.get(f))]
+
+
 def import_rows(root: str, rows: list, *, games: list) -> dict:
-    """Write every row that is not already filed. Returns counts only.
+    """Write every row that is not already filed. Returns counts, reasons and one receipt per row.
 
     ALREADY-PRESENT IS CHECKED BEFORE WRITING, not caught afterwards.
     `schema.write_record` refuses to clobber, which is the immutability
     guarantee -- so a re-import would raise rather than no-op if this asked it
     to write blindly. Re-running a backfill has to be boring.
+
+    ALREADY-PRESENT IS NOT THE SAME AS AGREEING. A record on disk under the
+    minted id whose economics differ from the incoming row is a CONFLICT: it is
+    refused, never rewritten, and named field by field (names, not values) so
+    the disagreement can be resolved by a person. Treating it as a duplicate
+    would let a delivery report success while the ledger and the exchange
+    disagree about what was paid.
+
+    THE RECEIPTS are what the router's auto-merge gate reads: one row per
+    payload row, in payload order, carrying the router's own `source_bet_key`,
+    this ledger's minted `imported_wager_id`, and a verdict in the shared
+    vocabulary NEW / DUPLICATE_NOOP / CONFLICT / REFUSED. Before 2026-09-24 this
+    importer returned counts only, which the router's gate cannot read -- one
+    reason NFL was never activated for scheduled delivery.
     """
-    written, already_present, refused = [], [], []
+    written, already_present, refused, receipts = [], [], [], []
 
     for index, row in enumerate(rows):
+        key = row.get("source_bet_key") if isinstance(row, dict) else None
         try:
             record = build_record(row, games)
         except ImportRefused as exc:
             refused.append((index, str(exc)))
+            receipts.append({"row": index, "source_bet_key": key, "imported_wager_id": None,
+                             "status": "REFUSED", "success": False, "reason": str(exc)})
             continue
 
         path = store.record_path(
             root, "imported_wagers", record.season, record.week,
             record.imported_wager_id,
         )
+        if not os.path.exists(path):
+            # Same id filed under a DIFFERENT week is the same wager disagreeing about its week.
+            elsewhere = [p for p in _paths_for_id(root, "imported_wagers", record.imported_wager_id)
+                         if os.path.abspath(p) != os.path.abspath(path)]
+            if elsewhere:
+                path = elsewhere[0]
         if os.path.exists(path):
+            with open(path, encoding="utf-8") as handle:
+                existing = json.load(handle)
+            differ = conflicting_fields(existing, record.to_dict())
+            if differ:
+                reason = ("an imported wager with this identity is already filed and disagrees on "
+                          f"{differ}; refusing rather than rewriting an immutable record")
+                refused.append((index, reason))
+                receipts.append({"row": index, "source_bet_key": key,
+                                 "imported_wager_id": record.imported_wager_id, "status": "CONFLICT",
+                                 "success": False, "reason": reason,
+                                 "conflicting_fields": [{"field": f} for f in differ]})
+                continue
             already_present.append(record.imported_wager_id)
+            receipts.append({"row": index, "source_bet_key": key,
+                             "imported_wager_id": record.imported_wager_id, "status": "DUPLICATE_NOOP",
+                             "success": True})
             continue
         schema.write_record(path, record.to_dict())
         written.append(record.imported_wager_id)
+        receipts.append({"row": index, "source_bet_key": key, "imported_wager_id": record.imported_wager_id,
+                         "status": "NEW", "success": True})
 
     return {
         "written": len(written),
@@ -184,4 +249,17 @@ def import_rows(root: str, rows: list, *, games: list) -> dict:
         "refused": len(refused),
         "refusals": refused,
         "ids_written": written,
+        "receipts": receipts,
     }
+
+
+def _paths_for_id(root: str, kind: str, record_id: str) -> list:
+    """Every file named for this id under a kind, whatever season/week directory it sits in."""
+    base = os.path.join(root, "data", kind)
+    out = []
+    if not os.path.isdir(base):
+        return out
+    for directory, _subdirs, names in os.walk(base):
+        if f"{record_id}.json" in names:
+            out.append(os.path.join(directory, f"{record_id}.json"))
+    return sorted(out)
