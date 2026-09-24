@@ -130,6 +130,39 @@ def wager_row(wager: dict, settlement: dict | None, close: dict | None) -> dict:
     return row
 
 
+def reconcile_fees(rows: list) -> None:
+    """FEE RECONCILIATION, from exchange figures alone. Mutates `rows`, adding `fee_reconciliation` and
+    `net_fee_reconciled`.
+
+    The router states net = gross - stake - settlement fee, where `stake` already includes the entry fee the
+    exchange charged on the order's fills, and "settlement fee" is Kalshi's settlement `fee_cost`. In every
+    2026 week 1-2 NFL position that fee equals, to the cent, the entry fees already inside the stakes of the
+    owner's orders on that market -- the order's own for a single-order position, the SUM of both legs' for a
+    YES+NO pair (6.1786 = 1.9152 + 4.2634; 33.4065 = 31.1955 + 2.2110). A payout-time fee could not equal the
+    trading fee on positions that paid nothing. The evidence says `fee_cost` is the position's cumulative
+    trading fee, so the recorded net subtracts it a second time.
+
+    Nothing is rewritten: the recorded net stays exactly as filed. Where -- and only where -- the recovered
+    settlement fee equals the sum of the entry fees of every owner order on that market, the reconciled net is
+    gross - stake (state FEE_EQUALS_ENTRY_FEES). Anything else is UNRECONCILED and gets no reconciled figure.
+    """
+    by_market: dict = {}
+    for r in rows:
+        by_market.setdefault(r.get("market_ticker"), []).append(r)
+    for r in rows:
+        if r.get("pl_state") != "ESTABLISHED" or r.get("settlement_fee") is None:
+            r["fee_reconciliation"] = "NOT_APPLICABLE"
+            r["net_fee_reconciled"] = None
+            continue
+        entry_on_market = sum((x.get("fees") or 0.0) for x in by_market.get(r.get("market_ticker"), []))
+        if abs(r["settlement_fee"] - entry_on_market) <= 1e-4:
+            r["fee_reconciliation"] = "FEE_EQUALS_ENTRY_FEES"
+            r["net_fee_reconciled"] = round(r["gross_return"] - r["stake"], 6)
+        else:
+            r["fee_reconciliation"] = "UNRECONCILED"
+            r["net_fee_reconciled"] = None
+
+
 def summarise(rows: list) -> dict:
     n = len(rows)
     settled = [r for r in rows if r["settlement_state"] == "SETTLED"]
@@ -146,6 +179,9 @@ def summarise(rows: list) -> dict:
     for r in rows:
         clv_states[r.get("clv_state")] = clv_states.get(r.get("clv_state"), 0) + 1
     complete = bool(rows) and len(est) == n
+    recon = [r for r in est if r.get("fee_reconciliation") == "FEE_EQUALS_ENTRY_FEES"]
+    recon_complete = complete and len(recon) == len(est)
+    net_recon = sum(r["net_fee_reconciled"] for r in recon)
     return {
         "wagers": n, "settled": len(settled), "pending": n - len(settled), "won": won, "lost": lost,
         "other_result": len(settled) - won - lost,
@@ -157,6 +193,11 @@ def summarise(rows: list) -> dict:
         "gross_return": round(gross_est, 4) if complete else None,
         "net_profit_loss": round(net_est, 4) if complete else None,
         "roi": (round(net_est / stake_est, 6) if complete and stake_est > 0 else None),
+        # The recorded net as filed, and beside it the fee-reconciled net (see reconcile_fees). Never merged.
+        "fee_reconciled": {"wagers": len(recon), "complete": recon_complete,
+                           "net_profit_loss": round(net_recon, 4) if recon_complete else None,
+                           "roi": (round(net_recon / stake_est, 6) if recon_complete and stake_est > 0 else None),
+                           "double_counted_fees": (round(net_recon - net_est, 4) if recon_complete else None)},
         "established_subset": {"wagers": len(est), "stake": round(stake_est, 4), "gross_return": round(gross_est, 4),
                                "net_profit_loss": round(net_est, 4),
                                "roi": round(net_est / stake_est, 6) if stake_est > 0 else None},
@@ -173,6 +214,7 @@ def build(wagers: list, settlements: list, close_rows, *, season: int, week: int
     rows = [wager_row(w, by_key.get(w.get("source_bet_key")), closes.get(w.get("market_ticker")))
             for w in wagers if w.get("season") == season and (week is None or w.get("week") == week)]
     rows.sort(key=lambda r: (r["week"] or 0, r["game_date"] or "", r["market_ticker"] or "", r["imported_wager_id"] or ""))
+    reconcile_fees(rows)
 
     def group(key):
         out = {}
@@ -217,6 +259,15 @@ def render(doc: dict) -> str:
               f"(settlement fees on established wagers: {_money(t['settlement_fees_established'])}). CLV is per "
               "contract on the side held, against the canonical close of the exact contract, excluding fees.", ""])
     table("Totals", {"all": t})
+    fr = t["fee_reconciled"]
+    L.append("FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the "
+             "entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the "
+             "trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's "
+             f"own figures prove that equality ({fr['wagers']} of {t['pl_established']} established wagers). "
+             + (f"Fee-reconciled net P&L: {_money(fr['net_profit_loss'])} (ROI {_pct(fr['roi'])}); fees counted twice "
+                f"in the recorded figure: {_money(fr['double_counted_fees'])}." if fr["complete"]
+                else "Not every established wager reconciles, so no fee-reconciled total is stated."))
+    L.append("")
     if not t["complete"]:
         es = t["established_subset"]
         L.append(f"Headline gross/net/ROI withheld: {t['pending']} pending and {t['pl_unestablished']} settled with an "

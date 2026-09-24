@@ -96,7 +96,12 @@ def one_pass(targets, games, src, now, dispatched, *, dry_run=False, ref="main",
             line.update(decision="idle", reason=week.get("reason"))
             lines.append(line)
             continue
-        d = due_horizons(week["slate_id"], week["games"], now, state_readers[name](), horizons_min=HORIZONS_MIN)
+        # CHEAP FIRST: with nothing captured, is anything even in its window? If not, no capture state can make
+        # something due, so the git fetches that read the state are skipped -- most passes of the week.
+        if not due_horizons(week["slate_id"], week["games"], now, {}, horizons_min=HORIZONS_MIN).get("due"):
+            d = due_horizons(week["slate_id"], week["games"], now, {}, horizons_min=HORIZONS_MIN)
+        else:
+            d = due_horizons(week["slate_id"], week["games"], now, state_readers[name](), horizons_min=HORIZONS_MIN)
         due_ids = [r["horizon_id"] for r in (d.get("due") or [])]
         n_active = active(wf) if due_ids and not dry_run else 0
         go, why = decide(due_ids, dispatched.setdefault(name, {}), now, n_active)

@@ -470,3 +470,17 @@
     Until then, read QB and pass-catcher rows for a team whose chart QB1 is on the report as Out as a known
     input error. The autopsy's QB_ENVIRONMENT_MISS measures it for v2/v3; V4 records `qb_starter` only as a
     flag, not a passer id, so it cannot be scored there.
+
+90. **The router's recorded net P&L on owner wagers counts the trading fee twice (a finding; records not
+    rewritten).** kalshi-bet-router computes a settlement's net as `gross - stake - fee_cost`, where `stake`
+    already includes the entry fee from the order's own fills and `fee_cost` is read from Kalshi's settlement
+    row as a "settlement fee". On every established 2026 week 1-2 NFL wager (40 of 40) that `fee_cost` equals, to
+    the cent, the entry fees already inside the stakes of the owner's orders on that market -- the order's own
+    fee for a single-order position, the SUM of both legs' fees for a YES+NO pair (6.1786 = 1.9152 + 4.2634;
+    33.4065 = 31.1955 + 2.2110). A payout-time fee could not equal the trading fee on positions that paid $0; the
+    evidence says `fee_cost` is the position's cumulative trading fee. Consequence: the recorded net understates
+    each wager's P&L by its entry fees (week 2: $112.24). The filed settlements are immutable and stay as filed;
+    `actual_wager_postmortem.reconcile_fees` reports, beside them, a fee-reconciled net (gross - stake) only where
+    the exchange's own figures prove the equality. The router fix is NOT applied: re-delivering corrected nets
+    would CONFLICT (correctly) on every settlement already filed, here and in cfb-edge-finder, so it needs a
+    deliberate amendment design approved by the owner.
