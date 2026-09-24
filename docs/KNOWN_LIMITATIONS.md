@@ -470,6 +470,11 @@
     Until then, read QB and pass-catcher rows for a team whose chart QB1 is on the report as Out as a known
     input error. The autopsy's QB_ENVIRONMENT_MISS measures it for v2/v3; V4 records `qb_starter` only as a
     flag, not a passer id, so it cannot be scored there.
+    **Addressed in a NEW arm only (2026-09-24):** DATA_PLAYER_V5 / HYBRID_PLAYER_V5 (`player-inputs-5.0.0`,
+    docs/PLAYER_V5.md) resolve the starter point in time (`nfl_edge/context/qb_resolution.py`: an Out / IR /
+    inactive chart QB1 is replaced by the next eligible charted QB, a Doubtful QB1 abstains the team's QB-dependent
+    projections) and carry the resolved passer on every record. V3 and V4 keep the behaviour described above,
+    unchanged, for the continuity of their prospective record.
 
 90. **The router's recorded net P&L on owner wagers counts the trading fee twice (a finding; records not
     rewritten).** kalshi-bet-router computes a settlement's net as `gross - stake - fee_cost`, where `stake`
