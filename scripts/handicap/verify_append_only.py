@@ -46,7 +46,8 @@ sys.path.insert(0, ROOT)
 # after the fact is not evidence of anything. It is accounting rather than
 # judgement, which changes who may READ it -- not whether it may be rewritten.
 IMMUTABLE_KINDS = ("recommendations", "executions", "evaluations", "postmortems", "import_receipts",
-                   "decision_gates", "runs", "imported_wagers", "wager_settlements")
+                   "decision_gates", "runs", "imported_wagers", "wager_settlements",
+                   "wager_settlement_amendments")
 
 
 def git(args, cwd):

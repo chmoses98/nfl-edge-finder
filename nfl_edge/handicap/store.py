@@ -43,7 +43,7 @@ BRANCH = "handicap-data"
 # exists: a record of money that already moved may not be rewritten. A
 # settlement is a LATER and SEPARATE observation, so it gets its own row.
 KINDS = ("recommendations", "executions", "evaluations", "postmortems", "runs", "import_receipts",
-         "decision_gates", "imported_wagers", "wager_settlements")
+         "decision_gates", "imported_wagers", "wager_settlements", "wager_settlement_amendments")
 
 
 def week_dir(root: str, kind: str, season: int, week: int) -> str:

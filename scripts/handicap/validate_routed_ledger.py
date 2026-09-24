@@ -36,6 +36,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 from nfl_edge.handicap import imported_wagers, wager_settlements  # noqa: E402
+from nfl_edge.handicap import settlement_amendments as AM  # noqa: E402
 from nfl_edge.handicap.import_routed_settlements import mint_settlement_id  # noqa: E402
 from nfl_edge.handicap.import_routed_wagers import ID_PREFIX as WAGER_PREFIX  # noqa: E402
 from nfl_edge.handicap.import_routed_wagers import mint_imported_wager_id  # noqa: E402
@@ -131,7 +132,40 @@ def validate_tree(root: str) -> dict:
     if any(n > 1 for n in settled_keys.values()):
         problem("settlement:MORE_THAN_ONE_FOR_ONE_WAGER")
 
-    return {"wagers": n_wagers, "settlements": n_settlements, "problems": sum(problems.values()),
+    # AMENDMENTS: append-only corrections beside an immutable settlement. Each must name a settlement that
+    # exists in the same season/week, carry the hash of that settlement's CURRENT bytes (so a rewritten
+    # original is caught), and be the only amendment for its (settlement, version).
+    settlements_by_id = {}
+    for season, week, rid, rec in _records(root, "wager_settlements"):
+        if isinstance(rec, dict):
+            settlements_by_id[rid] = (season, week)
+    seen_pairs: set = set()
+    n_amendments = 0
+    for season, week, rid, rec in _records(root, AM.KIND):
+        n_amendments += 1
+        if isinstance(rec, str):
+            problem(f"amendment:{rec}")
+            continue
+        if AM.validate(rec):
+            problem("amendment:SCHEMA_INVALID")
+        if rec.get("amendment_id") != rid:
+            problem("amendment:FILENAME_IS_NOT_ITS_ID")
+        target = rec.get("amends")
+        if target not in settlements_by_id:
+            problem("amendment:AMENDS_NO_SUCH_SETTLEMENT")
+            continue
+        if settlements_by_id[target] != (season, week) or (rec.get("season"), rec.get("week")) != (season, week):
+            problem("amendment:NOT_IN_ITS_SETTLEMENTS_WEEK")
+        path = os.path.join(root, "data", "wager_settlements", str(season), f"week_{int(week):02d}", f"{target}.json")
+        if os.path.exists(path) and AM.record_sha256(path) != rec.get("original_record_sha256"):
+            problem("amendment:ORIGINAL_RECORD_CHANGED_SINCE_AMENDED")
+        pair = (target, rec.get("amended_economics_version"))
+        if pair in seen_pairs:
+            problem("amendment:MORE_THAN_ONE_FOR_ONE_SETTLEMENT_VERSION")
+        seen_pairs.add(pair)
+
+    return {"wagers": n_wagers, "settlements": n_settlements, "amendments": n_amendments,
+            "problems": sum(problems.values()),
             "problem_categories": dict(sorted(problems.items()))}
 
 
@@ -146,6 +180,7 @@ def main(argv=None) -> int:
     result = validate_tree(args.handicap_root)
     print(f"imported wagers: {result['wagers']}")
     print(f"settlements:     {result['settlements']}")
+    print(f"amendments:      {result['amendments']}")
     print(f"problems:        {result['problems']}")
     for category, count in result["problem_categories"].items():
         print(f"  {category}: {count}")

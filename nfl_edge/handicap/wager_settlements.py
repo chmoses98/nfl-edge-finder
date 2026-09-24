@@ -82,8 +82,16 @@ class WagerSettlement:
 
     venue: str = "kalshi"
 
+    #: Which router economics contract computed `net_profit_loss`. Absent on every settlement filed before
+    #: 2026-09-24, which were all router-settlement-economics.v1 (fee_cost subtracted a second time -- see
+    #: `settlement_amendments`). Omitted from the file when absent, so a v1 record's bytes are unchanged.
+    economics_version: str | None = None
+
     def to_dict(self):
-        return asdict(self)
+        out = asdict(self)
+        if out.get("economics_version") is None:
+            out.pop("economics_version", None)
+        return out
 
 
 def validate(record: dict) -> list[str]:
@@ -126,6 +134,11 @@ def validate(record: dict) -> list[str]:
             continue
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             problems.append(f"{name} must be a number when it is stated at all")
+
+    version = record.get("economics_version")
+    if version is not None and version not in ("router-settlement-economics.v1",
+                                               "router-settlement-economics.v2"):
+        problems.append(f"economics_version {version!r} is not a known settlement economics contract")
 
     refusals = record.get("refusals")
     if not isinstance(refusals, list):

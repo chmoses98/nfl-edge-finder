@@ -27,6 +27,7 @@ import os
 from dataclasses import fields as dataclass_fields
 
 from nfl_edge.handicap import schema, store
+from nfl_edge.handicap import settlement_amendments as AM
 from nfl_edge.handicap.import_routed_wagers import conflicting_fields
 from nfl_edge.handicap.wager_settlements import (
     SCHEMA_VERSION,
@@ -86,6 +87,7 @@ def build_record(row: dict, wager: dict) -> WagerSettlement:
         net_profit_loss=row.get("net_profit_loss"),
         refusals=list(row.get("refusals") or []),
         venue=row.get("venue") or "kalshi",
+        economics_version=row.get("economics_version"),
     )
 
     problems = validate(record.to_dict())
@@ -144,6 +146,42 @@ def import_rows(root: str, rows: list) -> dict:
             with open(path, encoding="utf-8") as handle:
                 existing = json.load(handle)
             differ = conflicting_fields(existing, record.to_dict(), IDENTITY_FIELDS)
+            incoming = record.to_dict()
+            if differ and AM.economics_version_of(existing) != AM.economics_version_of(incoming):
+                # A NEWER ECONOMICS CONTRACT for a settlement already filed: never a rewrite. Either an
+                # append-only amendment the destination can re-derive itself, or a refusal naming why not.
+                try:
+                    amendment = AM.build_amendment(existing, path, incoming, wager,
+                                                   provenance="kalshi-bet-router settle-wagers")
+                except AM.AmendmentRefused as exc:
+                    reason = f"the filed settlement differs on {differ} and is not an admissible correction: {exc}"
+                    refusals.append((index, reason))
+                    receipts.append({"row": index, "source_bet_key": key, "settlement_id": record.settlement_id,
+                                     "status": "CONFLICT", "success": False, "reason": reason,
+                                     "conflicting_fields": [{"field": f} for f in differ]})
+                    continue
+                amend_path = store.record_path(root, AM.KIND, record.season, record.week,
+                                               amendment["amendment_id"])
+                if os.path.exists(amend_path):
+                    with open(amend_path, encoding="utf-8") as handle:
+                        filed = json.load(handle)
+                    if AM.same_correction(filed, amendment):
+                        already_present.append(amendment["amendment_id"])
+                        receipts.append({"row": index, "source_bet_key": key,
+                                         "settlement_id": record.settlement_id, "status": "DUPLICATE_NOOP",
+                                         "success": True, "amendment_id": amendment["amendment_id"]})
+                        continue
+                    reason = "a DIFFERENT correction is already filed for this settlement and version"
+                    refusals.append((index, reason))
+                    receipts.append({"row": index, "source_bet_key": key, "settlement_id": record.settlement_id,
+                                     "status": "CONFLICT", "success": False, "reason": reason})
+                    continue
+                schema.write_record(amend_path, amendment)
+                written.append(amendment["amendment_id"])
+                receipts.append({"row": index, "source_bet_key": key, "settlement_id": record.settlement_id,
+                                 "status": "CORRECTED", "success": True,
+                                 "amendment_id": amendment["amendment_id"]})
+                continue
             if differ:
                 reason = ("a settlement for this wager is already filed and disagrees on "
                           f"{differ}; refusing rather than rewriting or regressing it")
