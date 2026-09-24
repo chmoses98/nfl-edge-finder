@@ -1,0 +1,384 @@
+{
+ "version": "prereg-shortlist-1.0.0",
+ "label": "2026_wk02",
+ "season": 2026,
+ "week": 2,
+ "rules": {
+  "version": "prereg-shortlist-1.0.0",
+  "stage": "DISCOVERY_CANDIDATE",
+  "kind": "LOCALIZED_SLICE",
+  "evidence_basis": "SYNCHRONIZED PROSPECTIVE_FROZEN rows only",
+  "single_model_arm": true,
+  "min_independent_games": 16,
+  "search_correction": {
+   "method": "BONFERRONI",
+   "over": "candidate_slices_considered (slices searched in the generation week)",
+   "alpha_family": 0.05,
+   "two_sided": true
+  },
+  "clv_must_agree_with_brier_effect": true,
+  "one_per": "(model_arm, family)",
+  "window": "first week after both the generation window and the report week, through the registered window's end",
+  "evidence_used": "generation evidence as frozen in the registry; later weeks are never used to choose"
+ },
+ "status_note": "NOT TESTS. Nothing here is preregistered, promoted or suggested; the owner must preregister a candidate (scripts/research/preregister_candidate_v2.py) before the first kickoff of its window for it to become a Stage-B test",
+ "discovery_candidates_considered": 263,
+ "qualifying_before_dedup": 13,
+ "n_shortlisted": 5,
+ "shortlist": [
+  {
+   "id": "HG-2026W02-model_arm*family_group*horizon_label-BOARD_V2|period_team_total_1H|CYCLE",
+   "label": "SHORTLISTED_FOR_OWNER_REVIEW (not preregistered; not a test)",
+   "stage": "DISCOVERY_CANDIDATE",
+   "market_family": "period_team_total_1H",
+   "condition": "model_arm*family_group*horizon_label == BOARD_V2|period_team_total_1H|CYCLE",
+   "segment": "model_arm*family_group*horizon_label",
+   "segment_value": "BOARD_V2|period_team_total_1H|CYCLE",
+   "model_arm": "BOARD_V2",
+   "model_versions": [
+    "shadow-v2-1.0.0"
+   ],
+   "horizon_label": "CYCLE",
+   "generation_window": {
+    "season": 2026,
+    "week_hi": 2,
+    "week_lo": 2
+   },
+   "generation_week": 2,
+   "direction": "model Brier below market Brier",
+   "independent_games": 16,
+   "paired_settled_rows": 12242,
+   "unique_contracts": 352,
+   "effect_size": -0.01444652277905983,
+   "clustered_se": 0.0019498029939231574,
+   "ci95": [
+    -0.01826806642409759,
+    -0.010624979134022073
+   ],
+   "z": -7.409221764498518,
+   "p_two_sided": 1.270095140171179e-13,
+   "multiplicity": {
+    "method": "BONFERRONI",
+    "slices_searched": 422,
+    "z_required": 3.8492430219639573,
+    "p_bonferroni": 5.359801491522376e-11,
+    "note": "search correction for choosing this slice; if preregistered it joins the Stage B/C family and is tested at 0.05 / m on FUTURE games only"
+   },
+   "mean_clv_mid": 0.035609157808667934,
+   "se_clv_mid_clustered": 0.004557397358434803,
+   "n_clv_ok": 12230,
+   "positive_clv_rate": 0.5149632052330335,
+   "toward_close_rate": 0.5775262132318827,
+   "executable_economics": {
+    "state": "AVAILABLE",
+    "net_per_contract": -0.06777140516181795,
+    "gross_per_contract": -0.04308176614881511,
+    "n_fee_known": 9764,
+    "n_taken": 12230,
+    "note": "generation week only; entry at the horizon ask, one contract, fee once; not proven EV"
+   },
+   "proposed_confirmatory_window": {
+    "season": 2026,
+    "week_lo": 3,
+    "week_hi": 18
+   },
+   "reason_qualifies": "16 independent games >= 16; |z| 7.41 >= 3.85 (Bonferroni over 422 slices searched); mean CLV +0.0356 agrees with the Brier effect; single arm BOARD_V2; synchronized PROSPECTIVE_FROZEN",
+   "owner_action": "python3 scripts/research/preregister_candidate_v2.py --id 'HG-2026W02-model_arm*family_group*horizon_label-BOARD_V2|period_team_total_1H|CYCLE' --test-week-lo 3 --test-week-hi 18 --first-test-kickoff <ISO kickoff of the first game in the window> --confirm",
+   "rank": 1
+  },
+  {
+   "id": "HG-2026W02-model_arm-DATA_PLAYER_DIST",
+   "label": "SHORTLISTED_FOR_OWNER_REVIEW (not preregistered; not a test)",
+   "stage": "DISCOVERY_CANDIDATE",
+   "market_family": "model_arm",
+   "condition": "model_arm == DATA_PLAYER_DIST",
+   "segment": "model_arm",
+   "segment_value": "DATA_PLAYER_DIST",
+   "model_arm": "DATA_PLAYER_DIST",
+   "model_versions": [
+    "shadow-v2-1.0.0"
+   ],
+   "horizon_label": null,
+   "generation_window": {
+    "season": 2026,
+    "week_hi": 2,
+    "week_lo": 2
+   },
+   "generation_week": 2,
+   "direction": "market Brier below model Brier",
+   "independent_games": 16,
+   "paired_settled_rows": 84647,
+   "unique_contracts": 4048,
+   "effect_size": 0.036278152438963006,
+   "clustered_se": 0.007113486051605093,
+   "ci95": [
+    0.022335975973288992,
+    0.05022032890463702
+   ],
+   "z": 5.099911938504071,
+   "p_two_sided": 3.3981154201612185e-07,
+   "multiplicity": {
+    "method": "BONFERRONI",
+    "slices_searched": 422,
+    "z_required": 3.8492430219639573,
+    "p_bonferroni": 0.00014340047073080342,
+    "note": "search correction for choosing this slice; if preregistered it joins the Stage B/C family and is tested at 0.05 / m on FUTURE games only"
+   },
+   "mean_clv_mid": -0.007827806687978861,
+   "se_clv_mid_clustered": 0.0011130923450440328,
+   "n_clv_ok": 85706,
+   "positive_clv_rate": 0.30345600074673884,
+   "toward_close_rate": 0.3770053475935829,
+   "executable_economics": {
+    "state": "AVAILABLE",
+    "net_per_contract": -0.04655960932885713,
+    "gross_per_contract": -0.03153059175162278,
+    "n_fee_known": 81296,
+    "n_taken": 84647,
+    "note": "generation week only; entry at the horizon ask, one contract, fee once; not proven EV"
+   },
+   "proposed_confirmatory_window": {
+    "season": 2026,
+    "week_lo": 3,
+    "week_hi": 18
+   },
+   "reason_qualifies": "16 independent games >= 16; |z| 5.10 >= 3.85 (Bonferroni over 422 slices searched); mean CLV -0.0078 agrees with the Brier effect; single arm DATA_PLAYER_DIST; synchronized PROSPECTIVE_FROZEN",
+   "owner_action": "python3 scripts/research/preregister_candidate_v2.py --id 'HG-2026W02-model_arm-DATA_PLAYER_DIST' --test-week-lo 3 --test-week-hi 18 --first-test-kickoff <ISO kickoff of the first game in the window> --confirm",
+   "rank": 2
+  },
+  {
+   "id": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receiving_yards|CYCLE",
+   "label": "SHORTLISTED_FOR_OWNER_REVIEW (not preregistered; not a test)",
+   "stage": "DISCOVERY_CANDIDATE",
+   "market_family": "player_receiving_yards",
+   "condition": "model_arm*family_group*horizon_label == DATA_PLAYER_DIST|player_receiving_yards|CYCLE",
+   "segment": "model_arm*family_group*horizon_label",
+   "segment_value": "DATA_PLAYER_DIST|player_receiving_yards|CYCLE",
+   "model_arm": "DATA_PLAYER_DIST",
+   "model_versions": [
+    "shadow-v2-1.0.0"
+   ],
+   "horizon_label": "CYCLE",
+   "generation_window": {
+    "season": 2026,
+    "week_hi": 2,
+    "week_lo": 2
+   },
+   "generation_week": 2,
+   "direction": "market Brier below model Brier",
+   "independent_games": 16,
+   "paired_settled_rows": 27322,
+   "unique_contracts": 1406,
+   "effect_size": 0.03605753738539422,
+   "clustered_se": 0.00707965339148688,
+   "ci95": [
+    0.022181671715053086,
+    0.04993340305573535
+   ],
+   "z": 5.093121850958491,
+   "p_two_sided": 3.5221516725414403e-07,
+   "multiplicity": {
+    "method": "BONFERRONI",
+    "slices_searched": 422,
+    "z_required": 3.8492430219639573,
+    "p_bonferroni": 0.00014863480058124878,
+    "note": "search correction for choosing this slice; if preregistered it joins the Stage B/C family and is tested at 0.05 / m on FUTURE games only"
+   },
+   "mean_clv_mid": -0.011445804825350932,
+   "se_clv_mid_clustered": 0.0017221785257903381,
+   "n_clv_ok": 27770,
+   "positive_clv_rate": 0.29290601368383146,
+   "toward_close_rate": 0.3370563100224225,
+   "executable_economics": {
+    "state": "AVAILABLE",
+    "net_per_contract": -0.0869683771319807,
+    "gross_per_contract": -0.07232047434302744,
+    "n_fee_known": 27322,
+    "n_taken": 27322,
+    "note": "generation week only; entry at the horizon ask, one contract, fee once; not proven EV"
+   },
+   "proposed_confirmatory_window": {
+    "season": 2026,
+    "week_lo": 3,
+    "week_hi": 18
+   },
+   "reason_qualifies": "16 independent games >= 16; |z| 5.09 >= 3.85 (Bonferroni over 422 slices searched); mean CLV -0.0114 agrees with the Brier effect; single arm DATA_PLAYER_DIST; synchronized PROSPECTIVE_FROZEN",
+   "owner_action": "python3 scripts/research/preregister_candidate_v2.py --id 'HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receiving_yards|CYCLE' --test-week-lo 3 --test-week-hi 18 --first-test-kickoff <ISO kickoff of the first game in the window> --confirm",
+   "rank": 3
+  },
+  {
+   "id": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receptions|CYCLE",
+   "label": "SHORTLISTED_FOR_OWNER_REVIEW (not preregistered; not a test)",
+   "stage": "DISCOVERY_CANDIDATE",
+   "market_family": "player_receptions",
+   "condition": "model_arm*family_group*horizon_label == DATA_PLAYER_DIST|player_receptions|CYCLE",
+   "segment": "model_arm*family_group*horizon_label",
+   "segment_value": "DATA_PLAYER_DIST|player_receptions|CYCLE",
+   "model_arm": "DATA_PLAYER_DIST",
+   "model_versions": [
+    "shadow-v2-1.0.0"
+   ],
+   "horizon_label": "CYCLE",
+   "generation_window": {
+    "season": 2026,
+    "week_hi": 2,
+    "week_lo": 2
+   },
+   "generation_week": 2,
+   "direction": "market Brier below model Brier",
+   "independent_games": 16,
+   "paired_settled_rows": 18765,
+   "unique_contracts": 1188,
+   "effect_size": 0.0532585815808493,
+   "clustered_se": 0.01101189767808509,
+   "ci95": [
+    0.03167565873036228,
+    0.07484150443133632
+   ],
+   "z": 4.836458087223226,
+   "p_two_sided": 1.3217312639923762e-06,
+   "multiplicity": {
+    "method": "BONFERRONI",
+    "slices_searched": 422,
+    "z_required": 3.8492430219639573,
+    "p_bonferroni": 0.0005577705934047827,
+    "note": "search correction for choosing this slice; if preregistered it joins the Stage B/C family and is tested at 0.05 / m on FUTURE games only"
+   },
+   "mean_clv_mid": -0.009171862509991942,
+   "se_clv_mid_clustered": 0.0019085126269824918,
+   "n_clv_ok": 18765,
+   "positive_clv_rate": 0.28020250466293634,
+   "toward_close_rate": 0.33118704577330105,
+   "executable_economics": {
+    "state": "AVAILABLE",
+    "net_per_contract": -0.05445680168578878,
+    "gross_per_contract": -0.03903916866506926,
+    "n_fee_known": 17084,
+    "n_taken": 18765,
+    "note": "generation week only; entry at the horizon ask, one contract, fee once; not proven EV"
+   },
+   "proposed_confirmatory_window": {
+    "season": 2026,
+    "week_lo": 3,
+    "week_hi": 18
+   },
+   "reason_qualifies": "16 independent games >= 16; |z| 4.84 >= 3.85 (Bonferroni over 422 slices searched); mean CLV -0.0092 agrees with the Brier effect; single arm DATA_PLAYER_DIST; synchronized PROSPECTIVE_FROZEN",
+   "owner_action": "python3 scripts/research/preregister_candidate_v2.py --id 'HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receptions|CYCLE' --test-week-lo 3 --test-week-hi 18 --first-test-kickoff <ISO kickoff of the first game in the window> --confirm",
+   "rank": 4
+  },
+  {
+   "id": "HG-2026W02-market_family-TEAM_TOTAL",
+   "label": "SHORTLISTED_FOR_OWNER_REVIEW (not preregistered; not a test)",
+   "stage": "DISCOVERY_CANDIDATE",
+   "market_family": "market_family",
+   "condition": "market_family == TEAM_TOTAL",
+   "segment": "market_family",
+   "segment_value": "TEAM_TOTAL",
+   "model_arm": "BOARD_V2",
+   "model_versions": [
+    "shadow-v2-1.0.0"
+   ],
+   "horizon_label": null,
+   "generation_window": {
+    "season": 2026,
+    "week_hi": 2,
+    "week_lo": 2
+   },
+   "generation_week": 2,
+   "direction": "model Brier below market Brier",
+   "independent_games": 16,
+   "paired_settled_rows": 28175,
+   "unique_contracts": 786,
+   "effect_size": -0.005418381762511143,
+   "clustered_se": 0.0013353724755317585,
+   "ci95": [
+    -0.008035663720499485,
+    -0.0028010998045228013
+   ],
+   "z": -4.057580833657283,
+   "p_two_sided": 4.9583657967700034e-05,
+   "multiplicity": {
+    "method": "BONFERRONI",
+    "slices_searched": 422,
+    "z_required": 3.8492430219639573,
+    "p_bonferroni": 0.020924303662369415,
+    "note": "search correction for choosing this slice; if preregistered it joins the Stage B/C family and is tested at 0.05 / m on FUTURE games only"
+   },
+   "mean_clv_mid": 0.019250630393861767,
+   "se_clv_mid_clustered": 0.002208060244670326,
+   "n_clv_ok": 28157,
+   "positive_clv_rate": 0.5247007848847534,
+   "toward_close_rate": 0.60750824737963,
+   "executable_economics": {
+    "state": "AVAILABLE",
+    "net_per_contract": -0.06976598937421642,
+    "gross_per_contract": -0.04846077351990849,
+    "n_fee_known": 24657,
+    "n_taken": 28157,
+    "note": "generation week only; entry at the horizon ask, one contract, fee once; not proven EV"
+   },
+   "proposed_confirmatory_window": {
+    "season": 2026,
+    "week_lo": 3,
+    "week_hi": 18
+   },
+   "reason_qualifies": "16 independent games >= 16; |z| 4.06 >= 3.85 (Bonferroni over 422 slices searched); mean CLV +0.0193 agrees with the Brier effect; single arm BOARD_V2; synchronized PROSPECTIVE_FROZEN",
+   "owner_action": "python3 scripts/research/preregister_candidate_v2.py --id 'HG-2026W02-market_family-TEAM_TOTAL' --test-week-lo 3 --test-week-hi 18 --first-test-kickoff <ISO kickoff of the first game in the window> --confirm",
+   "rank": 5
+  }
+ ],
+ "near_duplicates_not_offered": [
+  {
+   "id": "HG-2026W02-family_group-period_team_total_1H",
+   "reason": "SAME_ARM_AND_FAMILY",
+   "kept": "HG-2026W02-model_arm*family_group*horizon_label-BOARD_V2|period_team_total_1H|CYCLE",
+   "z": -7.157271471656369
+  },
+  {
+   "id": "HG-2026W02-model_arm*family_group-BOARD_V2|period_team_total_1H",
+   "reason": "SAME_ARM_AND_FAMILY",
+   "kept": "HG-2026W02-model_arm*family_group*horizon_label-BOARD_V2|period_team_total_1H|CYCLE",
+   "z": -7.157271471656369
+  },
+  {
+   "id": "HG-2026W02-model_arm*family_group-DATA_PLAYER_DIST|player_receiving_yards",
+   "reason": "SAME_ARM_AND_FAMILY",
+   "kept": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receiving_yards|CYCLE",
+   "z": 5.028961639280938
+  },
+  {
+   "id": "HG-2026W02-model_arm*family_group-DATA_PLAYER_DIST|player_receptions",
+   "reason": "SAME_ARM_AND_FAMILY",
+   "kept": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receptions|CYCLE",
+   "z": 4.719681888272662
+  },
+  {
+   "id": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receiving_yards|T-24h",
+   "reason": "SAME_ARM_AND_FAMILY",
+   "kept": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receiving_yards|CYCLE",
+   "z": 4.528158312359543
+  },
+  {
+   "id": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receptions|T-6h",
+   "reason": "SAME_ARM_AND_FAMILY",
+   "kept": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receptions|CYCLE",
+   "z": 4.477009276807468
+  },
+  {
+   "id": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receptions|T-24h",
+   "reason": "SAME_ARM_AND_FAMILY",
+   "kept": "HG-2026W02-model_arm*family_group*horizon_label-DATA_PLAYER_DIST|player_receptions|CYCLE",
+   "z": 4.240638314863245
+  },
+  {
+   "id": "HG-2026W02-stat_family-team_points",
+   "reason": "IDENTICAL_ROW_SET",
+   "kept": "HG-2026W02-market_family-TEAM_TOTAL",
+   "z": -4.057580833657283
+  }
+ ],
+ "not_qualifying_by_reason": {
+  "BELOW_SEARCH_ADJUSTED_BAR": 249,
+  "CLV_DISAGREES_WITH_BRIER_EFFECT": 110
+ }
+}
