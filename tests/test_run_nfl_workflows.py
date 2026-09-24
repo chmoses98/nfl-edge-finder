@@ -278,3 +278,13 @@ def test_the_horizon_path_inherits_the_fresh_gates():
     """The conductor calls run-nfl.yml with force_fresh, so it gets the same capture and context gates."""
     report = wf("run-nfl-horizons.yml")["jobs"]["report"]
     assert report["with"]["force_fresh"] is True
+
+
+def test_the_packets_silver_tables_include_the_current_season():
+    """The team profiles read team_game_<season>; capping silver at the prior season made week 3 read 2025 as
+    current form. The download and the silver build must cover the same seasons."""
+    import re
+    wf = open(os.path.join(ROOT, ".github", "workflows", "run-nfl.yml")).read()
+    dl = re.search(r"nflverse_download\.py[^\n]*--seasons (\d{4})-(\d{4})", wf)
+    sv = re.search(r"silver\.py (\d{4}) (\d{4})", wf)
+    assert dl and sv and sv.group(2) == dl.group(2)
