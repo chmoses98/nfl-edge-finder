@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import math
 
+from nfl_edge.handicap import wager_risk
+
 POSTMORTEM_VERSION = "actual-wager-postmortem-1.0.0"
 
 HEADER = (
@@ -208,7 +210,8 @@ def summarise(rows: list) -> dict:
     }
 
 
-def build(wagers: list, settlements: list, close_rows, *, season: int, week: int | None = None) -> dict:
+def build(wagers: list, settlements: list, close_rows, *, season: int, week: int | None = None,
+          risk_thresholds: wager_risk.RiskThresholds = wager_risk.DEFAULT_THRESHOLDS) -> dict:
     by_key = {s.get("source_bet_key"): s for s in settlements or () if s.get("source_bet_key")}
     closes = closes_by_ticker(close_rows)
     rows = [wager_row(w, by_key.get(w.get("source_bet_key")), closes.get(w.get("market_ticker")))
@@ -224,7 +227,9 @@ def build(wagers: list, settlements: list, close_rows, *, season: int, week: int
 
     return {"postmortem_version": POSTMORTEM_VERSION, "season": season, "week": week, "header": HEADER,
             "totals": summarise(rows), "by_week": group("week"), "by_family": group("family"),
-            "by_game": group("game"), "wagers": rows}
+            "by_game": group("game"), "wagers": rows,
+            # Exposure, concentration and correlation of what was placed (governance only; see wager_risk).
+            "risk": wager_risk.assess(rows, thresholds=risk_thresholds)}
 
 
 def _money(v):
@@ -287,4 +292,5 @@ def render(doc: dict) -> str:
                  f"{'—' if r.get('close_price') is None else r['close_price']} | "
                  f"{'—' if r.get('clv_per_contract') is None else format(r['clv_per_contract'], '+.4f')} | {r['clv_state']} |")
     L.append("")
+    L.extend(wager_risk.render_section(doc.get("risk")))
     return "\n".join(L)

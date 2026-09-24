@@ -7,7 +7,9 @@ name: Owner actual wagers (ledger check + postmortem)
 #      the same check the router's auto-merge gate runs before landing a delivery;
 #   2. write the OWNER ACTUAL PLACED WAGERS postmortem, season and per week: stake, fees, gross, net, ROI (only
 #      when every figure is established), W/L/pending, by market family and game, and CLV against the canonical
-#      close of the exact contract (scripts/handicap/actual_wager_postmortem.py);
+#      close of the exact contract (scripts/handicap/actual_wager_postmortem.py), plus the RISK & CONCENTRATION
+#      block (same-game / same-market / ladder / YES+NO / correlated clusters, threshold warnings) as
+#      `<name>.risk.json` (nfl_edge/handicap/wager_risk.py);
 #   3. go RED when a wager is more than 3 days past its game date with no settlement record -- a settlement that
 #      was never delivered, the one reconciliation failure the destination can see on its own.
 #

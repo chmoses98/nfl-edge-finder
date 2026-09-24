@@ -7,7 +7,8 @@
 
 Reads `imported_wagers` and `wager_settlements` from a handicap-data checkout and the canonical closes published
 under `data/shadow/v2/closes/<game_id>/*.closes_v2.jsonl.gz`, and writes one JSON + Markdown document for the
-season and one per week (nfl_edge/handicap/actual_wager_postmortem.py).
+season and one per week (nfl_edge/handicap/actual_wager_postmortem.py), plus `<name>.risk.json`: the exposure,
+concentration and correlated-cluster block (nfl_edge/handicap/wager_risk.py) on its own.
 
 The documents carry the owner's economics. They are written to FILES for the branch the workflow publishes to;
 this script's stdout -- which lands in a public Actions log -- carries counts and states only, never a stake, a
@@ -97,6 +98,8 @@ def main(argv=None) -> int:
             json.dump(doc, f, indent=1, sort_keys=True)
         with open(os.path.join(season_dir, f"{name}.ACTUAL_WAGERS.md"), "w") as f:
             f.write(render(doc))
+        with open(os.path.join(season_dir, f"{name}.risk.json"), "w") as f:
+            json.dump(doc["risk"], f, indent=1, sort_keys=True)
 
     # COUNTS ONLY from here on.
     print(f"owner actual wagers, season {a.season}: {len(wagers)} wager(s), {len(settlements)} settlement(s), "
@@ -106,6 +109,10 @@ def main(argv=None) -> int:
         print(f"  {name}: wagers {t['wagers']}, settled {t['settled']}, pending {t['pending']}, "
               f"P&L established {t['pl_established']}, unestablished {t['pl_unestablished']}, "
               f"CLV valid {t['clv']['valid']}, CLV states {t['clv']['states']}")
+        rk = doc["risk"]
+        print(f"    risk: net basis {rk['net_basis']['primary'] or 'NONE_COMPLETE'}, "
+              f"clusters {len(rk['groups']['cluster'])}, opposing pairs {len(rk['opposing_pairs'])}, "
+              f"bankroll {rk['bankroll']['state']}, warnings {rk['warning_counts']}")
     today = date.fromisoformat(a.today) if a.today else datetime.now(timezone.utc).date()
     if a.fail_on_overdue_days is not None:
         late = overdue(wagers, settlements, today, a.fail_on_overdue_days)
