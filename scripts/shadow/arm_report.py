@@ -52,7 +52,7 @@ def game_centre_evaluations(registry_path, week_signals) -> list:
     registry, writes nothing to it; the generation week is dropped inside evaluate_prospective."""
     hyps, _notes = LS.load_hypotheses([registry_path])
     live = {k: v for k, v in hyps.items() if v.get("status") != "RETIRED"}
-    m = sum(1 for v in live.values() if v.get("status") in HR.UNDER_TEST) or 1
+    m = len(HR.multiplicity_family(live)) or 1           # Stage B/C only; discovery candidates never enlarge m
     out = []
     for hid, h in sorted(live.items()):
         if (h.get("hypothesis_kind") or (h.get("locator") or {}).get("kind")) != HR.KIND_GAME_CENTRE:

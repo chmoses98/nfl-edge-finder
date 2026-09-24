@@ -21,6 +21,24 @@ WS3 HARDENING (localized-signal research). Non-overlap was necessary and not suf
   * NO AUTOMATIC STATUS. `register_candidates()` only ever writes GENERATED lines; `evaluate_prospective()`
     writes nothing at all and returns a SUGGESTED status that nothing applies. A verdict is a person's
     `transition()` call. Nothing in this module can touch a model weight or a production-eligibility state.
+
+THREE-STAGE GOVERNANCE. Every hypothesis sits in exactly one stage, DERIVED from its status and the evidence it
+carries (`governance()`), never stored as a free-standing label someone could set:
+
+  A. DISCOVERY_CANDIDATE -- GENERATED. Auto-mined (or hand-noted) patterns. HYPOTHESIS_GENERATING only: never
+     a test, never in the multiplicity family, never given a suggested status. Hundreds of them cost the family
+     nothing, because they are not in it.
+  B. PREREGISTERED_TEST -- PREREGISTERED / TESTING, and ONLY with a complete preregistration record (frozen
+     thresholds + their hash, evaluation plan, test window strictly after generation and inside the registered
+     window, made before the first test kickoff). Deliberately selected by a person via `preregister()`.
+  C. CONFIRMATORY_RESULT -- SUPPORTED / NOT_SUPPORTED / INCONCLUSIVE reached from Stage B with the future
+     evidence recorded on the line (`result`). Still an owner's call; the code only ever suggests.
+  RETIRED.
+
+A status that claims Stage B or C without the record that earns it (a legacy bare transition) is reported as a
+DISCOVERY_CANDIDATE with its `stage_defects` listed: it is neither in the family nor given a suggestion.
+`transition()` now refuses such lines outright -- PREREGISTERED is reachable only through `preregister()`, and a
+verdict only with its future evidence.
 """
 from __future__ import annotations
 
@@ -47,6 +65,17 @@ KIND_SLICE = "LOCALIZED_SLICE"                     # a scorecard_v3 slice (synch
 KIND_GAME_CENTRE = "GAME_CENTRE_DEVIATION"         # a challenger centre's deviation from the snapshot market
 SUGGESTION_ONLY = "suggestion only; owner approval required"
 UNDER_TEST = ("PREREGISTERED", "TESTING")
+VERDICTS = ("SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE")
+
+# the three governance stages (+ RETIRED); see the module docstring and governance()
+STAGE_DISCOVERY = "DISCOVERY_CANDIDATE"
+STAGE_PREREGISTERED = "PREREGISTERED_TEST"
+STAGE_CONFIRMATORY = "CONFIRMATORY_RESULT"
+STAGE_RETIRED = "RETIRED"
+STAGES = (STAGE_DISCOVERY, STAGE_PREREGISTERED, STAGE_CONFIRMATORY, STAGE_RETIRED)
+FAMILY_STAGES = (STAGE_PREREGISTERED, STAGE_CONFIRMATORY)          # the only members of the multiplicity family
+NOT_PREREGISTERED = ("not preregistered: discovery candidate (hypothesis-generating); future evidence is "
+                     "descriptive only and no status is suggested")
 
 # ======================================================================================================
 # THE EVIDENCE BAR, WRITTEN DOWN BEFORE THE EVIDENCE
@@ -281,6 +310,15 @@ def transition(hid: str, new_status: str, *, note: str = "", test_window: dict |
         raise RegistryError(f"unknown hypothesis {hid}")
     if new_status not in STATUSES or new_status not in ALLOWED[cur["status"]]:
         raise RegistryError(f"{cur['status']} -> {new_status} is not an allowed transition")
+    # STAGE B IS EARNED, NOT DECLARED. A bare GENERATED -> PREREGISTERED line would carry no frozen thresholds,
+    # no evaluation plan and no preregistration time -- a "test" whose bar could still be set after the games.
+    if new_status == "PREREGISTERED" and not ((extra or {}).get("preregistration") or {}).get("thresholds"):
+        raise RegistryError("PREREGISTERED is reachable only through preregister(): the thresholds, the evaluation "
+                            "plan and the preregistration time must be frozen on the same line")
+    # STAGE C IS A RESULT: a verdict line must carry the future evidence it was reached on.
+    if new_status in VERDICTS and not result:
+        raise RegistryError(f"{new_status} needs the future evidence it rests on (`result`); a verdict with no "
+                            "recorded evidence is not a confirmatory result")
     win = test_window or cur.get("test_window") or registered_future_window(cur)
     if new_status in ("PREREGISTERED", "TESTING", "SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE"):
         if not win:
@@ -339,6 +377,117 @@ def preregister(hid: str, *, test_window: dict, thresholds: dict, evaluation_pla
     # the window check runs inside transition(); the preregistration record travels on the same line
     return transition(hid, "PREREGISTERED", note=note or "preregistered", test_window=test_window,
                       extra={"preregistration": record}, path=path, now=at)
+
+
+# ======================================================================================================
+# three-stage governance: the stage is DERIVED from status + evidence, never set
+# ======================================================================================================
+
+def preregistration_defects(row: dict) -> list:
+    """What, if anything, is missing from a row's preregistration record. [] = a complete Stage-B record."""
+    pre = row.get("preregistration") or {}
+    if not pre:
+        return ["NO_PREREGISTRATION_RECORD"]
+    out = []
+    th = pre.get("thresholds")
+    if not th:
+        out.append("NO_FROZEN_THRESHOLDS")
+    elif pre.get("thresholds_sha") != thresholds_sha(th):
+        out.append("THRESHOLDS_HASH_MISMATCH")
+    if not pre.get("evaluation_plan"):
+        out.append("NO_EVALUATION_PLAN")
+    at = pre.get("preregistered_at")
+    if not at:
+        out.append("NO_PREREGISTRATION_TIME")
+    tw, gen, reg = pre.get("test_window"), row.get("generation_window"), registered_future_window(row)
+    if not tw:
+        out.append("NO_TEST_WINDOW")
+    elif not gen or _windows_overlap(gen, tw) or not _window_after(gen, tw):
+        out.append("TEST_WINDOW_NOT_STRICTLY_AFTER_GENERATION")
+    elif reg and not _window_contained(tw, reg):
+        out.append("TEST_WINDOW_OUTSIDE_REGISTERED_WINDOW")
+    kick = pre.get("first_test_kickoff_utc")
+    if at and kick:
+        try:
+            if _parse_ts(at) >= _parse_ts(kick):
+                out.append("PREREGISTERED_AT_OR_AFTER_FIRST_TEST_KICKOFF")
+        except (TypeError, ValueError):
+            out.append("PREREGISTRATION_TIME_UNPARSEABLE")
+    return out
+
+
+def governance(row: dict) -> dict:
+    """{stage, defects, in_family}. The stage follows from status AND the record behind it:
+
+        GENERATED                                   -> DISCOVERY_CANDIDATE
+        PREREGISTERED / TESTING + complete record   -> PREREGISTERED_TEST
+        verdict + complete record + result on line  -> CONFIRMATORY_RESULT
+        RETIRED                                     -> RETIRED
+        anything claiming B or C without its record -> DISCOVERY_CANDIDATE, defects listed
+    """
+    status = (row or {}).get("status")
+    if status == "RETIRED":
+        return {"stage": STAGE_RETIRED, "defects": [], "in_family": False}
+    if status in UNDER_TEST or status in VERDICTS:
+        d = preregistration_defects(row)
+        if status in VERDICTS:
+            if not row.get("result"):
+                d.append("VERDICT_WITHOUT_RECORDED_FUTURE_EVIDENCE")
+            tw, pre_tw = row.get("test_window"), (row.get("preregistration") or {}).get("test_window")
+            if tw and pre_tw and not _window_contained(tw, pre_tw):
+                d.append("VERDICT_WINDOW_OUTSIDE_PREREGISTERED_WINDOW")
+        if d:
+            return {"stage": STAGE_DISCOVERY, "defects": d, "in_family": False}
+        st = STAGE_PREREGISTERED if status in UNDER_TEST else STAGE_CONFIRMATORY
+        return {"stage": st, "defects": [], "in_family": True}
+    if status == "GENERATED":
+        return {"stage": STAGE_DISCOVERY, "defects": [], "in_family": False}
+    return {"stage": STAGE_DISCOVERY, "defects": [f"UNKNOWN_STATUS_{status}"], "in_family": False}
+
+
+def stage(row: dict) -> str:
+    return governance(row)["stage"]
+
+
+def multiplicity_family(hypotheses: dict) -> list:
+    """Ids in the Bonferroni family: Stage B and Stage C members only. Discovery candidates never enter it --
+    however many were mined -- and neither does a status that lacks the preregistration record behind it.
+
+    The frozen prereg-thresholds-1.0.0 text names the family "every hypothesis in PREREGISTERED or TESTING
+    status"; counting Stage C members as well can only make m larger (never smaller), so it is at least as strict
+    as what was preregistered, and identical while no Stage-C result exists.
+    """
+    return sorted(hid for hid, h in (hypotheses or {}).items() if governance(h)["in_family"])
+
+
+def audit_registry(rows: list) -> dict:
+    """What an append-only registry file actually holds, line by line. Reads; writes nothing.
+
+    Counts lines and ids by status, evidence type and derived stage; verifies every line's hash and that each
+    transition chains to the id's previous line; lists every id whose latest status claims Stage B or C without
+    the record that earns it (`improper`).
+    """
+    from collections import Counter
+    latest, prev, breaks = {}, {}, []
+    for i, r in enumerate(rows or []):
+        want = {k: v for k, v in r.items() if k != "line_hash"}
+        if _line_hash(want) != r.get("line_hash"):
+            breaks.append({"line": i + 1, "id": r.get("id"), "reason": "LINE_HASH_MISMATCH"})
+        if r.get("previous_hash") != prev.get(r.get("id")):
+            breaks.append({"line": i + 1, "id": r.get("id"), "reason": "PREVIOUS_HASH_DOES_NOT_CHAIN"})
+        prev[r.get("id")] = r.get("line_hash")
+        latest[r.get("id")] = r
+    gov = {hid: governance(r) for hid, r in latest.items()}
+    return {"lines": len(rows or []), "ids": len(latest),
+            "lines_by_status": dict(Counter(r.get("status") for r in rows or [])),
+            "ids_by_status": dict(Counter(r.get("status") for r in latest.values())),
+            "ids_by_evidence_type": dict(Counter(r.get("evidence_type") for r in latest.values())),
+            "ids_by_stage": dict(Counter(g["stage"] for g in gov.values())),
+            "ids_with_transitions": sorted(hid for hid, r in latest.items() if r.get("previous_hash")),
+            "multiplicity_family": sorted(hid for hid, g in gov.items() if g["in_family"]),
+            "improper": [{"id": hid, "status": latest[hid].get("status"), "defects": g["defects"]}
+                         for hid, g in sorted(gov.items()) if g["defects"]],
+            "hash_chain_ok": not breaks, "chain_breaks": breaks}
 
 
 def _slice_identity(seg: str, val: str, m: dict) -> dict:
@@ -494,7 +643,8 @@ def candidates_from_scorecard(sc: dict, *, season: int, week: int, min_n: int = 
                               "game_count_basis": "clusters (independent games behind the paired outcomes)",
                               "generation_window": {"season": season, "week_lo": week, "week_hi": week}, "future_test_window": {"season": season, "week_lo": week + 1, "week_hi": 18},
                               "synchronization_basis": SYNCHRONIZED, "evidence_class": "PROSPECTIVE_FROZEN",
-                              "evidence_type": "HYPOTHESIS_GENERATING", "status": "CANDIDATE_NOT_REGISTERED"})
+                              "evidence_type": "HYPOTHESIS_GENERATING", "status": "CANDIDATE_NOT_REGISTERED",
+                              "stage": STAGE_DISCOVERY})
     cands.sort(key=lambda x: -abs(x["effect_size"] / x["uncertainty"]))
     if path_out:
         os.makedirs(os.path.dirname(path_out) or ".", exist_ok=True)
@@ -711,9 +861,11 @@ def evaluate_prospective(hypothesis: dict, future_metrics: dict | None, *, n_und
       GAME_CENTRE week:      {season, week, horizons: {label: {n_games, below_threshold, toward, away,
                               unchanged, no_close, signed_close_move_sum, signed_close_move_n}}}
 
-    A GENERATED hypothesis has no preregistered bar, so its future evidence is DESCRIPTIVE and its suggestion is
-    None. A PREREGISTERED / TESTING one is judged against the thresholds frozen in its own preregistration
-    record (falling back to PREREGISTERED_THRESHOLDS for a hypothesis preregistered without them).
+    Only a Stage-B hypothesis (`governance()`: PREREGISTERED / TESTING with a complete preregistration record)
+    is judged, against the thresholds frozen in its own record. A DISCOVERY_CANDIDATE -- GENERATED, or a status
+    claiming Stage B without the record -- has no preregistered bar: its future evidence is DESCRIPTIVE and its
+    suggestion is None, whatever that evidence looks like. `n_under_test` is the Stage B/C family size
+    (`multiplicity_family`); a discovery candidate never enlarges it.
     """
     h = hypothesis or {}
     kind = h.get("hypothesis_kind") or (h.get("locator") or {}).get("kind")
@@ -723,14 +875,17 @@ def evaluate_prospective(hypothesis: dict, future_metrics: dict | None, *, n_und
     mc = multiplicity(n_under_test or 1, (th_all.get("multiple_comparisons") or {}).get("alpha_family", 0.05))
     keep, excluded, window = _split_weeks(h, (future_metrics or {}).get("by_week") or [])
     status = h.get("status")
-    out = {"id": h.get("id"), "kind": kind, "status_now": status, "generation_window": h.get("generation_window"),
+    gov = governance(h)
+    judged = gov["stage"] == STAGE_PREREGISTERED
+    out = {"id": h.get("id"), "kind": kind, "status_now": status, "stage": gov["stage"], "stage_defects": gov["defects"],
+           "in_multiplicity_family": gov["in_family"], "generation_window": h.get("generation_window"),
            "test_window_used": window, "evaluated_weeks": [(w.get("season"), w.get("week")) for w in keep],
            "excluded_weeks": excluded, "new_independent_games": 0, "metrics": None,
            "trend": "INCONCLUSIVE", "direction_so_far": "NO_ESTIMATE",
            "suggested_status": None, "suggestion_reason": None, "suggestion_is_binding": False,
            "suggestion_note": SUGGESTION_ONLY, "multiple_comparisons": mc,
            "thresholds_version": th_all.get("version"), "thresholds_sha": pre.get("thresholds_sha"),
-           "preregistered": status in UNDER_TEST + ("SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE") and bool(pre)}
+           "preregistered": gov["in_family"]}
     ge = h.get("generation_evidence") or {}
     if kind == KIND_SLICE:
         met = _combine_slice_weeks(keep)
@@ -746,9 +901,8 @@ def evaluate_prospective(hypothesis: dict, future_metrics: dict | None, *, n_und
             z = mc["z_adjusted"]
             met["ci95"] = [met["effect"] - mc["z_95"] * met["se"], met["effect"] + mc["z_95"] * met["se"]]
             met["ci_adjusted"] = [met["effect"] - z * met["se"], met["effect"] + z * met["se"]]
-        if status not in UNDER_TEST:
-            out["suggestion_reason"] = ("not preregistered: future evidence is descriptive only" if status == "GENERATED"
-                                        else f"status {status}: no suggestion computed")
+        if not judged:
+            out["suggestion_reason"] = _no_suggestion_reason(gov, status)
             return out
         if not enough:
             out["suggested_status"] = "INCONCLUSIVE"
@@ -797,9 +951,8 @@ def evaluate_prospective(hypothesis: dict, future_metrics: dict | None, *, n_und
         ratio = float((th.get("trend") or {}).get("persisting_min_ratio", 0.5))
         out["trend"], out["direction_so_far"] = _trend(None if gen_rate is None else gen_rate - 0.5,
                                                        None if fut_rate is None else fut_rate - 0.5, enough, ratio)
-        if status not in UNDER_TEST:
-            out["suggestion_reason"] = ("not preregistered: future evidence is descriptive only" if status == "GENERATED"
-                                        else f"status {status}: no suggestion computed")
+        if not judged:
+            out["suggestion_reason"] = _no_suggestion_reason(gov, status)
             return out
         if not enough:
             out["suggested_status"] = "INCONCLUSIVE"
@@ -815,7 +968,14 @@ def evaluate_prospective(hypothesis: dict, future_metrics: dict | None, *, n_und
         else:
             out["suggested_status"], out["suggestion_reason"] = "INCONCLUSIVE", f"adjusted Wilson interval [{lo:.3f}, {hi:.3f}] includes 0.5"
         return out
-    out["suggestion_reason"] = f"unknown hypothesis kind {kind!r}: no evidence locator"
-    if status in UNDER_TEST:
+    out["suggestion_reason"] = (f"unknown hypothesis kind {kind!r}: no evidence locator" if judged
+                                else _no_suggestion_reason(gov, status))
+    if judged:
         out["suggested_status"] = "INCONCLUSIVE"
     return out
+
+
+def _no_suggestion_reason(gov: dict, status) -> str:
+    if gov["stage"] == STAGE_DISCOVERY:
+        return NOT_PREREGISTERED + (f" (status {status} lacks its record: {', '.join(gov['defects'])})" if gov["defects"] else "")
+    return f"status {status} ({gov['stage']}): no suggestion computed"
