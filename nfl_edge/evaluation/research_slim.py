@@ -17,7 +17,7 @@ from nfl_edge.evaluation import scorecard_v3 as S3
 _SCORECARD = ("settled_yes", "contract_value", "game_id", "ticker", "h_mid", "c_mid", "clv_status",
               "clv_mid_toward_model", "clv_exec_toward_model", "clv_net_of_fee", "movement",
               "model_closer_than_horizon", "exec_pnl_gross", "exec_pnl_net", "h_width", "h_liquidity",
-              "evidence_class", "information_skew_seconds", "family_group")
+              "evidence_class", "information_skew_seconds", "family_group", "model_version")
 _HEALTH = ("kickoff_utc", "flag_settlement_supported", "settlement_status", "close_status", "close_reason",
            "ctx_depth_chart_rank", "ctx_weather_state", "autopsy_classification", "record_id", "snapshot_id",
            "ctx_injury_state", "ctx_injury_report_maturity", "ctx_role_certainty", "ctx_availability_state",

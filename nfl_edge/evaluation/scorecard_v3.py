@@ -23,6 +23,12 @@ SEGMENTS = ("horizon_label", "horizon_quality", "engine", "model_arm", "family_g
             "semantic_confidence", "support_state", "model_side", "synchronization_state", "settlement_reachability",
             # player-model diagnostics (schema 2.3.0 / context-1.3.0): absent on older rows, which land in "None"
             "abstention_state", "ctx_role_certainty")
+# CROSSED SEGMENTS (WS3). Every single-key slice above pools the model arms: "family_group == player_rec_yards"
+# averages DATA_PLAYER_V3, HYBRID_PLAYER_V4 and every other arm that priced the family, so an effect found there
+# belongs to no model. These slices keep the arm apart, and (where the rows carry it) the horizon as well. They
+# are named `a*b[*c]` and their values `va|vb[|vc]`. They add to candidate_slices_considered, and that is the
+# honest consequence: cutting more ways is more comparisons, and the count says so.
+CROSSED_SEGMENTS = (("model_arm", "family_group"), ("model_arm", "family_group", "horizon_label"))
 SYNCHRONIZED = "SYNCHRONIZED"
 EPS = 1e-6
 
@@ -162,24 +168,47 @@ def metric_block(rows: list) -> dict:
     """
     o = outcome_block(rows)
     return {"n": len(rows), "n_games": len({r.get("game_id") for r in rows}), "outcome": o, "clv": clv_block(rows), "executable": executable_block(rows),
+            # identity of what the slice actually contains: a pooled slice is visible as more than one arm
+            "n_unique_contracts": len({r.get("ticker") for r in rows if r.get("ticker")}),
+            "model_arms": sorted({str(r.get("model_arm")) for r in rows}),
+            "model_versions": sorted({str(r.get("model_version")) for r in rows if r.get("model_version") is not None}),
             "segment_rows_total": len(rows), "outcome_n": o.get("n", 0), "settled_game_count": o.get("settled_game_count", 0),
             "market_n": o.get("market_n", 0), "model_n": o.get("model_n", 0),
             "mean_width": _mean([_f(r["h_width"]) for r in rows if r.get("h_width") is not None]), "mean_liquidity": _mean([_f(r["h_liquidity"]) for r in rows if r.get("h_liquidity") is not None])}
 
 
+def segment_name(key) -> str:
+    return "*".join(key) if isinstance(key, tuple) else key
+
+
 def segment(rows, key, min_n=5):
+    """Slice by one field, or by a tuple of fields (a crossed segment, values joined with '|')."""
     by = defaultdict(list)
-    for r in rows:
-        by[str(r.get(key))].append(r)
+    if isinstance(key, tuple):
+        for r in rows:
+            by["|".join(str(r.get(k)) for k in key)].append(r)
+    else:
+        for r in rows:
+            by[str(r.get(key))].append(r)
     return {k: {**metric_block(v), "evidence_type": HYPOTHESIS_GENERATING} for k, v in sorted(by.items()) if len(v) >= min_n}
+
+
+def _n_slices(rows, key) -> int:
+    """How many distinct values the key takes -- the slices a miner could have looked at, cheaply."""
+    if isinstance(key, tuple):
+        return len({tuple(str(r.get(k)) for k in key) for r in rows})
+    return len({str(r.get(key)) for r in rows})
 
 
 def _block(rs, min_segment_n):
     with_p = [r for r in rs if r.get("contract_value") is not None]
+    keys = tuple(SEGMENTS) + CROSSED_SEGMENTS
     return {"n_rows": len(rs), "n_with_probability": len(with_p), "overall": metric_block(with_p),
-            "segments": {k: segment(with_p, k, min_segment_n) for k in SEGMENTS},
+            "segments": {segment_name(k): segment(with_p, k, min_segment_n) for k in keys},
             "arm_by_family": _arm_by_family(with_p),
-            "candidate_slices_considered": sum(len(segment(with_p, k, 1)) for k in SEGMENTS)}
+            "candidate_slices_considered": sum(_n_slices(with_p, k) for k in keys),
+            "candidate_slices_considered_basis": "distinct values over every single and crossed segment "
+                                                 "(single segments pool the model arms; crossed ones do not)"}
 
 
 def build(rows: list, *, min_segment_n: int = 5) -> dict:
