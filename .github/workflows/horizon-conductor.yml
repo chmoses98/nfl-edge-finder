@@ -1,0 +1,53 @@
+name: Horizon conductor (RUN NFL + three-arm)
+
+# GitHub cron is best-effort, and for these workflows it is far worse than "a few minutes late": between
+# 2026-09-09 and 2026-09-24 the */15 RUN NFL gate was started on about 7% of its ticks, 105-417 minutes apart.
+# Weeks 1-2 lost 11 of 44 RUN NFL horizons that way and captured none on time. A T-30m horizon cannot be
+# served by a scheduler that wakes every three hours.
+#
+# This keeps ONE small runner looping the stdlib due-rule every four minutes and DISPATCHES
+# run-nfl-horizons.yml / three-arm-horizons.yml when a horizon is owed and no run is already queued or running
+# (scripts/handicap/horizon_conductor.py). It builds and marks nothing itself: the dispatched workflow's own
+# gate decides, and captures stay idempotent by horizon id and are recorded only after a successful build.
+#
+# It does not depend on its own cron either. ~12 minutes before its job limit it dispatches its successor,
+# which waits as the group's single pending run and starts when this one ends. The hourly cron only restarts
+# the chain if a link is ever lost; the concurrency group collapses any surplus start into that one pending
+# run. Public repository: an idle runner costs no minutes.
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: horizon-conductor
+  cancel-in-progress: false
+
+jobs:
+  conduct:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # Each conductor link (~every 6 hours) also starts the workflow-health run, whose own */6 cron is subject
+      # to the same scheduler. That run publishes horizon capture health and turns red on a fresh miss.
+      - name: Refresh workflow and horizon capture health
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run workflow-health.yml --ref main && echo "workflow-health dispatched"
+      - name: Loop the horizon due-rule; dispatch the horizon workflows when owed; chain the successor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/handicap/horizon_conductor.py --minutes 340 --interval 240 \
+            --targets RUN_NFL,THREE_ARM --ref main --chain-workflow horizon-conductor.yml

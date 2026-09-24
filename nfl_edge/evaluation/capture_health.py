@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 
 from nfl_edge.handicap.horizons import HORIZONS_MIN, cluster_kickoffs, horizon_id
 
-CAPTURE_HEALTH_VERSION = "capture-health-1.0.0"
+CAPTURE_HEALTH_VERSION = "capture-health-1.1.0"
 ON_TIME_MIN, ACCEPTABLE_MIN = 10.0, 45.0
 
 
@@ -61,6 +61,14 @@ def horizon_delivery(slate_id: str, games: list, markers: list, now: datetime, *
                 row.update(snapshot_id=m.get("snapshot_id"), lateness_min=(round(late, 1) if late is not None else None),
                            status=("DELIVERED_ON_TIME" if late is not None and late <= ON_TIME_MIN else
                                    "DELIVERED_LATE" if late is not None and late <= ACCEPTABLE_MIN else "DELIVERED_DEGRADED"))
+                # A capture observed at or after kickoff, or one its writer already recorded as MISSED, is not a
+                # pregame delivery at any lateness. Counting it as DELIVERED_DEGRADED would put a post-kickoff
+                # packet in the delivered numerator.
+                if (snap is not None and snap >= ko) or str(m.get("status") or "").upper() == "MISSED":
+                    row.update(status="MISSED", cause="CAPTURED_AT_OR_AFTER_KICKOFF: the marker exists but the "
+                                                      "capture was not observed before kickoff")
+                    rows.append(row)
+                    continue
             elif now < trig:
                 row["status"] = "NOT_YET_DUE"
             elif now < ko:

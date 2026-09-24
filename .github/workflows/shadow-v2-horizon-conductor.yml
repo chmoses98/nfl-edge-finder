@@ -31,6 +31,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      # Chain the successor first (see kalshi-conductor.yml): the hourly cron alone leaves multi-hour gaps.
+      - name: Dispatch the successor conductor
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run shadow-v2-horizon-conductor.yml --ref main && echo "successor dispatched"
       - name: Loop the horizon gate; dispatch the freeze when one is due
         env:
           GH_TOKEN: ${{ github.token }}
