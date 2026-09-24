@@ -1,0 +1,605 @@
+{
+ "season": 2025,
+ "note": "every 2025 player-game with a snap count (fits on <= 2024); V3 = the EWMA quantity v3 uses",
+ "snap": {
+  "all": {
+   "V3": {
+    "n": 6381,
+    "mae": 0.1538,
+    "rmse": 0.2004,
+    "bias": 0.0104
+   },
+   "V4": {
+    "n": 6381,
+    "mae": 0.1203,
+    "rmse": 0.1661,
+    "bias": 0.0011
+   }
+  },
+  "QB": {
+   "V3": {
+    "n": 674,
+    "mae": 0.1835,
+    "rmse": 0.282,
+    "bias": 0.0321
+   },
+   "V4": {
+    "n": 674,
+    "mae": 0.0828,
+    "rmse": 0.1629,
+    "bias": -0.0012
+   }
+  },
+  "RB": {
+   "V3": {
+    "n": 1416,
+    "mae": 0.1265,
+    "rmse": 0.1603,
+    "bias": -0.01
+   },
+   "V4": {
+    "n": 1416,
+    "mae": 0.1071,
+    "rmse": 0.141,
+    "bias": 0.0007
+   }
+  },
+  "WR": {
+   "V3": {
+    "n": 2629,
+    "mae": 0.1674,
+    "rmse": 0.2075,
+    "bias": 0.0155
+   },
+   "V4": {
+    "n": 2629,
+    "mae": 0.1373,
+    "rmse": 0.1834,
+    "bias": 0.0055
+   }
+  },
+  "TE": {
+   "V3": {
+    "n": 1662,
+    "mae": 0.1436,
+    "rmse": 0.1786,
+    "bias": 0.011
+   },
+   "V4": {
+    "n": 1662,
+    "mae": 0.1199,
+    "rmse": 0.1581,
+    "bias": -0.0046
+   }
+  },
+  "v4_high_certainty(snap_sd<=median)": {
+   "V3": {
+    "n": 3191,
+    "mae": 0.1298,
+    "rmse": 0.1747,
+    "bias": 0.0116
+   },
+   "V4": {
+    "n": 3191,
+    "mae": 0.0952,
+    "rmse": 0.1395,
+    "bias": 0.0051
+   }
+  },
+  "v4_low_certainty(snap_sd>median)": {
+   "V3": {
+    "n": 3190,
+    "mae": 0.1778,
+    "rmse": 0.2232,
+    "bias": 0.0092
+   },
+   "V4": {
+    "n": 3190,
+    "mae": 0.1454,
+    "rmse": 0.1889,
+    "bias": -0.0029
+   }
+  },
+  "returning": {
+   "V3": {
+    "n": 398,
+    "mae": 0.1993,
+    "rmse": 0.2551,
+    "bias": 0.1005
+   },
+   "V4": {
+    "n": 398,
+    "mae": 0.1411,
+    "rmse": 0.1881,
+    "bias": 0.0018
+   }
+  },
+  "new_to_team": {
+   "V3": {
+    "n": 427,
+    "mae": 0.2786,
+    "rmse": 0.3365,
+    "bias": 0.1918
+   },
+   "V4": {
+    "n": 427,
+    "mae": 0.1721,
+    "rmse": 0.2231,
+    "bias": 0.0074
+   }
+  },
+  "changed_team": {
+   "V3": {
+    "n": 164,
+    "mae": 0.2535,
+    "rmse": 0.309,
+    "bias": 0.1706
+   },
+   "V4": {
+    "n": 164,
+    "mae": 0.154,
+    "rmse": 0.205,
+    "bias": 0.0226
+   }
+  },
+  "teammate_vacated_snaps>0.2": {
+   "V3": {
+    "n": 801,
+    "mae": 0.1964,
+    "rmse": 0.2409,
+    "bias": -0.0347
+   },
+   "V4": {
+    "n": 801,
+    "mae": 0.1589,
+    "rmse": 0.2055,
+    "bias": -0.0141
+   }
+  },
+  "questionable": {
+   "V3": {
+    "n": 207,
+    "mae": 0.1564,
+    "rmse": 0.2065,
+    "bias": 0.0352
+   },
+   "V4": {
+    "n": 207,
+    "mae": 0.1467,
+    "rmse": 0.1955,
+    "bias": -0.0
+   }
+  },
+  "stable(n_cur>=2,no flags)": {
+   "V3": {
+    "n": 4772,
+    "mae": 0.1379,
+    "rmse": 0.1785,
+    "bias": -0.0131
+   },
+   "V4": {
+    "n": 4772,
+    "mae": 0.1134,
+    "rmse": 0.1583,
+    "bias": 0.0014
+   }
+  },
+  "interval80_coverage": 0.7126
+ },
+ "team_volume": {
+  "V3_team_ewma": {
+   "pass_att": {
+    "n": 544,
+    "mae": 6.1619,
+    "rmse": 7.665,
+    "bias": 0.7506
+   },
+   "rush_att": {
+    "n": 544,
+    "mae": 5.8368,
+    "rmse": 7.3139,
+    "bias": -0.9476
+   },
+   "plays": {
+    "n": 544,
+    "mae": 6.664,
+    "rmse": 8.4547,
+    "bias": -0.197
+   },
+   "plays_bias_pct": NaN
+  },
+  "V4": {
+   "pass_att": {
+    "n": 544,
+    "mae": 6.0946,
+    "rmse": 7.5917,
+    "bias": 0.465
+   },
+   "rush_att": {
+    "n": 544,
+    "mae": 5.757,
+    "rmse": 7.1919,
+    "bias": -0.3431
+   },
+   "plays": {
+    "n": 544,
+    "mae": 6.7172,
+    "rmse": 8.5801,
+    "bias": 0.1219
+   },
+   "plays_bias_pct": NaN
+  },
+  "constant_league_mean": {
+   "pass_att": {
+    "n": 544,
+    "mae": 6.3618,
+    "rmse": 7.9345,
+    "bias": 0.8762
+   },
+   "rush_att": {
+    "n": 544,
+    "mae": 5.9992,
+    "rmse": 7.5379,
+    "bias": -1.5689
+   }
+  }
+ },
+ "allocation": {
+  "target": {
+   "all": {
+    "V3": {
+     "n": 5707,
+     "mae": 0.0492,
+     "rmse": 0.0634,
+     "bias": 0.0032
+    },
+    "V4": {
+     "n": 5707,
+     "mae": 0.0443,
+     "rmse": 0.0597,
+     "bias": -0.0004
+    },
+    "V4_no_redistribution": {
+     "n": 5707,
+     "mae": 0.0448,
+     "rmse": 0.0602,
+     "bias": -0.0008
+    }
+   },
+   "teammate_absence(vacated same-group share>0.05)": {
+    "V3": {
+     "n": 565,
+     "mae": 0.0573,
+     "rmse": 0.0729,
+     "bias": -0.0053
+    },
+    "V4": {
+     "n": 565,
+     "mae": 0.0514,
+     "rmse": 0.0674,
+     "bias": -0.0033
+    },
+    "V4_no_redistribution": {
+     "n": 565,
+     "mae": 0.053,
+     "rmse": 0.0706,
+     "bias": -0.0135
+    }
+   },
+   "teammate_returning(>0.05)": {
+    "V3": {
+     "n": 638,
+     "mae": 0.0569,
+     "rmse": 0.0705,
+     "bias": 0.0093
+    },
+    "V4": {
+     "n": 638,
+     "mae": 0.0518,
+     "rmse": 0.0672,
+     "bias": 0.002
+    },
+    "V4_no_redistribution": {
+     "n": 638,
+     "mae": 0.0527,
+     "rmse": 0.0677,
+     "bias": 0.0037
+    }
+   }
+  },
+  "carry": {
+   "all": {
+    "V3": {
+     "n": 4719,
+     "mae": 0.0501,
+     "rmse": 0.0908,
+     "bias": -0.0011
+    },
+    "V4": {
+     "n": 4719,
+     "mae": 0.0438,
+     "rmse": 0.0813,
+     "bias": -0.0048
+    },
+    "V4_no_redistribution": {
+     "n": 4719,
+     "mae": 0.0447,
+     "rmse": 0.0829,
+     "bias": -0.0055
+    }
+   },
+   "teammate_absence(vacated same-group share>0.05)": {
+    "V3": {
+     "n": 174,
+     "mae": 0.1178,
+     "rmse": 0.1638,
+     "bias": -0.0413
+    },
+    "V4": {
+     "n": 174,
+     "mae": 0.0977,
+     "rmse": 0.136,
+     "bias": -0.0237
+    },
+    "V4_no_redistribution": {
+     "n": 174,
+     "mae": 0.1106,
+     "rmse": 0.1584,
+     "bias": -0.0525
+    }
+   },
+   "teammate_returning(>0.05)": {
+    "V3": {
+     "n": 385,
+     "mae": 0.0994,
+     "rmse": 0.1295,
+     "bias": -0.0015
+    },
+    "V4": {
+     "n": 385,
+     "mae": 0.0862,
+     "rmse": 0.1135,
+     "bias": -0.0086
+    },
+    "V4_no_redistribution": {
+     "n": 385,
+     "mae": 0.087,
+     "rmse": 0.1145,
+     "bias": -0.0069
+    }
+   }
+  },
+  "targets_count": {
+   "V3_ewma": {
+    "n": 5707,
+    "mae": 1.688,
+    "rmse": 2.188,
+    "bias": 0.2321
+   },
+   "V4": {
+    "n": 5707,
+    "mae": 1.5367,
+    "rmse": 2.0724,
+    "bias": 0.1398
+   }
+  },
+  "carries_count": {
+   "V3_ewma": {
+    "n": 1416,
+    "mae": 3.7361,
+    "rmse": 4.8286,
+    "bias": -0.1515
+   },
+   "V4": {
+    "n": 1416,
+    "mae": 3.3678,
+    "rmse": 4.4752,
+    "bias": 0.0976
+   }
+  },
+  "receptions_count": {
+   "V3_ewma": {
+    "n": 5707,
+    "mae": 1.2642,
+    "rmse": 1.6553,
+    "bias": 0.1209
+   },
+   "V4": {
+    "n": 5707,
+    "mae": 1.1751,
+    "rmse": 1.5978,
+    "bias": 0.0584
+   }
+  },
+  "reconciliation": {
+   "target_share_sum_mean": 0.9349,
+   "target_share_sum_p95": 1.0,
+   "carry_share_sum_mean": 0.9272,
+   "pre_cap_target_sum_over_1_pct": 34.19,
+   "pre_cap_carry_sum_over_1_pct": 47.43,
+   "realised_target_share_sum_mean": 0.9398
+  }
+ },
+ "bundle": {
+  "version": "data-player-dist-4.0.0",
+  "artifact_sha": "26a1c7956d34e510",
+  "target_season": 2025,
+  "config": {
+   "snap": true,
+   "volume": true,
+   "redistribution": true,
+   "allocation": true,
+   "propagate": true,
+   "market_env": true
+  },
+  "info": {
+   "snap_sd_pooled": 0.2049574552568426,
+   "n_train_rows": 66406,
+   "train_seasons": [
+    2014,
+    2024
+   ],
+   "volume": {
+    "n_team_games": 6724,
+    "sd_pass_att": 8.036,
+    "sd_rush_att": 7.223
+   },
+   "recon_t_over_1": 0.36212550966140755,
+   "recon_c_over_1": 0.5350410683684926
+  },
+  "kappa": {
+   "targets|RB": 0.8248,
+   "targets|WR": 0.7462,
+   "targets|TE": 0.7462,
+   "carries|RB": 0.8248,
+   "carries|QB": 0.5,
+   "carries|WR": 0.8248,
+   "attempts|QB": 22.4463,
+   "passing_tds|QB": 50.0,
+   "interceptions|QB": 15.0394,
+   "any_td|RB": 20.3079,
+   "any_td|WR": 50.0,
+   "any_td|TE": 15.0394,
+   "any_td|QB": 50.0
+  },
+  "unit": {
+   "ypr|RB": 0.9336,
+   "ypr|WR": 1.2919,
+   "ypr|TE": 1.5003,
+   "ypc_var|RB": 39.252,
+   "ypc_var|QB": 45.4204,
+   "ypc_var|WR": 68.75,
+   "ypcomp|QB": 1.1842
+  },
+  "snap": {
+   "QB": {
+    "n_features": 20,
+    "coef": {
+     "intercept": 0.1334,
+     "ewma_snap_share": 0.1191,
+     "last_snap_share": 0.0418,
+     "last3_snap_share": 0.0538,
+     "max4_snap_share": 0.002,
+     "cur_mean_snap_share": 0.0019,
+     "n_cur_c": 0.0067,
+     "log_n_prior": 0.0023,
+     "changed_team": -0.0156,
+     "self_new": -0.0335,
+     "self_returning": -0.0178,
+     "own_q": -0.0136,
+     "vac_same_s": 0.0945,
+     "vac_same_s_frac": -0.0364,
+     "vac_same_s_room": 0.0218,
+     "vac_off_same_s": 0.0552,
+     "ret_same_s": 0.0133,
+     "ret_same_s_frac": 0.0008,
+     "n_active_same": -0.0059,
+     "gap_gt1": 0.0029,
+     "qb_starter_f": 0.6306
+    }
+   },
+   "RB": {
+    "n_features": 19,
+    "coef": {
+     "intercept": 0.0051,
+     "ewma_snap_share": 0.3757,
+     "last_snap_share": 0.2691,
+     "last3_snap_share": 0.2109,
+     "max4_snap_share": 0.0039,
+     "cur_mean_snap_share": 0.1273,
+     "n_cur_c": 0.0226,
+     "log_n_prior": 0.0029,
+     "changed_team": -0.0053,
+     "self_new": -0.0937,
+     "self_returning": -0.032,
+     "own_q": -0.015,
+     "vac_same_s": -0.2296,
+     "vac_same_s_frac": 0.2514,
+     "vac_same_s_room": 0.3926,
+     "vac_off_same_s": 0.0999,
+     "ret_same_s": -0.1354,
+     "ret_same_s_frac": 0.1281,
+     "n_active_same": -0.0064,
+     "gap_gt1": 0.0105
+    }
+   },
+   "WR": {
+    "n_features": 19,
+    "coef": {
+     "intercept": -0.0254,
+     "ewma_snap_share": 0.41,
+     "last_snap_share": 0.2895,
+     "last3_snap_share": 0.1592,
+     "max4_snap_share": 0.0139,
+     "cur_mean_snap_share": 0.1528,
+     "n_cur_c": 0.0421,
+     "log_n_prior": 0.0063,
+     "changed_team": 0.0316,
+     "self_new": -0.149,
+     "self_returning": -0.0441,
+     "own_q": -0.0201,
+     "vac_same_s": -0.1097,
+     "vac_same_s_frac": 0.1813,
+     "vac_same_s_room": 0.2681,
+     "vac_off_same_s": 0.0586,
+     "ret_same_s": -0.0319,
+     "ret_same_s_frac": 0.0116,
+     "n_active_same": -0.0081,
+     "gap_gt1": 0.0026
+    }
+   },
+   "TE": {
+    "n_features": 19,
+    "coef": {
+     "intercept": -0.008,
+     "ewma_snap_share": 0.3866,
+     "last_snap_share": 0.2152,
+     "last3_snap_share": 0.1839,
+     "max4_snap_share": 0.0098,
+     "cur_mean_snap_share": 0.2085,
+     "n_cur_c": 0.0414,
+     "log_n_prior": 0.0074,
+     "changed_team": 0.0661,
+     "self_new": -0.1498,
+     "self_returning": -0.0441,
+     "own_q": -0.0175,
+     "vac_same_s": -0.1046,
+     "vac_same_s_frac": 0.174,
+     "vac_same_s_room": 0.2297,
+     "vac_off_same_s": 0.0766,
+     "ret_same_s": 0.0435,
+     "ret_same_s_frac": -0.081,
+     "n_active_same": -0.0187,
+     "gap_gt1": 0.0171
+    }
+   }
+  },
+  "volume": {
+   "n_team_games": 6724,
+   "sd_pass_att": 8.036,
+   "sd_rush_att": 7.223,
+   "pass": {
+    "intercept": -11.9581,
+    "t_pa": 1.6723,
+    "t_rate": -41.4688,
+    "o_pa_allowed": 0.1847,
+    "implied_total": 0.2972,
+    "spread_team": -0.1619,
+    "home_f": 0.2399,
+    "indoor_f": -0.105,
+    "qb_changed_recent": 0.0597
+   },
+   "rush": {
+    "intercept": -46.4803,
+    "t_ra": 1.6426,
+    "t_rate": 42.6362,
+    "o_ra_allowed": 0.4611,
+    "implied_total": -0.2514,
+    "spread_team": 0.1789,
+    "home_f": 0.9421,
+    "indoor_f": -0.2347,
+    "qb_changed_recent": -0.0972
+   }
+  }
+ }
+}

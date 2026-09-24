@@ -49,11 +49,14 @@ cannot pass `RESEARCH_ONLY` before the `LIMITED` sample exists.
 | MARKET_PLAYER_DIST | WATCH | -0.0005 +/- 0.0003; it is the market's ladder, smoothed |
 | DATA_PLAYER_V3, HYBRID_PLAYER_V3 | RESEARCH_ONLY | new version, no prospective record; historically worse than the market (research/player_engine_v3) |
 | DATA_PLAYER_DIST, HYBRID_PLAYER_DIST | DISABLED | input defect (blanked lines read as a zero-point team; no current season) |
+| DATA_PLAYER_V4, HYBRID_PLAYER_V4 (added 2026-09-24) | RESEARCH_ONLY | new version; historically +0.0043 vs the market at T-90m (half of v3's gap, still worse; research/player_engine_v4). Historical results qualify it for prospective collection only |
 
 ## Player-projection abstention
 
 Independently of the arm's status, every player projection carries `abstention.state`
 (`nfl_edge/engines/player/abstention.py`): `ABSTAIN_IDENTITY`, `ABSTAIN_INJURY_UNCERTAIN`, `ABSTAIN_ROLE_UNCERTAIN`,
 `ABSTAIN_VOLUME_UNCERTAIN`, `ABSTAIN_MARKET_INCOMPLETE`, `ABSTAIN_MODEL_UNVALIDATED`, `PROJECTION_LOW_CONFIDENCE`
-(|model - market| > 5pp, where the models are historically worst) or `PROJECTION_VALID`. The probability stays on the
+(|model - market| > 5pp, where the models are historically worst) or `PROJECTION_VALID`. The V4 arms use
+`decide_v4`, which adds `ABSTAIN_SNAP_UNCERTAIN`, `ABSTAIN_TEAMMATE_SHOCK` and `ABSTAIN_EXTRAPOLATION` from the
+model's own intermediates (docs/PLAYER_V4.md). The probability stays on the
 record so the rule itself is scored prospectively; authority does not.
