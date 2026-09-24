@@ -106,6 +106,9 @@ def research_row(proj: dict, *, close: dict | None, clv: dict | None, settlement
            **{f"ctx_{k}": v for k, v in pc.items() if k != "player_context_id"}, "player_context_id": pc.get("player_context_id"),
            **{f"game_{k}": v for k, v in gc.items() if k != "game_context_id"}, "game_context_id": gc.get("game_context_id"),
            "context_in_sidecar": bool(full_pc or full_gc),
+           # the context version lives on the full context in the sidecar, not on the compact record; carried so a
+           # reader can tell a row that predates point-in-time role context (< context-1.3.0) from a missing chart
+           "player_context_version": (full_pc or {}).get("context_version"),
            # ---- queryability the audit found missing: a researcher must be able to exclude a family the
            # exchange contradicted, read a RANGE contract's bounds, and trace a settled row back to its Kalshi id
            "crosscheck_agreement": (crosscheck or {}).get("agreement"),

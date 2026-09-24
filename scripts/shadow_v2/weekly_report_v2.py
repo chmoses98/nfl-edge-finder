@@ -93,7 +93,7 @@ def health(rows: list, board_rows: list, markers: list, season: int, week: int) 
                                        "by_quality": dict(Counter(r.get("close_quality") for r in kicked)), "missing_reasons": dict(Counter(r.get("close_reason") for r in kicked if r.get("close_status") in (None, "CLV_CLOSE_MISSING")).most_common(8))},
             "CLV_COVERAGE": {"kicked_off_rows": len(kicked), "clv_ok": sum(1 for r in kicked if r.get("clv_status") == "CLV_OK"), "pct_clv": pct(sum(1 for r in kicked if r.get("clv_status") == "CLV_OK"), len(kicked)),
                              "no_view": sum(1 for r in kicked if r.get("clv_status") == "NO_VIEW")},
-            "PLAYER_CONTEXT_COVERAGE": {"player_probability_rows": len(player_p),
+            "PLAYER_CONTEXT_COVERAGE": {"player_probability_rows": len(player_p), "role_context": CX.role_context_note(player_p),
                                         # known = a designation on the report, or absence from a MATURE report; the
                                         # strict "listed" share and the weak "absent from a partial report" share are
                                         # reported beside it so neither reading can hide the other (context.injury_knowledge)
@@ -105,7 +105,7 @@ def health(rows: list, board_rows: list, markers: list, season: int, week: int) 
                                         "role_known_pct": pct(sum(1 for r in player_p if r.get("ctx_role_certainty") in ("HIGH", "MEDIUM")), len(player_p)),
                                         "availability_known_pct": pct(sum(1 for r in player_p if r.get("ctx_availability_state") not in (None, "UNKNOWN")), len(player_p)),
                                         "weather_known_pct": pct(sum(1 for r in player_p if r.get("ctx_weather_state") == "KNOWN"), len(player_p))},
-            "AUTOPSY_COVERAGE": {"data_arm_settled": sum(1 for r in with_p if r.get("model_arm") in ("DATA_PLAYER_DIST", "DATA_PLAYER_V3") and r.get("settled_yes") is not None),
+            "AUTOPSY_COVERAGE": {"data_arm_settled": sum(1 for r in with_p if r.get("model_arm") in ("DATA_PLAYER_DIST", "DATA_PLAYER_V3", "DATA_PLAYER_V4") and r.get("settled_yes") is not None),
                                  "autopsied": sum(1 for r in with_p if r.get("autopsy_classification")), "by_class": dict(Counter(r.get("autopsy_classification") for r in with_p if r.get("autopsy_classification")))},
             "UNSUPPORTED_RETENTION": {"board_rows_retained": len(board_rows), "unsupported_states": dict(Counter(b.get("terminal_state") for b in nfl_board if b.get("terminal_state") not in ("PRICED", "PROJECTABLE_NOT_YET_VALIDATED")))}}
 

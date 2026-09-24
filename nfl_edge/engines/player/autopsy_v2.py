@@ -38,6 +38,15 @@ from nfl_edge.shadow.player_autopsy import IQR_FLOOR, LOG_RATIO_LARGE, TEAM_VOLU
 # of the 57,132 week-2 SNAP_MISS rows (67%) were not large misses at all. Those rows are now NO_LARGE_MISS with the
 # off component kept in `components_off`, so the component rates stay measurable without being read as causes.
 AUTOPSY_VERSION = "autopsy-3.1.0"
+# The arms autopsied: one per DATA-arm prediction. MARKET_PLAYER_DIST and the HYBRID_* arms are excluded -- a causal
+# diagnosis of a ladder-implied price, or of a blend with one, would be manufactured rather than measured; a hybrid's
+# data component is the DATA-arm record of the same snapshot and ticker, which is autopsied. DATA_PLAYER_V4 joined
+# on 2026-09-24: it had been written since #41 but never autopsied, so no V4 autopsy exists under this version and
+# adding the arm cannot conflict with a write-once one. Its lean lineage is read through `_v4_projection`.
+AUTOPSY_ARMS = ("DATA_PLAYER_DIST", "DATA_PLAYER_V3", "DATA_PLAYER_V4")
+ARM_V4 = "DATA_PLAYER_V4"
+# a normal's p05-p95 span is 3.29 standard deviations, as its IQR is 1.349: the same scale, read off a wider band
+P05_P95_SPAN = 3.2897
 SHARE_ABS_LARGE = 0.10               # absolute share miss (targets/carries/snaps) that counts as "off"
 SHARE_LOG_LARGE = math.log(1.5)
 TAIL_LO, TAIL_HI = "p025", "p975"
@@ -109,6 +118,34 @@ def _team_offense_snaps(book: ResultBook, game_id: str, team: str) -> float | No
     return float(max(vals)) if vals else None
 
 
+def _num(x):
+    v = _f(x)
+    return None if v is None or v != v else v
+
+
+def _v4_projection(pj: dict, fl: dict, stat: str | None) -> None:
+    """Read a DATA_PLAYER_V4 record's LEAN intermediates (projection/lean.py, v4.prospective.LEAN_KEYS) into the
+    projected components the v2/v3 lineage names directly.
+
+    V4 freezes the chain under its own names -- `snap_mean`, `vol_pa` / `vol_ra` (team pass attempts / carries),
+    `share_t` / `share_c`, `mu_targets` / `mu_carries` / `mu_attempts` -- and its distribution summary carries `mu`
+    but no `mu_opp`. Read as-is, every component was None and every V4 autopsy came back INSUFFICIENT_DATA: a
+    count, not a diagnosis. `qb_starter` is a flag, not a passer id, so the QB-environment component stays
+    unevaluated for V4 rather than being guessed.
+    """
+    opp_col = OPPORTUNITY_OF.get(stat)
+    pj["snap_share"] = _num(fl.get("snap_mean"))
+    pj["team_volume"] = _num(fl.get("vol_pa")) if opp_col in ("attempts", "targets") else (_num(fl.get("vol_ra")) if opp_col == "carries" else None)
+    pj["share"] = {"targets": _num(fl.get("share_t")), "carries": _num(fl.get("share_c"))}.get(opp_col)
+    if opp_col == "touches":
+        t, c = _num(fl.get("mu_targets")), _num(fl.get("mu_carries"))
+        opp = None if t is None and c is None else (t or 0.0) + (c or 0.0)
+    else:
+        opp = _num(fl.get({"attempts": "mu_attempts", "targets": "mu_targets", "carries": "mu_carries"}.get(opp_col, "")))
+    pj["opportunity"] = opp
+    pj["efficiency"] = (pj["stat_mean"] / opp) if (opp and pj["stat_mean"] is not None) else None
+
+
 def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None, context: dict | None = None) -> dict:
     """One settled v2 PLAYER projection record (DATA arm) -> one autopsy record. `context` is the full frozen player
     context from the snapshot sidecar (projected catch rate, depth-chart rank, market mid) when available."""
@@ -131,6 +168,9 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None, contex
     out["projected"].update(catch_rate=proj_catch, depth_chart_rank=proj_rank, receptions=pe.get("ewma_receptions"), targets=pe.get("ewma_targets"),
                             carries=pe.get("ewma_carries"), yards=pe.get(f"ewma_{stat}") if stat else None)
     pj = out["projected"]
+    is_v4 = rec.get("model_arm") == ARM_V4
+    if is_v4:
+        _v4_projection(pj, fl, stat)
     pr = book.player(gid, pid) if gid and pid else None
     if pj["opportunity"] is None and pj["stat_mean"] is None:
         out["evidence"].append("record carries no decomposition (not a DATA arm record?)"); return out
@@ -168,6 +208,11 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None, contex
     if actual is not None and None not in (p50, p25, p75):
         out["robust_z"] = (actual - p50) / max((p75 - p25) / 1.349, IQR_FLOOR)
         out["percentile"] = _percentile(q, actual)
+    elif is_v4 and actual is not None and None not in (p50, _f(q.get("p05")), _f(q.get("p95"))):
+        # a lean V4 record keeps p05 / p50 / p95 only; without this every V4 miss was "not large" by default and
+        # the large-miss gate never ran. The percentile needs the five-point ladder and stays None.
+        out["robust_z"] = (actual - p50) / max((_f(q["p95"]) - _f(q["p05"])) / P05_P95_SPAN, IQR_FLOOR)
+        out["evidence"].append("robust z from the p05-p95 band (lean V4 record: no p25 / p75)")
     z = out["robust_z"]
     out["large_miss"] = bool(z is not None and abs(z) >= Z_LARGE)
     opp_col = OPPORTUNITY_OF.get(stat)
