@@ -267,3 +267,34 @@ def test_nothing_that_measures_model_performance_reads_the_postmortem():
                 if n.endswith(".py") and "actual_wager_postmortem" in open(os.path.join(d, n)).read():
                     offenders.append(os.path.join(d, n))
     assert offenders == []
+
+
+def test_a_settlement_fee_equal_to_the_entry_fees_is_reconciled_not_rewritten():
+    """fee_cost equal to the entry fee already in the stake is the position's trading fee, not a second one."""
+    w = dict(WAGER, season=2026, week=2, imported_wager_id="w1")                      # stake 5.10 incl. fee 0.10
+    s = dict(SETTLEMENT, gross_return=10.0, net_profit_loss=round(10.0 - 5.10 - 0.10, 6))
+    doc = PM.build([w], [s], [], season=2026)
+    r = doc["wagers"][0]
+    assert r["net_profit_loss"] == 4.8                         # recorded, untouched
+    assert r["fee_reconciliation"] == "FEE_EQUALS_ENTRY_FEES" and r["net_fee_reconciled"] == 4.9
+    fr = doc["totals"]["fee_reconciled"]
+    assert fr["complete"] and fr["net_profit_loss"] == 4.9 and fr["double_counted_fees"] == 0.1
+
+
+def test_a_yes_no_pair_reconciles_against_both_legs_entry_fees():
+    a = dict(WAGER, season=2026, week=2, imported_wager_id="a", fees_paid=0.10, stake=5.10)
+    b = dict(WAGER2, season=2026, week=2, imported_wager_id="b", market_ticker=TICKER, fees_paid=0.20, stake=4.20)
+    sa = dict(SETTLEMENT, gross_return=10.0, net_profit_loss=round(10.0 - 5.10 - 0.30, 6))
+    sb = dict(SETTLEMENT, source_bet_key=KEY2, side="NO", result="LOST", gross_return=0.0,
+              net_profit_loss=round(0.0 - 4.20 - 0.30, 6))
+    rows = {r["imported_wager_id"]: r for r in PM.build([a, b], [sa, sb], [], season=2026)["wagers"]}
+    assert rows["a"]["fee_reconciliation"] == rows["b"]["fee_reconciliation"] == "FEE_EQUALS_ENTRY_FEES"
+    assert rows["b"]["net_fee_reconciled"] == -4.2
+
+
+def test_an_unexplained_settlement_fee_gets_no_reconciled_figure():
+    w = dict(WAGER, season=2026, week=2, imported_wager_id="w1")
+    s = dict(SETTLEMENT, gross_return=10.0, net_profit_loss=round(10.0 - 5.10 - 0.55, 6))
+    doc = PM.build([w], [s], [], season=2026)
+    assert doc["wagers"][0]["fee_reconciliation"] == "UNRECONCILED"
+    assert doc["totals"]["fee_reconciled"]["net_profit_loss"] is None
