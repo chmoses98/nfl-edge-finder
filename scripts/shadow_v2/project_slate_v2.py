@@ -45,6 +45,8 @@ from nfl_edge.engines.player.features_v3 import add_v3_features                 
 from nfl_edge.engines.player import abstention as AB, prospective_v3 as PV3                  # noqa: E402
 from nfl_edge.engines.player import v4 as V4                                                # noqa: E402
 from nfl_edge.engines.player.v4 import prospective as PV4                                   # noqa: E402
+from nfl_edge.engines.player import v5 as V5                                                # noqa: E402
+from nfl_edge.engines.player.v5 import prospective as PV5                                   # noqa: E402
 from nfl_edge.evaluation import clv as CLV                                                 # noqa: E402
 from nfl_edge.evaluation import execution_depth as XD                                      # noqa: E402
 from nfl_edge.execution.fees import load_fee_schedule                                      # noqa: E402
@@ -75,10 +77,15 @@ ARM_DATA_V3, ARM_HYBRID_V3 = "DATA_PLAYER_V3", "HYBRID_PLAYER_V3"
 # v4 arms (data-player-dist-4.0.0, nfl_edge/engines/player/v4): a structural challenger beside v3, never replacing it.
 # Both are RESEARCH_ONLY by design (nfl_edge/evaluation/eligibility.py) and their records are LEAN (nfl_edge/projection/lean.py).
 ARM_DATA_V4, ARM_HYBRID_V4 = "DATA_PLAYER_V4", "HYBRID_PLAYER_V4"
-PLAYER_ARMS = (ARM_DATA, ARM_MARKET, ARM_HYBRID, ARM_DATA_V3, ARM_HYBRID_V3, ARM_DATA_V4, ARM_HYBRID_V4)
-DATA_ARMS = (ARM_DATA, ARM_DATA_V3, ARM_DATA_V4)
-HYBRID_ARMS = (ARM_HYBRID, ARM_HYBRID_V3, ARM_HYBRID_V4)
+# v5 arms (data-player-dist-5.0.0, nfl_edge/engines/player/v5): V4's structure with a point-in-time, availability-aware
+# starting quarterback (docs/PLAYER_V5.md). Appended AFTER every existing arm, built after V4, fail-soft, RESEARCH_ONLY by
+# design, lean records. Nothing about the arms before it changes.
+ARM_DATA_V5, ARM_HYBRID_V5 = "DATA_PLAYER_V5", "HYBRID_PLAYER_V5"
+PLAYER_ARMS = (ARM_DATA, ARM_MARKET, ARM_HYBRID, ARM_DATA_V3, ARM_HYBRID_V3, ARM_DATA_V4, ARM_HYBRID_V4, ARM_DATA_V5, ARM_HYBRID_V5)
+DATA_ARMS = (ARM_DATA, ARM_DATA_V3, ARM_DATA_V4, ARM_DATA_V5)
+HYBRID_ARMS = (ARM_HYBRID, ARM_HYBRID_V3, ARM_HYBRID_V4, ARM_HYBRID_V5)
 V4_ARMS = (ARM_DATA_V4, ARM_HYBRID_V4)
+V5_ARMS = (ARM_DATA_V5, ARM_HYBRID_V5)
 ENGINE_STATS = {"passing_yards": "passing_yards", "passing_tds": "passing_tds", "interceptions": "interceptions", "attempts": "attempts",
                 "completions": "completions", "rushing_yards": "rushing_yards", "carries": "carries", "receiving_yards": "receiving_yards",
                 "receptions": "receptions", "touchdowns": "touchdowns", "rush_rec_yards": "rush_rec_yards"}
@@ -487,7 +494,8 @@ def main(argv=None):
             ans, lineage, feat, dsum = (player.answer(arm, t, q, qq) if player else ({"p_yes": None, "reason": "player engine skipped"}, {}, {}, {}))
             eng_ver = {ARM_DATA: DD.VERSION, ARM_MARKET: MD.VERSION, ARM_HYBRID: HD.VERSION,
                        ARM_DATA_V3: DD.VERSION_BY_FEATURE_SET["v3"], ARM_HYBRID_V3: HD.VERSION_V3,
-                       ARM_DATA_V4: V4.VERSION, ARM_HYBRID_V4: V4.HYBRID_VERSION}[arm]
+                       ARM_DATA_V4: V4.VERSION, ARM_HYBRID_V4: V4.HYBRID_VERSION,
+                       ARM_DATA_V5: V5.VERSION, ARM_HYBRID_V5: V5.HYBRID_VERSION}[arm]
             dist_ver = "lattice-1.0.0"
             if ans.get("p_yes") is not None:
                 ans["validated"] = False                                  # every player arm is shadow / research
@@ -505,12 +513,24 @@ def main(argv=None):
                 player_ctx_cache[pkey] = (context_id(full), full)
             pc_id, full = player_ctx_cache[pkey]
             base["player_context"] = CX.compact_player_context(full, pc_id)
+            if arm in V5_ARMS and player:
+                # V5 ONLY: the point-in-time quarterback resolution of the player's team rides on its own records; the
+                # shared context (sidecar, every other arm's record) is untouched
+                base["player_context"] = {**base["player_context"], **LEAN.v5_qb_fields(player.feat_v5.get((gsis, gid)) or {})}
             # ABSTENTION: the projection's own statement of whether it knows enough. The probability stays on the
             # record (so the rule itself is scored prospectively); authority does not.
             mk_ = player.market.get((q.get("player_kalshi_id"), gid, q.get("stat"))) if player else None
             _mid = base.get("yes_bid"), base.get("yes_ask")
             _dis = (None if cv is None or None in _mid else 100.0 * (cv - (_mid[0] + _mid[1]) / 2.0))
-            if arm in V4_ARMS and p is not None:
+            if arm in V5_ARMS and p is not None:
+                abst = AB.decide_v5((player.v5_inter.get((gsis, gid)) or {}) if player else {}, stat=ENGINE_STATS.get(q.get("stat")),
+                                    p_model=cv, p_market=(None if None in _mid else (_mid[0] + _mid[1]) / 2.0), arm=arm, engine_version=eng_ver,
+                                    identity_confidence=lineage.get("identity_confidence"),
+                                    availability_state=((full.get("availability") or {}).get("state")),
+                                    role_certainty=((full.get("role") or {}).get("role_certainty")), game_env_known=gid in envs,
+                                    position=(player.positions.get(gsis) if (player and gsis) else None),
+                                    ladder_identification=(mk_ or {}).get("identification"))
+            elif arm in V4_ARMS and p is not None:
                 abst = AB.decide_v4((player.v4_inter.get((gsis, gid)) or {}) if player else {}, stat=ENGINE_STATS.get(q.get("stat")),
                                     p_model=cv, p_market=(None if None in _mid else (_mid[0] + _mid[1]) / 2.0), arm=arm, engine_version=eng_ver,
                                     identity_confidence=lineage.get("identity_confidence"),
@@ -539,7 +559,11 @@ def main(argv=None):
             rec.record_id = R.record_id(snapshot_id, t, arm, eng_ver, dist_ver)
             row = rec.finalize().to_dict()
             # V4 records are LEAN: the blocks every arm shares resolve through the snapshot's sidecar (projection/lean.py)
-            arm_rows[arm].append(LEAN.lean(row, intermediates=(arm == ARM_DATA_V4)) if arm in V4_ARMS else row)
+            if arm in V5_ARMS:
+                arm_rows[arm].append(LEAN.lean(row, intermediates=(arm == ARM_DATA_V5), data_arm=ARM_DATA_V5,
+                                               context_keep=LEAN.PLAYER_CONTEXT_KEEP_V5))
+            else:
+                arm_rows[arm].append(LEAN.lean(row, intermediates=(arm == ARM_DATA_V4)) if arm in V4_ARMS else row)
 
     # ---- coherence audit (model-free, on the same snapshot)
     audit = CE.audit_board(coherence_rows, {t: qq for t, qq in qs.items()}, fee_sched, run_ts)
@@ -638,6 +662,9 @@ def main(argv=None):
             "player_v4": {**dict(getattr(player, "v4_info", {}) or {}),
                           "bytes_by_arm": {arm: (os.path.getsize(w["path"]) if w.get("path") and os.path.exists(w["path"]) else None)
                                            for arm, w in written.items() if arm in V4_ARMS or arm == ARM_DATA_V3}},
+            "player_v5": {**dict(getattr(player, "v5_info", {}) or {}),
+                          "bytes_by_arm": {arm: (os.path.getsize(w["path"]) if w.get("path") and os.path.exists(w["path"]) else None)
+                                           for arm, w in written.items() if arm in V5_ARMS}},
             "abstention": {arm: dict(Counter((r.get("abstention") or {}).get("state") for r in rows if r.get("p_yes") is not None))
                            for arm, rows in arm_rows.items()},
             "settlement_matrix": settlement_matrix(all_rows), "context_coverage": context_coverage(all_rows),
@@ -889,6 +916,8 @@ class PlayerArms:
         self.bundle_v4 = None
         self.v4_info = {}
         self.v4_refusal = {}
+        # v5 (data-player-dist-5.0.0): its own distributions, intermediates, bundle and per-team-game QB resolution
+        PV5.ensure_slots(self)
 
     def _why_no_distribution(self, stat, est, gsis, gid) -> str:
         """Which condition actually stopped this (player, game, statistic) getting a distribution.
@@ -946,6 +975,8 @@ class PlayerArms:
             return self._answer_v3(arm, gsis, gid, stat, k, mk, mid, p_plays, p_nosnap, lineage, feat)
         if arm in V4_ARMS:
             return self._answer_v4(arm, gsis, gid, stat, k, mk, mid, p_plays, p_nosnap, lineage, feat)
+        if arm in V5_ARMS:
+            return self._answer_v5(arm, gsis, gid, stat, k, mk, mid, p_plays, p_nosnap, lineage, feat)
         if arm == ARM_MARKET:
             if not mk or mk.get("identification") in (None, MD.NONE, MD.UNDERIDENTIFIED):
                 return {"p_yes": None, "reason": f"market ladder {(mk or {}).get('identification') or 'absent'}: {(mk or {}).get('reason') or 'too few two-sided rungs'}"}, lineage, feat, {}
@@ -1044,6 +1075,41 @@ class PlayerArms:
                 return {"p_yes": None, "reason": f"hybrid unavailable: {h['reason']}"}, lineage, feat, {}
             dist = h["dist"]
             lineage.update(structure=h["structure"], w_market=h["w_market"], study_verdict=HD.V4_STUDY_VERDICT, data_version=V4.VERSION)
+        p_ev = dist.survival(k)
+        cv = sem_mod.player_prop_contract_value(p_ev, p_plays, p_nosnap, mid)
+        s = dist.summary()
+        s.update(mu=d.meta.get("mu"), quantiles={"p05": s["p05"], "p50": s["p50"], "p95": s["p95"]})
+        for q in ("p25", "p75"):
+            s.pop(q, None)
+        return {"p_yes": p_ev, "contract_value": cv.contract_value}, lineage, feat, s
+
+
+    def _answer_v5(self, arm, gsis, gid, stat, k, mk, mid, p_plays, p_nosnap, lineage, feat):
+        """DATA_PLAYER_V5 / HYBRID_PLAYER_V5: V4's answer path over V5's distributions. The feature lineage is V5's lean
+        intermediate set, which includes the team's quarterback resolution; `projected_qb_id` is the resolved starter,
+        so the autopsy's QB_ENVIRONMENT_MISS can score it (V4 records only a flag)."""
+        if gsis is None:
+            return {"p_yes": None, "reason": "Kalshi player id not resolved to a GSIS id", "status": "IDENTITY_UNRESOLVED"}, lineage, feat, {}
+        est = ENGINE_STATS.get(stat)
+        d = self.data_v5.get((gsis, gid, est)) if est else None
+        if d is None:
+            err = (self.v5_info or {}).get("error")
+            why = self.v5_refusal.get((gsis, gid)) or (f"v5 build failed ({err}); v5 refuses, every other arm is unaffected" if err else None) or (
+                f"statistic {stat!r} has no v5 data model" if not est or est not in PV4.M.STATS
+                else f"no v5 distribution for this player-game ({est}): outside the {est} population or no prospective row")
+            return {"p_yes": None, "reason": why, "status": "DATA_UNAVAILABLE"}, lineage, feat, {}
+        fv = self.feat_v5.get((gsis, gid), {})
+        feat.update(fv, projected_qb_id=fv.get("effective_projected_qb"), inputs_version=V5.INPUTS_VERSION)
+        if arm == ARM_DATA_V5:
+            dist = d
+            lineage.update(family="v5-structural", bundle_sha=(self.bundle_v5.artifact_sha if self.bundle_v5 else None), inputs_version=V5.INPUTS_VERSION)
+        else:
+            h = HD.hybrid(d, (mk or {}).get("_dist"), market_identification=(mk or {}).get("identification"), w_market=HD.v5_weight(est),
+                          structure=HD.V5_STRUCTURE)
+            if h["status"] != "OK":
+                return {"p_yes": None, "reason": f"hybrid unavailable: {h['reason']}"}, lineage, feat, {}
+            dist = h["dist"]
+            lineage.update(structure=h["structure"], w_market=h["w_market"], study_verdict=HD.V5_STUDY_VERDICT, data_version=V5.VERSION)
         p_ev = dist.survival(k)
         cv = sem_mod.player_prop_contract_value(p_ev, p_plays, p_nosnap, mid)
         s = dist.summary()
@@ -1260,7 +1326,21 @@ def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger, envs=None
     except Exception as exc:  # noqa: BLE001
         log(f"::warning::v4 player arms unavailable: {type(exc).__name__}: {str(exc)[:200]}")
         P.v4_info = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+    # ---- v5 arms (independent of v2, v3 and v4; a v5 failure refuses v5 records and costs nothing else)
+    build_player_v5(P, a, prows, player_map, sched, positions, envs, kick, run_ts, ledger, ctx, cfg, priors, log=log)
     return P
+
+
+def build_player_v5(P, a, prows, player_map, sched, positions, envs, kick, run_ts, ledger, ctx, cfg, priors, log=print):
+    """DATA_PLAYER_V5 / HYBRID_PLAYER_V5, FAIL-SOFT exactly like V4: any exception (a data problem or a bug) leaves the
+    V5 slots empty -- every V5 record is then a refusal naming the reason -- and never reaches the board or another arm."""
+    try:
+        PV5.build(P, root=ROOT, target_season=a.target_season, prows=prows, player_map=player_map, sched=sched, positions=positions,
+                  envs=envs or {}, kick=kick or {}, run_ts=run_ts, ledger=ledger, ctx=ctx, cfg=cfg, priors=priors, log=log)
+    except Exception as exc:  # noqa: BLE001 -- a v5 failure must never cost the run anything but v5
+        log(f"::warning::v5 player arms unavailable: {type(exc).__name__}: {str(exc)[:200]}")
+        P.data_v5, P.feat_v5, P.v5_inter, P.v5_qb = {}, {}, {}, {}
+        P.v5_info = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
 
 
 if __name__ == "__main__":

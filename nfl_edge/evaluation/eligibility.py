@@ -60,6 +60,10 @@ RESEARCH_BY_DESIGN = {
     "DATA_PLAYER_V4": ("new model version (data-player-dist-4.0.0, structural snap/volume/allocation challenger); historical "
                        "evidence qualifies it for prospective collection only (research/player_engine_v4/RESULTS.md)"),
     "HYBRID_PLAYER_V4": "new blend on DATA_PLAYER_V4 (hybrid-player-dist-4.0.0); no prospective record yet",
+    "DATA_PLAYER_V5": ("new model version (data-player-dist-5.0.0, V4's structure with a point-in-time availability-aware "
+                       "starting quarterback, player-inputs-5.0.0); held-out evidence qualifies it for prospective collection "
+                       "only (docs/PLAYER_V5.md)"),
+    "HYBRID_PLAYER_V5": "new blend on DATA_PLAYER_V5 (hybrid-player-dist-5.0.0, V4's weight inherited); no prospective record yet",
 }
 
 

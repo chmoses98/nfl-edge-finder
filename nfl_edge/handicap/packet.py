@@ -1273,6 +1273,7 @@ def eligibility_summary(doc: dict | None) -> dict:
     if not doc:
         return {"state": "NO_EVIDENCE_DOCUMENT", "arms": {a: EL.status_for(None, a)["status"] for a in
                                                           ("BOARD_V2", "MARKET_PLAYER_DIST", "DATA_PLAYER_V3", "HYBRID_PLAYER_V3", "DATA_PLAYER_V4", "HYBRID_PLAYER_V4",
+                                                           "DATA_PLAYER_V5", "HYBRID_PLAYER_V5",
                                                            "DATA_PLAYER_DIST", "HYBRID_PLAYER_DIST")},
                 "rule": "without an evidence document nothing is more than RESEARCH_ONLY"}
     fams = {k: {kk: v.get(kk) for kk in ("status", "n_games", "n_weeks", "delta_brier_game_mean", "delta_brier_se",

@@ -51,7 +51,7 @@ LARGE_DISAGREEMENT_PP = 5.0
 # player_engine_v3/RESULTS.md). A statistic enters this set only through the eligibility promotion rules.
 VALIDATED_STATS: frozenset = frozenset()
 
-ARMS_NEEDING_LADDER = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3", "HYBRID_PLAYER_V4")
+ARMS_NEEDING_LADDER = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3", "HYBRID_PLAYER_V4", "HYBRID_PLAYER_V5")
 QB_STATS = ("passing_yards", "passing_tds", "interceptions", "attempts", "completions", "qb_rushing_yards")
 ADVERSE_AVAILABILITY = ("QUESTIONABLE", "DOUBTFUL", "EXPECTED_OUT", "OUT", "INACTIVE_CONFIRMED", "UNKNOWN")
 

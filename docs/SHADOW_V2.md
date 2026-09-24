@@ -679,3 +679,18 @@ Brier at T-90m (v3 +0.0084 on the same rows), better calibrated than both; recep
 (research/player_engine_v4/RESULTS.md). Both arms are RESEARCH_ONLY; their records are LEAN (`nfl_edge/projection/
 lean.py`): shared blocks resolve through the snapshot's context sidecar.
 
+
+## 16. Player model v5: V4 with a point-in-time starting quarterback (2026-09-24)
+
+**DATA_PLAYER_V5** (`data-player-dist-5.0.0`, inputs `player-inputs-5.0.0`) and **HYBRID_PLAYER_V5**
+(`hybrid-player-dist-5.0.0`, V4's 0.85-market mixture, inherited) are two new arms appended after V4; every earlier arm,
+the context sidecar and V4's records are unchanged. V5 is V4's structure with ONE changed input: the projected starter
+comes from `nfl_edge/context/qb_resolution.py` (chart at the cutoff + the injury-report vintage, availability captures
+and official inactives that existed at the cutoff) instead of the raw chart QB1 (docs/KNOWN_LIMITATIONS.md #89), and
+reaches team volume, the pass-catchers' catch rate / yards per catch and the QB's own passing chain through V4's stages
+(docs/PLAYER_V5.md). It is built after V4 inside `build_player_arms`, FAIL-SOFT (`build_player_v5`: a V5 exception
+refuses V5 records with the reason and touches nothing else), RESEARCH_ONLY by design, lean records that also keep the
+five QB-resolution fields (`lean.PLAYER_CONTEXT_KEEP_V5`), autopsied like V4 (with the resolved passer scored by
+QB_ENVIRONMENT_MISS). The run summary carries `player_v5` (bundle sha, distributions, QB resolutions by reason and
+every substitution, seconds, bytes).
+

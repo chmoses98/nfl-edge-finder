@@ -703,3 +703,9 @@ DATA_PLAYER_V4 / HYBRID_PLAYER_V4 (2026-09-24) appear under `other_arms` beside 
 RESEARCH_ONLY` and their v4 abstention state; HYBRID_PLAYER_V4 is flagged `market_derived`. V4 fills the primary
 slot only on a snapshot with no v3 row. No authority changed: BOARD_V2 and MARKET_PLAYER_DIST stay WATCH, the v2
 arms stay DISABLED (no number), and the market remains the benchmark.
+
+DATA_PLAYER_V5 / HYBRID_PLAYER_V5 (point-in-time quarterback, docs/PLAYER_V5.md) appear the same way, after V4: under
+`other_arms`, `eligibility: RESEARCH_ONLY`, a `research_arm` label saying they are supporting research, their v5
+abstention state (`ABSTAIN_QB_UNCERTAIN` where the team's QB could not be resolved), and -- only where the resolution
+moved off the chart QB1 -- `qb_resolution` {reason, effective_projected_qb, certainty}. HYBRID_PLAYER_V5 is
+`market_derived`. V5 takes the primary slot only on a snapshot with neither a v3 nor a v4 row.
