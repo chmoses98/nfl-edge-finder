@@ -146,22 +146,60 @@ def due_horizons(slate_id: str, games: list, now: datetime, state: dict, *,
     }
 
 
+#: Delivery labels, measured at the moment the capture is RECORDED (after the build finished). That is later
+#: than the market snapshot the packet actually froze, so the label errs toward "later" -- never toward "on
+#: time". Thresholds match `nfl_edge.evaluation.capture_health`.
+ON_TIME_MIN, ACCEPTABLE_MIN = 10.0, 45.0
+
+
+def delivery_label(late_by_min: float) -> str:
+    if late_by_min <= ON_TIME_MIN:
+        return "ON_TIME"
+    if late_by_min <= ACCEPTABLE_MIN:
+        return "LATE"
+    return "LATE_DEGRADED"
+
+
 def mark_captured(state: dict, records: list, *, run_id=None, status: str = "CAPTURED",
                   now: datetime | None = None) -> dict:
-    """Return a NEW state with `records` recorded as captured. Called only after a successful build."""
+    """Return a NEW state with `records` recorded as captured. Called only after a successful build.
+
+    ALREADY-RECORDED HORIZONS ARE NEVER REWRITTEN. One horizon id is one canonical capture: a second run that
+    also satisfied it (a retry that raced, a manual dispatch naming it) must not move its `captured_at` later
+    or earlier, which would change the evidence about when the decision moment was actually served.
+
+    LATENESS IS COMPUTED HERE, from the id's own trigger instant, because the ids travel between jobs alone and
+    `parse_horizon_id` cannot know it. Until 2026-09-24 every record carried `late_by_min: null` for exactly
+    that reason.
+
+    A BUILD THAT FINISHED AT OR AFTER KICKOFF IS NOT A PREGAME CAPTURE. The gate only admits a horizon before
+    kickoff, but a ~17 minute build can straddle it; four horizons in weeks 1-2 were recorded CAPTURED at
+    17:04 and 00:20 for 17:00 and 00:20 kickoffs. Such a horizon is recorded MISSED with the reason, so it can
+    never be read as a delivered T-30m packet, and it is still consumed so no post-kickoff rebuild is attempted.
+    """
     now = now or datetime.now(timezone.utc)
     out = dict(state or {})
     captured = dict(out.get("captured") or {})
     for r in records:
-        captured[r["horizon_id"]] = {
+        if r["horizon_id"] in captured:
+            continue
+        trigger, kickoff = _dt(r.get("trigger_utc")), _dt(r.get("kickoff_utc"))
+        late = round((now - trigger).total_seconds() / 60.0, 1) if trigger else r.get("late_by_min")
+        rec = {
             "status": status,
             "captured_at": now.isoformat(),
             "horizon_min": r["horizon_min"],
             "kickoff_utc": r["kickoff_utc"],
             "trigger_utc": r["trigger_utc"],
-            "late_by_min": r.get("late_by_min"),
+            "late_by_min": late,
+            "delivery": delivery_label(late) if late is not None else "UNKNOWN",
             "workflow_run_id": run_id,
         }
+        if kickoff is not None and now >= kickoff:
+            rec["status"] = "MISSED"
+            rec["delivery"] = "MISSED"
+            rec["reason"] = "the build completed at or after kickoff; a post-kickoff packet is not a pregame capture"
+        captured[r["horizon_id"]] = rec
     out["captured"] = captured
     out["updated_at"] = now.isoformat()
     return out

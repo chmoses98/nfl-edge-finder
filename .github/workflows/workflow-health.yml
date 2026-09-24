@@ -40,3 +40,28 @@ jobs:
       - name: Keep the classification on market-data
         continue-on-error: true
         run: python3 scripts/ci/publish_market_data.py --src data/ops/workflow_outcomes --message "workflow outcomes $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      # HORIZON CAPTURE HEALTH, season to date, split BEFORE / AFTER the horizon conductor. Weeks 1-2's misses are
+      # permanent history and stay visible; the AFTER_CONDUCTOR row is the health of the current system. The
+      # step goes RED when a horizon owed under the conductor was missed in the last 48 hours -- the failure is
+      # published first, so the evidence exists even though the run is red.
+      - name: Horizon capture health (RUN NFL + three-arm)
+        id: capture_health
+        continue-on-error: true
+        run: |
+          git fetch --depth=1 origin handicap-reports || true
+          git show origin/handicap-reports:state/horizons.json > /tmp/run_nfl_state.json 2>/dev/null || echo '{}' > /tmp/run_nfl_state.json
+          git fetch --depth=1 --filter=blob:none origin market-data || true
+          mkdir -p /tmp/ta && for f in $(git ls-tree --name-only origin/market-data data/shadow/arms/horizons/ 2>/dev/null); do
+            git show "origin/market-data:${f}" > "/tmp/ta/$(basename "${f}")" || true
+          done
+          python3 scripts/handicap/horizon_capture_health.py --run-nfl-state /tmp/run_nfl_state.json \
+            --three-arm-markers-dir /tmp/ta --out data/ops/capture_health --fail-on-recent-miss-hours 48 \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Keep the capture health on market-data
+        continue-on-error: true
+        run: python3 scripts/ci/publish_market_data.py --src data/ops/capture_health --message "horizon capture health $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      - name: A horizon owed under the conductor was missed
+        if: steps.capture_health.outcome == 'failure'
+        run: |
+          echo "::error::A decision horizon owed under the horizon conductor was MISSED in the last 48h. See the capture health above."
+          exit 1

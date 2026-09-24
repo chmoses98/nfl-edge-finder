@@ -32,7 +32,8 @@ def main():
     ap.add_argument("--horizon-ids", default="")
     ap.add_argument("--run-id", default=os.environ.get("GITHUB_RUN_ID"))
     ap.add_argument("--now", default=None)
-    ap.add_argument("--keep-days", type=int, default=45)
+    ap.add_argument("--keep-days", type=int, default=400,
+                    help="a whole season and then some: capture health reads these records season to date")
     a = ap.parse_args()
 
     now = datetime.fromisoformat(a.now.replace("Z", "+00:00")) if a.now else datetime.now(timezone.utc)

@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: capture-conductor
@@ -36,6 +37,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      # CHAIN THE SUCCESSOR FIRST. The hourly cron above is started by GitHub only every few hours in practice, so
+      # a conductor that ends is often followed by hours with no capture at all -- and RUN NFL refuses a packet
+      # whose Kalshi capture is older than 30 minutes, so a capture gap becomes a missed decision horizon. The
+      # successor waits as this group's single pending run and starts the moment this one ends. A cron tick that
+      # arrives meanwhile collapses into that same pending slot. A refused dispatch leaves the cron as backstop.
+      - name: Dispatch the successor conductor
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run kalshi-conductor.yml --ref main && echo "successor dispatched"
       - name: Loop capture + publish
         env:
           TRIGGER_SOURCE: CONDUCTOR
