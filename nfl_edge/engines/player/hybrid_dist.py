@@ -61,3 +61,26 @@ V3_STRUCTURE = MIXTURE
 # exists to learn prospectively whether a small data component ever adds information, not as an input.
 V3_WEIGHT_MARKET = 0.85
 V3_STUDY_VERDICT = "market selected; best hybrid (0.85 market) indistinguishable from the market on 2025 weeks 10-18"
+
+
+# HYBRID_PLAYER_V4 (hybrid-player-dist-4.0.0) over DATA_PLAYER_V4 (data-player-dist-4.0.0). Same preregistered protocol
+# (2025 weeks 1-9 select among market weights {0.5, 0.7, 0.85}, weeks 10-18 confirm, T-90m, per-horizon Kalshi-implied
+# environment; research/player_engine_v4/RESULTS.md):
+#   selection   mix 0.85 +0.0003 +/- 0.0005 (best hybrid; the MARKET itself is still the selection's winner)
+#   confirm     mix 0.85 -0.0003 +/- 0.0003   (HYBRID_PLAYER_V3's mix 0.85: +0.0001 +/- 0.0003)
+# An ADAPTIVE blend (one weight per statistic family, chosen on weeks 1-9 from {0.5, 0.7, 0.85, 1.0}) was tested and
+# rejected: it chose the pure market (1.0) for four of five families and confirmed at -0.0002 +/- 0.0001, no better
+# than the global 0.85. A disagreement-conditional weight was not adopted either: the evidence says large disagreement
+# is where the DATA side is worst, so it is handled as abstention (PROJECTION_LOW_CONFIDENCE), not as a weight that
+# would have to be fitted. The blend is therefore GLOBAL: 0.85 market for every statistic, never below that floor.
+VERSION_V4 = "hybrid-player-dist-4.0.0"
+V4_STRUCTURE = MIXTURE
+V4_WEIGHT_MARKET = 0.85
+V4_MIN_MARKET_WEIGHT = 0.85
+V4_STUDY_VERDICT = ("market selected; best hybrid (0.85 market) indistinguishable from the market on 2025 weeks 10-18 "
+                    "(-0.0003 +/- 0.0003), marginally better than HYBRID_PLAYER_V3; adaptive per-family weights rejected")
+
+
+def v4_weight(stat: str | None) -> float:
+    """The market weight of HYBRID_PLAYER_V4 for a statistic: global by evidence (see above), floored at the market."""
+    return max(V4_MIN_MARKET_WEIGHT, V4_WEIGHT_MARKET)

@@ -698,3 +698,8 @@ carry `abstention`. A DISABLED arm shows no number (`probability_withheld_reason
 primary independent arm is DATA_PLAYER_V3 (RESEARCH_ONLY); on the current evidence the MARKET is the better
 player-prop distribution and the packet says so. Large model-market disagreement is labelled as the place the models
 are historically worst -- it is never a ranking of edges. Nothing here recommends a bet.
+
+DATA_PLAYER_V4 / HYBRID_PLAYER_V4 (2026-09-24) appear under `other_arms` beside v3 with `eligibility:
+RESEARCH_ONLY` and their v4 abstention state; HYBRID_PLAYER_V4 is flagged `market_derived`. V4 fills the primary
+slot only on a snapshot with no v3 row. No authority changed: BOARD_V2 and MARKET_PLAYER_DIST stay WATCH, the v2
+arms stay DISABLED (no number), and the market remains the benchmark.

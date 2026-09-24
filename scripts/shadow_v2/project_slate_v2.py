@@ -43,6 +43,8 @@ from nfl_edge.handicap.horizons import cluster_kickoffs, parse_horizon_id       
 from nfl_edge.engines.player.features_v2 import add_v2_features                             # noqa: E402
 from nfl_edge.engines.player.features_v3 import add_v3_features                             # noqa: E402
 from nfl_edge.engines.player import abstention as AB, prospective_v3 as PV3                  # noqa: E402
+from nfl_edge.engines.player import v4 as V4                                                # noqa: E402
+from nfl_edge.engines.player.v4 import prospective as PV4                                   # noqa: E402
 from nfl_edge.evaluation import clv as CLV                                                 # noqa: E402
 from nfl_edge.evaluation import execution_depth as XD                                      # noqa: E402
 from nfl_edge.execution.fees import load_fee_schedule                                      # noqa: E402
@@ -51,6 +53,7 @@ from nfl_edge.pricing.market_implied import implied_game_lines                  
 from nfl_edge.projection import horizons as HZ                                             # noqa: E402
 from nfl_edge.projection import quality as QU                                              # noqa: E402
 from nfl_edge.projection import record as R                                                # noqa: E402
+from nfl_edge.projection import lean as LEAN                                               # noqa: E402
 from nfl_edge.projection.store import DIRNAME, ProjectionConflict, ProjectionStore, context_id, sidecar_path, write_sidecar  # noqa: E402
 from nfl_edge.features import opportunity                                                  # noqa: E402
 from nfl_edge.research import player_distributions as pdist                                # noqa: E402
@@ -69,9 +72,13 @@ ARM_DATA, ARM_MARKET, ARM_HYBRID = "DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HY
 # v3 arms (data-player-dist-3.0.0): the v2 arms are kept, unchanged, for continuity of their prospective record and
 # are DISABLED in the eligibility layer because of their input defect (nfl_edge/engines/player/prospective_v3.py)
 ARM_DATA_V3, ARM_HYBRID_V3 = "DATA_PLAYER_V3", "HYBRID_PLAYER_V3"
-PLAYER_ARMS = (ARM_DATA, ARM_MARKET, ARM_HYBRID, ARM_DATA_V3, ARM_HYBRID_V3)
-DATA_ARMS = (ARM_DATA, ARM_DATA_V3)
-HYBRID_ARMS = (ARM_HYBRID, ARM_HYBRID_V3)
+# v4 arms (data-player-dist-4.0.0, nfl_edge/engines/player/v4): a structural challenger beside v3, never replacing it.
+# Both are RESEARCH_ONLY by design (nfl_edge/evaluation/eligibility.py) and their records are LEAN (nfl_edge/projection/lean.py).
+ARM_DATA_V4, ARM_HYBRID_V4 = "DATA_PLAYER_V4", "HYBRID_PLAYER_V4"
+PLAYER_ARMS = (ARM_DATA, ARM_MARKET, ARM_HYBRID, ARM_DATA_V3, ARM_HYBRID_V3, ARM_DATA_V4, ARM_HYBRID_V4)
+DATA_ARMS = (ARM_DATA, ARM_DATA_V3, ARM_DATA_V4)
+HYBRID_ARMS = (ARM_HYBRID, ARM_HYBRID_V3, ARM_HYBRID_V4)
+V4_ARMS = (ARM_DATA_V4, ARM_HYBRID_V4)
 ENGINE_STATS = {"passing_yards": "passing_yards", "passing_tds": "passing_tds", "interceptions": "interceptions", "attempts": "attempts",
                 "completions": "completions", "rushing_yards": "rushing_yards", "carries": "carries", "receiving_yards": "receiving_yards",
                 "receptions": "receptions", "touchdowns": "touchdowns", "rush_rec_yards": "rush_rec_yards"}
@@ -479,7 +486,8 @@ def main(argv=None):
         for arm in PLAYER_ARMS:
             ans, lineage, feat, dsum = (player.answer(arm, t, q, qq) if player else ({"p_yes": None, "reason": "player engine skipped"}, {}, {}, {}))
             eng_ver = {ARM_DATA: DD.VERSION, ARM_MARKET: MD.VERSION, ARM_HYBRID: HD.VERSION,
-                       ARM_DATA_V3: DD.VERSION_BY_FEATURE_SET["v3"], ARM_HYBRID_V3: HD.VERSION_V3}[arm]
+                       ARM_DATA_V3: DD.VERSION_BY_FEATURE_SET["v3"], ARM_HYBRID_V3: HD.VERSION_V3,
+                       ARM_DATA_V4: V4.VERSION, ARM_HYBRID_V4: V4.HYBRID_VERSION}[arm]
             dist_ver = "lattice-1.0.0"
             if ans.get("p_yes") is not None:
                 ans["validated"] = False                                  # every player arm is shadow / research
@@ -502,13 +510,22 @@ def main(argv=None):
             mk_ = player.market.get((q.get("player_kalshi_id"), gid, q.get("stat"))) if player else None
             _mid = base.get("yes_bid"), base.get("yes_ask")
             _dis = (None if cv is None or None in _mid else 100.0 * (cv - (_mid[0] + _mid[1]) / 2.0))
-            abst = AB.decide(arm=arm, engine_version=eng_ver, stat=ENGINE_STATS.get(q.get("stat")),
-                             identity_confidence=lineage.get("identity_confidence"),
-                             availability_state=((full.get("availability") or {}).get("state")),
-                             role_certainty=((full.get("role") or {}).get("role_certainty")),
-                             game_env_known=gid in envs, qb_starter_known=(player.qb1_known.get((gsis, gid)) if player else None),
-                             ladder_identification=(mk_ or {}).get("identification"), disagreement_pp=_dis,
-                             market_arm=(arm == ARM_MARKET)) if p is not None else {}
+            if arm in V4_ARMS and p is not None:
+                abst = AB.decide_v4((player.v4_inter.get((gsis, gid)) or {}) if player else {}, stat=ENGINE_STATS.get(q.get("stat")),
+                                    p_model=cv, p_market=(None if None in _mid else (_mid[0] + _mid[1]) / 2.0), arm=arm, engine_version=eng_ver,
+                                    identity_confidence=lineage.get("identity_confidence"),
+                                    availability_state=((full.get("availability") or {}).get("state")),
+                                    role_certainty=((full.get("role") or {}).get("role_certainty")), game_env_known=gid in envs,
+                                    qb_starter_known=(player.qb1_known.get((gsis, gid)) if player else None),
+                                    ladder_identification=(mk_ or {}).get("identification"))
+            else:
+                abst = AB.decide(arm=arm, engine_version=eng_ver, stat=ENGINE_STATS.get(q.get("stat")),
+                                 identity_confidence=lineage.get("identity_confidence"),
+                                 availability_state=((full.get("availability") or {}).get("state")),
+                                 role_certainty=((full.get("role") or {}).get("role_certainty")),
+                                 game_env_known=gid in envs, qb_starter_known=(player.qb1_known.get((gsis, gid)) if player else None),
+                                 ladder_identification=(mk_ or {}).get("identification"), disagreement_pp=_dis,
+                                 market_arm=(arm == ARM_MARKET)) if p is not None else {}
             base["flags"] = QU.status_flags(support_state=st, semantic_confidence=qq.semantic_confidence, identity_confidence=lineage.get("identity_confidence"),
                                             subject_kind="player", settlement_support=(entry.settlement if entry else None), engine=Q.PLAYER)
             base["depth"] = depth_block(cv, base, book_row, book_why, q, fee_sched, run_ts)
@@ -520,7 +537,9 @@ def main(argv=None):
                                      p_yes_low=ans.get("p_low"), p_yes_high=ans.get("p_high"), abstention=abst,
                                      **{**base, "subject_id": lineage.get("gsis_id") or base["subject_id"]})
             rec.record_id = R.record_id(snapshot_id, t, arm, eng_ver, dist_ver)
-            arm_rows[arm].append(rec.finalize().to_dict())
+            row = rec.finalize().to_dict()
+            # V4 records are LEAN: the blocks every arm shares resolve through the snapshot's sidecar (projection/lean.py)
+            arm_rows[arm].append(LEAN.lean(row, intermediates=(arm == ARM_DATA_V4)) if arm in V4_ARMS else row)
 
     # ---- coherence audit (model-free, on the same snapshot)
     audit = CE.audit_board(coherence_rows, {t: qq for t, qq in qs.items()}, fee_sched, run_ts)
@@ -616,6 +635,9 @@ def main(argv=None):
             # summary rather than only at the bottom of eleven thousand rows.
             "population_empty": dict(getattr(player, "population_empty", {}) or {}),
             "player_v3": dict(getattr(player, "v3_info", {}) or {}),
+            "player_v4": {**dict(getattr(player, "v4_info", {}) or {}),
+                          "bytes_by_arm": {arm: (os.path.getsize(w["path"]) if w.get("path") and os.path.exists(w["path"]) else None)
+                                           for arm, w in written.items() if arm in V4_ARMS or arm == ARM_DATA_V3}},
             "abstention": {arm: dict(Counter((r.get("abstention") or {}).get("state") for r in rows if r.get("p_yes") is not None))
                            for arm, rows in arm_rows.items()},
             "settlement_matrix": settlement_matrix(all_rows), "context_coverage": context_coverage(all_rows),
@@ -860,6 +882,13 @@ class PlayerArms:
         self.v3_info = {}
         self.v3_refusal = {}        # (gsis, gid) -> why v3 has no row for this player-game
         self.qb1_known = {}         # (gsis, gid) -> the team had a point-in-time depth-chart QB1
+        # v4 (data-player-dist-4.0.0): its own distributions, lean intermediates and bundle; never mixed with v2/v3
+        self.data_v4 = {}
+        self.feat_v4 = {}           # (gsis, gid) -> the lean intermediates frozen on each V4 record
+        self.v4_inter = {}          # (gsis, gid) -> every scalar intermediate (abstention input; not stored)
+        self.bundle_v4 = None
+        self.v4_info = {}
+        self.v4_refusal = {}
 
     def _why_no_distribution(self, stat, est, gsis, gid) -> str:
         """Which condition actually stopped this (player, game, statistic) getting a distribution.
@@ -915,6 +944,8 @@ class PlayerArms:
         mk = self.market.get((kid, gid, stat))
         if arm in (ARM_DATA_V3, ARM_HYBRID_V3):
             return self._answer_v3(arm, gsis, gid, stat, k, mk, mid, p_plays, p_nosnap, lineage, feat)
+        if arm in V4_ARMS:
+            return self._answer_v4(arm, gsis, gid, stat, k, mk, mid, p_plays, p_nosnap, lineage, feat)
         if arm == ARM_MARKET:
             if not mk or mk.get("identification") in (None, MD.NONE, MD.UNDERIDENTIFIED):
                 return {"p_yes": None, "reason": f"market ladder {(mk or {}).get('identification') or 'absent'}: {(mk or {}).get('reason') or 'too few two-sided rungs'}"}, lineage, feat, {}
@@ -988,6 +1019,37 @@ class PlayerArms:
         s = dist.summary()
         s.update(mu=dist.meta.get("mu"), mu_opp=dist.meta.get("mu_opp"), eff=dist.meta.get("eff"),
                  quantiles={"p025": dist.quantile(0.025), "p05": s["p05"], "p25": s["p25"], "p50": s["p50"], "p75": s["p75"], "p95": s["p95"], "p975": dist.quantile(0.975)})
+        return {"p_yes": p_ev, "contract_value": cv.contract_value}, lineage, feat, s
+
+    def _answer_v4(self, arm, gsis, gid, stat, k, mk, mid, p_plays, p_nosnap, lineage, feat):
+        """DATA_PLAYER_V4 / HYBRID_PLAYER_V4. The feature lineage is the LEAN intermediate set (snap, volume, shares,
+        opportunity means, teammate vacated shares); the rest of the chain is reproducible from the bundle sha."""
+        if gsis is None:
+            return {"p_yes": None, "reason": "Kalshi player id not resolved to a GSIS id", "status": "IDENTITY_UNRESOLVED"}, lineage, feat, {}
+        est = ENGINE_STATS.get(stat)
+        d = self.data_v4.get((gsis, gid, est)) if est else None
+        if d is None:
+            why = self.v4_refusal.get((gsis, gid)) or (
+                f"statistic {stat!r} has no v4 data model" if not est or est not in PV4.M.STATS
+                else f"no v4 distribution for this player-game ({est}): outside the {est} population or no prospective row")
+            return {"p_yes": None, "reason": why, "status": "DATA_UNAVAILABLE"}, lineage, feat, {}
+        feat.update(self.feat_v4.get((gsis, gid), {}), inputs_version=V4.INPUTS_VERSION)
+        if arm == ARM_DATA_V4:
+            dist = d
+            lineage.update(family="v4-structural", bundle_sha=(self.bundle_v4.artifact_sha if self.bundle_v4 else None), inputs_version=V4.INPUTS_VERSION)
+        else:
+            w = HD.v4_weight(est)
+            h = HD.hybrid(d, (mk or {}).get("_dist"), market_identification=(mk or {}).get("identification"), w_market=w, structure=HD.V4_STRUCTURE)
+            if h["status"] != "OK":
+                return {"p_yes": None, "reason": f"hybrid unavailable: {h['reason']}"}, lineage, feat, {}
+            dist = h["dist"]
+            lineage.update(structure=h["structure"], w_market=h["w_market"], study_verdict=HD.V4_STUDY_VERDICT, data_version=V4.VERSION)
+        p_ev = dist.survival(k)
+        cv = sem_mod.player_prop_contract_value(p_ev, p_plays, p_nosnap, mid)
+        s = dist.summary()
+        s.update(mu=d.meta.get("mu"), quantiles={"p05": s["p05"], "p50": s["p50"], "p95": s["p95"]})
+        for q in ("p25", "p75"):
+            s.pop(q, None)
         return {"p_yes": p_ev, "contract_value": cv.contract_value}, lineage, feat, s
 
 
@@ -1191,6 +1253,13 @@ def build_player_arms(a, quotes, qs, sched, gidx, run_ts, now, ledger, envs=None
     except Exception as exc:  # noqa: BLE001 -- a v3 failure must never cost the run its board and v2 records
         log(f"::warning::v3 player arms unavailable: {type(exc).__name__}: {str(exc)[:200]}")
         P.v3_info = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+    # ---- v4 arms (independent of v2 and v3; a v4 failure refuses v4 records and costs nothing else)
+    try:
+        PV4.build(P, root=ROOT, target_season=a.target_season, prows=prows, player_map=player_map, sched=sched, positions=positions,
+                  envs=envs or {}, kick=kick or {}, run_ts=run_ts, ledger=ledger, ctx=ctx, cfg=cfg, priors=priors, log=log)
+    except Exception as exc:  # noqa: BLE001
+        log(f"::warning::v4 player arms unavailable: {type(exc).__name__}: {str(exc)[:200]}")
+        P.v4_info = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
     return P
 
 

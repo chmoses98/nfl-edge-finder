@@ -64,14 +64,17 @@ import nfl_edge.evaluation.research_record as RR       # family_group(): the key
 
 DIRNAME = os.path.join("data", "shadow", "v2", "projections")
 BOARD_ARM = "BOARD_V2"
-PLAYER_ARMS = ("DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "DATA_PLAYER_V3", "HYBRID_PLAYER_V3")
+PLAYER_ARMS = ("DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "DATA_PLAYER_V3", "HYBRID_PLAYER_V3",
+               "DATA_PLAYER_V4", "HYBRID_PLAYER_V4")
 ARMS = (BOARD_ARM,) + PLAYER_ARMS
 # the arm that is an INDEPENDENT football view of the question, per engine, in order of preference. Anything not
 # named here falls back to BOARD_V2, which is the arm that owns every non-player family. DATA_PLAYER_V3 first:
 # DATA_PLAYER_DIST carries a known input defect (nfl_edge/evaluation/eligibility.py KNOWN_DEFECTS) and is primary
-# only on a snapshot written before v3 existed -- where its probability is withheld as DISABLED.
-INDEPENDENT_ARMS_BY_ENGINE = {"PLAYER": ("DATA_PLAYER_V3", "DATA_PLAYER_DIST")}
-MARKET_DERIVED_ARMS = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3")
+# only on a snapshot written before v3 existed -- where its probability is withheld as DISABLED. DATA_PLAYER_V4 is a
+# challenger reported beside v3 (never promoted into the primary slot by being newer): it is primary only on a
+# snapshot with no v3 row at all. Primary says nothing about authority either way.
+INDEPENDENT_ARMS_BY_ENGINE = {"PLAYER": ("DATA_PLAYER_V3", "DATA_PLAYER_V4", "DATA_PLAYER_DIST")}
+MARKET_DERIVED_ARMS = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3", "HYBRID_PLAYER_V4")
 PROBABILITY_STATES = ("PRICED", "PROJECTABLE_NOT_YET_VALIDATED")
 PROSPECTIVE_FROZEN = "PROSPECTIVE_FROZEN"
 RESEARCH_ONLY = "RESEARCH ONLY -- a Shadow v2 projection is not validated and authorises nothing"

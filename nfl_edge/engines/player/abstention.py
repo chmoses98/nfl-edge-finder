@@ -51,7 +51,7 @@ LARGE_DISAGREEMENT_PP = 5.0
 # player_engine_v3/RESULTS.md). A statistic enters this set only through the eligibility promotion rules.
 VALIDATED_STATS: frozenset = frozenset()
 
-ARMS_NEEDING_LADDER = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3")
+ARMS_NEEDING_LADDER = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3", "HYBRID_PLAYER_V4")
 QB_STATS = ("passing_yards", "passing_tds", "interceptions", "attempts", "completions", "qb_rushing_yards")
 ADVERSE_AVAILABILITY = ("QUESTIONABLE", "DOUBTFUL", "EXPECTED_OUT", "OUT", "INACTIVE_CONFIRMED", "UNKNOWN")
 
@@ -83,3 +83,65 @@ def decide(*, arm: str, engine_version: str | None, stat: str | None, identity_c
     state = reasons[0][0] if reasons else PROJECTION_VALID
     return {"abstention_version": ABSTENTION_VERSION, "state": state, "production_eligible": state == PROJECTION_VALID,
             "reasons": [f"{s}: {why}" for s, why in reasons], "large_disagreement": any(s == PROJECTION_LOW_CONFIDENCE for s, _ in reasons)}
+
+
+# --------------------------------------------------------------------------------------------------------- V4
+# DATA_PLAYER_V4 / HYBRID_PLAYER_V4 carry their own structural uncertainty (nfl_edge/engines/player/v4), so their
+# abstention can say WHICH upstream quantity is unknown, not only that the context is thin. Thresholds are set
+# before any scoring and are not fitted: a predicted snap-share sd above 0.15 is wider than the typical error of a
+# stable starter's EWMA; a 10% vacated same-group share is a role shock by any reading of the 2014-2024 absence data.
+ABSTENTION_V4_VERSION = "abstention-v4-1.0.0"
+ABSTAIN_SNAP_UNCERTAIN = "ABSTAIN_SNAP_UNCERTAIN"
+ABSTAIN_TEAMMATE_SHOCK = "ABSTAIN_TEAMMATE_SHOCK"
+ABSTAIN_EXTRAPOLATION = "ABSTAIN_EXTRAPOLATION"
+STATES_V4 = STATES + (ABSTAIN_SNAP_UNCERTAIN, ABSTAIN_TEAMMATE_SHOCK, ABSTAIN_EXTRAPOLATION)
+SNAP_SD_MAX = 0.15
+VACATED_SHOCK = 0.10
+MIN_SNAP_SUPPORT = 0.15
+
+
+def decide_v4(inter: dict, *, stat: str | None, p_model: float | None, p_market: float | None, arm: str = "DATA_PLAYER_V4",
+              engine_version: str | None = None, identity_confidence: str | None = "RESOLVED", availability_state: str | None = None,
+              role_certainty: str | None = None, game_env_known: bool = True, qb_starter_known: bool | None = True,
+              ladder_identification: str | None = "IDENTIFIED") -> dict:
+    """The v4 state from the model's own intermediates (snap sd, teammate vacated share, role transition flags) plus the
+    shared context facts. `structural_state` ignores the MODEL_UNVALIDATED stamp so research can score the rule itself."""
+    reasons = []
+    if identity_confidence not in ("RESOLVED",):
+        reasons.append((ABSTAIN_IDENTITY, f"identity {identity_confidence or 'UNRESOLVED'}"))
+    # availability_state None = not supplied (research replays); "UNKNOWN" = supplied and unknown, which is never "healthy"
+    av = (availability_state or "").upper()
+    if inter.get("own_q") or inter.get("own_d") or av in ADVERSE_AVAILABILITY:
+        reasons.append((ABSTAIN_INJURY_UNCERTAIN, f"own designation {'QUESTIONABLE' if inter.get('own_q') else av or 'DOUBTFUL'}"))
+    if role_certainty in ("LOW", "UNKNOWN") or inter.get("self_new") or inter.get("changed_team") or inter.get("self_returning"):
+        why = ("new to the team" if inter.get("self_new") else "changed team" if inter.get("changed_team") else
+               "returning from absence" if inter.get("self_returning") else f"role certainty {role_certainty}")
+        reasons.append((ABSTAIN_ROLE_UNCERTAIN, why))
+    vac = max(float(inter.get("vac_same_t") or 0.0), float(inter.get("vac_same_c") or 0.0))
+    if vac >= VACATED_SHOCK:
+        reasons.append((ABSTAIN_TEAMMATE_SHOCK, f"{vac:.0%} of the group's opportunity vacated this week"))
+    sd = inter.get("snap_sd")
+    if sd is not None and sd == sd and sd > SNAP_SD_MAX:
+        reasons.append((ABSTAIN_SNAP_UNCERTAIN, f"predicted snap-share sd {sd:.2f} > {SNAP_SD_MAX}"))
+    sm = inter.get("snap_mean")
+    if sm is not None and sm == sm and sm < MIN_SNAP_SUPPORT:
+        reasons.append((ABSTAIN_EXTRAPOLATION, f"predicted snap share {sm:.2f} below the {MIN_SNAP_SUPPORT} support of the rung population"))
+    if not game_env_known:
+        reasons.append((ABSTAIN_VOLUME_UNCERTAIN, "no market-implied game environment at the cutoff"))
+    if stat in QB_STATS and not qb_starter_known:
+        reasons.append((ABSTAIN_VOLUME_UNCERTAIN, "no point-in-time starting quarterback"))
+    if arm.startswith("HYBRID") and ladder_identification in (None, "NONE", "UNDERIDENTIFIED"):
+        reasons.append((ABSTAIN_MARKET_INCOMPLETE, f"ladder {ladder_identification or 'absent'}"))
+    dis = None if (p_model is None or p_market is None) else 100.0 * (float(p_model) - float(p_market))
+    large = dis is not None and abs(dis) > LARGE_DISAGREEMENT_PP
+    structural = [r for r in reasons] + ([(PROJECTION_LOW_CONFIDENCE, f"|model - market| = {abs(dis):.1f}pp")] if large else [])
+    unvalidated = (engine_version, stat) not in VALIDATED_STATS
+    full = list(reasons)
+    if unvalidated:
+        full.append((ABSTAIN_MODEL_UNVALIDATED, f"{engine_version}/{stat} has no prospective evidence of matching the market"))
+    if large:
+        full.append((PROJECTION_LOW_CONFIDENCE, f"|model - market| = {abs(dis):.1f}pp > {LARGE_DISAGREEMENT_PP:.0f}pp"))
+    state = full[0][0] if full else PROJECTION_VALID
+    return {"abstention_version": ABSTENTION_V4_VERSION, "state": state, "production_eligible": state == PROJECTION_VALID,
+            "structural_state": structural[0][0] if structural else PROJECTION_VALID,
+            "reasons": [f"{s}: {why}" for s, why in full], "large_disagreement": large}

@@ -666,3 +666,16 @@ previous season. Held out on 2025, the first defect alone reproduces the whole d
   never happened).
 * **Scorecard effective identities**: provisional season vintages are evidence rows, not unsettled predictions;
   `n_effective_predictions / n_settled_effective / n_unresolved_effective / n_superseded_provisional_rows`.
+
+
+## 15. Player model v4: a structural challenger beside v3 (2026-09-24)
+
+**DATA_PLAYER_V4** (`data-player-dist-4.0.0`) and **HYBRID_PLAYER_V4** (`hybrid-player-dist-4.0.0`, 0.85-market
+mixture) are two new arms; every v2 and v3 arm is unchanged. V4 models the chain v3 does not: a pregame snap-share
+distribution, team volume from the market environment and opponent, role allocation with teammate-absence
+redistribution learned pooled across teams, compound yardage distributions and propagated opportunity uncertainty
+(docs/PLAYER_V4.md). Held out on 2025 with a per-horizon Kalshi-implied environment it trails the market by +0.0043
+Brier at T-90m (v3 +0.0084 on the same rows), better calibrated than both; receptions +0.0141 -> +0.0051
+(research/player_engine_v4/RESULTS.md). Both arms are RESEARCH_ONLY; their records are LEAN (`nfl_edge/projection/
+lean.py`): shared blocks resolve through the snapshot's context sidecar.
+
