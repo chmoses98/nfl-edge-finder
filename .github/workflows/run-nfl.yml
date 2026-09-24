@@ -120,7 +120,10 @@ jobs:
       - name: Fetch bronze inputs (nflverse) and market-data
         run: |
           python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,depth_charts,ff_playerids --seasons 2013-2026 2>&1 | tail -3
-          python3 nfl_edge/data/silver.py 2016 2025 2>&1 | tail -2
+          # THROUGH THE CURRENT SEASON. The packet's team form and adjusted ratings read team_game_<season>, and
+          # build_profiles uses only games strictly before the target week, so the current season's completed
+          # weeks are admissible -- and without them the packet reported 2025 as "current form" in week 3.
+          python3 nfl_edge/data/silver.py 2016 2026 2>&1 | tail -2
           python3 nfl_edge/data/ids.py 2>&1 | tail -3
           git fetch --depth=1 origin market-data
           rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
