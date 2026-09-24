@@ -51,6 +51,8 @@ def main(argv=None) -> int:
     parser.add_argument("--payload", required=True)
     parser.add_argument("--handicap-root", required=True,
                         help="a checkout of the handicap-data branch")
+    parser.add_argument("--receipts-out", default=None,
+                        help="write per-row outcomes (ids and verdicts, never economics)")
     args = parser.parse_args(argv)
 
     try:
@@ -67,6 +69,18 @@ def main(argv=None) -> int:
     print(f"  refused:         {result['refused']}")
     for index, reason in result["refusals"]:
         print(f"    row {index}: {reason}")
+
+    if args.receipts_out:
+        with open(args.receipts_out, "w", encoding="utf-8") as handle:
+            json.dump({
+                "written": result["written"],
+                "alreadyPresent": result["already_present"],
+                "refused": result["refused"],
+                "refusals": [{"row": i, "reason": r} for i, r in result["refusals"]],
+                "idsWritten": result["ids_written"],
+                "rows": result["receipts"],
+            }, handle, indent=2, sort_keys=True)
+            handle.write("\n")
 
     return EXIT_REFUSED if result["refused"] else EXIT_OK
 

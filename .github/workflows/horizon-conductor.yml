@@ -38,13 +38,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      # Each conductor link (~every 6 hours) also starts the workflow-health run, whose own */6 cron is subject
-      # to the same scheduler. That run publishes horizon capture health and turns red on a fresh miss.
-      - name: Refresh workflow and horizon capture health
+      # Each conductor link (~every 6 hours) also starts workflow-health (horizon capture health, red on a fresh miss)
+      # and actual-wagers (ledger validation + owner postmortem, red on an overdue settlement), whose own crons are
+      # subject to the same scheduler.
+      - name: Refresh capture health and the owner actual-wager postmortem
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run workflow-health.yml --ref main && echo "workflow-health dispatched"
+        run: |
+          gh workflow run workflow-health.yml --ref main && echo "workflow-health dispatched"
+          gh workflow run actual-wagers.yml --ref main && echo "actual-wagers dispatched"
       - name: Loop the horizon due-rule; dispatch the horizon workflows when owed; chain the successor
         env:
           GH_TOKEN: ${{ github.token }}
