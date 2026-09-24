@@ -10,6 +10,8 @@ Stake is contracts x execution price PLUS the entry fee the exchange charged on 
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | all | 18 | 9 | 9 | 0 | 0 | 4,016.36 | 72.65 | 2,757.22 | -1,371.38 | -34.1% | 18 | -0.0428 | 11.1% | 0 |
 
+FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's own figures prove that equality (18 of 18 established wagers). Fee-reconciled net P&L: -1,259.14 (ROI -31.4%); fees counted twice in the recorded figure: 112.24.
+
 ## By week
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
