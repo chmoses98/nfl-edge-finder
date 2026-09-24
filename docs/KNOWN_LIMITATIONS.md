@@ -455,3 +455,18 @@
     player on the depth-rank cell prior, and a stale chart -- is a different population (n=31 in the 2025
     confirmation weeks) and remains untested.
 
+
+89. **V3 and V4 take QB1 from the depth chart even when that quarterback is Out (documented, deliberately NOT
+    fixed mid-season).** `DepthChartBook.qb1()` returns the first QB in the newest chart at or before the cutoff,
+    and `prospective_v3.depth_qb_starters()` marks that player `qb_starter` for both DATA_PLAYER_V3 and
+    DATA_PLAYER_V4 (`scripts/shadow_v2/project_slate_v2.py` `build_player_v3`, `engines/player/v4/prospective.py`).
+    Neither consults the injury report or the availability state. ESPN charts are slow to demote an injured
+    starter, so in 2026 Week 2 three of the four QB1 mismatches against the actual starter were a charted QB1
+    designated Out: Penix (ATL), Murray (MIN), Darnold (SEA). On those teams the models priced the backup as a
+    non-starter and the Out starter as the starter, and every pass-catcher inherited the wrong QB environment.
+    The fix (skip a chart QB1 who is Out / Doubtful / inactive at the cutoff, promote the next charted QB, and
+    record it on the role block) would change a research model's inputs in the middle of its prospective
+    collection. It waits for a versioned inputs change (player-inputs-3.x / 4.x) between collection windows.
+    Until then, read QB and pass-catcher rows for a team whose chart QB1 is on the report as Out as a known
+    input error. The autopsy's QB_ENVIRONMENT_MISS measures it for v2/v3; V4 records `qb_starter` only as a
+    flag, not a passer id, so it cannot be scored there.

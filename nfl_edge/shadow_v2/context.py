@@ -51,6 +51,50 @@ INJURY_WEAK = "NO_DESIGNATION_PARTIAL_REPORT"             # absent from a half-f
 INJURY_UNKNOWN = "UNKNOWN"
 
 
+ROLE_CONTEXT_SINCE = (1, 3, 0)          # the first context version that loads the depth chart and writes `role`
+
+
+def _context_version_tuple(v) -> tuple | None:
+    try:
+        return tuple(int(x) for x in str(v).rsplit("-", 1)[-1].split("."))
+    except (TypeError, ValueError):
+        return None
+
+
+def predates_role_context(row) -> bool:
+    """True when a research row was written before point-in-time role context existed (context < 1.3.0, PR #39).
+
+    The context version is frozen on the FULL player context in the snapshot sidecar, not on the compact record, so
+    the research row carries it as `player_context_version` when the sidecar was read. Without it the compact
+    context itself tells: from 1.3.0 on, `role_certainty` is always one of HIGH / MEDIUM / LOW / UNKNOWN (role.assess
+    never omits it), so a row with no `ctx_role_certainty` at all was written by an older context.
+    """
+    v = _context_version_tuple(row.get("player_context_version"))
+    if v is not None:
+        return v < ROLE_CONTEXT_SINCE
+    return row.get("ctx_role_certainty") is None
+
+
+def role_context_note(player_rows: list) -> str | None:
+    """One line that says WHY depth / role coverage reads what it reads, for the weekly report's health gate.
+
+    2026 Week 2 reads 0% depth and 0% role, correctly: every record in it was frozen before context-1.3.0 loaded a
+    depth chart. A bare 0% beside ~99% on later weeks reads as a fault, so the gate labels the history as history.
+    It never rewrites a record; it only distinguishes "predates role context" from "has role context and no chart
+    placed anyone", which IS a fault (the depth file missing on the runner, the way it was before #39).
+    """
+    n = len(player_rows)
+    if not n:
+        return None
+    pre = sum(1 for r in player_rows if predates_role_context(r))
+    covered = any(r.get("ctx_depth_chart_rank") is not None or r.get("ctx_role_certainty") in ("HIGH", "MEDIUM") for r in player_rows)
+    if covered:
+        return "LOADED" + (f"; {pre} of {n} rows predate context-1.3.0 and carry none" if pre else "")
+    if pre == n:
+        return "PREDATES_ROLE_CONTEXT: records predate point-in-time role context (context-1.3.0, PR #39); 0% is history, not a fault"
+    return f"NO_PLACEMENT: {n - pre} of {n} rows carry context-1.3.0 role context but no chart placed any player -- a data fault"
+
+
 def injury_knowledge(state, maturity) -> str:
     """What an injury-report state actually tells us, for coverage reporting.
 
