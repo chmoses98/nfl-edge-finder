@@ -226,3 +226,15 @@ def test_capture_health_goes_red_on_a_fresh_miss_under_the_conductor(tmp_path, m
     assert rc == 1
     doc = json.load(open(tmp_path / "o" / "2026.capture_health.json"))
     assert doc["targets"]["RUN_NFL"]["summary"]["AFTER_CONDUCTOR"]["missed"] == 3
+
+
+def test_the_capture_state_is_not_fetched_when_nothing_can_be_due():
+    """Most passes of the week are hours from any trigger; reading two branches every four minutes then is waste."""
+    reads = []
+    readers = {"RUN_NFL": lambda: reads.append("r") or {}, "THREE_ARM": lambda: reads.append("t") or {}}
+    lines = HC.one_pass(["RUN_NFL", "THREE_ARM"], _schedule_games(), "test", KO - timedelta(hours=30), {},
+                        state_readers=readers, active=lambda wf: 0, dispatcher=lambda wf, ref: (True, "ok"))
+    assert reads == [] and all(ln["decision"] == "wait" for ln in lines)
+    HC.one_pass(["RUN_NFL"], _schedule_games(), "test", KO - timedelta(minutes=358), {},
+                state_readers=readers, active=lambda wf: 0, dispatcher=lambda wf, ref: (True, "ok"))
+    assert reads == ["r"]
