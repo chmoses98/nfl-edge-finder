@@ -28,6 +28,8 @@ from nfl_edge.evaluation import eligibility as EL                               
 from nfl_edge.evaluation import scorecard_v3 as S3                                      # noqa: E402
 from nfl_edge.evaluation.clv import SIGN_CONVENTION                                     # noqa: E402
 from nfl_edge.projection import horizons as HZ                                          # noqa: E402
+from nfl_edge.research import hypothesis_registry_v2 as HR                              # noqa: E402
+from nfl_edge.research import localized_signals as LS                                   # noqa: E402
 from nfl_edge.shadow_v2 import context as CX                                           # noqa: E402
 
 REPORT_VERSION = "weekly-report-1.0.0"
@@ -110,9 +112,10 @@ def health(rows: list, board_rows: list, markers: list, season: int, week: int) 
             "UNSUPPORTED_RETENTION": {"board_rows_retained": len(board_rows), "unsupported_states": dict(Counter(b.get("terminal_state") for b in nfl_board if b.get("terminal_state") not in ("PRICED", "PROJECTABLE_NOT_YET_VALIDATED")))}}
 
 
-def render(sc: dict, h: dict, rows: list, label: str) -> str:
+def render(sc: dict, h: dict, rows: list, label: str, localized: dict | None = None) -> str:
     L = [f"# Weekly shadow research report — {label}", "", f"report {REPORT_VERSION}; generated {datetime.now(timezone.utc).isoformat()}", "",
-         "**RESEARCH ONLY. No bet recommendations. Every subgroup table below is HYPOTHESIS_GENERATING; Week-1 patterns cannot be confirmed on Week 1.**", "",
+         f"**RESEARCH ONLY. No bet recommendations. Every subgroup table below is HYPOTHESIS_GENERATING: a pattern found in {label} can never be "
+         f"confirmed on {label}. Confirmation needs a preregistered test on later weeks (see LOCALIZED SIGNAL RESEARCH).**", "",
          f"**CLV sign convention:** {SIGN_CONVENTION}. Positive CLV is not proven positive EV (calibration, execution, fees, liquidity, sample and prospective validation are all still required).", ""]
     L += ["## Coverage health", "", "| gate | counts | % |", "|---|---|---|"]
     for k in ("BOARD_CAPTURE_COVERAGE", "PROJECTION_COVERAGE", "HORIZON_COMPLETENESS", "SETTLEMENT_COVERAGE", "CLOSE_PAIRING_COVERAGE", "CLV_COVERAGE", "PLAYER_CONTEXT_COVERAGE", "AUTOPSY_COVERAGE", "UNSUPPORTED_RETENTION"):
@@ -147,14 +150,14 @@ def render(sc: dict, h: dict, rows: list, label: str) -> str:
         L += [f"## {cls}: model vs market vs close (DESCRIPTIVE)", "", f"settled {o.get('n', 0)} rows / {o.get('n_games', 0)} games; Brier model {_f(o.get('brier_model'))}, market@horizon {_f(o.get('brier_market_horizon'))}, market@close {_f(o.get('brier_market_close'))}; "
               f"model-market {_f(o.get('model_minus_market_brier'))} ± {_f(o.get('model_minus_market_se'))}; model-close {_f(o.get('model_minus_close_brier'))} ± {_f(o.get('model_minus_close_se'))}", "",
               f"CLV: ok {c['n_clv_ok']}, close missing {c['n_close_missing']}, no view {c['n_no_view']}; mean {_f(c.get('mean_clv_mid'))} ± {_f(c.get('se_clv_mid_clustered'))}, median {_f(c.get('median_clv_mid'))}, +rate {_f(c.get('positive_clv_rate'), 3)}, toward-rate {_f(c.get('movement_toward_rate'), 3)}", ""]
-        for seg in ("model_arm", "family_group", "horizon_label", "disagreement_band", "close_quality", "horizon_quality", "ctx_availability_state", "ladder_identification", "width_band"):
+        for seg in ("model_arm", "family_group", "model_arm*family_group", "horizon_label", "disagreement_band", "close_quality", "horizon_quality", "ctx_availability_state", "ladder_identification", "width_band"):
             s = b["segments"].get(seg) or {}
             if not s:
                 continue
             L += [f"### by {seg} (HYPOTHESIS_GENERATING)", "", "| value | n | games | Brier model | market@h | model-market ± se | model-close | mean CLV | +CLV | toward | P&L net |", "|---|---|---|---|---|---|---|---|---|---|---|"]
             for k, m in s.items():
                 o2, c2, e2 = m["outcome"], m["clv"], m["executable"]
-                L.append(f"| {k} | {m['n']} | {m['n_games']} | {_f(o2.get('brier_model'))} | {_f(o2.get('brier_market_horizon'))} | {_f(o2.get('model_minus_market_brier'))} ± {_f(o2.get('model_minus_market_se'))} | {_f(o2.get('model_minus_close_brier'))} | {_f(c2.get('mean_clv_mid'))} | {_f(c2.get('positive_clv_rate'), 3)} | {_f(c2.get('movement_toward_rate'), 3)} | {_f(e2.get('pnl_net_per_contract'))} |")
+                L.append(f"| {LS.cell(k)} | {m['n']} | {m['n_games']} | {_f(o2.get('brier_model'))} | {_f(o2.get('brier_market_horizon'))} | {_f(o2.get('model_minus_market_brier'))} ± {_f(o2.get('model_minus_market_se'))} | {_f(o2.get('model_minus_close_brier'))} | {_f(c2.get('mean_clv_mid'))} | {_f(c2.get('positive_clv_rate'), 3)} | {_f(c2.get('movement_toward_rate'), 3)} | {_f(e2.get('pnl_net_per_contract'))} |")
             L.append("")
         if b["arm_by_family"]:
             L += ["### which arm best predicted outcome / close / movement, per family (HYPOTHESIS_GENERATING)", "", "| family | outcome | close | movement |", "|---|---|---|---|"]
@@ -163,6 +166,8 @@ def render(sc: dict, h: dict, rows: list, label: str) -> str:
             L.append("")
         L.append(f"candidate slices considered: {b['candidate_slices_considered']}")
         L.append("")
+    # WS3: what became of every earlier hypothesis once NEW games arrived (future window only; suggestions only)
+    L += LS.render(localized)
     au = h["AUTOPSY_COVERAGE"]["by_class"]
     L += ["## Player autopsy (DESCRIPTIVE)", "", ("| class | n |\n|---|---|\n" + "\n".join(f"| {k} | {v} |" for k, v in sorted(au.items(), key=lambda x: -x[1]))) if au else "no settled DATA-arm rows yet", ""]
     dq = []
@@ -184,6 +189,26 @@ def render(sc: dict, h: dict, rows: list, label: str) -> str:
     return "\n".join(L)
 
 
+def localized_signals(sc: dict, a, md: str, label: str) -> dict:
+    """Assemble the LOCALIZED SIGNAL RESEARCH document (nfl_edge/research/localized_signals.py).
+
+    Hypotheses: the committed registry (hand-preregistered) plus the automatic one (local staging copy written by
+    this job's research export, else the published market-data copy). Future slice evidence: this week's
+    scorecard in memory plus every earlier week's published `scorecard_v3.json`. Game-centre evidence: the newest
+    arm-report batch's per-week `deviation_signal`. `evaluate_prospective` drops every week that is not strictly
+    after a hypothesis's generation window, so handing it all weeks is safe.
+    """
+    auto = a.hypotheses if a.hypotheses and os.path.exists(a.hypotheses) else os.path.join(md, "hypotheses", "hypotheses.jsonl")
+    sources = [p for p in (a.registry, auto) if p and os.path.exists(p)]
+    hyps, notes = LS.load_hypotheses(sources)
+    earlier = range(1, a.week)
+    cards = LS.load_week_scorecards([a.research, os.path.join(md, "research")], a.season, earlier)
+    cards[(a.season, a.week)] = sc
+    gc, gc_src = LS.load_gc_signals(a.arm_reports or os.path.join(a.market_data, "data", "shadow", "arm_reports"), a.season)
+    return LS.build(hyps, season=a.season, week=a.week, label=label, slice_scorecards=cards, gc_signals=gc,
+                    gc_source=gc_src, registry_notes=notes, sources=sources)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--market-data", required=True)
@@ -193,6 +218,11 @@ def main(argv=None):
     ap.add_argument("--out", default=os.path.join(ROOT, "data", "shadow", "v2", "reports"))
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--week", type=int, required=True)
+    ap.add_argument("--hypotheses", default=os.path.join(ROOT, "data", "shadow", "v2", "hypotheses", "hypotheses.jsonl"),
+                    help="automatic (mined-slice) registry written by research_export_v2; the market-data copy is the fallback")
+    ap.add_argument("--registry", default=os.path.join(ROOT, HR.DEFAULT_PATH),
+                    help="the committed registry holding the hand-preregistered hypotheses")
+    ap.add_argument("--arm-reports", default="", help="arm-report root (default <market-data>/data/shadow/arm_reports)")
     a = ap.parse_args(argv)
     label = f"{a.season}_wk{a.week:02d}"
     md = os.path.join(a.market_data, "data", "shadow", "v2")
@@ -237,7 +267,13 @@ def main(argv=None):
     json.dump({"eligibility_version": EL.ELIGIBILITY_VERSION, "label": label, "games": acc.to_json()},
               open(os.path.join(a.out, f"{label}.eligibility_inputs.json"), "w"), default=str)
     json.dump(h, open(os.path.join(a.out, f"{label}.health.json"), "w"), indent=1, default=str)
-    open(os.path.join(a.out, f"{label}.WEEKLY_REPORT.md"), "w").write(render(sc, h, rows, label))
+    localized = None
+    try:
+        localized = localized_signals(sc, a, md, label)
+        json.dump(localized, open(os.path.join(a.out, f"{label}.localized_signals.json"), "w"), indent=1, default=str)
+    except Exception as exc:  # noqa: BLE001 -- the section is additive; its absence is stated in the report, never fatal
+        print(f"localized-signal section unavailable: {type(exc).__name__}: {exc}", flush=True)
+    open(os.path.join(a.out, f"{label}.WEEKLY_REPORT.md"), "w").write(render(sc, h, rows, label, localized))
     print(json.dumps({k: v for k, v in h.items() if k not in ("season", "week")}, indent=1, default=str)[:4000])
     return 0
 

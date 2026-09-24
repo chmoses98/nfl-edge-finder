@@ -282,6 +282,8 @@ def main(argv=None):
     ap.add_argument("--week", type=int, default=0, help="0 = every week present")
     ap.add_argument("--game", action="append", default=[], help="export exactly these games")
     ap.add_argument("--label", default="")
+    ap.add_argument("--hypotheses", default="", help="automatic hypothesis registry (default <staging>/hypotheses/hypotheses.jsonl, "
+                                                     "seeded from the market-data copy)")
     ap.add_argument("--depth-root", action="append", default=[],
                     help="dedicated depth-sweep roots (repeatable); default: <market-data>/data/shadow/v2/depth")
     a = ap.parse_args(argv)
@@ -397,6 +399,16 @@ def main(argv=None):
     json.dump(sc, open(os.path.join(a.out, f"{label}.scorecard_v3.json"), "w"), indent=1, default=str)
     open(os.path.join(a.out, f"{label}.SCORECARD_V3.md"), "w").write(S3.render(sc, title=f"Shadow v2 scorecard v3 — {label}"))
     cands = HR.candidates_from_scorecard(sc, season=a.season, week=(a.week or 0), path_out=os.path.join(a.out, f"{label}.hypothesis_candidates.json"))
+    # WS3: candidates enter the append-only registry as GENERATED -- and only GENERATED. The registry is part of
+    # the published tree (data/shadow/v2/hypotheses on market-data), seeded from the published copy first so
+    # this week's lines extend the history instead of replacing it. A multi-week export (no --week) has no single
+    # generation window, so it registers nothing.
+    hyp_path = a.hypotheses or os.path.join(a.staging, "hypotheses", "hypotheses.jsonl")
+    hyp_seed = HR.seed_registry(hyp_path, os.path.join(md, "hypotheses", "hypotheses.jsonl"))
+    hyp_reg = (HR.register_candidates(cands, path=hyp_path) if a.week else
+               {"added": [], "skipped_existing": [], "refused": [], "note": "no --week: no single generation window"})
+    log(f"hypothesis registry {hyp_path} ({hyp_seed}): added {len(hyp_reg['added'])}, already registered "
+        f"{len(hyp_reg['skipped_existing'])}, refused {len(hyp_reg['refused'])}")
     # ---- derived, rebuildable research tables. None of these is captured evidence; all are recomputed from the
     # frozen records, so a change of method never silently rewrites what was observed.
     exec_summary = exec_acc.summary()
@@ -454,6 +466,8 @@ def main(argv=None):
                    1 for r in rows if r.get("contract_value") is not None
                    and (r.get("synchronization_state") or "UNKNOWN_TIMING") != "SYNCHRONIZED")},
            "hypothesis_candidates": len(cands),
+           "hypothesis_registration": {"path": hyp_path, "seed": hyp_seed, "added": len(hyp_reg["added"]),
+                                       "skipped_existing": len(hyp_reg["skipped_existing"]), "refused": hyp_reg["refused"][:20]},
            "scope": {"season": a.season, "week": a.week or None, "units": len(units), "per_unit": per_unit,
                      "projection_scan": scan.to_dict(), "scan_reconciles": scan.reconciles(), "index": isum,
                      "sidecars": sidecars.stats(), "projection_rows": n_rows, "probability_rows": n_prob, "player_rows": n_players},
