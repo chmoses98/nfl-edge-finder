@@ -25,6 +25,9 @@ from nfl_edge.engines.player.v4.linear import Linear
 HALFLIFE, CARRY, SHRINK = 6.0, 0.35, 4.0
 PASS_FEATURES = ["t_pa", "t_rate", "o_pa_allowed", "implied_total", "spread_team", "home_f", "indoor_f", "qb_changed_recent"]
 RUSH_FEATURES = ["t_ra", "t_rate", "o_ra_allowed", "implied_total", "spread_team", "home_f", "indoor_f", "qb_changed_recent"]
+# Team-level quarterback-identity columns (nfl_edge/engines/player/v5/qb_features.py). They exist only on a frame that
+# DATA_PLAYER_V5 built; a V4 frame has none of them, so its team table -- and everything fitted on it -- is unchanged.
+QB_TEAM_COLS = ("qb_new_starter", "qb_ypa_delta", "qb_cmp_delta", "qb_exp")
 
 
 def team_game_table(df: pd.DataFrame) -> pd.DataFrame:
@@ -35,7 +38,8 @@ def team_game_table(df: pd.DataFrame) -> pd.DataFrame:
     g = d.groupby(["team", "game_id", "season", "week"], sort=False)
     t = g.agg(pa=("_pa", lambda s: s.sum(min_count=1)), ra=("_ra", lambda s: s.sum(min_count=1)),
               opponent=("opponent_team", "first"), implied_total=("implied_total", "first"), spread_team=("spread_team", "first"),
-              home=("home", "first"), indoor=("indoor", "first"), qb_changed_recent=("qb_changed_recent", "first")).reset_index()
+              home=("home", "first"), indoor=("indoor", "first"), qb_changed_recent=("qb_changed_recent", "first"),
+              **{c: (c, "first") for c in QB_TEAM_COLS if c in d.columns}).reset_index()
     t["plays"] = t["pa"] + t["ra"]
     t["rate"] = t["pa"] / t["plays"]
     pri_seasons = sorted(t["season"].unique())[:3]
@@ -64,7 +68,9 @@ class VolumeModel:
     info: dict = field(default_factory=dict)
 
     @classmethod
-    def fit(cls, teams: pd.DataFrame, target_season: int, *, ablate: bool = False, market_env: bool = True) -> "VolumeModel":
+    def fit(cls, teams: pd.DataFrame, target_season: int, *, ablate: bool = False, market_env: bool = True,
+            extra: tuple = ()) -> "VolumeModel":
+        """extra: additional team-level features appended to both regressions (V5's quarterback identity); empty for V4."""
         tr = teams[(teams.season < target_season) & teams.pa.notna() & teams.implied_total.notna()]
         m = cls(ablate=ablate)
         if ablate:
@@ -72,8 +78,8 @@ class VolumeModel:
             m.rush_m = Linear(["t_ra"], np.array([0.0, 1.0]), np.zeros(1), np.ones(1))
         else:
             env = (lambda cols: cols) if market_env else (lambda cols: [c for c in cols if c not in ("implied_total", "spread_team")])
-            m.pass_m = Linear.fit(tr, env(PASS_FEATURES), tr.pa.to_numpy(float))
-            m.rush_m = Linear.fit(tr, env(RUSH_FEATURES), tr.ra.to_numpy(float))
+            m.pass_m = Linear.fit(tr, env(PASS_FEATURES) + list(extra), tr.pa.to_numpy(float))
+            m.rush_m = Linear.fit(tr, env(RUSH_FEATURES) + list(extra), tr.ra.to_numpy(float))
         m.sd_pa = float(np.std(tr.pa - m.pass_m.predict(tr)))
         m.sd_ra = float(np.std(tr.ra - m.rush_m.predict(tr)))
         m.info = {"n_team_games": int(len(tr)), "sd_pass_att": round(m.sd_pa, 3), "sd_rush_att": round(m.sd_ra, 3)}
