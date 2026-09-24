@@ -29,8 +29,18 @@ FATAL_PUSH_ERRORS = (
 
 
 def rejected_for_good(stderr: str) -> str | None:
-    """The reason a push can never succeed on retry, or None if it might be a race."""
-    low = (stderr or "").lower()
+    """The reason a push can never succeed on retry, or None if it might be a race.
+
+    Only the remote's ERRORS are read, never its warnings. GitHub prints `remote: warning: GH001: Large files
+    detected` for any file over its RECOMMENDED 50 MB -- a push that goes on to succeed. Run 35936325143 (#59)
+    pushed a derived commit carrying such a file, lost a ref-lock race to a concurrent capture publisher
+    (`cannot lock ref 'refs/heads/market-data': is at 79d6ba98 but expected 49e436bc`), and the bare `GH001`
+    needle in the warning line turned an ordinary race -- the one thing the retry loop exists for -- into
+    "REFUSED BY THE REMOTE, and no retry can change it". The hard 100 MB refusal arrives as `remote: error:`,
+    and that is still fatal.
+    """
+    lines = [ln for ln in (stderr or "").lower().splitlines() if "warning:" not in ln]
+    low = "\n".join(lines)
     for needle, why in FATAL_PUSH_ERRORS:
         if needle.lower() in low:
             return why
