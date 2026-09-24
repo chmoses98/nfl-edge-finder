@@ -21,6 +21,9 @@ from __future__ import annotations
 
 import math
 
+from nfl_edge.handicap import settlement_amendments as AM
+from nfl_edge.handicap.settlement_amendments import ECONOMICS_V1, ECONOMICS_V2
+
 from nfl_edge.handicap import wager_risk
 
 POSTMORTEM_VERSION = "actual-wager-postmortem-1.0.0"
@@ -102,11 +105,20 @@ def wager_row(wager: dict, settlement: dict | None, close: dict | None) -> dict:
         row["settlement_state"] = "SETTLED"
         row["result"] = settlement.get("result")
         row["gross_return"] = _num(settlement.get("gross_return"))
+        # CANONICAL BY DEFAULT: `net_profit_loss` is the settlement as amended (settlement_amendments), and the
+        # figure as originally recorded is kept beside it. Nothing here changes a filed record.
         row["net_profit_loss"] = _num(settlement.get("net_profit_loss"))
+        row["recorded_net_profit_loss"] = _num(settlement.get("recorded_net_profit_loss",
+                                                              settlement.get("net_profit_loss")))
+        row["economics_version"] = settlement.get("economics_version") or ECONOMICS_V1
+        row["recorded_economics_version"] = settlement.get("recorded_economics_version") or row["economics_version"]
+        row["amendment_status"] = settlement.get("amendment_status") or "ORIGINAL"
         row["pl_state"] = "ESTABLISHED" if row["net_profit_loss"] is not None else "UNESTABLISHED"
-        # The router's net is gross - stake - settlement fee, and `stake` already carries the ENTRY fee. The
-        # settlement fee is therefore exactly what the three exchange figures leave over -- recovered, not guessed.
-        if row["pl_state"] == "ESTABLISHED" and row["gross_return"] is not None and row["stake"] is not None:
+        row["net_canonical"] = row["net_profit_loss"] if row["economics_version"] == ECONOMICS_V2 else None
+        # A v1 net is gross - stake - settlement fee, and `stake` already carries the ENTRY fee. The settlement
+        # fee is therefore exactly what the three exchange figures leave over -- recovered, not guessed.
+        if row["economics_version"] == ECONOMICS_V1 and row["pl_state"] == "ESTABLISHED" \
+                and row["gross_return"] is not None and row["stake"] is not None:
             row["settlement_fee"] = round(row["gross_return"] - row["stake"] - row["net_profit_loss"], 6)
         if row["pl_state"] == "UNESTABLISHED":
             row["pl_refusals"] = list(settlement.get("refusals") or [])
@@ -152,6 +164,10 @@ def reconcile_fees(rows: list) -> None:
     for r in rows:
         by_market.setdefault(r.get("market_ticker"), []).append(r)
     for r in rows:
+        if r.get("economics_version") == ECONOMICS_V2 and r.get("pl_state") == "ESTABLISHED":
+            r["fee_reconciliation"] = "CANONICAL_V2"
+            r["net_fee_reconciled"] = r["net_profit_loss"]
+            continue
         if r.get("pl_state") != "ESTABLISHED" or r.get("settlement_fee") is None:
             r["fee_reconciliation"] = "NOT_APPLICABLE"
             r["net_fee_reconciled"] = None
@@ -190,6 +206,14 @@ def summarise(rows: list) -> dict:
         "pl_established": len(est), "pl_unestablished": len(settled) - len(est),
         "stake": round(stake_all, 4), "fees": round(fees_all, 4),
         "settlement_fees_established": round(sum(r.get("settlement_fee") or 0.0 for r in est), 4),
+        # AS ORIGINALLY RECORDED, beside the canonical figures above (which apply any amendment).
+        "recorded": {"net_profit_loss": (round(sum(r.get("recorded_net_profit_loss") or 0.0 for r in settled), 4)
+                                         if settled and all(r.get("recorded_net_profit_loss") is not None
+                                                            for r in settled) and len(settled) == n else None),
+                     "amended_wagers": sum(1 for r in rows if r.get("amendment_status") == "AMENDED"),
+                     "economics_versions": dict(sorted(
+                         ((v, sum(1 for r in settled if r.get("economics_version") == v))
+                          for v in {r.get("economics_version") for r in settled}), key=lambda kv: str(kv[0])))},
         # Headline economics only when EVERY wager in scope is settled with an established figure.
         "complete": complete,
         "gross_return": round(gross_est, 4) if complete else None,
@@ -211,8 +235,11 @@ def summarise(rows: list) -> dict:
 
 
 def build(wagers: list, settlements: list, close_rows, *, season: int, week: int | None = None,
-          risk_thresholds: wager_risk.RiskThresholds = wager_risk.DEFAULT_THRESHOLDS) -> dict:
-    by_key = {s.get("source_bet_key"): s for s in settlements or () if s.get("source_bet_key")}
+          risk_thresholds: wager_risk.RiskThresholds = wager_risk.DEFAULT_THRESHOLDS,
+          amendments: dict | None = None) -> dict:
+    amendments = amendments or {}
+    by_key = {s.get("source_bet_key"): AM.canonical_settlement(s, amendments.get(s.get("settlement_id"), []))
+              for s in settlements or () if s.get("source_bet_key")}
     closes = closes_by_ticker(close_rows)
     rows = [wager_row(w, by_key.get(w.get("source_bet_key")), closes.get(w.get("market_ticker")))
             for w in wagers if w.get("season") == season and (week is None or w.get("week") == week)]
@@ -264,6 +291,12 @@ def render(doc: dict) -> str:
               f"(settlement fees on established wagers: {_money(t['settlement_fees_established'])}). CLV is per "
               "contract on the side held, against the canonical close of the exact contract, excluding fees.", ""])
     table("Totals", {"all": t})
+    rec = t["recorded"]
+    L.append(f"ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment "
+             f"corrected it ({rec['amended_wagers']} amended; versions {rec['economics_versions']}). As ORIGINALLY "
+             f"RECORDED, net P&L: {_money(rec['net_profit_loss'])}. The exchange evidence and the filed settlements "
+             "are unchanged; an amendment sits beside the record it supersedes.")
+    L.append("")
     fr = t["fee_reconciled"]
     L.append("FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the "
              "entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the "

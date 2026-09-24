@@ -31,6 +31,7 @@ from datetime import date, datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.handicap import store  # noqa: E402
+from nfl_edge.handicap import settlement_amendments as AM  # noqa: E402
 from nfl_edge.handicap.actual_wager_postmortem import build, render  # noqa: E402
 
 
@@ -85,14 +86,15 @@ def main(argv=None) -> int:
         return 2
     wagers = store.read_kind(a.handicap_root, "imported_wagers", season=a.season)
     settlements = store.read_kind(a.handicap_root, "wager_settlements", season=a.season)
+    amendments = AM.read_amendments(a.handicap_root)
     closes = read_closes(a.closes_root, a.season, [w.get("market_ticker") for w in wagers])
 
     os.makedirs(a.out, exist_ok=True)
     season_dir = os.path.join(a.out, str(a.season))
     os.makedirs(season_dir, exist_ok=True)
-    docs = {"season": build(wagers, settlements, closes, season=a.season)}
+    docs = {"season": build(wagers, settlements, closes, season=a.season, amendments=amendments)}
     for wk in sorted({w.get("week") for w in wagers if isinstance(w.get("week"), int)}):
-        docs[f"week_{wk:02d}"] = build(wagers, settlements, closes, season=a.season, week=wk)
+        docs[f"week_{wk:02d}"] = build(wagers, settlements, closes, season=a.season, week=wk, amendments=amendments)
     for name, doc in docs.items():
         with open(os.path.join(season_dir, f"{name}.actual_wagers.json"), "w") as f:
             json.dump(doc, f, indent=1, sort_keys=True)
