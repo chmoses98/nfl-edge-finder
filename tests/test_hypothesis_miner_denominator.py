@@ -44,8 +44,9 @@ def row(i, *, family, settled, sync=True, game=None, model_edge=0.0, rng=None):
             "clv_status": "NO_VIEW"}
 
 
-def mine(rows, min_n=MIN_N):
-    return HR.candidates_from_scorecard(SC.build(rows, min_segment_n=5), season=2026, week=1, min_n=min_n)
+def mine(rows, min_n=MIN_N, min_games=None):
+    kw = {} if min_games is None else {"min_games": min_games}
+    return HR.candidates_from_scorecard(SC.build(rows, min_segment_n=5), season=2026, week=1, min_n=min_n, **kw)
 
 
 def slice_of(rows, family):
@@ -137,7 +138,11 @@ def test_case_e_game_count_is_independent_games_not_repeated_contracts():
     """Ten contracts on each of six games is six independent observations, not sixty."""
     rng = random.Random(5)
     rows = [row(i, family="CLUSTER", settled=True, game=f"G{i % 6}", model_edge=0.30, rng=rng) for i in range(60)]
-    c = for_family(mine(rows), "CLUSTER")
+    # WS3: the PRIMARY gate is now independent games (default 16, the WATCH floor). Sixty paired outcomes on
+    # six games clear the old outcome-count gate and must not clear this one.
+    assert for_family(mine(rows), "CLUSTER") == [], "sixty contracts on six games qualified as a candidate"
+    # with the game floor lowered to 2 the slice is mined, so the counting below is still exercised
+    c = for_family(mine(rows, min_games=2), "CLUSTER")
     assert len(c) == 1
     assert c[0]["sample_size"] == 60
     assert c[0]["game_count"] == 6, f"game_count {c[0]['game_count']} counted rows, not games"
@@ -201,27 +206,27 @@ NON_FINITE = [("SE is NaN", 0.02, float("nan")), ("SE is +inf", 0.02, float("inf
 
 @pytest.mark.parametrize("label,eff,se", NON_FINITE, ids=[x[0] for x in NON_FINITE])
 def test_no_candidate_survives_a_non_finite_or_degenerate_statistic(label, eff, se):
-    got = HR.candidates_from_scorecard(_scorecard(eff=eff, se=se), season=2026, week=1, min_n=MIN_N)
+    got = HR.candidates_from_scorecard(_scorecard(eff=eff, se=se), season=2026, week=1, min_n=MIN_N, min_games=2)
     assert got == [], f"{label}: a candidate was published from an unusable statistic"
 
 
 def test_a_legitimate_finite_statistic_above_the_floor_is_still_mined():
     """The guard must reject junk, not inference."""
-    got = HR.candidates_from_scorecard(_scorecard(eff=-0.02, se=0.004), season=2026, week=1, min_n=MIN_N)
+    got = HR.candidates_from_scorecard(_scorecard(eff=-0.02, se=0.004), season=2026, week=1, min_n=MIN_N, min_games=2)
     assert len(got) == 1
     assert got[0]["sample_size"] == 40 and got[0]["game_count"] == 8
     assert got[0]["uncertainty"] == 0.004 and got[0]["effect_size"] == -0.02
 
 
 def test_a_tiny_but_genuinely_finite_standard_error_is_not_swept_up_by_the_finiteness_check():
-    got = HR.candidates_from_scorecard(_scorecard(eff=-0.02, se=1e-9), season=2026, week=1, min_n=MIN_N)
+    got = HR.candidates_from_scorecard(_scorecard(eff=-0.02, se=1e-9), season=2026, week=1, min_n=MIN_N, min_games=2)
     assert len(got) == 1 and got[0]["uncertainty"] == 1e-9
 
 
 def test_the_refusal_record_names_the_non_finite_reason(tmp_path):
     out = tmp_path / "cands.json"
     HR.candidates_from_scorecard(_scorecard(eff=0.02, se=float("nan")), season=2026, week=1,
-                                 min_n=MIN_N, path_out=str(out))
+                                 min_n=MIN_N, min_games=2, path_out=str(out))
     refused = json.load(open(str(out).replace(".json", ".refused.json")))
     assert any(r["reason"] == "UNCERTAINTY_NOT_FINITE" for r in refused), refused
 

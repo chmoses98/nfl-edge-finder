@@ -99,7 +99,7 @@ def test_a_later_injury_snapshot_cannot_create_a_synchronized_doubtful_hypothesi
     """Every "Doubtful beats the market" row is asynchronous. No candidate may be mined from it."""
     rows = [_row(i, pit.ASYNC_MODEL_NEWER, "LISTED", cv=0.95) for i in range(40)]
     sc = S3.build(rows, min_segment_n=5)
-    cands = HR.candidates_from_scorecard(sc, season=2026, week=1, min_n=5)
+    cands = HR.candidates_from_scorecard(sc, season=2026, week=1, min_n=5, min_games=2)
     assert cands == [], "an asynchronous slice was mined as a hypothesis candidate"
     # and the evidence is not destroyed -- it is scored, in its own bucket, where it cannot be misread
     async_block = sc["by_synchronization"]["PROSPECTIVE_FROZEN"][pit.ASYNC_MODEL_NEWER]
@@ -110,7 +110,7 @@ def test_a_later_injury_snapshot_cannot_create_a_synchronized_doubtful_hypothesi
 def test_the_same_slice_IS_mined_when_the_rows_are_synchronized():
     """The gate must block asynchrony, not block hypothesis generation."""
     rows = [_row(i, pit.SYNCHRONIZED, "LISTED", cv=0.95, spread=0.02) for i in range(40)]
-    cands = HR.candidates_from_scorecard(S3.build(rows, min_segment_n=5), season=2026, week=1, min_n=5)
+    cands = HR.candidates_from_scorecard(S3.build(rows, min_segment_n=5), season=2026, week=1, min_n=5, min_games=2)
     assert cands, "synchronized evidence must still generate candidates"
     assert all(c["synchronization_basis"] == pit.SYNCHRONIZED for c in cands)
     assert any(c["market_family"] == "ctx_injury_state" for c in cands)
@@ -123,7 +123,7 @@ def test_mixing_cannot_smuggle_asynchronous_rows_into_a_candidate():
     rows = [_row(i, pit.SYNCHRONIZED, "LISTED", cv=0.5, mid=0.5, spread=0.02) for i in range(20)] + \
            [_row(i, pit.ASYNC_MODEL_NEWER, "LISTED", cv=0.99, mid=0.5) for i in range(20, 220)]
     sc = S3.build(rows, min_segment_n=5)
-    cands = HR.candidates_from_scorecard(sc, season=2026, week=1, min_n=5)
+    cands = HR.candidates_from_scorecard(sc, season=2026, week=1, min_n=5, min_games=2)
     inj = [c for c in cands if c["market_family"] == "ctx_injury_state"]
     assert inj, "the synchronized slice should still be reported"
     assert inj[0]["sample_size"] == 20, "the candidate pooled asynchronous rows into its sample"
