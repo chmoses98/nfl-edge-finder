@@ -209,3 +209,52 @@ def render_autopsy(rows: list, *, limit: int = 40) -> str:
     L += ["", f"Classification counts over every diagnosed projection: {dict(c)}.",
           f"Missing usage (no snap table or stats row): {sum(1 for r in rows if r.get('usage_missing'))}.", ""]
     return "\n".join(L)
+
+
+def render_deviation_signal(sig: dict | None, evaluations: list | None = None) -> str:
+    """LOCALIZED SIGNAL (GAME CENTRE): the preregistered reading of the deviation-vs-close records.
+
+    `sig` is `scorecard.deviation_signal(...)`; `evaluations` are `hypothesis_registry_v2.evaluate_prospective`
+    results for the registered game-centre hypotheses (future window only). Descriptive; nothing here changes a
+    status, a weight or an eligibility state.
+    """
+    L = ["## LOCALIZED SIGNAL (GAME CENTRE)", "",
+         "Preregistered hypotheses H2-GC-MARGIN-2026W02 / H2-GC-TOTAL-2026W02 (research/hypothesis_registry/v2/"
+         "hypotheses.jsonl): when DATA_ONLY's centre deviates from the snapshot market centre by >= 1.0 point, the "
+         "market moves toward it by the close. Unit: one game per horizon view. The toward rate is toward / "
+         "(toward + away); `unchanged` and `no close` are shown and are NEVER in its denominator. HYBRID_30's "
+         "deviation is 0.3 × DATA_ONLY's, so its split is the same games — **derived, not independent evidence**. "
+         "The same section, with the future-window evaluation, is in the shadow-v2 weekly report "
+         "(LOCALIZED SIGNAL RESEARCH).", ""]
+    if not sig or not sig.get("views"):
+        return "\n".join(L + ["no game-centre deviation records in this sample", ""])
+    thr = sig.get("meaningful_deviation_points")
+    L += [f"| view | arm | quantity | games | below {thr} pt | toward | away | unchanged | no close | toward rate [95% Wilson] | "
+          "closer than snap mkt | closer than close | mean signed close move (pts) |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for view, per in sig["views"].items():
+        for arm, blk in per.items():
+            name = SHORT.get(arm, arm) + ("" if arm == R.DATA_ONLY else " (derived)")
+            for q in ("margin", "total"):
+                b = blk.get(q) or {}
+                L.append(f"| {view} | {name} | {q} | {b.get('n_games', 0)} | {b.get('below_threshold', 0)} | {b.get('toward', 0)} | "
+                         f"{b.get('away', 0)} | {b.get('unchanged', 0)} | {b.get('no_close', 0)} | {_f(b.get('toward_rate'))} "
+                         f"{_ci(b.get('toward_rate_wilson95'))} | {_f(b.get('share_closer_to_actual_than_snapshot_market'))} | "
+                         f"{_f(b.get('share_closer_to_actual_than_close'))} | {_f(b.get('mean_signed_close_move_points'), 2)} |")
+    lp = (sig["views"].get("latest_pregame") or {}).get(R.DATA_ONLY) or {}
+    if lp:
+        L += ["", "### DATA_ONLY by disagreement band, latest pregame (every usable game; threshold not applied)", "",
+              "| quantity | band | games | toward | away | unchanged | no close | toward rate |", "|---|---|---|---|---|---|---|---|"]
+        for q in ("margin", "total"):
+            for band, b in ((lp.get(q) or {}).get("bands") or {}).items():
+                L.append(f"| {q} | {band} | {b.get('n_games', 0)} | {b.get('toward', 0)} | {b.get('away', 0)} | {b.get('unchanged', 0)} | "
+                         f"{b.get('no_close', 0)} | {_f(b.get('toward_rate'))} |")
+    if evaluations:
+        L += ["", "### Future-window evaluation of the preregistered hypotheses (generation week excluded)", "",
+              "| hypothesis | status | new games | directional | toward rate | trend | suggested status |", "|---|---|---|---|---|---|---|"]
+        for ev in evaluations:
+            p = ((ev.get("metrics") or {}).get("horizons") or {}).get(ev.get("primary_horizon") or "latest_pregame") or {}
+            L.append(f"| {ev.get('id')} | {ev.get('status_now')} | {ev.get('new_independent_games')} | {p.get('directional', 0)} | "
+                     f"{_f(p.get('toward_rate'))} | {ev.get('trend')} | {ev.get('suggested_status') or '-'} ({ev.get('suggestion_note')}) |")
+    L.append("")
+    return "\n".join(L)

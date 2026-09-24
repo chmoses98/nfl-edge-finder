@@ -260,7 +260,8 @@ def _binding_window_check(cur: dict, win: dict, new_status: str) -> None:
     if registered and not _window_contained(win, registered):
         raise RegistryError(f"the {new_status} test window {win} is not contained in the future test window "
                             f"{registered} fixed when the hypothesis was registered; that window is binding")
-    pre = (cur.get("preregistration") or {}).get("test_window")
+    # once preregistered (by preregister() or a bare transition), the window chosen then binds every later step
+    pre = (cur.get("preregistration") or {}).get("test_window") or (cur.get("test_window") if cur.get("status") != "GENERATED" else None)
     if pre and new_status != "PREREGISTERED" and not _window_contained(win, pre):
         raise RegistryError(f"the {new_status} test window {win} is not contained in the preregistered test "
                             f"window {pre}")
@@ -344,7 +345,7 @@ def _slice_identity(seg: str, val: str, m: dict) -> dict:
     """Arm / family / horizon / version of a slice: parsed from a crossed segment, else read off the rows.
 
     A slice that pools rows of more than one model arm answers no question about any model -- "ctx_injury_state
-    == LISTED beats the market" averaged over three arms describes none of them -- so `model_arms` travels with
+    == LISTED outperforms the market" averaged over three arms describes none of them -- so `model_arms` travels with
     every slice and the miner refuses a pooled one (the crossed segments are where arm-specific slices live).
     """
     ident = {"model_arm": None, "family_group": None, "horizon_label": None}
@@ -508,6 +509,25 @@ def candidates_from_scorecard(sc: dict, *, season: int, week: int, min_n: int = 
 # automatic registration: GENERATED only, never anything else
 # ======================================================================================================
 
+def seed_registry(local_path: str, published_path: str | None) -> str:
+    """Start the job's local registry from the published copy, so an append extends the history, never forks it.
+
+    The automatic registry lives on `market-data` (data/shadow/v2/hypotheses/hypotheses.jsonl) and is published
+    by copying the local staging tree over it. A job that appended to an EMPTY local file would therefore
+    publish a registry holding only this week's lines -- every earlier line silently gone. So: if the local file
+    does not exist yet and a published one does, copy it first. An existing local file is never overwritten
+    (a re-run inside one job keeps its own appends).
+    """
+    if os.path.exists(local_path):
+        return "LOCAL_EXISTS"
+    if published_path and os.path.exists(published_path):
+        os.makedirs(os.path.dirname(local_path) or ".", exist_ok=True)
+        with open(published_path, "rb") as src, open(local_path, "wb") as dst:
+            dst.write(src.read())
+        return "SEEDED_FROM_PUBLISHED"
+    return "NEW_REGISTRY"
+
+
 def register_candidates(candidates: list, *, path: str = DEFAULT_PATH, now=None) -> dict:
     """Add mined candidates to the registry as GENERATED. Idempotent: an id already registered is skipped.
 
@@ -659,7 +679,9 @@ def _combine_gc_weeks(weeks: list) -> dict:
         for h, c in (w.get("horizons") or {}).items():
             acc = hz.setdefault(h, {"n_games": 0, "below_threshold": 0, "toward": 0, "away": 0, "unchanged": 0,
                                     "no_close": 0, "no_view": 0, "signed_close_move_sum": 0.0, "signed_close_move_n": 0})
-            for k in ("n_games", "below_threshold", "toward", "away", "unchanged", "no_close", "no_view", "signed_close_move_n"):
+            for k in ("n_games", "below_threshold", "toward", "away", "unchanged", "no_close", "no_view", "signed_close_move_n",
+                      "closer_snap_k", "n_with_actual", "closer_close_k", "n_with_close"):
+                acc.setdefault(k, 0)
                 acc[k] += int(c.get(k) or 0)
             acc["signed_close_move_sum"] += float(c.get("signed_close_move_sum") or 0.0)
     for acc in hz.values():
@@ -668,6 +690,8 @@ def _combine_gc_weeks(weeks: list) -> dict:
         acc["toward_rate"] = acc["toward"] / d if d else None
         acc["mean_signed_close_move_points"] = (acc["signed_close_move_sum"] / acc["signed_close_move_n"]
                                                 if acc["signed_close_move_n"] else None)
+        acc["share_closer_to_actual_than_snapshot_market"] = (acc["closer_snap_k"] / acc["n_with_actual"]) if acc.get("n_with_actual") else None
+        acc["share_closer_to_actual_than_close"] = (acc["closer_close_k"] / acc["n_with_close"]) if acc.get("n_with_close") else None
     return hz
 
 

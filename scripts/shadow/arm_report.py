@@ -20,8 +20,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 from nfl_edge.arms import evaluation as AE, registry as R                          # noqa: E402
-from nfl_edge.arms.report import render_autopsy, render_funnel, render_scorecard   # noqa: E402
-from nfl_edge.arms.scorecard import build_arm_scorecard                            # noqa: E402
+from nfl_edge.arms.report import render_autopsy, render_deviation_signal, render_funnel, render_scorecard  # noqa: E402
+from nfl_edge.arms.scorecard import build_arm_scorecard, deviation_signal          # noqa: E402
+from nfl_edge.research import hypothesis_registry_v2 as HR                         # noqa: E402
+from nfl_edge.research import localized_signals as LS                              # noqa: E402
 from nfl_edge.shadow import evaluation_store as ST                                 # noqa: E402
 from nfl_edge.shadow.eval_scorecard import latest_pregame_view                     # noqa: E402
 from nfl_edge.shadow.player_autopsy import SUFFIX as AUTOPSY_SUFFIX, rank         # noqa: E402
@@ -45,10 +47,31 @@ def _write(out_dir, stem, sc, md):
         f.write(md + "\n")
 
 
-def build(games, contracts, autopsies, funnels, *, title, eval_version=None):
+def game_centre_evaluations(registry_path, week_signals) -> list:
+    """Future-window evaluation of every registered GAME_CENTRE_DEVIATION hypothesis (WS3). Pure: reads the
+    registry, writes nothing to it; the generation week is dropped inside evaluate_prospective."""
+    hyps, _notes = LS.load_hypotheses([registry_path])
+    live = {k: v for k, v in hyps.items() if v.get("status") != "RETIRED"}
+    m = sum(1 for v in live.values() if v.get("status") in HR.UNDER_TEST) or 1
+    out = []
+    for hid, h in sorted(live.items()):
+        if (h.get("hypothesis_kind") or (h.get("locator") or {}).get("kind")) != HR.KIND_GAME_CENTRE:
+            continue
+        fm = {"by_week": LS.future_by_week(h, slice_scorecards={}, gc_signals=week_signals)}
+        out.append(HR.evaluate_prospective(h, fm, n_under_test=m))
+    return out
+
+
+def build(games, contracts, autopsies, funnels, *, title, eval_version=None, evaluations=None):
     sc = build_arm_scorecard(games, contracts, evaluation_version=eval_version)
     latest, _ = latest_pregame_view([g for g in games if g.get("record_status") == R.OK])
     md = render_scorecard(sc, title=title, game_rows=latest)
+    # LOCALIZED SIGNAL (GAME CENTRE): the preregistered >= 1-point deviation reading, DATA_ONLY primary and
+    # HYBRID labelled derived. Added beside the existing movement / band tables, which are unchanged.
+    sc["deviation_signal"] = deviation_signal(games, evaluation_version=eval_version)
+    if evaluations is not None:
+        sc["localized_signal_evaluations"] = evaluations
+    md += "\n" + render_deviation_signal(sc["deviation_signal"], evaluations)
     md += "\n" + render_autopsy(rank(autopsies)) + "\n" + render_funnel(funnels)
     sc["autopsy_summary"] = {"n": len(autopsies),
                              "classifications": dict(sorted(defaultdict(int, {}).items()))}
@@ -71,6 +94,8 @@ def main():
     ap.add_argument("--season", type=int, default=0)
     ap.add_argument("--week", type=int, default=0)
     ap.add_argument("--eval-version", default="")
+    ap.add_argument("--registry", default=os.path.join(ROOT, HR.DEFAULT_PATH),
+                    help="hypothesis registry holding the preregistered game-centre hypotheses (read only)")
     a = ap.parse_args()
     eroots, aroots, froots = list(a.eval_root), list(a.autopsy_root), list(a.arms_root)
     if a.market_data:
@@ -86,9 +111,15 @@ def main():
         autopsies = [x for x in autopsies if x.get("season") == a.season]
     os.makedirs(a.out, exist_ok=True)
     ver = a.eval_version or None
-    sc, md = build(games, contracts, autopsies, funnels, title="Three-arm game-centre experiment — season to date (cumulative)", eval_version=ver)
-    _write(a.out, "cumulative", sc, md)
     weeks = sorted({(g.get("season"), g.get("week")) for g in games if g.get("week") is not None})
+    # every week's signal, whatever --week says: the future-window evaluation needs all of them
+    week_signals = {(int(s or a.season or 0), int(w)): deviation_signal([g for g in games if g.get("week") == w and g.get("season") == s],
+                                                                        evaluation_version=ver)
+                    for s, w in weeks}
+    evals = game_centre_evaluations(a.registry, week_signals)
+    sc, md = build(games, contracts, autopsies, funnels, title="Three-arm game-centre experiment — season to date (cumulative)",
+                   eval_version=ver, evaluations=evals)
+    _write(a.out, "cumulative", sc, md)
     if a.week:
         weeks = [w for w in weeks if w[1] == a.week] or [(a.season or None, a.week)]
     for season, week in weeks:
@@ -96,6 +127,7 @@ def main():
         cw = [c for c in contracts if c.get("week") == week and (season is None or c.get("season") == season)]
         aw = [x for x in autopsies if x.get("week") == week and (season is None or x.get("season") == season)]
         scw, mdw = build(gw, cw, aw, [], title=f"Three-arm game-centre experiment — {season} week {week}", eval_version=ver)
+        scw["season"], scw["week"] = season, week        # read back by the shadow-v2 weekly report (localized_signals)
         _write(a.out, f"week{int(week):02d}", scw, mdw)
         # per-slate: one file per game of the week, the game's own rows only
         for gid in sorted({g.get("game_id") for g in gw}):

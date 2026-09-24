@@ -24,6 +24,7 @@ from collections import defaultdict
 import numpy as np
 
 from nfl_edge.arms import registry as R
+from nfl_edge.research.hypothesis_registry_v2 import wilson
 from nfl_edge.shadow.eval_scorecard import horizon_view, latest_pregame_view
 
 ARMS = list(R.PRIMARY_ARMS)
@@ -195,6 +196,106 @@ def band_table(rows, arm, q="margin") -> dict:
                      f"{q}_mae_market": _mean([abs((r.get("market_at_snapshot") or {}).get(f"{q}_error")) for r in rs
                                                if (r.get("market_at_snapshot") or {}).get(f"{q}_error") is not None]),
                      "toward_share": movement_summary(rs, arm)[q]["toward_share"]}
+    return out
+
+
+# ======================================================================================================
+# localized game-centre signal (WS3): does a MEANINGFUL deviation from the snapshot market anticipate the close?
+# ======================================================================================================
+#
+# `movement_summary` above counts toward/away over every usable game, however small the deviation. A 0.07-point
+# deviation "pointing toward" a half-point move is not a signal of anything, and the unchanged games -- most of
+# them, because the market centre sits on a half-point grid and rarely moves -- were easy to misread as part of
+# the rate. This block is the preregistered reading of the same records (hypothesis_registry_v2
+# PREREGISTERED_THRESHOLDS[GAME_CENTRE_DEVIATION]):
+#
+#   * the unit is ONE GAME PER HORIZON VIEW: each view is already one row per game, so a game counts once per
+#     horizon, never once per snapshot;
+#   * a deviation is meaningful at |arm - snapshot market| >= 1.0 point; smaller ones are counted, not scored;
+#   * the toward rate's denominator is toward + away ONLY. `unchanged` (the market did not move) and
+#     `no_close` (no valid closing centre) are printed beside it and never enter it;
+#   * margin and total are separate targets, never summed;
+#   * DATA_ONLY is the primary arm. HYBRID_30_DATA's deviation is exactly 0.3 x DATA_ONLY's, so its toward/away
+#     split is the same games pointing the same way -- it is reported, labelled derived, and never counted as
+#     a second piece of evidence.
+
+MEANINGFUL_DEVIATION_POINTS = 1.0
+HYBRID_DERIVED_LABEL = "derived: 0.3×DATA_ONLY deviation, not independent"
+DEVIATION_ARMS = {R.DATA_ONLY: "primary", R.HYBRID: HYBRID_DERIVED_LABEL}
+
+
+def _dev_rows(rows, arm, q):
+    """One (game, deviation, movement, arm, market, close, actual) tuple per usable game of the view."""
+    from nfl_edge.arms import evaluation as AE          # local: evaluation imports the simulator stack
+    seen, out = set(), []
+    key = "projected_home_margin" if q == "margin" else "projected_total"
+    for r in rows:
+        if not _usable(r, arm) or r.get("game_id") in seen:
+            continue
+        a = r["arms"][arm]
+        mkt = (r.get("market_at_snapshot") or {}).get(q)
+        arm_c = a.get(key)
+        if arm_c is None or mkt is None:
+            continue
+        seen.add(r.get("game_id"))
+        close = (r.get("close") or {}).get(q)
+        dev = float(arm_c) - float(mkt)
+        out.append({"game_id": r.get("game_id"), "dev": dev, "band": AE.disagreement_band(dev),
+                    "movement": AE.movement(float(arm_c), float(mkt), None if close is None else float(close)),
+                    "arm": float(arm_c), "market": float(mkt), "close": None if close is None else float(close),
+                    "actual": (r.get("actual") or {}).get(q)})
+    return out
+
+
+def _tally_signal(ds, threshold):
+    n = len(ds)
+    below = [d for d in ds if abs(d["dev"]) < threshold]
+    mean = [d for d in ds if abs(d["dev"]) >= threshold]
+    c = defaultdict(int)
+    for d in mean:
+        c[d["movement"]] += 1
+    toward, away = c.get("toward", 0), c.get("away", 0)
+    directional = toward + away
+    with_act = [d for d in mean if d["actual"] is not None]
+    with_close = [d for d in with_act if d["close"] is not None]
+    moved = [(1.0 if d["dev"] > 0 else -1.0) * (d["close"] - d["market"]) for d in mean if d["close"] is not None]
+    return {"n_games": n, "below_threshold": len(below), "meaningful": len(mean),
+            "toward": toward, "away": away, "unchanged": c.get("unchanged", 0),
+            "no_close": c.get("no_close", 0), "no_view": c.get("no_view", 0),
+            "directional": directional, "toward_rate": (toward / directional) if directional else None,
+            "toward_rate_wilson95": wilson(toward, directional),
+            "share_closer_to_actual_than_snapshot_market": _mean([1.0 if abs(d["arm"] - d["actual"]) < abs(d["market"] - d["actual"]) else 0.0 for d in with_act]),
+            "share_closer_to_actual_than_close": _mean([1.0 if abs(d["arm"] - d["actual"]) < abs(d["close"] - d["actual"]) else 0.0 for d in with_close]),
+            "n_with_actual": len(with_act), "n_with_close": len(with_close),
+            # CLV-direction in points: how far the market moved, snapshot -> close, IN THE ARM'S DIRECTION. Positive
+            # = the market came toward the arm. Unchanged games contribute 0, which is what they are.
+            "mean_signed_close_move_points": _mean(moved), "signed_close_move_sum": float(sum(moved)),
+            "signed_close_move_n": len(moved)}
+
+
+def deviation_signal(game_rows: list, *, evaluation_version: str | None = None,
+                     threshold: float = MEANINGFUL_DEVIATION_POINTS) -> dict:
+    """The preregistered localized game-centre signal, per horizon view x arm x target (see the block comment)."""
+    if evaluation_version:
+        game_rows = [r for r in game_rows if r.get("evaluation_version") == evaluation_version]
+    out = {"unit": "one game per horizon view", "meaningful_deviation_points": threshold,
+           "denominator": "toward + away only; unchanged and no_close never in the denominator",
+           "arms": {a: {"role": role} for a, role in DEVIATION_ARMS.items()}, "views": {}}
+    for label, (rows, _meta) in views(game_rows).items():
+        if label == "raw":
+            continue                      # repeated snapshots of the same games: never a sample
+        per = {}
+        for arm, role in DEVIATION_ARMS.items():
+            per[arm] = {"role": role}
+            for q in ("margin", "total"):
+                ds = _dev_rows(rows, arm, q)
+                blk = _tally_signal(ds, threshold)
+                blk["bands"] = {band: _tally_signal([d for d in ds if d["band"] == band], 0.0)
+                                for band in [b[1] for b in R.DISAGREEMENT_BANDS_POINTS]}
+                blk["bands_note"] = ("bands cover every usable game (threshold not applied); the '<=1' band "
+                                     "includes deviations of exactly 1.0, which the threshold counts as meaningful")
+                per[arm][q] = blk
+        out["views"][label] = per
     return out
 
 
