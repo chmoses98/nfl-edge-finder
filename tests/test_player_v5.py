@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from nfl_edge.context import qb_resolution as QR
@@ -145,7 +146,7 @@ def test_a_chart_newer_than_the_cutoff_is_refused_and_the_book_never_reads_one()
     for dt, order in (("2026-09-15T12:00:00Z", ("A", "B")), ("2026-09-21T12:00:00Z", ("B", "A"))):
         for rank, g in enumerate(order, start=1):
             rows.append({"dt": dt, "team": "ATL", "player_name": g, "espn_id": g, "gsis_id": g, "pos_abb": "QB", "pos_slot": 1, "pos_rank": rank})
-    book = DepthChartBook.from_frame(pd.DataFrame(rows), CUT)
+    book = DepthChartBook.from_frame(pl.DataFrame(rows), CUT)
     assert book.qb1("ATL") == "A" and book.vintage["ATL"] == "2026-09-15T12:00:00Z"
     ok = QR.resolve_team_qb(team="ATL", chart_qbs=[e.gsis_id for e in book.by_team["ATL"]["QB"]], cutoff=CUT,
                             chart_vintage=book.vintage["ATL"], kickoff=KICK)
@@ -181,7 +182,7 @@ def _week2_book():
         for rank, g in enumerate(qbs, start=1):
             rows.append({"dt": "2026-09-18T12:00:00Z", "team": team, "player_name": g.split("-")[1].title(), "espn_id": g, "gsis_id": g,
                          "pos_abb": "QB", "pos_slot": 1, "pos_rank": rank})
-    return DepthChartBook.from_frame(pd.DataFrame(rows), CUT)
+    return DepthChartBook.from_frame(pl.DataFrame(rows), CUT)
 
 
 def test_production_evidence_reads_the_point_in_time_injury_vintage_availability_and_inactives():
