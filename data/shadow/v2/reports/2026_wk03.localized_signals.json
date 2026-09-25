@@ -3,7 +3,7 @@
  "label": "2026_wk03",
  "season": 2026,
  "week": 3,
- "generated_at": "2026-09-25T13:01:58.592713+00:00",
+ "generated_at": "2026-09-25T18:17:52.931019+00:00",
  "registry_sources": [
   "/home/runner/work/nfl-edge-finder/nfl-edge-finder/research/hypothesis_registry/v2/hypotheses.jsonl",
   "data/shadow/v2/hypotheses/hypotheses.jsonl"
@@ -40,8 +40,11 @@
   "n_discovery": 263,
   "n_shortlisted": 5,
   "n_preregistered": 2,
-  "n_actively_tested": 0,
-  "actively_tested": [],
+  "n_actively_tested": 2,
+  "actively_tested": [
+   "H2-GC-MARGIN-2026W02",
+   "H2-GC-TOTAL-2026W02"
+  ],
   "n_confirmatory_results": 0,
   "n_retired": 0,
   "multiplicity": {
@@ -461,9 +464,10 @@
  ],
  "game_centre_weeks_available": [
   "2026 W1",
-  "2026 W2"
+  "2026 W2",
+  "2026 W3"
  ],
- "game_centre_source": "/tmp/md/data/shadow/arm_reports/20260925T060528Z",
+ "game_centre_source": "/tmp/md/data/shadow/arm_reports/20260925T121319Z",
  "evaluations": [
   {
    "id": "H2-GC-MARGIN-2026W02",
@@ -482,7 +486,12 @@
     "week_hi": 18,
     "week_lo": 3
    },
-   "evaluated_weeks": [],
+   "evaluated_weeks": [
+    [
+     2026,
+     3
+    ]
+   ],
    "excluded_weeks": [
     {
      "season": 2026,
@@ -495,14 +504,125 @@
      "reason": "GENERATION_WINDOW (can never count)"
     }
    ],
-   "new_independent_games": 0,
+   "new_independent_games": 1,
    "metrics": {
-    "horizons": {}
+    "horizons": {
+     "T-24h": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "closer_snap_k": 0,
+      "n_with_actual": 0,
+      "closer_close_k": 0,
+      "n_with_close": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "wilson95": null,
+      "wilson_adjusted": null
+     },
+     "T-6h": {
+      "n_games": 1,
+      "below_threshold": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 1,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 1,
+      "closer_snap_k": 0,
+      "n_with_actual": 1,
+      "closer_close_k": 0,
+      "n_with_close": 1,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": 0.0,
+      "share_closer_to_actual_than_snapshot_market": 0.0,
+      "share_closer_to_actual_than_close": 0.0,
+      "wilson95": null,
+      "wilson_adjusted": null
+     },
+     "T-90m": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "closer_snap_k": 0,
+      "n_with_actual": 0,
+      "closer_close_k": 0,
+      "n_with_close": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "wilson95": null,
+      "wilson_adjusted": null
+     },
+     "T-30m": {
+      "n_games": 1,
+      "below_threshold": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 1,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 1,
+      "closer_snap_k": 0,
+      "n_with_actual": 1,
+      "closer_close_k": 0,
+      "n_with_close": 1,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": 0.0,
+      "share_closer_to_actual_than_snapshot_market": 0.0,
+      "share_closer_to_actual_than_close": 0.0,
+      "wilson95": null,
+      "wilson_adjusted": null
+     },
+     "latest_pregame": {
+      "n_games": 1,
+      "below_threshold": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 1,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 1,
+      "closer_snap_k": 0,
+      "n_with_actual": 1,
+      "closer_close_k": 0,
+      "n_with_close": 1,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": 0.0,
+      "share_closer_to_actual_than_snapshot_market": 0.0,
+      "share_closer_to_actual_than_close": 0.0,
+      "wilson95": null,
+      "wilson_adjusted": null
+     }
+    }
    },
    "trend": "INCONCLUSIVE",
    "direction_so_far": "NO_ESTIMATE",
    "suggested_status": "INCONCLUSIVE",
-   "suggestion_reason": "0 directional observations over 0 new games at latest_pregame; floor 20 / 16",
+   "suggestion_reason": "0 directional observations over 1 new games at latest_pregame; floor 20 / 16",
    "suggestion_is_binding": false,
    "suggestion_note": "suggestion only; owner approval required",
    "multiple_comparisons": {
@@ -621,7 +741,12 @@
     "week_hi": 18,
     "week_lo": 3
    },
-   "evaluated_weeks": [],
+   "evaluated_weeks": [
+    [
+     2026,
+     3
+    ]
+   ],
    "excluded_weeks": [
     {
      "season": 2026,
@@ -634,14 +759,125 @@
      "reason": "GENERATION_WINDOW (can never count)"
     }
    ],
-   "new_independent_games": 0,
+   "new_independent_games": 1,
    "metrics": {
-    "horizons": {}
+    "horizons": {
+     "T-24h": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "closer_snap_k": 0,
+      "n_with_actual": 0,
+      "closer_close_k": 0,
+      "n_with_close": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "wilson95": null,
+      "wilson_adjusted": null
+     },
+     "T-6h": {
+      "n_games": 1,
+      "below_threshold": 1,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "closer_snap_k": 0,
+      "n_with_actual": 0,
+      "closer_close_k": 0,
+      "n_with_close": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "wilson95": null,
+      "wilson_adjusted": null
+     },
+     "T-90m": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "closer_snap_k": 0,
+      "n_with_actual": 0,
+      "closer_close_k": 0,
+      "n_with_close": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "wilson95": null,
+      "wilson_adjusted": null
+     },
+     "T-30m": {
+      "n_games": 1,
+      "below_threshold": 1,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "closer_snap_k": 0,
+      "n_with_actual": 0,
+      "closer_close_k": 0,
+      "n_with_close": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "wilson95": null,
+      "wilson_adjusted": null
+     },
+     "latest_pregame": {
+      "n_games": 1,
+      "below_threshold": 1,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "closer_snap_k": 0,
+      "n_with_actual": 0,
+      "closer_close_k": 0,
+      "n_with_close": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "mean_signed_close_move_points": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "wilson95": null,
+      "wilson_adjusted": null
+     }
+    }
    },
    "trend": "INCONCLUSIVE",
    "direction_so_far": "NO_ESTIMATE",
    "suggested_status": "INCONCLUSIVE",
-   "suggestion_reason": "0 directional observations over 0 new games at latest_pregame; floor 20 / 16",
+   "suggestion_reason": "0 directional observations over 1 new games at latest_pregame; floor 20 / 16",
    "suggestion_is_binding": false,
    "suggestion_note": "suggestion only; owner approval required",
    "multiple_comparisons": {
