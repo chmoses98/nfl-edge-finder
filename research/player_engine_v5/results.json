@@ -1,0 +1,5220 @@
+{
+ "protocol": {
+  "train": "2025 window: seasons 2014-2024; 2026 window: seasons 2014-2025 (+ 2026 week 1 as history)",
+  "test": "2025 weeks 1-18 Kalshi player rungs; 2026 week 2 Shadow v2 MARKET_PLAYER_DIST rows (prospective, settled)",
+  "environment": "2025: per-horizon Kalshi-implied spread/total; 2026: the frozen game centre on the records",
+  "benchmark": "monotone market midpoint (width <= 10c)",
+  "cluster": "game",
+  "qb_evidence": "newest ESPN chart scraped <= cutoff; the week's nflverse injury report + weekly roster (untimestamped, treated as known at every horizon, as V4's teammate statuses are); no official inactives exist for these seasons",
+  "stats": [
+   "passing_yards",
+   "rushing_yards",
+   "receiving_yards",
+   "receptions",
+   "passing_tds",
+   "touchdowns"
+  ]
+ },
+ "2025": {
+  "window": "2025",
+  "horizons": [
+   "T-24h",
+   "T-6h",
+   "T-90m",
+   "T-0"
+  ],
+  "qb_resolution": {
+   "T-24h": {
+    "team_games": 510,
+    "by_reason": {
+     "CHART_QB1_AVAILABLE": 465,
+     "QB1_QUESTIONABLE_RETAINED": 13,
+     "QB1_OUT_PROMOTED_NEXT": 30,
+     "QB1_DOUBTFUL_ABSTAIN": 2
+    },
+    "chart_qb1_was_actual_starter": 463,
+    "v5_qb_was_actual_starter": 493,
+    "substitutions": 30,
+    "substitutions_correct": 30,
+    "abstained_team_games": 2,
+    "substitution_list": [
+     {
+      "team": "BAL",
+      "game_id": "2025_05_HOU_BAL",
+      "chart_qb1": "00-0034796",
+      "effective": "00-0033662",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "BAL",
+      "game_id": "2025_08_CHI_BAL",
+      "chart_qb1": "00-0034796",
+      "effective": "00-0035993",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "CLE",
+      "game_id": "2025_12_CLE_LV",
+      "chart_qb1": "00-0040704",
+      "effective": "00-0040668",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "GB",
+      "game_id": "2025_17_BAL_GB",
+      "chart_qb1": "00-0036264",
+      "effective": "00-0038128",
+      "certainty": "LOW",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_10_JAX_HOU",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_11_HOU_TEN",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_12_BUF_HOU",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "LV",
+      "game_id": "2025_15_LV_PHI",
+      "chart_qb1": "00-0030565",
+      "effective": "00-0038102",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "LV",
+      "game_id": "2025_18_KC_LV",
+      "chart_qb1": "00-0030565",
+      "effective": "00-0038102",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_03_CIN_MIN",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_04_MIN_PIT",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_05_MIN_CLE",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_13_MIN_SEA",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0040494",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_17_DET_MIN",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0040494",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYG",
+      "game_id": "2025_11_GB_NYG",
+      "chart_qb1": "00-0040691",
+      "effective": "00-0031503",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYG",
+      "game_id": "2025_12_NYG_DET",
+      "chart_qb1": "00-0040691",
+      "effective": "00-0031503",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYJ",
+      "game_id": "2025_03_NYJ_TB",
+      "chart_qb1": "00-0036945",
+      "effective": "00-0028118",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYJ",
+      "game_id": "2025_15_NYJ_JAX",
+      "chart_qb1": "00-0028118",
+      "effective": "00-0040398",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_02_SF_NO",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_06_SF_TB",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "LOW",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_07_ATL_SF",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_08_SF_HOU",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_03_LV_WAS",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_04_WAS_ATL",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_08_WAS_KC",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_11_WAS_MIA",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_13_DEN_WAS",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_15_WAS_NYG",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_17_DAL_WAS",
+      "chart_qb1": "00-0032268",
+      "effective": "00-0026300",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_18_WAS_PHI",
+      "chart_qb1": "00-0032268",
+      "effective": "00-0026300",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     }
+    ]
+   },
+   "T-6h": {
+    "team_games": 510,
+    "by_reason": {
+     "CHART_QB1_AVAILABLE": 465,
+     "QB1_QUESTIONABLE_RETAINED": 13,
+     "QB1_OUT_PROMOTED_NEXT": 30,
+     "QB1_DOUBTFUL_ABSTAIN": 2
+    },
+    "chart_qb1_was_actual_starter": 464,
+    "v5_qb_was_actual_starter": 494,
+    "substitutions": 30,
+    "substitutions_correct": 30,
+    "abstained_team_games": 2,
+    "substitution_list": [
+     {
+      "team": "BAL",
+      "game_id": "2025_05_HOU_BAL",
+      "chart_qb1": "00-0034796",
+      "effective": "00-0033662",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "BAL",
+      "game_id": "2025_08_CHI_BAL",
+      "chart_qb1": "00-0034796",
+      "effective": "00-0035993",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "CLE",
+      "game_id": "2025_12_CLE_LV",
+      "chart_qb1": "00-0040704",
+      "effective": "00-0040668",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "GB",
+      "game_id": "2025_17_BAL_GB",
+      "chart_qb1": "00-0036264",
+      "effective": "00-0038128",
+      "certainty": "LOW",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_10_JAX_HOU",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_11_HOU_TEN",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_12_BUF_HOU",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "LV",
+      "game_id": "2025_15_LV_PHI",
+      "chart_qb1": "00-0030565",
+      "effective": "00-0038102",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "LV",
+      "game_id": "2025_18_KC_LV",
+      "chart_qb1": "00-0030565",
+      "effective": "00-0038102",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_03_CIN_MIN",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_04_MIN_PIT",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_05_MIN_CLE",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_13_MIN_SEA",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0040494",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_17_DET_MIN",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0040494",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYG",
+      "game_id": "2025_11_GB_NYG",
+      "chart_qb1": "00-0040691",
+      "effective": "00-0031503",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYG",
+      "game_id": "2025_12_NYG_DET",
+      "chart_qb1": "00-0040691",
+      "effective": "00-0031503",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYJ",
+      "game_id": "2025_03_NYJ_TB",
+      "chart_qb1": "00-0036945",
+      "effective": "00-0028118",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYJ",
+      "game_id": "2025_15_NYJ_JAX",
+      "chart_qb1": "00-0028118",
+      "effective": "00-0040398",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_02_SF_NO",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_06_SF_TB",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "LOW",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_07_ATL_SF",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_08_SF_HOU",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_03_LV_WAS",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_04_WAS_ATL",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_08_WAS_KC",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_11_WAS_MIA",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_13_DEN_WAS",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_15_WAS_NYG",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_17_DAL_WAS",
+      "chart_qb1": "00-0032268",
+      "effective": "00-0026300",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_18_WAS_PHI",
+      "chart_qb1": "00-0032268",
+      "effective": "00-0026300",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     }
+    ]
+   },
+   "T-90m": {
+    "team_games": 510,
+    "by_reason": {
+     "CHART_QB1_AVAILABLE": 465,
+     "QB1_QUESTIONABLE_RETAINED": 13,
+     "QB1_OUT_PROMOTED_NEXT": 30,
+     "QB1_DOUBTFUL_ABSTAIN": 2
+    },
+    "chart_qb1_was_actual_starter": 464,
+    "v5_qb_was_actual_starter": 494,
+    "substitutions": 30,
+    "substitutions_correct": 30,
+    "abstained_team_games": 2,
+    "substitution_list": [
+     {
+      "team": "BAL",
+      "game_id": "2025_05_HOU_BAL",
+      "chart_qb1": "00-0034796",
+      "effective": "00-0033662",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "BAL",
+      "game_id": "2025_08_CHI_BAL",
+      "chart_qb1": "00-0034796",
+      "effective": "00-0035993",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "CLE",
+      "game_id": "2025_12_CLE_LV",
+      "chart_qb1": "00-0040704",
+      "effective": "00-0040668",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "GB",
+      "game_id": "2025_17_BAL_GB",
+      "chart_qb1": "00-0036264",
+      "effective": "00-0038128",
+      "certainty": "LOW",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_10_JAX_HOU",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_11_HOU_TEN",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_12_BUF_HOU",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "LV",
+      "game_id": "2025_15_LV_PHI",
+      "chart_qb1": "00-0030565",
+      "effective": "00-0038102",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "LV",
+      "game_id": "2025_18_KC_LV",
+      "chart_qb1": "00-0030565",
+      "effective": "00-0038102",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_03_CIN_MIN",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_04_MIN_PIT",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_05_MIN_CLE",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_13_MIN_SEA",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0040494",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_17_DET_MIN",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0040494",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYG",
+      "game_id": "2025_11_GB_NYG",
+      "chart_qb1": "00-0040691",
+      "effective": "00-0031503",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYG",
+      "game_id": "2025_12_NYG_DET",
+      "chart_qb1": "00-0040691",
+      "effective": "00-0031503",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYJ",
+      "game_id": "2025_03_NYJ_TB",
+      "chart_qb1": "00-0036945",
+      "effective": "00-0028118",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYJ",
+      "game_id": "2025_15_NYJ_JAX",
+      "chart_qb1": "00-0028118",
+      "effective": "00-0040398",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_02_SF_NO",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_06_SF_TB",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "LOW",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_07_ATL_SF",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_08_SF_HOU",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_03_LV_WAS",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_04_WAS_ATL",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_08_WAS_KC",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_11_WAS_MIA",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_13_DEN_WAS",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_15_WAS_NYG",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_17_DAL_WAS",
+      "chart_qb1": "00-0032268",
+      "effective": "00-0026300",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_18_WAS_PHI",
+      "chart_qb1": "00-0032268",
+      "effective": "00-0026300",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     }
+    ]
+   },
+   "T-0": {
+    "team_games": 510,
+    "by_reason": {
+     "CHART_QB1_AVAILABLE": 465,
+     "QB1_QUESTIONABLE_RETAINED": 13,
+     "QB1_OUT_PROMOTED_NEXT": 30,
+     "QB1_DOUBTFUL_ABSTAIN": 2
+    },
+    "chart_qb1_was_actual_starter": 464,
+    "v5_qb_was_actual_starter": 494,
+    "substitutions": 30,
+    "substitutions_correct": 30,
+    "abstained_team_games": 2,
+    "substitution_list": [
+     {
+      "team": "BAL",
+      "game_id": "2025_05_HOU_BAL",
+      "chart_qb1": "00-0034796",
+      "effective": "00-0033662",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "BAL",
+      "game_id": "2025_08_CHI_BAL",
+      "chart_qb1": "00-0034796",
+      "effective": "00-0035993",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "CLE",
+      "game_id": "2025_12_CLE_LV",
+      "chart_qb1": "00-0040704",
+      "effective": "00-0040668",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "GB",
+      "game_id": "2025_17_BAL_GB",
+      "chart_qb1": "00-0036264",
+      "effective": "00-0038128",
+      "certainty": "LOW",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_10_JAX_HOU",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_11_HOU_TEN",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "HOU",
+      "game_id": "2025_12_BUF_HOU",
+      "chart_qb1": "00-0039163",
+      "effective": "00-0036898",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "LV",
+      "game_id": "2025_15_LV_PHI",
+      "chart_qb1": "00-0030565",
+      "effective": "00-0038102",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "LV",
+      "game_id": "2025_18_KC_LV",
+      "chart_qb1": "00-0030565",
+      "effective": "00-0038102",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_03_CIN_MIN",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_04_MIN_PIT",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_05_MIN_CLE",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_13_MIN_SEA",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0040494",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "MIN",
+      "game_id": "2025_17_DET_MIN",
+      "chart_qb1": "00-0039923",
+      "effective": "00-0040494",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYG",
+      "game_id": "2025_11_GB_NYG",
+      "chart_qb1": "00-0040691",
+      "effective": "00-0031503",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYG",
+      "game_id": "2025_12_NYG_DET",
+      "chart_qb1": "00-0040691",
+      "effective": "00-0031503",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYJ",
+      "game_id": "2025_03_NYJ_TB",
+      "chart_qb1": "00-0036945",
+      "effective": "00-0028118",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "NYJ",
+      "game_id": "2025_15_NYJ_JAX",
+      "chart_qb1": "00-0028118",
+      "effective": "00-0040398",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_02_SF_NO",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_06_SF_TB",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "LOW",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_07_ATL_SF",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SF",
+      "game_id": "2025_08_SF_HOU",
+      "chart_qb1": "00-0037834",
+      "effective": "00-0036972",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_03_LV_WAS",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_04_WAS_ATL",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_08_WAS_KC",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_11_WAS_MIA",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_13_DEN_WAS",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_15_WAS_NYG",
+      "chart_qb1": "00-0039910",
+      "effective": "00-0032268",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_17_DAL_WAS",
+      "chart_qb1": "00-0032268",
+      "effective": "00-0026300",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "WAS",
+      "game_id": "2025_18_WAS_PHI",
+      "chart_qb1": "00-0032268",
+      "effective": "00-0026300",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     }
+    ]
+   }
+  },
+  "by_horizon": {
+   "T-24h": {
+    "common_all_arms": {
+     "V3": {
+      "n": 14110,
+      "games": 234,
+      "player_games": 2665,
+      "brier": 0.19885641847028773,
+      "mkt_brier": 0.19034843302789473,
+      "diff": 0.008507985442393031,
+      "se_game": 0.0015713213062915376,
+      "se_player_game": 0.001451418855517786,
+      "logloss": 0.5809064034202917,
+      "mkt_logloss": 0.560119218210933,
+      "ece": 0.019359112964878678,
+      "mkt_ece": 0.015031216766847705
+     },
+     "V4": {
+      "n": 14110,
+      "games": 234,
+      "player_games": 2665,
+      "brier": 0.19500698599003263,
+      "mkt_brier": 0.19034843302789473,
+      "diff": 0.004658552962137935,
+      "se_game": 0.0014020850374497444,
+      "se_player_game": 0.0013054994872592786,
+      "logloss": 0.5717686983527731,
+      "mkt_logloss": 0.560119218210933,
+      "ece": 0.007846612742174039,
+      "mkt_ece": 0.015031216766847705
+     },
+     "V5": {
+      "n": 14110,
+      "games": 234,
+      "player_games": 2665,
+      "brier": 0.19492640258039054,
+      "mkt_brier": 0.19034843302789473,
+      "diff": 0.004577969552495819,
+      "se_game": 0.001388203598898914,
+      "se_player_game": 0.0012996645513442446,
+      "logloss": 0.571580315404177,
+      "mkt_logloss": 0.560119218210933,
+      "ece": 0.0076640755232495065,
+      "mkt_ece": 0.015031216766847705
+     },
+     "V4_ORACLE": {
+      "n": 14110,
+      "games": 234,
+      "player_games": 2665,
+      "brier": 0.19499141613845378,
+      "mkt_brier": 0.19034843302789473,
+      "diff": 0.004642983110559058,
+      "se_game": 0.0014007788540698674,
+      "se_player_game": 0.0013053937280167712,
+      "logloss": 0.5717373015168673,
+      "mkt_logloss": 0.560119218210933,
+      "ece": 0.007704402555869122,
+      "mkt_ece": 0.015031216766847705
+     }
+    },
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 14138,
+      "games": 234,
+      "player_games": 2668,
+      "brier": 0.19869576802730163,
+      "mkt_brier": 0.19020950558944652,
+      "diff": 0.0084862624378551,
+      "se_game": 0.0015744033266307407,
+      "se_player_game": 0.0014494677979982106,
+      "logloss": 0.5804837831161718,
+      "mkt_logloss": 0.5597416326330649,
+      "ece": 0.019298391022226455,
+      "mkt_ece": 0.015312665764621649
+     },
+     "V4": {
+      "n": 14138,
+      "games": 234,
+      "player_games": 2668,
+      "brier": 0.19485976582881764,
+      "mkt_brier": 0.19020950558944652,
+      "diff": 0.004650260239371141,
+      "se_game": 0.0013987051029195731,
+      "se_player_game": 0.0013031789198875766,
+      "logloss": 0.5713872377282939,
+      "mkt_logloss": 0.5597416326330649,
+      "ece": 0.007915841977880636,
+      "mkt_ece": 0.015312665764621649
+     },
+     "V5": {
+      "n": 14138,
+      "games": 234,
+      "player_games": 2668,
+      "brier": 0.1947787861171726,
+      "mkt_brier": 0.19020950558944652,
+      "diff": 0.004569280527726089,
+      "se_game": 0.001384952045433683,
+      "se_player_game": 0.0012972971664609119,
+      "logloss": 0.5711981515814191,
+      "mkt_logloss": 0.5597416326330649,
+      "ece": 0.007734111422310198,
+      "mkt_ece": 0.015312665764621649
+     }
+    },
+    "V5_vs_V4": {
+     "n": 14138,
+     "games": 234,
+     "player_games": 2668,
+     "brier": 0.1947787861171726,
+     "mkt_brier": 0.19485976582881764,
+     "diff": -8.097971164505277e-05,
+     "se_game": 0.00010171396902484875,
+     "se_player_game": 7.871000827577716e-05,
+     "logloss": 0.5711981515814191,
+     "mkt_logloss": 0.5713872377282939,
+     "ece": 0.007734111422310198,
+     "mkt_ece": 0.007915841977880636
+    },
+    "V5_vs_V3": {
+     "n": 14138,
+     "games": 234,
+     "player_games": 2668,
+     "brier": 0.1947787861171726,
+     "mkt_brier": 0.19869576802730163,
+     "diff": -0.003916981910129013,
+     "se_game": 0.001051440425102247,
+     "se_player_game": 0.0009068204589533511,
+     "logloss": 0.5711981515814191,
+     "mkt_logloss": 0.5804837831161718,
+     "ece": 0.007734111422310198,
+     "mkt_ece": 0.019298391022226455
+    },
+    "coverage": {
+     "rows": 15473,
+     "V3": 14138,
+     "V4": 15140,
+     "V5": 15276,
+     "V4_ORACLE": 15242,
+     "v5_only_rows": 136,
+     "player_games": {
+      "V3": 2668,
+      "V4": 2749,
+      "V5": 2765,
+      "V4_ORACLE": 2764
+     },
+     "games": {
+      "V3": 234,
+      "V4": 234,
+      "V5": 234,
+      "V4_ORACLE": 234
+     }
+    }
+   },
+   "T-6h": {
+    "common_all_arms": {
+     "V3": {
+      "n": 15279,
+      "games": 247,
+      "player_games": 2967,
+      "brier": 0.1977459834807318,
+      "mkt_brier": 0.18907328002642804,
+      "diff": 0.008672703454303788,
+      "se_game": 0.001469162163156412,
+      "se_player_game": 0.00137546218414433,
+      "logloss": 0.5779596721036786,
+      "mkt_logloss": 0.556669045171868,
+      "ece": 0.019621832363012588,
+      "mkt_ece": 0.01622792869339103
+     },
+     "V4": {
+      "n": 15279,
+      "games": 247,
+      "player_games": 2967,
+      "brier": 0.19330496505475173,
+      "mkt_brier": 0.18907328002642804,
+      "diff": 0.0042316850283237025,
+      "se_game": 0.0012606926692559544,
+      "se_player_game": 0.0012146949041259038,
+      "logloss": 0.5675812436206938,
+      "mkt_logloss": 0.556669045171868,
+      "ece": 0.007712917597430735,
+      "mkt_ece": 0.01622792869339103
+     },
+     "V5": {
+      "n": 15279,
+      "games": 247,
+      "player_games": 2967,
+      "brier": 0.19331930661839478,
+      "mkt_brier": 0.18907328002642804,
+      "diff": 0.004246026591966745,
+      "se_game": 0.0012590550277921508,
+      "se_player_game": 0.0012133640441324245,
+      "logloss": 0.5675932283149057,
+      "mkt_logloss": 0.556669045171868,
+      "ece": 0.008421732539808822,
+      "mkt_ece": 0.01622792869339103
+     },
+     "V4_ORACLE": {
+      "n": 15279,
+      "games": 247,
+      "player_games": 2967,
+      "brier": 0.19329599357961802,
+      "mkt_brier": 0.18907328002642804,
+      "diff": 0.004222713553190026,
+      "se_game": 0.0012597264302797327,
+      "se_player_game": 0.001214690771323462,
+      "logloss": 0.5675644702532703,
+      "mkt_logloss": 0.556669045171868,
+      "ece": 0.007556784665542523,
+      "mkt_ece": 0.01622792869339103
+     }
+    },
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 15310,
+      "games": 247,
+      "player_games": 2970,
+      "brier": 0.1975697837541875,
+      "mkt_brier": 0.18891032775372468,
+      "diff": 0.008659456000462785,
+      "se_game": 0.0014706863005882805,
+      "se_player_game": 0.0013732265272254998,
+      "logloss": 0.5774942221258215,
+      "mkt_logloss": 0.5562343281963478,
+      "ece": 0.01960441090091364,
+      "mkt_ece": 0.0164629409799102
+     },
+     "V4": {
+      "n": 15310,
+      "games": 247,
+      "player_games": 2970,
+      "brier": 0.1931419284701579,
+      "mkt_brier": 0.18891032775372468,
+      "diff": 0.00423160071643323,
+      "se_game": 0.0012579121365776985,
+      "se_player_game": 0.00121233791352371,
+      "logloss": 0.5671556024047621,
+      "mkt_logloss": 0.5562343281963478,
+      "ece": 0.007872392064004292,
+      "mkt_ece": 0.0164629409799102
+     },
+     "V5": {
+      "n": 15310,
+      "games": 247,
+      "player_games": 2970,
+      "brier": 0.19315589269779698,
+      "mkt_brier": 0.18891032775372468,
+      "diff": 0.004245564944072313,
+      "se_game": 0.0012563132978891081,
+      "se_player_game": 0.0012109769662760179,
+      "logloss": 0.5671666768831084,
+      "mkt_logloss": 0.5562343281963478,
+      "ece": 0.008567075210895477,
+      "mkt_ece": 0.0164629409799102
+     }
+    },
+    "V5_vs_V4": {
+     "n": 15310,
+     "games": 247,
+     "player_games": 2970,
+     "brier": 0.19315589269779698,
+     "mkt_brier": 0.1931419284701579,
+     "diff": 1.3964227639082005e-05,
+     "se_game": 7.702638245971587e-05,
+     "se_player_game": 6.875690314854979e-05,
+     "logloss": 0.5671666768831084,
+     "mkt_logloss": 0.5671556024047621,
+     "ece": 0.008567075210895477,
+     "mkt_ece": 0.007872392064004292
+    },
+    "V5_vs_V3": {
+     "n": 15310,
+     "games": 247,
+     "player_games": 2970,
+     "brier": 0.19315589269779698,
+     "mkt_brier": 0.1975697837541875,
+     "diff": -0.004413891056390473,
+     "se_game": 0.000981610393908609,
+     "se_player_game": 0.0008519646437051456,
+     "logloss": 0.5671666768831084,
+     "mkt_logloss": 0.5774942221258215,
+     "ece": 0.008567075210895477,
+     "mkt_ece": 0.01960441090091364
+    },
+    "coverage": {
+     "rows": 16787,
+     "V3": 15310,
+     "V4": 16420,
+     "V5": 16567,
+     "V4_ORACLE": 16532,
+     "v5_only_rows": 147,
+     "player_games": {
+      "V3": 2970,
+      "V4": 3075,
+      "V5": 3094,
+      "V4_ORACLE": 3092
+     },
+     "games": {
+      "V3": 247,
+      "V4": 247,
+      "V5": 247,
+      "V4_ORACLE": 247
+     }
+    }
+   },
+   "T-90m": {
+    "common_all_arms": {
+     "V3": {
+      "n": 16843,
+      "games": 247,
+      "player_games": 3286,
+      "brier": 0.19760748456033383,
+      "mkt_brier": 0.18914443285800522,
+      "diff": 0.008463051702328644,
+      "se_game": 0.0013818345104887279,
+      "se_player_game": 0.001324871797364517,
+      "logloss": 0.5779466114156613,
+      "mkt_logloss": 0.5570668039943245,
+      "ece": 0.018621670043677176,
+      "mkt_ece": 0.01840440312070678
+     },
+     "V4": {
+      "n": 16843,
+      "games": 247,
+      "player_games": 3286,
+      "brier": 0.1935111634678083,
+      "mkt_brier": 0.18914443285800522,
+      "diff": 0.004366730609803091,
+      "se_game": 0.0012493065262823002,
+      "se_player_game": 0.0011704774639195814,
+      "logloss": 0.5683646551132919,
+      "mkt_logloss": 0.5570668039943245,
+      "ece": 0.008522338596868257,
+      "mkt_ece": 0.01840440312070678
+     },
+     "V5": {
+      "n": 16843,
+      "games": 247,
+      "player_games": 3286,
+      "brier": 0.1935258426086029,
+      "mkt_brier": 0.18914443285800522,
+      "diff": 0.004381409750597678,
+      "se_game": 0.0012497710416359792,
+      "se_player_game": 0.0011697679781633912,
+      "logloss": 0.5683727124573262,
+      "mkt_logloss": 0.5570668039943245,
+      "ece": 0.009184844229332578,
+      "mkt_ece": 0.01840440312070678
+     },
+     "V4_ORACLE": {
+      "n": 16843,
+      "games": 247,
+      "player_games": 3286,
+      "brier": 0.19350327170034964,
+      "mkt_brier": 0.18914443285800522,
+      "diff": 0.004358838842344451,
+      "se_game": 0.0012485308787806774,
+      "se_player_game": 0.0011704785432394627,
+      "logloss": 0.568349747817983,
+      "mkt_logloss": 0.5570668039943245,
+      "ece": 0.008559747378994235,
+      "mkt_ece": 0.01840440312070678
+     }
+    },
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 16885,
+      "games": 247,
+      "player_games": 3290,
+      "brier": 0.1973721706765358,
+      "mkt_brier": 0.18890145344614423,
+      "diff": 0.008470717230391571,
+      "se_game": 0.00138205544358333,
+      "se_player_game": 0.0013222384345160183,
+      "logloss": 0.5773169543720943,
+      "mkt_logloss": 0.5564244426172156,
+      "ece": 0.01853614568553128,
+      "mkt_ece": 0.018756005533238435
+     },
+     "V4": {
+      "n": 16885,
+      "games": 247,
+      "player_games": 3290,
+      "brier": 0.1932988859309392,
+      "mkt_brier": 0.18890145344614423,
+      "diff": 0.004397432484794953,
+      "se_game": 0.0012457021479464665,
+      "se_player_game": 0.001168018898647934,
+      "logloss": 0.5678007525436027,
+      "mkt_logloss": 0.5564244426172156,
+      "ece": 0.008803352216502603,
+      "mkt_ece": 0.018756005533238435
+     },
+     "V5": {
+      "n": 16885,
+      "games": 247,
+      "player_games": 3290,
+      "brier": 0.1933150227717815,
+      "mkt_brier": 0.18890145344614423,
+      "diff": 0.004413569325637269,
+      "se_game": 0.001246303216191457,
+      "se_player_game": 0.0011673173992367905,
+      "logloss": 0.5678126338408401,
+      "mkt_logloss": 0.5564244426172156,
+      "ece": 0.009579300040853686,
+      "mkt_ece": 0.018756005533238435
+     }
+    },
+    "V5_vs_V4": {
+     "n": 16885,
+     "games": 247,
+     "player_games": 3290,
+     "brier": 0.1933150227717815,
+     "mkt_brier": 0.1932988859309392,
+     "diff": 1.613684084231472e-05,
+     "se_game": 7.352270699670804e-05,
+     "se_player_game": 6.374599682982304e-05,
+     "logloss": 0.5678126338408401,
+     "mkt_logloss": 0.5678007525436027,
+     "ece": 0.009579300040853686,
+     "mkt_ece": 0.008803352216502603
+    },
+    "V5_vs_V3": {
+     "n": 16885,
+     "games": 247,
+     "player_games": 3290,
+     "brier": 0.1933150227717815,
+     "mkt_brier": 0.1973721706765358,
+     "diff": -0.004057147904754302,
+     "se_game": 0.0009536023031803037,
+     "se_player_game": 0.0008239777297885733,
+     "logloss": 0.5678126338408401,
+     "mkt_logloss": 0.5773169543720943,
+     "ece": 0.009579300040853686,
+     "mkt_ece": 0.01853614568553128
+    },
+    "coverage": {
+     "rows": 18593,
+     "V3": 16885,
+     "V4": 18123,
+     "V5": 18294,
+     "V4_ORACLE": 18262,
+     "v5_only_rows": 171,
+     "player_games": {
+      "V3": 3290,
+      "V4": 3402,
+      "V5": 3423,
+      "V4_ORACLE": 3424
+     },
+     "games": {
+      "V3": 247,
+      "V4": 247,
+      "V5": 247,
+      "V4_ORACLE": 247
+     }
+    }
+   },
+   "T-0": {
+    "common_all_arms": {
+     "V3": {
+      "n": 18171,
+      "games": 247,
+      "player_games": 3291,
+      "brier": 0.19816925678628605,
+      "mkt_brier": 0.1898391026300458,
+      "diff": 0.008330154156240248,
+      "se_game": 0.001415337804637978,
+      "se_player_game": 0.0012876294158697416,
+      "logloss": 0.5791172131140623,
+      "mkt_logloss": 0.5584780268901712,
+      "ece": 0.018728894777520565,
+      "mkt_ece": 0.02036894963507653
+     },
+     "V4": {
+      "n": 18171,
+      "games": 247,
+      "player_games": 3291,
+      "brier": 0.19429572756261138,
+      "mkt_brier": 0.1898391026300458,
+      "diff": 0.0044566249325655605,
+      "se_game": 0.0012548971925884127,
+      "se_player_game": 0.0011419190056492705,
+      "logloss": 0.5701468603783872,
+      "mkt_logloss": 0.5584780268901712,
+      "ece": 0.009267932907960663,
+      "mkt_ece": 0.02036894963507653
+     },
+     "V5": {
+      "n": 18171,
+      "games": 247,
+      "player_games": 3291,
+      "brier": 0.1943247963519035,
+      "mkt_brier": 0.1898391026300458,
+      "diff": 0.0044856937218577305,
+      "se_game": 0.0012532783742952283,
+      "se_player_game": 0.0011407181280169245,
+      "logloss": 0.5701964626278968,
+      "mkt_logloss": 0.5584780268901712,
+      "ece": 0.009415224761202518,
+      "mkt_ece": 0.02036894963507653
+     },
+     "V4_ORACLE": {
+      "n": 18171,
+      "games": 247,
+      "player_games": 3291,
+      "brier": 0.19428874716619185,
+      "mkt_brier": 0.1898391026300458,
+      "diff": 0.004449644536146041,
+      "se_game": 0.0012544581565008255,
+      "se_player_game": 0.0011419755385426254,
+      "logloss": 0.5701337218224329,
+      "mkt_logloss": 0.5584780268901712,
+      "ece": 0.009302376849917327,
+      "mkt_ece": 0.02036894963507653
+     }
+    },
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 18220,
+      "games": 247,
+      "player_games": 3296,
+      "brier": 0.19791610713314733,
+      "mkt_brier": 0.18958105399629183,
+      "diff": 0.008335053136855496,
+      "se_game": 0.0014140036571925162,
+      "se_player_game": 0.0012847499380330037,
+      "logloss": 0.5784555437036706,
+      "mkt_logloss": 0.5577947541451335,
+      "ece": 0.018527567683826213,
+      "mkt_ece": 0.020644748014213808
+     },
+     "V4": {
+      "n": 18220,
+      "games": 247,
+      "player_games": 3296,
+      "brier": 0.19406181378426332,
+      "mkt_brier": 0.18958105399629183,
+      "diff": 0.00448075978797146,
+      "se_game": 0.0012510580109067494,
+      "se_player_game": 0.0011392084940765653,
+      "logloss": 0.5695367058298706,
+      "mkt_logloss": 0.5577947541451335,
+      "ece": 0.009459036443037949,
+      "mkt_ece": 0.020644748014213808
+     },
+     "V5": {
+      "n": 18220,
+      "games": 247,
+      "player_games": 3296,
+      "brier": 0.19409236917134862,
+      "mkt_brier": 0.18958105399629183,
+      "diff": 0.00451131517505679,
+      "se_game": 0.0012495575965840338,
+      "se_player_game": 0.0011380138034954932,
+      "logloss": 0.569589186484713,
+      "mkt_logloss": 0.5577947541451335,
+      "ece": 0.009606289717392637,
+      "mkt_ece": 0.020644748014213808
+     }
+    },
+    "V5_vs_V4": {
+     "n": 18220,
+     "games": 247,
+     "player_games": 3296,
+     "brier": 0.19409236917134862,
+     "mkt_brier": 0.19406181378426332,
+     "diff": 3.055538708533006e-05,
+     "se_game": 7.174277362468885e-05,
+     "se_player_game": 6.181330050568098e-05,
+     "logloss": 0.569589186484713,
+     "mkt_logloss": 0.5695367058298706,
+     "ece": 0.009606289717392637,
+     "mkt_ece": 0.009459036443037949
+    },
+    "V5_vs_V3": {
+     "n": 18220,
+     "games": 247,
+     "player_games": 3296,
+     "brier": 0.19409236917134862,
+     "mkt_brier": 0.19791610713314733,
+     "diff": -0.0038237379617987047,
+     "se_game": 0.0009148678077543311,
+     "se_player_game": 0.0007974720345185193,
+     "logloss": 0.569589186484713,
+     "mkt_logloss": 0.5784555437036706,
+     "ece": 0.009606289717392637,
+     "mkt_ece": 0.018527567683826213
+    },
+    "coverage": {
+     "rows": 20007,
+     "V3": 18220,
+     "V4": 19489,
+     "V5": 19662,
+     "V4_ORACLE": 19631,
+     "v5_only_rows": 173,
+     "player_games": {
+      "V3": 3296,
+      "V4": 3409,
+      "V5": 3430,
+      "V4_ORACLE": 3433
+     },
+     "games": {
+      "V3": 247,
+      "V4": 247,
+      "V5": 247,
+      "V4_ORACLE": 247
+     }
+    }
+   }
+  },
+  "by_stat_T90": {
+   "passing_tds": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 587,
+      "games": 88,
+      "player_games": 150,
+      "brier": 0.15449084773849053,
+      "mkt_brier": 0.15570536979106192,
+      "diff": -0.0012145220525713895,
+      "se_game": 0.0020055751700501054,
+      "se_player_game": 0.0019208682551235532,
+      "logloss": 0.4694284075504474,
+      "mkt_logloss": 0.4738912662686495,
+      "ece": 0.02406329944278101,
+      "mkt_ece": 0.029412920980212292
+     },
+     "V4": {
+      "n": 587,
+      "games": 88,
+      "player_games": 150,
+      "brier": 0.15391404269464268,
+      "mkt_brier": 0.15570536979106192,
+      "diff": -0.0017913270964192577,
+      "se_game": 0.001961990289454353,
+      "se_player_game": 0.0018643408911872665,
+      "logloss": 0.46762573138795005,
+      "mkt_logloss": 0.4738912662686495,
+      "ece": 0.0183860431092867,
+      "mkt_ece": 0.029412920980212292
+     },
+     "V5": {
+      "n": 587,
+      "games": 88,
+      "player_games": 150,
+      "brier": 0.15390726867998603,
+      "mkt_brier": 0.15570536979106192,
+      "diff": -0.0017981011110759055,
+      "se_game": 0.001962670152265695,
+      "se_player_game": 0.0018623064802414987,
+      "logloss": 0.46757593971321704,
+      "mkt_logloss": 0.4738912662686495,
+      "ece": 0.021446585105625252,
+      "mkt_ece": 0.029412920980212292
+     }
+    },
+    "V5_vs_V4": {
+     "n": 587,
+     "games": 88,
+     "player_games": 150,
+     "brier": 0.15390726867998603,
+     "mkt_brier": 0.15391404269464268,
+     "diff": -6.774014656647712e-06,
+     "se_game": 9.02422593391266e-05,
+     "se_player_game": 8.45617882766383e-05,
+     "logloss": 0.46757593971321704,
+     "mkt_logloss": 0.46762573138795005,
+     "ece": 0.021446585105625252,
+     "mkt_ece": 0.0183860431092867
+    },
+    "V5_all_rows": {
+     "n": 599,
+     "games": 88,
+     "player_games": 154,
+     "brier": 0.15332906998940274,
+     "mkt_brier": 0.15483769126436286,
+     "diff": -0.0015086212749601008,
+     "se_game": 0.0019499215721999561,
+     "se_player_game": 0.001836636336381126,
+     "logloss": 0.46569869821694,
+     "mkt_logloss": 0.471224888550178,
+     "ece": 0.024061680284700272,
+     "mkt_ece": 0.02763002439964042
+    }
+   },
+   "passing_yards": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 2129,
+      "games": 174,
+      "player_games": 306,
+      "brier": 0.16717793012535773,
+      "mkt_brier": 0.1601661960980326,
+      "diff": 0.007011734027325163,
+      "se_game": 0.0025733008392696054,
+      "se_player_game": 0.0027286876261306647,
+      "logloss": 0.4991030130237093,
+      "mkt_logloss": 0.48244117365730566,
+      "ece": 0.03878348049323208,
+      "mkt_ece": 0.0218118344707594
+     },
+     "V4": {
+      "n": 2129,
+      "games": 174,
+      "player_games": 306,
+      "brier": 0.16445836896556076,
+      "mkt_brier": 0.1601661960980326,
+      "diff": 0.004292172867528217,
+      "se_game": 0.0019132368359773848,
+      "se_player_game": 0.001928774011861272,
+      "logloss": 0.49618522017980676,
+      "mkt_logloss": 0.48244117365730566,
+      "ece": 0.038601086568219124,
+      "mkt_ece": 0.0218118344707594
+     },
+     "V5": {
+      "n": 2129,
+      "games": 174,
+      "player_games": 306,
+      "brier": 0.16451208816077534,
+      "mkt_brier": 0.1601661960980326,
+      "diff": 0.004345892062742738,
+      "se_game": 0.0019027835730832993,
+      "se_player_game": 0.0019414695361989341,
+      "logloss": 0.49633409487354935,
+      "mkt_logloss": 0.48244117365730566,
+      "ece": 0.03669221077486316,
+      "mkt_ece": 0.0218118344707594
+     }
+    },
+    "V5_vs_V4": {
+     "n": 2129,
+     "games": 174,
+     "player_games": 306,
+     "brier": 0.16451208816077534,
+     "mkt_brier": 0.16445836896556076,
+     "diff": 5.3719195214520945e-05,
+     "se_game": 0.00021940206562812048,
+     "se_player_game": 0.00021133026113521723,
+     "logloss": 0.49633409487354935,
+     "mkt_logloss": 0.49618522017980676,
+     "ece": 0.03669221077486316,
+     "mkt_ece": 0.038601086568219124
+    },
+    "V5_all_rows": {
+     "n": 2233,
+     "games": 175,
+     "player_games": 320,
+     "brier": 0.16425233108421264,
+     "mkt_brier": 0.16026088318578968,
+     "diff": 0.003991447898422962,
+     "se_game": 0.0018519000765697268,
+     "se_player_game": 0.0018868608544537078,
+     "logloss": 0.49535349154109276,
+     "mkt_logloss": 0.48263737838014664,
+     "ece": 0.03542103114514011,
+     "mkt_ece": 0.02062253598789699
+    }
+   },
+   "receiving_yards": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 5633,
+      "games": 174,
+      "player_games": 1270,
+      "brier": 0.21954381768287135,
+      "mkt_brier": 0.2104177743170172,
+      "diff": 0.009126043365854115,
+      "se_game": 0.002130126587482268,
+      "se_player_game": 0.0021141096620036093,
+      "logloss": 0.6297102334556007,
+      "mkt_logloss": 0.6083827188792851,
+      "ece": 0.023531576357295768,
+      "mkt_ece": 0.03150901367493481
+     },
+     "V4": {
+      "n": 5633,
+      "games": 174,
+      "player_games": 1270,
+      "brier": 0.21626942116333484,
+      "mkt_brier": 0.2104177743170172,
+      "diff": 0.005851646846317596,
+      "se_game": 0.0019515578171862345,
+      "se_player_game": 0.00199058852855684,
+      "logloss": 0.6218685492257628,
+      "mkt_logloss": 0.6083827188792851,
+      "ece": 0.019281585430839306,
+      "mkt_ece": 0.03150901367493481
+     },
+     "V5": {
+      "n": 5633,
+      "games": 174,
+      "player_games": 1270,
+      "brier": 0.21625229391230208,
+      "mkt_brier": 0.2104177743170172,
+      "diff": 0.005834519595284905,
+      "se_game": 0.0019705620145711055,
+      "se_player_game": 0.0019861119070686832,
+      "logloss": 0.6217458008193025,
+      "mkt_logloss": 0.6083827188792851,
+      "ece": 0.01980215111377328,
+      "mkt_ece": 0.03150901367493481
+     }
+    },
+    "V5_vs_V4": {
+     "n": 5633,
+     "games": 174,
+     "player_games": 1270,
+     "brier": 0.21625229391230208,
+     "mkt_brier": 0.21626942116333484,
+     "diff": -1.7127251032689655e-05,
+     "se_game": 0.00015224138253308435,
+     "se_player_game": 0.00013711940111061656,
+     "logloss": 0.6217458008193025,
+     "mkt_logloss": 0.6218685492257628,
+     "ece": 0.01980215111377328,
+     "mkt_ece": 0.019281585430839306
+    },
+    "V5_all_rows": {
+     "n": 5633,
+     "games": 174,
+     "player_games": 1270,
+     "brier": 0.21625229391230208,
+     "mkt_brier": 0.2104177743170172,
+     "diff": 0.005834519595284905,
+     "se_game": 0.0019705620145711055,
+     "se_player_game": 0.0019861119070686832,
+     "logloss": 0.6217458008193025,
+     "mkt_logloss": 0.6083827188792851,
+     "ece": 0.01980215111377328,
+     "mkt_ece": 0.03150901367493481
+    }
+   },
+   "receptions": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 3631,
+      "games": 124,
+      "player_games": 889,
+      "brier": 0.1963307632427072,
+      "mkt_brier": 0.182249483617377,
+      "diff": 0.014081279625330179,
+      "se_game": 0.0029993773612709165,
+      "se_player_game": 0.0028428383511539955,
+      "logloss": 0.578586124840167,
+      "mkt_logloss": 0.5426318792330497,
+      "ece": 0.0268033721095341,
+      "mkt_ece": 0.036133074295589464
+     },
+     "V4": {
+      "n": 3631,
+      "games": 124,
+      "player_games": 889,
+      "brier": 0.1873223124221254,
+      "mkt_brier": 0.182249483617377,
+      "diff": 0.005072828804748408,
+      "se_game": 0.002266769438742816,
+      "se_player_game": 0.0021206234431453293,
+      "logloss": 0.55597031056487,
+      "mkt_logloss": 0.5426318792330497,
+      "ece": 0.023702881068728653,
+      "mkt_ece": 0.036133074295589464
+     },
+     "V5": {
+      "n": 3631,
+      "games": 124,
+      "player_games": 889,
+      "brier": 0.1873499045400205,
+      "mkt_brier": 0.182249483617377,
+      "diff": 0.005100420922643497,
+      "se_game": 0.0022657597718713524,
+      "se_player_game": 0.002119909048940766,
+      "logloss": 0.5560144285168331,
+      "mkt_logloss": 0.5426318792330497,
+      "ece": 0.024264083258376805,
+      "mkt_ece": 0.036133074295589464
+     }
+    },
+    "V5_vs_V4": {
+     "n": 3631,
+     "games": 124,
+     "player_games": 889,
+     "brier": 0.1873499045400205,
+     "mkt_brier": 0.1873223124221254,
+     "diff": 2.7592117895089103e-05,
+     "se_game": 8.052663672234115e-05,
+     "se_player_game": 9.180923352204833e-05,
+     "logloss": 0.5560144285168331,
+     "mkt_logloss": 0.55597031056487,
+     "ece": 0.024264083258376805,
+     "mkt_ece": 0.023702881068728653
+    },
+    "V5_all_rows": {
+     "n": 3631,
+     "games": 124,
+     "player_games": 889,
+     "brier": 0.1873499045400205,
+     "mkt_brier": 0.182249483617377,
+     "diff": 0.005100420922643497,
+     "se_game": 0.0022657597718713524,
+     "se_player_game": 0.002119909048940766,
+     "logloss": 0.5560144285168331,
+     "mkt_logloss": 0.5426318792330497,
+     "ece": 0.024264083258376805,
+     "mkt_ece": 0.036133074295589464
+    }
+   },
+   "rushing_yards": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 1989,
+      "games": 162,
+      "player_games": 425,
+      "brier": 0.22619234754542358,
+      "mkt_brier": 0.21861258679518705,
+      "diff": 0.007579760750236513,
+      "se_game": 0.004104242914692128,
+      "se_player_game": 0.004019218265485438,
+      "logloss": 0.644574493764872,
+      "mkt_logloss": 0.6272530606015599,
+      "ece": 0.030635411655963056,
+      "mkt_ece": 0.012553442367921998
+     },
+     "V4": {
+      "n": 1989,
+      "games": 162,
+      "player_games": 425,
+      "brier": 0.22330003142205268,
+      "mkt_brier": 0.21861258679518705,
+      "diff": 0.004687444626865612,
+      "se_game": 0.003940057560464696,
+      "se_player_game": 0.003891275597653612,
+      "logloss": 0.6393163231521555,
+      "mkt_logloss": 0.6272530606015599,
+      "ece": 0.022792581476643894,
+      "mkt_ece": 0.012553442367921998
+     },
+     "V5": {
+      "n": 1989,
+      "games": 162,
+      "player_games": 425,
+      "brier": 0.2233533491156601,
+      "mkt_brier": 0.21861258679518705,
+      "diff": 0.004740762320473025,
+      "se_game": 0.003947736117321926,
+      "se_player_game": 0.003900494486989756,
+      "logloss": 0.639453008051435,
+      "mkt_logloss": 0.6272530606015599,
+      "ece": 0.022590441060103855,
+      "mkt_ece": 0.012553442367921998
+     }
+    },
+    "V5_vs_V4": {
+     "n": 1989,
+     "games": 162,
+     "player_games": 425,
+     "brier": 0.2233533491156601,
+     "mkt_brier": 0.22330003142205268,
+     "diff": 5.331769360741339e-05,
+     "se_game": 0.00010936322126111466,
+     "se_player_game": 0.00010962808036944028,
+     "logloss": 0.639453008051435,
+     "mkt_logloss": 0.6393163231521555,
+     "ece": 0.022590441060103855,
+     "mkt_ece": 0.022792581476643894
+    },
+    "V5_all_rows": {
+     "n": 2846,
+     "games": 164,
+     "player_games": 643,
+     "brier": 0.20894998160018347,
+     "mkt_brier": 0.20674753836995807,
+     "diff": 0.002202443230225372,
+     "se_game": 0.003105552888222875,
+     "se_player_game": 0.00295854782498485,
+     "logloss": 0.6048157179733094,
+     "mkt_logloss": 0.5990812734930255,
+     "ece": 0.015901269364847852,
+     "mkt_ece": 0.015912050206762077
+    }
+   },
+   "touchdowns": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 2916,
+      "games": 246,
+      "player_games": 2916,
+      "brier": 0.16685776934300248,
+      "mkt_brier": 0.16301664094650206,
+      "diff": 0.003841128396500437,
+      "se_game": 0.0012309321663589437,
+      "se_player_game": 0.0011763354015082838,
+      "logloss": 0.5074723429920597,
+      "mkt_logloss": 0.4955462054516,
+      "ece": 0.03759791291383281,
+      "mkt_ece": 0.014813100137174214
+     },
+     "V4": {
+      "n": 2916,
+      "games": 246,
+      "player_games": 2916,
+      "brier": 0.1648887345810045,
+      "mkt_brier": 0.16301664094650206,
+      "diff": 0.0018720936345024465,
+      "se_game": 0.0009811678571598123,
+      "se_player_game": 0.0009037001082631209,
+      "logloss": 0.5017582875211912,
+      "mkt_logloss": 0.4955462054516,
+      "ece": 0.0221129057129127,
+      "mkt_ece": 0.014813100137174214
+     },
+     "V5": {
+      "n": 2916,
+      "games": 246,
+      "player_games": 2916,
+      "brier": 0.16490667719760918,
+      "mkt_brier": 0.16301664094650206,
+      "diff": 0.001890036251107093,
+      "se_game": 0.000982576284179662,
+      "se_player_game": 0.000903800821869478,
+      "logloss": 0.5018173658542814,
+      "mkt_logloss": 0.4955462054516,
+      "ece": 0.021719276891114105,
+      "mkt_ece": 0.014813100137174214
+     }
+    },
+    "V5_vs_V4": {
+     "n": 2916,
+     "games": 246,
+     "player_games": 2916,
+     "brier": 0.16490667719760918,
+     "mkt_brier": 0.1648887345810045,
+     "diff": 1.794261660464613e-05,
+     "se_game": 1.4868208098324734e-05,
+     "se_player_game": 1.6343016293299713e-05,
+     "logloss": 0.5018173658542814,
+     "mkt_logloss": 0.5017582875211912,
+     "ece": 0.021719276891114105,
+     "mkt_ece": 0.0221129057129127
+    },
+    "V5_all_rows": {
+     "n": 3352,
+     "games": 246,
+     "player_games": 3352,
+     "brier": 0.16081330365258972,
+     "mkt_brier": 0.1590845912887828,
+     "diff": 0.0017287123638069079,
+     "se_game": 0.0008874926340090196,
+     "se_player_game": 0.0008269045896516314,
+     "logloss": 0.4921183409589832,
+     "mkt_logloss": 0.48630327602152995,
+     "ece": 0.021715883142541918,
+     "mkt_ece": 0.01706742243436754
+    }
+   }
+  },
+  "substituted_team_rows": {
+   "T-24h": {
+    "V5": {
+     "n": 818,
+     "games": 28,
+     "player_games": 169,
+     "brier": 0.2001977739179372,
+     "mkt_brier": 0.1905427057868176,
+     "diff": 0.009655068131119621,
+     "se_game": 0.00473330494915269,
+     "se_player_game": 0.004898417210334992,
+     "logloss": 0.5833675710057216,
+     "mkt_logloss": 0.561335138745591,
+     "ece": 0.03005238601864371,
+     "mkt_ece": 0.02813566771451858
+    },
+    "V4": {
+     "n": 682,
+     "games": 28,
+     "player_games": 153,
+     "brier": 0.2054132823826253,
+     "mkt_brier": 0.19359805428586388,
+     "diff": 0.011815228096761358,
+     "se_game": 0.005600420301239363,
+     "se_player_game": 0.005636981885689084,
+     "logloss": 0.5967247536138041,
+     "mkt_logloss": 0.5679429367766456,
+     "ece": 0.044075952268871996,
+     "mkt_ece": 0.04475544616673653
+    },
+    "V3": {
+     "n": 682,
+     "games": 28,
+     "player_games": 153,
+     "brier": 0.2059329842275529,
+     "mkt_brier": 0.19359805428586388,
+     "diff": 0.012334929941689013,
+     "se_game": 0.0044319034792276585,
+     "se_player_game": 0.005581479905676066,
+     "logloss": 0.5990403564214317,
+     "mkt_logloss": 0.5679429367766456,
+     "ece": 0.06740063929942156,
+     "mkt_ece": 0.04475544616673653
+    },
+    "V4_ORACLE": {
+     "n": 806,
+     "games": 28,
+     "player_games": 168,
+     "brier": 0.20180712962335276,
+     "mkt_brier": 0.19204386890026898,
+     "diff": 0.00976326072308382,
+     "se_game": 0.004620057991668651,
+     "se_player_game": 0.004915988379633198,
+     "logloss": 0.5873289160611395,
+     "mkt_logloss": 0.5649120434308263,
+     "ece": 0.02742996571939988,
+     "mkt_ece": 0.028262997754933225
+    },
+    "V5_vs_V4_common": {
+     "n": 682,
+     "games": 28,
+     "player_games": 153,
+     "brier": 0.2052424341036485,
+     "mkt_brier": 0.2054132823826253,
+     "diff": -0.00017084827897672706,
+     "se_game": 0.0005236770438748843,
+     "se_player_game": 0.0005608463299220304,
+     "logloss": 0.5961604963772501,
+     "mkt_logloss": 0.5967247536138041,
+     "ece": 0.04283949172010698,
+     "mkt_ece": 0.044075952268871996
+    },
+    "rows": 818,
+    "v5_rows": 818,
+    "v4_rows": 682,
+    "games": 28,
+    "by_stat": {
+     "passing_tds": {
+      "V5": null,
+      "n_v5": 12,
+      "n_v4": 0
+     },
+     "passing_yards": {
+      "V5": {
+       "n": 78,
+       "games": 12,
+       "player_games": 12,
+       "brier": 0.1660203731798235,
+       "mkt_brier": 0.16264692705971276,
+       "diff": 0.003373446120110718,
+       "se_game": 0.008732860788761038,
+       "se_player_game": 0.008732860788761038,
+       "logloss": 0.49568501858375996,
+       "mkt_logloss": 0.49171246983595196,
+       "ece": 0.08278427154832875,
+       "mkt_ece": 0.07575518925518926
+      },
+      "n_v5": 78,
+      "n_v4": 0
+     },
+     "receiving_yards": {
+      "V5": {
+       "n": 266,
+       "games": 16,
+       "player_games": 50,
+       "brier": 0.21178302116279138,
+       "mkt_brier": 0.2101195414396962,
+       "diff": 0.001663479723095182,
+       "se_game": 0.00816390844688411,
+       "se_player_game": 0.00820616776225184,
+       "logloss": 0.6108489243796147,
+       "mkt_logloss": 0.6059394433462526,
+       "ece": 0.029284554720985997,
+       "mkt_ece": 0.043903061224489816
+      },
+      "n_v5": 266,
+      "n_v4": 266
+     },
+     "receptions": {
+      "V5": {
+       "n": 160,
+       "games": 12,
+       "player_games": 35,
+       "brier": 0.2266436705747396,
+       "mkt_brier": 0.205585,
+       "diff": 0.021058670574739632,
+       "se_game": 0.009096620497818331,
+       "se_player_game": 0.009244350325048513,
+       "logloss": 0.6477788899134724,
+       "mkt_logloss": 0.5934817030829885,
+       "ece": 0.07600040488958165,
+       "mkt_ece": 0.06500000000000003
+      },
+      "n_v5": 160,
+      "n_v4": 160
+     },
+     "rushing_yards": {
+      "V5": {
+       "n": 139,
+       "games": 14,
+       "player_games": 27,
+       "brier": 0.2265820265655245,
+       "mkt_brier": 0.21008597122302158,
+       "diff": 0.01649605534250296,
+       "se_game": 0.020653694149922883,
+       "se_player_game": 0.01660390595962024,
+       "logloss": 0.6436561638970857,
+       "mkt_logloss": 0.6034994097581433,
+       "ece": 0.08125619586001703,
+       "mkt_ece": 0.08582733812949637
+      },
+      "n_v5": 139,
+      "n_v4": 108
+     },
+     "touchdowns": {
+      "V5": {
+       "n": 163,
+       "games": 28,
+       "player_games": 163,
+       "brier": 0.15467556636436705,
+       "mkt_brier": 0.14640736196319018,
+       "diff": 0.008268204401176862,
+       "se_game": 0.005218491352739499,
+       "se_player_game": 0.004632648776103818,
+       "logloss": 0.48118100500250455,
+       "mkt_logloss": 0.47078257898934234,
+       "ece": 0.07952474223943848,
+       "mkt_ece": 0.06171779141104295
+      },
+      "n_v5": 163,
+      "n_v4": 148
+     }
+    }
+   },
+   "T-6h": {
+    "V5": {
+     "n": 864,
+     "games": 30,
+     "player_games": 186,
+     "brier": 0.20026313458064385,
+     "mkt_brier": 0.1927974027154166,
+     "diff": 0.007465731865227256,
+     "se_game": 0.0047967594270872885,
+     "se_player_game": 0.004766214833326736,
+     "logloss": 0.5845075173188756,
+     "mkt_logloss": 0.566925243185618,
+     "ece": 0.03176234612914145,
+     "mkt_ece": 0.02685463366123744
+    },
+    "V4": {
+     "n": 717,
+     "games": 30,
+     "player_games": 167,
+     "brier": 0.2063449752231951,
+     "mkt_brier": 0.19673052719665268,
+     "diff": 0.009614448026542315,
+     "se_game": 0.00567092649276911,
+     "se_player_game": 0.00552207808403957,
+     "logloss": 0.6002313842770909,
+     "mkt_logloss": 0.5760933252565896,
+     "ece": 0.036737636671022464,
+     "mkt_ece": 0.029464435146443552
+    },
+    "V3": {
+     "n": 717,
+     "games": 30,
+     "player_games": 167,
+     "brier": 0.20826020706669282,
+     "mkt_brier": 0.19673052719665268,
+     "diff": 0.011529679870040114,
+     "se_game": 0.0046833058263001295,
+     "se_player_game": 0.005481862652963959,
+     "logloss": 0.605133795733321,
+     "mkt_logloss": 0.5760933252565896,
+     "ece": 0.05660709271412128,
+     "mkt_ece": 0.029464435146443552
+    },
+    "V4_ORACLE": {
+     "n": 855,
+     "games": 30,
+     "player_games": 184,
+     "brier": 0.2017604866818486,
+     "mkt_brier": 0.1939294221592046,
+     "diff": 0.007831064522643994,
+     "se_game": 0.004635237575594501,
+     "se_player_game": 0.004744979664079348,
+     "logloss": 0.588091650696455,
+     "mkt_logloss": 0.5695009537293222,
+     "ece": 0.03257303066542061,
+     "mkt_ece": 0.028154857875215367
+    },
+    "V5_vs_V4_common": {
+     "n": 717,
+     "games": 30,
+     "player_games": 167,
+     "brier": 0.20611847042903184,
+     "mkt_brier": 0.2063449752231951,
+     "diff": -0.00022650479416318442,
+     "se_game": 0.0004954378430166776,
+     "se_player_game": 0.0005332702051284083,
+     "logloss": 0.5995416821575569,
+     "mkt_logloss": 0.6002313842770909,
+     "ece": 0.037288431192449484,
+     "mkt_ece": 0.036737636671022464
+    },
+    "rows": 864,
+    "v5_rows": 864,
+    "v4_rows": 717,
+    "games": 30,
+    "by_stat": {
+     "passing_tds": {
+      "V5": null,
+      "n_v5": 12,
+      "n_v4": 0
+     },
+     "passing_yards": {
+      "V5": {
+       "n": 85,
+       "games": 13,
+       "player_games": 13,
+       "brier": 0.16622689226198759,
+       "mkt_brier": 0.16386874054258743,
+       "diff": 0.0023581517194001486,
+       "se_game": 0.007654785442032863,
+       "se_player_game": 0.007654785442032863,
+       "logloss": 0.4931058559060092,
+       "mkt_logloss": 0.49158472866655856,
+       "ece": 0.08459406670478797,
+       "mkt_ece": 0.08686357039187227
+      },
+      "n_v5": 85,
+      "n_v4": 0
+     },
+     "receiving_yards": {
+      "V5": {
+       "n": 273,
+       "games": 18,
+       "player_games": 59,
+       "brier": 0.20918294519890276,
+       "mkt_brier": 0.20752056043956046,
+       "diff": 0.0016623847593423605,
+       "se_game": 0.007811650466342846,
+       "se_player_game": 0.007777696401834524,
+       "logloss": 0.605599098695989,
+       "mkt_logloss": 0.6001889736316378,
+       "ece": 0.032310869284085275,
+       "mkt_ece": 0.04325641025641024
+      },
+      "n_v5": 273,
+      "n_v4": 273
+     },
+     "receptions": {
+      "V5": {
+       "n": 163,
+       "games": 14,
+       "player_games": 37,
+       "brier": 0.22430507175906844,
+       "mkt_brier": 0.20859539877300617,
+       "diff": 0.01570967298606234,
+       "se_game": 0.009234046146340824,
+       "se_player_game": 0.009004084299665089,
+       "logloss": 0.642530892496894,
+       "mkt_logloss": 0.6007128243113811,
+       "ece": 0.07015834683644882,
+       "mkt_ece": 0.06957055214723927
+      },
+      "n_v5": 163,
+      "n_v4": 163
+     },
+     "rushing_yards": {
+      "V5": {
+       "n": 149,
+       "games": 16,
+       "player_games": 31,
+       "brier": 0.22873339851229677,
+       "mkt_brier": 0.212875,
+       "diff": 0.01585839851229674,
+       "se_game": 0.021903372975396265,
+       "se_player_game": 0.016778669562865684,
+       "logloss": 0.6474374663107677,
+       "mkt_logloss": 0.6094183300750641,
+       "ece": 0.08360192953560429,
+       "mkt_ece": 0.08493288590604027
+      },
+      "n_v5": 149,
+      "n_v4": 118
+     },
+     "touchdowns": {
+      "V5": {
+       "n": 182,
+       "games": 30,
+       "player_games": 182,
+       "brier": 0.16290866663532835,
+       "mkt_brier": 0.15888997252747253,
+       "diff": 0.00401869410785583,
+       "se_game": 0.00450058278310064,
+       "se_player_game": 0.003877949567641063,
+       "logloss": 0.5059830231130401,
+       "mkt_logloss": 0.5019365435647928,
+       "ece": 0.061450283000395706,
+       "mkt_ece": 0.07535714285714286
+      },
+      "n_v5": 182,
+      "n_v4": 163
+     }
+    }
+   },
+   "T-90m": {
+    "V5": {
+     "n": 961,
+     "games": 30,
+     "player_games": 196,
+     "brier": 0.1906729025514529,
+     "mkt_brier": 0.18594218799287932,
+     "diff": 0.004730714558573591,
+     "se_game": 0.005612770799846343,
+     "se_player_game": 0.0046639136679910076,
+     "logloss": 0.5611652603324409,
+     "mkt_logloss": 0.5512395495796819,
+     "ece": 0.029818269717979098,
+     "mkt_ece": 0.04457156371204237
+    },
+    "V4": {
+     "n": 790,
+     "games": 30,
+     "player_games": 175,
+     "brier": 0.19584067291828777,
+     "mkt_brier": 0.18926439493670885,
+     "diff": 0.0065762779815789095,
+     "se_game": 0.006354781805508374,
+     "se_player_game": 0.00544116038480923,
+     "logloss": 0.5749559549968691,
+     "mkt_logloss": 0.5594586787899487,
+     "ece": 0.048636934780182474,
+     "mkt_ece": 0.0585012658227848
+    },
+    "V3": {
+     "n": 790,
+     "games": 30,
+     "player_games": 175,
+     "brier": 0.1957977106165184,
+     "mkt_brier": 0.18926439493670885,
+     "diff": 0.006533315679809584,
+     "se_game": 0.005678417402410624,
+     "se_player_game": 0.0054620070014716575,
+     "logloss": 0.5754570942832781,
+     "mkt_logloss": 0.5594586787899487,
+     "ece": 0.06460719999408376,
+     "mkt_ece": 0.0585012658227848
+    },
+    "V4_ORACLE": {
+     "n": 948,
+     "games": 30,
+     "player_games": 194,
+     "brier": 0.19202799053665826,
+     "mkt_brier": 0.18732143213202218,
+     "diff": 0.004706558404636062,
+     "se_game": 0.005391647485618869,
+     "se_player_game": 0.004679556655022618,
+     "logloss": 0.5645031028468536,
+     "mkt_logloss": 0.5545182469641899,
+     "ece": 0.03220778349933218,
+     "mkt_ece": 0.04455514000767167
+    },
+    "V5_vs_V4_common": {
+     "n": 790,
+     "games": 30,
+     "player_games": 175,
+     "brier": 0.19576049126846068,
+     "mkt_brier": 0.19584067291828777,
+     "diff": -8.018164982707016e-05,
+     "se_game": 0.0005232624905265337,
+     "se_player_game": 0.0004976106798504696,
+     "logloss": 0.5745897326937652,
+     "mkt_logloss": 0.5749559549968691,
+     "ece": 0.046741216307989816,
+     "mkt_ece": 0.048636934780182474
+    },
+    "rows": 961,
+    "v5_rows": 961,
+    "v4_rows": 790,
+    "games": 30,
+    "by_stat": {
+     "passing_tds": {
+      "V5": null,
+      "n_v5": 12,
+      "n_v4": 0
+     },
+     "passing_yards": {
+      "V5": {
+       "n": 104,
+       "games": 14,
+       "player_games": 14,
+       "brier": 0.15893480400727122,
+       "mkt_brier": 0.16219923712650985,
+       "diff": -0.0032644331192386022,
+       "se_game": 0.007930663467200927,
+       "se_player_game": 0.007930663467200927,
+       "logloss": 0.475279409860324,
+       "mkt_logloss": 0.48665391544676684,
+       "ece": 0.07811287657285199,
+       "mkt_ece": 0.06381993006993009
+      },
+      "n_v5": 104,
+      "n_v4": 0
+     },
+     "receiving_yards": {
+      "V5": {
+       "n": 307,
+       "games": 19,
+       "player_games": 64,
+       "brier": 0.20112521093660288,
+       "mkt_brier": 0.2043025342019544,
+       "diff": -0.0031773232653515035,
+       "se_game": 0.008708082789750136,
+       "se_player_game": 0.0070753673276301365,
+       "logloss": 0.5864010074137271,
+       "mkt_logloss": 0.5929642873150921,
+       "ece": 0.03595301889211606,
+       "mkt_ece": 0.04190879478827362
+      },
+      "n_v5": 307,
+      "n_v4": 307
+     },
+     "receptions": {
+      "V5": {
+       "n": 188,
+       "games": 14,
+       "player_games": 48,
+       "brier": 0.21035352705012558,
+       "mkt_brier": 0.2023904255319149,
+       "diff": 0.007963101518210721,
+       "se_game": 0.011166962162742104,
+       "se_player_game": 0.00946557740619822,
+       "logloss": 0.6057459097973055,
+       "mkt_logloss": 0.5866252869460841,
+       "ece": 0.070334709720734,
+       "mkt_ece": 0.07803191489361701
+      },
+      "n_v5": 188,
+      "n_v4": 188
+     },
+     "rushing_yards": {
+      "V5": {
+       "n": 157,
+       "games": 19,
+       "player_games": 34,
+       "brier": 0.2170679126438664,
+       "mkt_brier": 0.1963483694267516,
+       "diff": 0.02071954321711484,
+       "se_game": 0.02024182948701085,
+       "se_player_game": 0.016160000757438193,
+       "logloss": 0.6217423380487737,
+       "mkt_logloss": 0.5710994417521944,
+       "ece": 0.09319894827998278,
+       "mkt_ece": 0.08058598726114649
+      },
+      "n_v5": 157,
+      "n_v4": 123
+     },
+     "touchdowns": {
+      "V5": {
+       "n": 193,
+       "games": 30,
+       "player_games": 193,
+       "brier": 0.15458719377534633,
+       "mkt_brier": 0.14961670984455958,
+       "diff": 0.0049704839307867605,
+       "se_game": 0.004684017083844729,
+       "se_player_game": 0.0039388462681631715,
+       "logloss": 0.48624572819765927,
+       "mkt_logloss": 0.48213193000549015,
+       "ece": 0.06957469336454841,
+       "mkt_ece": 0.07297927461139896
+      },
+      "n_v5": 193,
+      "n_v4": 172
+     }
+    }
+   },
+   "T-0": {
+    "V5": {
+     "n": 1002,
+     "games": 30,
+     "player_games": 197,
+     "brier": 0.19140028562544634,
+     "mkt_brier": 0.18302172244523834,
+     "diff": 0.008378563180207965,
+     "se_game": 0.005753690441318842,
+     "se_player_game": 0.005276031257866876,
+     "logloss": 0.5621710183658692,
+     "mkt_logloss": 0.5430205642671139,
+     "ece": 0.030850772699510524,
+     "mkt_ece": 0.04330714694487149
+    },
+    "V4": {
+     "n": 829,
+     "games": 30,
+     "player_games": 176,
+     "brier": 0.1974535778258808,
+     "mkt_brier": 0.18727348916846945,
+     "diff": 0.010180088657411353,
+     "se_game": 0.006318655911604082,
+     "se_player_game": 0.006131773040006102,
+     "logloss": 0.5785889308950443,
+     "mkt_logloss": 0.5536951694720481,
+     "ece": 0.04777197557448312,
+     "mkt_ece": 0.05557133457615971
+    },
+    "V3": {
+     "n": 829,
+     "games": 30,
+     "player_games": 176,
+     "brier": 0.19826375593420012,
+     "mkt_brier": 0.18727348916846945,
+     "diff": 0.010990266765730687,
+     "se_game": 0.005765324604646683,
+     "se_player_game": 0.005795799974496405,
+     "logloss": 0.5803325100852007,
+     "mkt_logloss": 0.5536951694720481,
+     "ece": 0.061426692611080067,
+     "mkt_ece": 0.05557133457615971
+    },
+    "V4_ORACLE": {
+     "n": 989,
+     "games": 30,
+     "player_games": 195,
+     "brier": 0.19283318209570982,
+     "mkt_brier": 0.18432046601630828,
+     "diff": 0.008512716079401586,
+     "se_game": 0.005524459118537775,
+     "se_player_game": 0.005284028527047967,
+     "logloss": 0.5656171543667337,
+     "mkt_logloss": 0.5460909666598747,
+     "ece": 0.03322575623145756,
+     "mkt_ece": 0.043072559392074064
+    },
+    "V5_vs_V4_common": {
+     "n": 829,
+     "games": 30,
+     "player_games": 176,
+     "brier": 0.19724711990922383,
+     "mkt_brier": 0.1974535778258808,
+     "diff": -0.00020645791665694824,
+     "se_game": 0.0004939793311885427,
+     "se_player_game": 0.00048318209564425746,
+     "logloss": 0.5779874465133815,
+     "mkt_logloss": 0.5785889308950443,
+     "ece": 0.048762457310669576,
+     "mkt_ece": 0.04777197557448312
+    },
+    "rows": 1002,
+    "v5_rows": 1002,
+    "v4_rows": 829,
+    "games": 30,
+    "by_stat": {
+     "passing_tds": {
+      "V5": null,
+      "n_v5": 19,
+      "n_v4": 0
+     },
+     "passing_yards": {
+      "V5": {
+       "n": 100,
+       "games": 14,
+       "player_games": 14,
+       "brier": 0.1603756182333249,
+       "mkt_brier": 0.16054393369467695,
+       "diff": -0.0001683154613520435,
+       "se_game": 0.008930955599054477,
+       "se_player_game": 0.008930955599054477,
+       "logloss": 0.4752415166042625,
+       "mkt_logloss": 0.4785198829756581,
+       "ece": 0.0955576846424141,
+       "mkt_ece": 0.058642157842157844
+      },
+      "n_v5": 100,
+      "n_v4": 0
+     },
+     "receiving_yards": {
+      "V5": {
+       "n": 314,
+       "games": 19,
+       "player_games": 66,
+       "brier": 0.20980740568081516,
+       "mkt_brier": 0.20417960993841133,
+       "diff": 0.005627795742403808,
+       "se_game": 0.010643182516332256,
+       "se_player_game": 0.008461558179809764,
+       "logloss": 0.6073395278637612,
+       "mkt_logloss": 0.5930233549441578,
+       "ece": 0.04019139420899785,
+       "mkt_ece": 0.058896931094383306
+      },
+      "n_v5": 314,
+      "n_v4": 314
+     },
+     "receptions": {
+      "V5": {
+       "n": 202,
+       "games": 13,
+       "player_games": 49,
+       "brier": 0.19940922224918384,
+       "mkt_brier": 0.19162896039603963,
+       "diff": 0.00778026185314425,
+       "se_game": 0.010004310638123404,
+       "se_player_game": 0.009171173489015885,
+       "logloss": 0.581232779891953,
+       "mkt_logloss": 0.559304860824455,
+       "ece": 0.06111254526100518,
+       "mkt_ece": 0.06851485148514853
+      },
+      "n_v5": 202,
+      "n_v4": 202
+     },
+     "rushing_yards": {
+      "V5": {
+       "n": 175,
+       "games": 18,
+       "player_games": 34,
+       "brier": 0.21502640354059066,
+       "mkt_brier": 0.19701014285714288,
+       "diff": 0.018016260683447836,
+       "se_game": 0.019274657169677682,
+       "se_player_game": 0.017391204935955952,
+       "logloss": 0.615008679930983,
+       "mkt_logloss": 0.5727455534928217,
+       "ece": 0.0736424497197613,
+       "mkt_ece": 0.08368571428571428
+      },
+      "n_v5": 175,
+      "n_v4": 141
+     },
+     "touchdowns": {
+      "V5": {
+       "n": 192,
+       "games": 30,
+       "player_games": 192,
+       "brier": 0.15545760619820795,
+       "mkt_brier": 0.14731874999999997,
+       "diff": 0.008138856198207929,
+       "se_game": 0.004955015780294378,
+       "se_player_game": 0.004407577643247352,
+       "logloss": 0.4882152170626392,
+       "mkt_logloss": 0.4757287773455339,
+       "ece": 0.06794975687775795,
+       "mkt_ece": 0.07546875000000003
+      },
+      "n_v5": 192,
+      "n_v4": 172
+     }
+    }
+   }
+  },
+  "qb_abstained_rows": {
+   "T-24h": {
+    "rows": 54,
+    "V5": {
+     "n": 41,
+     "games": 2,
+     "player_games": 13,
+     "brier": 0.1664193503738468,
+     "mkt_brier": 0.14559756097560975,
+     "diff": 0.020821789398237034,
+     "se_game": 0.008132121818674698,
+     "se_player_game": 0.007800595436691588,
+     "logloss": 0.4977506352845493,
+     "mkt_logloss": 0.45063140264657686,
+     "ece": 0.09046311032219741,
+     "mkt_ece": 0.1368292682926829
+    },
+    "games": 2
+   },
+   "T-6h": {
+    "rows": 75,
+    "V5": {
+     "n": 63,
+     "games": 2,
+     "player_games": 13,
+     "brier": 0.15441609592888614,
+     "mkt_brier": 0.13104792063492063,
+     "diff": 0.023368175293965492,
+     "se_game": 0.001272678234138782,
+     "se_player_game": 0.005522309845424398,
+     "logloss": 0.46849174798747656,
+     "mkt_logloss": 0.41549088107286053,
+     "ece": 0.07365379776383588,
+     "mkt_ece": 0.099
+    },
+    "games": 2
+   },
+   "T-90m": {
+    "rows": 98,
+    "V5": {
+     "n": 81,
+     "games": 2,
+     "player_games": 13,
+     "brier": 0.16983611337049057,
+     "mkt_brier": 0.14476160557905077,
+     "diff": 0.02507450779143979,
+     "se_game": 0.0034167290615893468,
+     "se_player_game": 0.005593512256339227,
+     "logloss": 0.504861820068908,
+     "mkt_logloss": 0.44878607244712904,
+     "ece": 0.09442344286329915,
+     "mkt_ece": 0.08993100944081335
+    },
+    "games": 2
+   },
+   "T-0": {
+    "rows": 101,
+    "V5": {
+     "n": 81,
+     "games": 2,
+     "player_games": 13,
+     "brier": 0.17414247233284214,
+     "mkt_brier": 0.1494453703703704,
+     "diff": 0.024697101962471754,
+     "se_game": 0.004706237412983803,
+     "se_player_game": 0.0066671802951403045,
+     "logloss": 0.5148580703902822,
+     "mkt_logloss": 0.4606976622975599,
+     "ece": 0.12509536598545637,
+     "mkt_ece": 0.10808641975308646
+    },
+    "games": 2
+   }
+  },
+  "unchanged_team_rows": {
+   "T-24h": {
+    "V5_vs_V4": {
+     "n": 13415,
+     "games": 234,
+     "player_games": 2504,
+     "brier": 0.19433350314577486,
+     "mkt_brier": 0.19441036517830576,
+     "diff": -7.68620325308896e-05,
+     "se_game": 0.00010429285780785879,
+     "se_player_game": 7.792410625438913e-05,
+     "logloss": 0.5701535767783935,
+     "mkt_logloss": 0.5703247373053048,
+     "ece": 0.006142601934272659,
+     "mkt_ece": 0.006550893101925453
+    },
+    "V5": {
+     "n": 13415,
+     "games": 234,
+     "player_games": 2504,
+     "brier": 0.19433350314577486,
+     "mkt_brier": 0.19017358307869067,
+     "diff": 0.004159920067084205,
+     "se_game": 0.0014559100752099543,
+     "se_player_game": 0.0013351356292672309,
+     "logloss": 0.5701535767783935,
+     "mkt_logloss": 0.5596581611461863,
+     "ece": 0.006142601934272659,
+     "mkt_ece": 0.014369141150486488
+    },
+    "V4": {
+     "n": 13415,
+     "games": 234,
+     "player_games": 2504,
+     "brier": 0.19441036517830576,
+     "mkt_brier": 0.19017358307869067,
+     "diff": 0.004236782099615094,
+     "se_game": 0.0014704284400376137,
+     "se_player_game": 0.0013422828781847263,
+     "logloss": 0.5703247373053048,
+     "mkt_logloss": 0.5596581611461863,
+     "ece": 0.006550893101925453,
+     "mkt_ece": 0.014369141150486488
+    }
+   },
+   "T-6h": {
+    "V5_vs_V4": {
+     "n": 14530,
+     "games": 247,
+     "player_games": 2792,
+     "brier": 0.1926842092128105,
+     "mkt_brier": 0.19265930991587205,
+     "diff": 2.48992969384322e-05,
+     "se_game": 7.774152477597844e-05,
+     "se_player_game": 6.748751142094196e-05,
+     "logloss": 0.5659969344012532,
+     "mkt_logloss": 0.5659535686443485,
+     "ece": 0.0077514416497881915,
+     "mkt_ece": 0.006956343393413109
+    },
+    "V5": {
+     "n": 14530,
+     "games": 247,
+     "player_games": 2792,
+     "brier": 0.1926842092128105,
+     "mkt_brier": 0.18877531389604438,
+     "diff": 0.0039088953167661,
+     "se_game": 0.001314138767052426,
+     "se_player_game": 0.001245031469687174,
+     "logloss": 0.5659969344012532,
+     "mkt_logloss": 0.5558646059855141,
+     "ece": 0.0077514416497881915,
+     "mkt_ece": 0.016254353375771198
+    },
+    "V4": {
+     "n": 14530,
+     "games": 247,
+     "player_games": 2792,
+     "brier": 0.19265930991587205,
+     "mkt_brier": 0.18877531389604438,
+     "diff": 0.0038839960198276684,
+     "se_game": 0.0013158629384828204,
+     "se_player_game": 0.0012473017965926628,
+     "logloss": 0.5659535686443485,
+     "mkt_logloss": 0.5558646059855141,
+     "ece": 0.006956343393413109,
+     "mkt_ece": 0.016254353375771198
+    }
+   },
+   "T-90m": {
+    "V5_vs_V4": {
+     "n": 16014,
+     "games": 247,
+     "player_games": 3104,
+     "brier": 0.19331314138981126,
+     "mkt_brier": 0.1932934394746326,
+     "diff": 1.9701915178662067e-05,
+     "se_game": 7.34683222316902e-05,
+     "se_player_game": 6.256694382695143e-05,
+     "logloss": 0.567796717006927,
+     "mkt_logloss": 0.5677690041864119,
+     "ece": 0.008304961268650381,
+     "mkt_ece": 0.007897918579207356
+    },
+    "V5": {
+     "n": 16014,
+     "games": 247,
+     "player_games": 3104,
+     "brier": 0.19331314138981126,
+     "mkt_brier": 0.18910681150157627,
+     "diff": 0.004206329888234964,
+     "se_game": 0.0012805936537349258,
+     "se_player_game": 0.0011998539556613494,
+     "logloss": 0.567796717006927,
+     "mkt_logloss": 0.5568192010415518,
+     "ece": 0.008304961268650381,
+     "mkt_ece": 0.01784343334982044
+    },
+    "V4": {
+     "n": 16014,
+     "games": 247,
+     "player_games": 3104,
+     "brier": 0.1932934394746326,
+     "mkt_brier": 0.18910681150157627,
+     "diff": 0.004186627973056301,
+     "se_game": 0.0012818085014551328,
+     "se_player_game": 0.00120127261551056,
+     "logloss": 0.5677690041864119,
+     "mkt_logloss": 0.5568192010415518,
+     "ece": 0.007897918579207356,
+     "mkt_ece": 0.01784343334982044
+    }
+   },
+   "T-0": {
+    "V5_vs_V4": {
+     "n": 17310,
+     "games": 247,
+     "player_games": 3109,
+     "brier": 0.19403463683641048,
+     "mkt_brier": 0.19399389814421553,
+     "diff": 4.0738692194931224e-05,
+     "se_game": 7.17617724821791e-05,
+     "se_player_game": 6.079389509139504e-05,
+     "logloss": 0.5694430895950471,
+     "mkt_logloss": 0.5693619630943938,
+     "ece": 0.00828135354004642,
+     "mkt_ece": 0.008043763234458942
+    },
+    "V5": {
+     "n": 17310,
+     "games": 247,
+     "player_games": 3109,
+     "brier": 0.19403463683641048,
+     "mkt_brier": 0.1898793764466653,
+     "diff": 0.0041552603897451815,
+     "se_game": 0.0012874479754042675,
+     "se_player_game": 0.0011595209314681227,
+     "logloss": 0.5694430895950471,
+     "mkt_logloss": 0.5584454427721491,
+     "ece": 0.00828135354004642,
+     "mkt_ece": 0.019676122036703596
+    },
+    "V4": {
+     "n": 17310,
+     "games": 247,
+     "player_games": 3109,
+     "brier": 0.19399389814421553,
+     "mkt_brier": 0.1898793764466653,
+     "diff": 0.0041145216975502505,
+     "se_game": 0.0012909565336375142,
+     "se_player_game": 0.0011617529779527306,
+     "logloss": 0.5693619630943938,
+     "mkt_logloss": 0.5584454427721491,
+     "ece": 0.008043763234458942,
+     "mkt_ece": 0.019676122036703596
+    }
+   }
+  },
+  "calibration_T90": {
+   "V3": {
+    "ece": 0.01853614568553128,
+    "bins": [
+     {
+      "bin": 0,
+      "n": 1416,
+      "p_mean": 0.06823912870031895,
+      "y_mean": 0.07344632768361582
+     },
+     {
+      "bin": 1,
+      "n": 2848,
+      "p_mean": 0.1499470122222031,
+      "y_mean": 0.16573033707865167
+     },
+     {
+      "bin": 2,
+      "n": 2843,
+      "p_mean": 0.24963554043970473,
+      "y_mean": 0.27154414351037637
+     },
+     {
+      "bin": 3,
+      "n": 2644,
+      "p_mean": 0.3504367076323966,
+      "y_mean": 0.3574130105900151
+     },
+     {
+      "bin": 4,
+      "n": 2344,
+      "p_mean": 0.4485683742879616,
+      "y_mean": 0.45051194539249145
+     },
+     {
+      "bin": 5,
+      "n": 1986,
+      "p_mean": 0.5481189468105837,
+      "y_mean": 0.5110775427995972
+     },
+     {
+      "bin": 6,
+      "n": 1494,
+      "p_mean": 0.6496853082813818,
+      "y_mean": 0.6164658634538153
+     },
+     {
+      "bin": 7,
+      "n": 860,
+      "p_mean": 0.7430996304410251,
+      "y_mean": 0.7023255813953488
+     },
+     {
+      "bin": 8,
+      "n": 422,
+      "p_mean": 0.8429333769247166,
+      "y_mean": 0.8080568720379147
+     },
+     {
+      "bin": 9,
+      "n": 28,
+      "p_mean": 0.9145129803540973,
+      "y_mean": 1.0
+     }
+    ]
+   },
+   "V4": {
+    "ece": 0.008803352216502603,
+    "bins": [
+     {
+      "bin": 0,
+      "n": 1317,
+      "p_mean": 0.0665780927469886,
+      "y_mean": 0.07365223993925589
+     },
+     {
+      "bin": 1,
+      "n": 2687,
+      "p_mean": 0.15075162926805652,
+      "y_mean": 0.1514700409378489
+     },
+     {
+      "bin": 2,
+      "n": 2910,
+      "p_mean": 0.2502348842261408,
+      "y_mean": 0.2542955326460481
+     },
+     {
+      "bin": 3,
+      "n": 2684,
+      "p_mean": 0.34847212800379607,
+      "y_mean": 0.3416542473919523
+     },
+     {
+      "bin": 4,
+      "n": 2452,
+      "p_mean": 0.45048803113249786,
+      "y_mean": 0.4400489396411093
+     },
+     {
+      "bin": 5,
+      "n": 2044,
+      "p_mean": 0.546419083126403,
+      "y_mean": 0.5288649706457925
+     },
+     {
+      "bin": 6,
+      "n": 1441,
+      "p_mean": 0.6481555858758438,
+      "y_mean": 0.6210964607911172
+     },
+     {
+      "bin": 7,
+      "n": 902,
+      "p_mean": 0.7444047733354885,
+      "y_mean": 0.7427937915742794
+     },
+     {
+      "bin": 8,
+      "n": 426,
+      "p_mean": 0.8384536179071221,
+      "y_mean": 0.8262910798122066
+     },
+     {
+      "bin": 9,
+      "n": 22,
+      "p_mean": 0.9171861559632487,
+      "y_mean": 0.9090909090909091
+     }
+    ]
+   },
+   "V5": {
+    "ece": 0.009579300040853686,
+    "bins": [
+     {
+      "bin": 0,
+      "n": 1305,
+      "p_mean": 0.066427293689291,
+      "y_mean": 0.0735632183908046
+     },
+     {
+      "bin": 1,
+      "n": 2699,
+      "p_mean": 0.15084469424105126,
+      "y_mean": 0.15005557613931086
+     },
+     {
+      "bin": 2,
+      "n": 2902,
+      "p_mean": 0.25054149216334937,
+      "y_mean": 0.25603032391454167
+     },
+     {
+      "bin": 3,
+      "n": 2681,
+      "p_mean": 0.34870590930121537,
+      "y_mean": 0.3424095486758672
+     },
+     {
+      "bin": 4,
+      "n": 2441,
+      "p_mean": 0.45039816426853996,
+      "y_mean": 0.4383449405981155
+     },
+     {
+      "bin": 5,
+      "n": 2056,
+      "p_mean": 0.5463020387693688,
+      "y_mean": 0.5277237354085603
+     },
+     {
+      "bin": 6,
+      "n": 1440,
+      "p_mean": 0.6482698555234901,
+      "y_mean": 0.6208333333333333
+     },
+     {
+      "bin": 7,
+      "n": 905,
+      "p_mean": 0.7440368684634795,
+      "y_mean": 0.7381215469613259
+     },
+     {
+      "bin": 8,
+      "n": 434,
+      "p_mean": 0.8382965511340209,
+      "y_mean": 0.8271889400921659
+     },
+     {
+      "bin": 9,
+      "n": 22,
+      "p_mean": 0.9178893329297876,
+      "y_mean": 0.9090909090909091
+     }
+    ]
+   },
+   "market_mono": {
+    "ece": 0.018756005533238435,
+    "bins": [
+     {
+      "bin": 0,
+      "n": 1774,
+      "p_mean": 0.0602999081586702,
+      "y_mean": 0.058624577226606536
+     },
+     {
+      "bin": 1,
+      "n": 2289,
+      "p_mean": 0.14933595456531237,
+      "y_mean": 0.15552643075578856
+     },
+     {
+      "bin": 2,
+      "n": 2659,
+      "p_mean": 0.24671116961263634,
+      "y_mean": 0.23617901466716812
+     },
+     {
+      "bin": 3,
+      "n": 2337,
+      "p_mean": 0.34636499786050495,
+      "y_mean": 0.3337612323491656
+     },
+     {
+      "bin": 4,
+      "n": 2364,
+      "p_mean": 0.4524609067849406,
+      "y_mean": 0.4242808798646362
+     },
+     {
+      "bin": 5,
+      "n": 2140,
+      "p_mean": 0.5414469000228895,
+      "y_mean": 0.5023364485981309
+     },
+     {
+      "bin": 6,
+      "n": 1484,
+      "p_mean": 0.6472001347708896,
+      "y_mean": 0.6185983827493261
+     },
+     {
+      "bin": 7,
+      "n": 1113,
+      "p_mean": 0.743301138065289,
+      "y_mean": 0.7124887690925427
+     },
+     {
+      "bin": 8,
+      "n": 647,
+      "p_mean": 0.8419706336939722,
+      "y_mean": 0.8222565687789799
+     },
+     {
+      "bin": 9,
+      "n": 78,
+      "p_mean": 0.9139102564102567,
+      "y_mean": 0.8846153846153846
+     }
+    ]
+   }
+  },
+  "runtime_s": 146.2
+ },
+ "2026_wk02": {
+  "window": "2026_wk02",
+  "horizons": [
+   "T-24h",
+   "T-6h",
+   "T-90m"
+  ],
+  "qb_resolution": {
+   "T-24h": {
+    "team_games": 32,
+    "by_reason": {
+     "CHART_QB1_AVAILABLE": 28,
+     "QB1_OUT_PROMOTED_NEXT": 3,
+     "QB1_QUESTIONABLE_RETAINED": 1
+    },
+    "chart_qb1_was_actual_starter": 29,
+    "v5_qb_was_actual_starter": 31,
+    "substitutions": 3,
+    "substitutions_correct": 2,
+    "abstained_team_games": 0,
+    "substitution_list": [
+     {
+      "team": "ATL",
+      "game_id": "2026_02_CAR_ATL",
+      "chart_qb1": "00-0039917",
+      "effective": "00-0036212",
+      "certainty": "LOW",
+      "effective_was_actual_starter": false
+     },
+     {
+      "team": "MIN",
+      "game_id": "2026_02_MIN_CHI",
+      "chart_qb1": "00-0035228",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SEA",
+      "game_id": "2026_02_SEA_ARI",
+      "chart_qb1": "00-0034869",
+      "effective": "00-0035704",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     }
+    ]
+   },
+   "T-6h": {
+    "team_games": 32,
+    "by_reason": {
+     "CHART_QB1_AVAILABLE": 28,
+     "QB1_OUT_PROMOTED_NEXT": 3,
+     "QB1_QUESTIONABLE_RETAINED": 1
+    },
+    "chart_qb1_was_actual_starter": 29,
+    "v5_qb_was_actual_starter": 31,
+    "substitutions": 3,
+    "substitutions_correct": 2,
+    "abstained_team_games": 0,
+    "substitution_list": [
+     {
+      "team": "ATL",
+      "game_id": "2026_02_CAR_ATL",
+      "chart_qb1": "00-0039917",
+      "effective": "00-0036212",
+      "certainty": "LOW",
+      "effective_was_actual_starter": false
+     },
+     {
+      "team": "MIN",
+      "game_id": "2026_02_MIN_CHI",
+      "chart_qb1": "00-0035228",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SEA",
+      "game_id": "2026_02_SEA_ARI",
+      "chart_qb1": "00-0034869",
+      "effective": "00-0035704",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     }
+    ]
+   },
+   "T-90m": {
+    "team_games": 32,
+    "by_reason": {
+     "CHART_QB1_AVAILABLE": 28,
+     "QB1_OUT_PROMOTED_NEXT": 3,
+     "QB1_QUESTIONABLE_RETAINED": 1
+    },
+    "chart_qb1_was_actual_starter": 29,
+    "v5_qb_was_actual_starter": 31,
+    "substitutions": 3,
+    "substitutions_correct": 2,
+    "abstained_team_games": 0,
+    "substitution_list": [
+     {
+      "team": "ATL",
+      "game_id": "2026_02_CAR_ATL",
+      "chart_qb1": "00-0039917",
+      "effective": "00-0036212",
+      "certainty": "LOW",
+      "effective_was_actual_starter": false
+     },
+     {
+      "team": "MIN",
+      "game_id": "2026_02_MIN_CHI",
+      "chart_qb1": "00-0035228",
+      "effective": "00-0032950",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     },
+     {
+      "team": "SEA",
+      "game_id": "2026_02_SEA_ARI",
+      "chart_qb1": "00-0034869",
+      "effective": "00-0035704",
+      "certainty": "MEDIUM",
+      "effective_was_actual_starter": true
+     }
+    ]
+   }
+  },
+  "by_horizon": {
+   "T-24h": {
+    "common_all_arms": {
+     "V3": {
+      "n": 3827,
+      "games": 16,
+      "player_games": 265,
+      "brier": 0.1428064746237965,
+      "mkt_brier": 0.13789855607339835,
+      "diff": 0.004907918550398134,
+      "se_game": 0.0024949675710119004,
+      "se_player_game": 0.003158325520329474,
+      "logloss": 0.4454046798854602,
+      "mkt_logloss": 0.42600604233994194,
+      "ece": 0.017582777596077424,
+      "mkt_ece": 0.016110996485441217
+     },
+     "V4": {
+      "n": 3827,
+      "games": 16,
+      "player_games": 265,
+      "brier": 0.14074933684844115,
+      "mkt_brier": 0.13789855607339835,
+      "diff": 0.0028507807750427897,
+      "se_game": 0.0026128860746909934,
+      "se_player_game": 0.00263415689606032,
+      "logloss": 0.4352749309625045,
+      "mkt_logloss": 0.42600604233994194,
+      "ece": 0.017086219994038452,
+      "mkt_ece": 0.016110996485441217
+     },
+     "V5": {
+      "n": 3827,
+      "games": 16,
+      "player_games": 265,
+      "brier": 0.1408919009840122,
+      "mkt_brier": 0.13789855607339835,
+      "diff": 0.0029933449106138124,
+      "se_game": 0.002631671049178505,
+      "se_player_game": 0.00263830192170383,
+      "logloss": 0.4357152748943552,
+      "mkt_logloss": 0.42600604233994194,
+      "ece": 0.017075257317217606,
+      "mkt_ece": 0.016110996485441217
+     },
+     "V4_ORACLE": {
+      "n": 3827,
+      "games": 16,
+      "player_games": 265,
+      "brier": 0.14074933684844115,
+      "mkt_brier": 0.13789855607339835,
+      "diff": 0.0028507807750427897,
+      "se_game": 0.0026128860746909934,
+      "se_player_game": 0.00263415689606032,
+      "logloss": 0.4352749309625045,
+      "mkt_logloss": 0.42600604233994194,
+      "ece": 0.017086219994038452,
+      "mkt_ece": 0.016110996485441217
+     }
+    },
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 3827,
+      "games": 16,
+      "player_games": 265,
+      "brier": 0.1428064746237965,
+      "mkt_brier": 0.13789855607339835,
+      "diff": 0.004907918550398134,
+      "se_game": 0.0024949675710119004,
+      "se_player_game": 0.003158325520329474,
+      "logloss": 0.4454046798854602,
+      "mkt_logloss": 0.42600604233994194,
+      "ece": 0.017582777596077424,
+      "mkt_ece": 0.016110996485441217
+     },
+     "V4": {
+      "n": 3827,
+      "games": 16,
+      "player_games": 265,
+      "brier": 0.14074933684844115,
+      "mkt_brier": 0.13789855607339835,
+      "diff": 0.0028507807750427897,
+      "se_game": 0.0026128860746909934,
+      "se_player_game": 0.00263415689606032,
+      "logloss": 0.4352749309625045,
+      "mkt_logloss": 0.42600604233994194,
+      "ece": 0.017086219994038452,
+      "mkt_ece": 0.016110996485441217
+     },
+     "V5": {
+      "n": 3827,
+      "games": 16,
+      "player_games": 265,
+      "brier": 0.1408919009840122,
+      "mkt_brier": 0.13789855607339835,
+      "diff": 0.0029933449106138124,
+      "se_game": 0.002631671049178505,
+      "se_player_game": 0.00263830192170383,
+      "logloss": 0.4357152748943552,
+      "mkt_logloss": 0.42600604233994194,
+      "ece": 0.017075257317217606,
+      "mkt_ece": 0.016110996485441217
+     }
+    },
+    "V5_vs_V4": {
+     "n": 3827,
+     "games": 16,
+     "player_games": 265,
+     "brier": 0.1408919009840122,
+     "mkt_brier": 0.14074933684844115,
+     "diff": 0.00014256413557102245,
+     "se_game": 0.0001927607166030944,
+     "se_player_game": 0.00021852742339965964,
+     "logloss": 0.4357152748943552,
+     "mkt_logloss": 0.4352749309625045,
+     "ece": 0.017075257317217606,
+     "mkt_ece": 0.017086219994038452
+    },
+    "V5_vs_V3": {
+     "n": 3827,
+     "games": 16,
+     "player_games": 265,
+     "brier": 0.1408919009840122,
+     "mkt_brier": 0.1428064746237965,
+     "diff": -0.001914573639784321,
+     "se_game": 0.0010337591467769536,
+     "se_player_game": 0.001405331310014609,
+     "logloss": 0.4357152748943552,
+     "mkt_logloss": 0.4454046798854602,
+     "ece": 0.017075257317217606,
+     "mkt_ece": 0.017582777596077424
+    },
+    "coverage": {
+     "rows": 4105,
+     "V3": 3827,
+     "V4": 4046,
+     "V5": 4086,
+     "V4_ORACLE": 4086,
+     "v5_only_rows": 40,
+     "player_games": {
+      "V3": 265,
+      "V4": 265,
+      "V5": 267,
+      "V4_ORACLE": 267
+     },
+     "games": {
+      "V3": 16,
+      "V4": 16,
+      "V5": 16,
+      "V4_ORACLE": 16
+     }
+    }
+   },
+   "T-6h": {
+    "common_all_arms": {
+     "V3": {
+      "n": 3998,
+      "games": 16,
+      "player_games": 272,
+      "brier": 0.14165955630676627,
+      "mkt_brier": 0.13642453952996908,
+      "diff": 0.005235016776797202,
+      "se_game": 0.00251654122019887,
+      "se_player_game": 0.0030644956770813376,
+      "logloss": 0.44264402975912176,
+      "mkt_logloss": 0.4220993528195413,
+      "ece": 0.014977692881400011,
+      "mkt_ece": 0.010988029729150292
+     },
+     "V4": {
+      "n": 3998,
+      "games": 16,
+      "player_games": 272,
+      "brier": 0.14012357063665726,
+      "mkt_brier": 0.13642453952996908,
+      "diff": 0.0036990311066882,
+      "se_game": 0.002621488215108178,
+      "se_player_game": 0.002573878442719846,
+      "logloss": 0.4337206940713898,
+      "mkt_logloss": 0.4220993528195413,
+      "ece": 0.013902524190803473,
+      "mkt_ece": 0.010988029729150292
+     },
+     "V5": {
+      "n": 3998,
+      "games": 16,
+      "player_games": 272,
+      "brier": 0.14027472224214707,
+      "mkt_brier": 0.13642453952996908,
+      "diff": 0.0038501827121780094,
+      "se_game": 0.0026364536202010654,
+      "se_player_game": 0.002580841881999053,
+      "logloss": 0.43418050301585404,
+      "mkt_logloss": 0.4220993528195413,
+      "ece": 0.014392948754553948,
+      "mkt_ece": 0.010988029729150292
+     },
+     "V4_ORACLE": {
+      "n": 3998,
+      "games": 16,
+      "player_games": 272,
+      "brier": 0.14012357063665726,
+      "mkt_brier": 0.13642453952996908,
+      "diff": 0.0036990311066882,
+      "se_game": 0.002621488215108178,
+      "se_player_game": 0.002573878442719846,
+      "logloss": 0.4337206940713898,
+      "mkt_logloss": 0.4220993528195413,
+      "ece": 0.013902524190803473,
+      "mkt_ece": 0.010988029729150292
+     }
+    },
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 3998,
+      "games": 16,
+      "player_games": 272,
+      "brier": 0.14165955630676627,
+      "mkt_brier": 0.13642453952996908,
+      "diff": 0.005235016776797202,
+      "se_game": 0.00251654122019887,
+      "se_player_game": 0.0030644956770813376,
+      "logloss": 0.44264402975912176,
+      "mkt_logloss": 0.4220993528195413,
+      "ece": 0.014977692881400011,
+      "mkt_ece": 0.010988029729150292
+     },
+     "V4": {
+      "n": 3998,
+      "games": 16,
+      "player_games": 272,
+      "brier": 0.14012357063665726,
+      "mkt_brier": 0.13642453952996908,
+      "diff": 0.0036990311066882,
+      "se_game": 0.002621488215108178,
+      "se_player_game": 0.002573878442719846,
+      "logloss": 0.4337206940713898,
+      "mkt_logloss": 0.4220993528195413,
+      "ece": 0.013902524190803473,
+      "mkt_ece": 0.010988029729150292
+     },
+     "V5": {
+      "n": 3998,
+      "games": 16,
+      "player_games": 272,
+      "brier": 0.14027472224214707,
+      "mkt_brier": 0.13642453952996908,
+      "diff": 0.0038501827121780094,
+      "se_game": 0.0026364536202010654,
+      "se_player_game": 0.002580841881999053,
+      "logloss": 0.43418050301585404,
+      "mkt_logloss": 0.4220993528195413,
+      "ece": 0.014392948754553948,
+      "mkt_ece": 0.010988029729150292
+     }
+    },
+    "V5_vs_V4": {
+     "n": 3998,
+     "games": 16,
+     "player_games": 272,
+     "brier": 0.14027472224214707,
+     "mkt_brier": 0.14012357063665726,
+     "diff": 0.00015115160548980855,
+     "se_game": 0.00019403169059718754,
+     "se_player_game": 0.0002089113566385507,
+     "logloss": 0.43418050301585404,
+     "mkt_logloss": 0.4337206940713898,
+     "ece": 0.014392948754553948,
+     "mkt_ece": 0.013902524190803473
+    },
+    "V5_vs_V3": {
+     "n": 3998,
+     "games": 16,
+     "player_games": 272,
+     "brier": 0.14027472224214707,
+     "mkt_brier": 0.14165955630676627,
+     "diff": -0.001384834064619193,
+     "se_game": 0.0010482999113743032,
+     "se_player_game": 0.001389260449575879,
+     "logloss": 0.43418050301585404,
+     "mkt_logloss": 0.44264402975912176,
+     "ece": 0.014392948754553948,
+     "mkt_ece": 0.014977692881400011
+    },
+    "coverage": {
+     "rows": 4277,
+     "V3": 3998,
+     "V4": 4218,
+     "V5": 4258,
+     "V4_ORACLE": 4258,
+     "v5_only_rows": 40,
+     "player_games": {
+      "V3": 272,
+      "V4": 272,
+      "V5": 274,
+      "V4_ORACLE": 274
+     },
+     "games": {
+      "V3": 16,
+      "V4": 16,
+      "V5": 16,
+      "V4_ORACLE": 16
+     }
+    }
+   },
+   "T-90m": {
+    "common_all_arms": {
+     "V3": {
+      "n": 1446,
+      "games": 6,
+      "player_games": 104,
+      "brier": 0.1452647408357641,
+      "mkt_brier": 0.13903630670816042,
+      "diff": 0.006228434127603656,
+      "se_game": 0.004391297981016576,
+      "se_player_game": 0.00484143492253402,
+      "logloss": 0.45276346137002443,
+      "mkt_logloss": 0.43142051068852516,
+      "ece": 0.0265666170675008,
+      "mkt_ece": 0.0171106500691563
+     },
+     "V4": {
+      "n": 1446,
+      "games": 6,
+      "player_games": 104,
+      "brier": 0.14474423101969194,
+      "mkt_brier": 0.13903630670816042,
+      "diff": 0.005707924311531502,
+      "se_game": 0.004108256604607207,
+      "se_player_game": 0.004051044350856004,
+      "logloss": 0.4464040308707471,
+      "mkt_logloss": 0.43142051068852516,
+      "ece": 0.029847138372266734,
+      "mkt_ece": 0.0171106500691563
+     },
+     "V5": {
+      "n": 1446,
+      "games": 6,
+      "player_games": 104,
+      "brier": 0.14517635038366813,
+      "mkt_brier": 0.13903630670816042,
+      "diff": 0.006140043675507685,
+      "se_game": 0.004024383238841395,
+      "se_player_game": 0.004073374032962437,
+      "logloss": 0.4476566014233683,
+      "mkt_logloss": 0.43142051068852516,
+      "ece": 0.030631025153620813,
+      "mkt_ece": 0.0171106500691563
+     },
+     "V4_ORACLE": {
+      "n": 1446,
+      "games": 6,
+      "player_games": 104,
+      "brier": 0.14474423101969194,
+      "mkt_brier": 0.13903630670816042,
+      "diff": 0.005707924311531502,
+      "se_game": 0.004108256604607207,
+      "se_player_game": 0.004051044350856004,
+      "logloss": 0.4464040308707471,
+      "mkt_logloss": 0.43142051068852516,
+      "ece": 0.029847138372266734,
+      "mkt_ece": 0.0171106500691563
+     }
+    },
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 1446,
+      "games": 6,
+      "player_games": 104,
+      "brier": 0.1452647408357641,
+      "mkt_brier": 0.13903630670816042,
+      "diff": 0.006228434127603656,
+      "se_game": 0.004391297981016576,
+      "se_player_game": 0.00484143492253402,
+      "logloss": 0.45276346137002443,
+      "mkt_logloss": 0.43142051068852516,
+      "ece": 0.0265666170675008,
+      "mkt_ece": 0.0171106500691563
+     },
+     "V4": {
+      "n": 1446,
+      "games": 6,
+      "player_games": 104,
+      "brier": 0.14474423101969194,
+      "mkt_brier": 0.13903630670816042,
+      "diff": 0.005707924311531502,
+      "se_game": 0.004108256604607207,
+      "se_player_game": 0.004051044350856004,
+      "logloss": 0.4464040308707471,
+      "mkt_logloss": 0.43142051068852516,
+      "ece": 0.029847138372266734,
+      "mkt_ece": 0.0171106500691563
+     },
+     "V5": {
+      "n": 1446,
+      "games": 6,
+      "player_games": 104,
+      "brier": 0.14517635038366813,
+      "mkt_brier": 0.13903630670816042,
+      "diff": 0.006140043675507685,
+      "se_game": 0.004024383238841395,
+      "se_player_game": 0.004073374032962437,
+      "logloss": 0.4476566014233683,
+      "mkt_logloss": 0.43142051068852516,
+      "ece": 0.030631025153620813,
+      "mkt_ece": 0.0171106500691563
+     }
+    },
+    "V5_vs_V4": {
+     "n": 1446,
+     "games": 6,
+     "player_games": 104,
+     "brier": 0.14517635038366813,
+     "mkt_brier": 0.14474423101969194,
+     "diff": 0.0004321193639761847,
+     "se_game": 0.00047571813960901193,
+     "se_player_game": 0.0005555161058677627,
+     "logloss": 0.4476566014233683,
+     "mkt_logloss": 0.4464040308707471,
+     "ece": 0.030631025153620813,
+     "mkt_ece": 0.029847138372266734
+    },
+    "V5_vs_V3": {
+     "n": 1446,
+     "games": 6,
+     "player_games": 104,
+     "brier": 0.14517635038366813,
+     "mkt_brier": 0.1452647408357641,
+     "diff": -8.83904520959713e-05,
+     "se_game": 0.0012391228478561066,
+     "se_player_game": 0.0024038514437904174,
+     "logloss": 0.4476566014233683,
+     "mkt_logloss": 0.45276346137002443,
+     "ece": 0.030631025153620813,
+     "mkt_ece": 0.0265666170675008
+    },
+    "coverage": {
+     "rows": 1549,
+     "V3": 1446,
+     "V4": 1527,
+     "V5": 1547,
+     "V4_ORACLE": 1547,
+     "v5_only_rows": 20,
+     "player_games": {
+      "V3": 104,
+      "V4": 104,
+      "V5": 105,
+      "V4_ORACLE": 105
+     },
+     "games": {
+      "V3": 6,
+      "V4": 6,
+      "V5": 6,
+      "V4_ORACLE": 6
+     }
+    }
+   }
+  },
+  "by_stat_T90": {
+   "passing_tds": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 44,
+      "games": 6,
+      "player_games": 11,
+      "brier": 0.14767869704387973,
+      "mkt_brier": 0.14253522727272724,
+      "diff": 0.0051434697711525085,
+      "se_game": 0.004752247201640133,
+      "se_player_game": 0.004026192856741747,
+      "logloss": 0.45951101264302036,
+      "mkt_logloss": 0.4466857540033668,
+      "ece": 0.15585455831977202,
+      "mkt_ece": 0.11704545454545455
+     },
+     "V4": {
+      "n": 44,
+      "games": 6,
+      "player_games": 11,
+      "brier": 0.14504170926438248,
+      "mkt_brier": 0.14253522727272724,
+      "diff": 0.002506481991655198,
+      "se_game": 0.003747790433595038,
+      "se_player_game": 0.002940016546015492,
+      "logloss": 0.45359563339361786,
+      "mkt_logloss": 0.4466857540033668,
+      "ece": 0.15362069582922436,
+      "mkt_ece": 0.11704545454545455
+     },
+     "V5": {
+      "n": 44,
+      "games": 6,
+      "player_games": 11,
+      "brier": 0.14488237085621286,
+      "mkt_brier": 0.14253522727272724,
+      "diff": 0.002347143583485595,
+      "se_game": 0.003673349125573594,
+      "se_player_game": 0.0028521984066411047,
+      "logloss": 0.45307679450928345,
+      "mkt_logloss": 0.4466857540033668,
+      "ece": 0.15348501328818118,
+      "mkt_ece": 0.11704545454545455
+     }
+    },
+    "V5_vs_V4": {
+     "n": 44,
+     "games": 6,
+     "player_games": 11,
+     "brier": 0.14488237085621286,
+     "mkt_brier": 0.14504170926438248,
+     "diff": -0.0001593384081696027,
+     "se_game": 0.00017065457271815712,
+     "se_player_game": 0.00016162532918952518,
+     "logloss": 0.45307679450928345,
+     "mkt_logloss": 0.45359563339361786,
+     "ece": 0.15348501328818118,
+     "mkt_ece": 0.15362069582922436
+    },
+    "V5_all_rows": {
+     "n": 48,
+     "games": 6,
+     "player_games": 12,
+     "brier": 0.16228924944961265,
+     "mkt_brier": 0.15666510416666668,
+     "diff": 0.00562414528294598,
+     "se_game": 0.0048124315575248456,
+     "se_player_game": 0.004133988527580403,
+     "logloss": 0.4974553775305159,
+     "mkt_logloss": 0.4825409627278428,
+     "ece": 0.18163905531928184,
+     "mkt_ece": 0.14114583333333333
+    }
+   },
+   "passing_yards": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 99,
+      "games": 6,
+      "player_games": 11,
+      "brier": 0.1583009360138625,
+      "mkt_brier": 0.1742840909090909,
+      "diff": -0.015983154895228415,
+      "se_game": 0.008812825441234011,
+      "se_player_game": 0.014482565825785661,
+      "logloss": 0.48493187502074364,
+      "mkt_logloss": 0.5281104413787562,
+      "ece": 0.048736709413252116,
+      "mkt_ece": 0.06671717171717172
+     },
+     "V4": {
+      "n": 99,
+      "games": 6,
+      "player_games": 11,
+      "brier": 0.16786267512092923,
+      "mkt_brier": 0.1742840909090909,
+      "diff": -0.006421415788161681,
+      "se_game": 0.007872000112472077,
+      "se_player_game": 0.010401205413373076,
+      "logloss": 0.5084322094768439,
+      "mkt_logloss": 0.5281104413787562,
+      "ece": 0.05121479351282256,
+      "mkt_ece": 0.06671717171717172
+     },
+     "V5": {
+      "n": 99,
+      "games": 6,
+      "player_games": 11,
+      "brier": 0.16728581195500022,
+      "mkt_brier": 0.1742840909090909,
+      "diff": -0.006998278954090664,
+      "se_game": 0.007988554224586313,
+      "se_player_game": 0.010450059727189992,
+      "logloss": 0.5068822523177353,
+      "mkt_logloss": 0.5281104413787562,
+      "ece": 0.06870516449018077,
+      "mkt_ece": 0.06671717171717172
+     }
+    },
+    "V5_vs_V4": {
+     "n": 99,
+     "games": 6,
+     "player_games": 11,
+     "brier": 0.16728581195500022,
+     "mkt_brier": 0.16786267512092923,
+     "diff": -0.0005768631659289831,
+     "se_game": 0.00072230010780443,
+     "se_player_game": 0.0007648115097304457,
+     "logloss": 0.5068822523177353,
+     "mkt_logloss": 0.5084322094768439,
+     "ece": 0.06870516449018077,
+     "mkt_ece": 0.05121479351282256
+    },
+    "V5_all_rows": {
+     "n": 107,
+     "games": 6,
+     "player_games": 12,
+     "brier": 0.16678677346421786,
+     "mkt_brier": 0.16896612149532714,
+     "diff": -0.0021793480311092265,
+     "se_game": 0.008555524679074635,
+     "se_player_game": 0.010779741860759034,
+     "logloss": 0.5037867176313293,
+     "mkt_logloss": 0.5144228046544986,
+     "ece": 0.07863350320949089,
+     "mkt_ece": 0.05144859813084109
+    }
+   },
+   "receiving_yards": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 481,
+      "games": 6,
+      "player_games": 59,
+      "brier": 0.17601700660326478,
+      "mkt_brier": 0.16616712577962578,
+      "diff": 0.009849880823639,
+      "se_game": 0.006913877616769685,
+      "se_player_game": 0.007270913330020345,
+      "logloss": 0.5459050980632715,
+      "mkt_logloss": 0.5083663066941402,
+      "ece": 0.05015038397026519,
+      "mkt_ece": 0.030270270270270273
+     },
+     "V4": {
+      "n": 481,
+      "games": 6,
+      "player_games": 59,
+      "brier": 0.17229155726940318,
+      "mkt_brier": 0.16616712577962578,
+      "diff": 0.006124431489777408,
+      "se_game": 0.00673163208791658,
+      "se_player_game": 0.006513934326338959,
+      "logloss": 0.5268670733908767,
+      "mkt_logloss": 0.5083663066941402,
+      "ece": 0.04893653668007697,
+      "mkt_ece": 0.030270270270270273
+     },
+     "V5": {
+      "n": 481,
+      "games": 6,
+      "player_games": 59,
+      "brier": 0.17336178108628203,
+      "mkt_brier": 0.16616712577962578,
+      "diff": 0.007194655306656221,
+      "se_game": 0.006799437691955124,
+      "se_player_game": 0.006562602609171455,
+      "logloss": 0.5300148328228539,
+      "mkt_logloss": 0.5083663066941402,
+      "ece": 0.05140233865920532,
+      "mkt_ece": 0.030270270270270273
+     }
+    },
+    "V5_vs_V4": {
+     "n": 481,
+     "games": 6,
+     "player_games": 59,
+     "brier": 0.17336178108628203,
+     "mkt_brier": 0.17229155726940318,
+     "diff": 0.0010702238168788117,
+     "se_game": 0.0009718807204188381,
+     "se_player_game": 0.0011539771748201966,
+     "logloss": 0.5300148328228539,
+     "mkt_logloss": 0.5268670733908767,
+     "ece": 0.05140233865920532,
+     "mkt_ece": 0.04893653668007697
+    },
+    "V5_all_rows": {
+     "n": 481,
+     "games": 6,
+     "player_games": 59,
+     "brier": 0.17336178108628203,
+     "mkt_brier": 0.16616712577962578,
+     "diff": 0.007194655306656221,
+     "se_game": 0.006799437691955124,
+     "se_player_game": 0.006562602609171455,
+     "logloss": 0.5300148328228539,
+     "mkt_logloss": 0.5083663066941402,
+     "ece": 0.05140233865920532,
+     "mkt_ece": 0.030270270270270273
+    }
+   },
+   "receptions": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 408,
+      "games": 6,
+      "player_games": 56,
+      "brier": 0.14731918052266724,
+      "mkt_brier": 0.13532270098039215,
+      "diff": 0.01199647954227507,
+      "se_game": 0.010650188588724034,
+      "se_player_game": 0.007932868671531468,
+      "logloss": 0.4567335930530352,
+      "mkt_logloss": 0.4190670703586464,
+      "ece": 0.03896393747619077,
+      "mkt_ece": 0.050975490196078437
+     },
+     "V4": {
+      "n": 408,
+      "games": 6,
+      "player_games": 56,
+      "brier": 0.14409557896306632,
+      "mkt_brier": 0.13532270098039215,
+      "diff": 0.008772877982674175,
+      "se_game": 0.00839408899615902,
+      "se_player_game": 0.006251843125978035,
+      "logloss": 0.44190532078159894,
+      "mkt_logloss": 0.4190670703586464,
+      "ece": 0.0477393823999161,
+      "mkt_ece": 0.050975490196078437
+     },
+     "V5": {
+      "n": 408,
+      "games": 6,
+      "player_games": 56,
+      "brier": 0.14438201817825122,
+      "mkt_brier": 0.13532270098039215,
+      "diff": 0.009059317197859082,
+      "se_game": 0.008347072798824793,
+      "se_player_game": 0.006276552583368696,
+      "logloss": 0.4423772664911917,
+      "mkt_logloss": 0.4190670703586464,
+      "ece": 0.04890179361762007,
+      "mkt_ece": 0.050975490196078437
+     }
+    },
+    "V5_vs_V4": {
+     "n": 408,
+     "games": 6,
+     "player_games": 56,
+     "brier": 0.14438201817825122,
+     "mkt_brier": 0.14409557896306632,
+     "diff": 0.00028643921518490775,
+     "se_game": 0.00026645208336950626,
+     "se_player_game": 0.0005481890072245616,
+     "logloss": 0.4423772664911917,
+     "mkt_logloss": 0.44190532078159894,
+     "ece": 0.04890179361762007,
+     "mkt_ece": 0.0477393823999161
+    },
+    "V5_all_rows": {
+     "n": 408,
+     "games": 6,
+     "player_games": 56,
+     "brier": 0.14438201817825122,
+     "mkt_brier": 0.13532270098039215,
+     "diff": 0.009059317197859082,
+     "se_game": 0.008347072798824793,
+     "se_player_game": 0.006276552583368696,
+     "logloss": 0.4423772664911917,
+     "mkt_logloss": 0.4190670703586464,
+     "ece": 0.04890179361762007,
+     "mkt_ece": 0.050975490196078437
+    }
+   },
+   "rushing_yards": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 191,
+      "games": 6,
+      "player_games": 19,
+      "brier": 0.13145564945213084,
+      "mkt_brier": 0.12657552356020943,
+      "diff": 0.00488012589192141,
+      "se_game": 0.011462245242671795,
+      "se_player_game": 0.01314494082139482,
+      "logloss": 0.4034177482929591,
+      "mkt_logloss": 0.39421432248051136,
+      "ece": 0.05309684184600688,
+      "mkt_ece": 0.06824607329842934
+     },
+     "V4": {
+      "n": 191,
+      "games": 6,
+      "player_games": 19,
+      "brier": 0.13795149061976464,
+      "mkt_brier": 0.12657552356020943,
+      "diff": 0.011375967059555209,
+      "se_game": 0.01203236642310378,
+      "se_player_game": 0.010694616237916886,
+      "logloss": 0.4185575317333213,
+      "mkt_logloss": 0.39421432248051136,
+      "ece": 0.056568148404059757,
+      "mkt_ece": 0.06824607329842934
+     },
+     "V5": {
+      "n": 191,
+      "games": 6,
+      "player_games": 19,
+      "brier": 0.13806974686360596,
+      "mkt_brier": 0.12657552356020943,
+      "diff": 0.011494223303396537,
+      "se_game": 0.01204157152666483,
+      "se_player_game": 0.010671605079525259,
+      "logloss": 0.4188858688409429,
+      "mkt_logloss": 0.39421432248051136,
+      "ece": 0.051378362652974865,
+      "mkt_ece": 0.06824607329842934
+     }
+    },
+    "V5_vs_V4": {
+     "n": 191,
+     "games": 6,
+     "player_games": 19,
+     "brier": 0.13806974686360596,
+     "mkt_brier": 0.13795149061976464,
+     "diff": 0.00011825624384132887,
+     "se_game": 9.199232077185118e-05,
+     "se_player_game": 0.00021046441499351944,
+     "logloss": 0.4188858688409429,
+     "mkt_logloss": 0.4185575317333213,
+     "ece": 0.051378362652974865,
+     "mkt_ece": 0.056568148404059757
+    },
+    "V5_all_rows": {
+     "n": 256,
+     "games": 6,
+     "player_games": 28,
+     "brier": 0.14225528252568434,
+     "mkt_brier": 0.13203056640625,
+     "diff": 0.010224716119434357,
+     "se_game": 0.00804627556961869,
+     "se_player_game": 0.008803665255779384,
+     "logloss": 0.43121583867794144,
+     "mkt_logloss": 0.4071012397103971,
+     "ece": 0.04564575078282659,
+     "mkt_ece": 0.07232421875000003
+    }
+   },
+   "touchdowns": {
+    "common_v3_v4_v5": {
+     "V3": {
+      "n": 223,
+      "games": 6,
+      "player_games": 93,
+      "brier": 0.08073867730240454,
+      "mkt_brier": 0.08164506726457399,
+      "diff": -0.0009063899621694519,
+      "se_game": 0.0024478154691929847,
+      "se_player_game": 0.0027192003651617487,
+      "logloss": 0.27125012062637527,
+      "mkt_logloss": 0.27398411552903895,
+      "ece": 0.020979686799571393,
+      "mkt_ece": 0.032062780269058296
+     },
+     "V4": {
+      "n": 223,
+      "games": 6,
+      "player_games": 93,
+      "brier": 0.08200873559632595,
+      "mkt_brier": 0.08164506726457399,
+      "diff": 0.00036366833175195483,
+      "se_game": 0.0018331774355201675,
+      "se_player_game": 0.0022009770608862047,
+      "logloss": 0.275974485608095,
+      "mkt_logloss": 0.27398411552903895,
+      "ece": 0.028362492905744417,
+      "mkt_ece": 0.032062780269058296
+     },
+     "V5": {
+      "n": 223,
+      "games": 6,
+      "player_games": 93,
+      "brier": 0.08216448961160912,
+      "mkt_brier": 0.08164506726457399,
+      "diff": 0.0005194223470351394,
+      "se_game": 0.0017323863748609357,
+      "se_player_game": 0.002188560777814217,
+      "logloss": 0.27695275092155724,
+      "mkt_logloss": 0.27398411552903895,
+      "ece": 0.028452719708488686,
+      "mkt_ece": 0.032062780269058296
+     }
+    },
+    "V5_vs_V4": {
+     "n": 223,
+     "games": 6,
+     "player_games": 93,
+     "brier": 0.08216448961160912,
+     "mkt_brier": 0.08200873559632595,
+     "diff": 0.00015575401528318517,
+     "se_game": 0.0001541122918013468,
+     "se_player_game": 0.0001340556929844348,
+     "logloss": 0.27695275092155724,
+     "mkt_logloss": 0.275974485608095,
+     "ece": 0.028452719708488686,
+     "mkt_ece": 0.028362492905744417
+    },
+    "V5_all_rows": {
+     "n": 247,
+     "games": 6,
+     "player_games": 104,
+     "brier": 0.07839407163166764,
+     "mkt_brier": 0.07762267206477734,
+     "diff": 0.0007713995668903164,
+     "se_game": 0.0020173075503293002,
+     "se_player_game": 0.0020287034821126716,
+     "logloss": 0.2661243782911991,
+     "mkt_logloss": 0.26248798798926304,
+     "ece": 0.02275400082902171,
+     "mkt_ece": 0.02862348178137651
+    }
+   }
+  },
+  "substituted_team_rows": {
+   "T-24h": {
+    "V5": {
+     "n": 354,
+     "games": 3,
+     "player_games": 24,
+     "brier": 0.11725492719702213,
+     "mkt_brier": 0.12559985875706214,
+     "diff": -0.008344931560040006,
+     "se_game": 0.00637308336553233,
+     "se_player_game": 0.0067080657955801365,
+     "logloss": 0.3742489490698802,
+     "mkt_logloss": 0.3956595863660505,
+     "ece": 0.04712563104635653,
+     "mkt_ece": 0.07677966101694915
+    },
+    "V4": {
+     "n": 314,
+     "games": 3,
+     "player_games": 22,
+     "brier": 0.11177454400949145,
+     "mkt_brier": 0.12422396496815286,
+     "diff": -0.012449420958661412,
+     "se_game": 0.002388157208208591,
+     "se_player_game": 0.006302899819204315,
+     "logloss": 0.3602500563872764,
+     "mkt_logloss": 0.3925503806720185,
+     "ece": 0.04749921759302856,
+     "mkt_ece": 0.07259554140127389
+    },
+    "V3": {
+     "n": 314,
+     "games": 3,
+     "player_games": 22,
+     "brier": 0.1213351325741231,
+     "mkt_brier": 0.12422396496815286,
+     "diff": -0.0028888323940297793,
+     "se_game": 0.007202616372329073,
+     "se_player_game": 0.0072541970430710576,
+     "logloss": 0.3865021983790851,
+     "mkt_logloss": 0.3925503806720185,
+     "ece": 0.07693604511815048,
+     "mkt_ece": 0.07259554140127389
+    },
+    "V4_ORACLE": {
+     "n": 354,
+     "games": 3,
+     "player_games": 24,
+     "brier": 0.11497202936019045,
+     "mkt_brier": 0.12559985875706214,
+     "diff": -0.01062782939687171,
+     "se_game": 0.00462340673656062,
+     "se_player_game": 0.0061212759722716415,
+     "logloss": 0.3678603805309807,
+     "mkt_logloss": 0.3956595863660505,
+     "ece": 0.04719301865231306,
+     "mkt_ece": 0.07677966101694915
+    },
+    "V5_vs_V4_common": {
+     "n": 314,
+     "games": 3,
+     "player_games": 22,
+     "brier": 0.1140866095427009,
+     "mkt_brier": 0.11177454400949145,
+     "diff": 0.002312065533209456,
+     "se_game": 0.0019886345810702175,
+     "se_player_game": 0.0025721002576114932,
+     "logloss": 0.3668504499740922,
+     "mkt_logloss": 0.3602500563872764,
+     "ece": 0.0447759581283331,
+     "mkt_ece": 0.04749921759302856
+    },
+    "rows": 369,
+    "v5_rows": 354,
+    "v4_rows": 314,
+    "games": 3,
+    "by_stat": {
+     "passing_tds": {
+      "V5": null,
+      "n_v5": 8,
+      "n_v4": 0
+     },
+     "passing_yards": {
+      "V5": null,
+      "n_v5": 16,
+      "n_v4": 0
+     },
+     "receiving_yards": {
+      "V5": {
+       "n": 108,
+       "games": 3,
+       "player_games": 14,
+       "brier": 0.1215502652482552,
+       "mkt_brier": 0.13198819444444446,
+       "diff": -0.010437929196189242,
+       "se_game": 0.012379282791126966,
+       "se_player_game": 0.009854647921028675,
+       "logloss": 0.391888029884028,
+       "mkt_logloss": 0.41944240730095206,
+       "ece": 0.07094229314788443,
+       "mkt_ece": 0.08328703703703705
+      },
+      "n_v5": 108,
+      "n_v4": 108
+     },
+     "receptions": {
+      "V5": {
+       "n": 99,
+       "games": 3,
+       "player_games": 14,
+       "brier": 0.10048879746678428,
+       "mkt_brier": 0.11910782828282826,
+       "diff": -0.018619030816043974,
+       "se_game": 0.012605274442378899,
+       "se_player_game": 0.00999599261200674,
+       "logloss": 0.32407620078246346,
+       "mkt_logloss": 0.36879436574812524,
+       "ece": 0.09994900443898665,
+       "mkt_ece": 0.13823232323232326
+      },
+      "n_v5": 99,
+      "n_v4": 99
+     },
+     "rushing_yards": {
+      "V5": {
+       "n": 67,
+       "games": 3,
+       "player_games": 7,
+       "brier": 0.14256528469934077,
+       "mkt_brier": 0.13943880597014924,
+       "diff": 0.0031264787291915242,
+       "se_game": 0.01840777543163033,
+       "se_player_game": 0.018787202081486234,
+       "logloss": 0.4340183924472406,
+       "mkt_logloss": 0.4270281685621994,
+       "ece": 0.09253075988882076,
+       "mkt_ece": 0.08641791044776119
+      },
+      "n_v5": 67,
+      "n_v4": 55
+     },
+     "touchdowns": {
+      "V5": {
+       "n": 56,
+       "games": 3,
+       "player_games": 24,
+       "brier": 0.06976928860216189,
+       "mkt_brier": 0.07844151785714286,
+       "diff": -0.008672229254980974,
+       "se_game": 0.0010214027157217833,
+       "se_player_game": 0.0033810504589404725,
+       "logloss": 0.26471815018885053,
+       "mkt_logloss": 0.2869966684576424,
+       "ece": 0.0689380163696273,
+       "mkt_ece": 0.07187500000000001
+      },
+      "n_v5": 56,
+      "n_v4": 52
+     }
+    }
+   },
+   "T-6h": {
+    "V5": {
+     "n": 363,
+     "games": 3,
+     "player_games": 24,
+     "brier": 0.11644991641415803,
+     "mkt_brier": 0.12364752066115703,
+     "diff": -0.007197604246998997,
+     "se_game": 0.007451214051252883,
+     "se_player_game": 0.006409987545145736,
+     "logloss": 0.37267123544384784,
+     "mkt_logloss": 0.3909988663767656,
+     "ece": 0.05140812236126768,
+     "mkt_ece": 0.07818181818181819
+    },
+    "V4": {
+     "n": 323,
+     "games": 3,
+     "player_games": 22,
+     "brier": 0.11068383622275971,
+     "mkt_brier": 0.12199249226006192,
+     "diff": -0.011308656037302208,
+     "se_game": 0.003293720421771693,
+     "se_player_game": 0.005607184643429296,
+     "logloss": 0.3579685350640296,
+     "mkt_logloss": 0.3871604097300184,
+     "ece": 0.05190094084730691,
+     "mkt_ece": 0.0741640866873065
+    },
+    "V3": {
+     "n": 323,
+     "games": 3,
+     "player_games": 22,
+     "brier": 0.11972248852301987,
+     "mkt_brier": 0.12199249226006192,
+     "diff": -0.0022700037370420372,
+     "se_game": 0.006472937592295126,
+     "se_player_game": 0.006297804726650291,
+     "logloss": 0.3829277870449977,
+     "mkt_logloss": 0.3871604097300184,
+     "ece": 0.07555434988308421,
+     "mkt_ece": 0.0741640866873065
+    },
+    "V4_ORACLE": {
+     "n": 363,
+     "games": 3,
+     "player_games": 24,
+     "brier": 0.11403361945308901,
+     "mkt_brier": 0.12364752066115703,
+     "diff": -0.009613901208068008,
+     "se_game": 0.0056879562194145795,
+     "se_player_game": 0.005657610634602267,
+     "logloss": 0.3659122875747993,
+     "mkt_logloss": 0.3909988663767656,
+     "ece": 0.05100681575809384,
+     "mkt_ece": 0.07818181818181819
+    },
+    "V5_vs_V4_common": {
+     "n": 323,
+     "games": 3,
+     "player_games": 22,
+     "brier": 0.11314303986364965,
+     "mkt_brier": 0.11068383622275971,
+     "diff": 0.002459203640889946,
+     "se_game": 0.001986710515705855,
+     "se_player_game": 0.002487989784676439,
+     "logloss": 0.36497145063991765,
+     "mkt_logloss": 0.3579685350640296,
+     "ece": 0.04973290210529997,
+     "mkt_ece": 0.05190094084730691
+    },
+    "rows": 378,
+    "v5_rows": 363,
+    "v4_rows": 323,
+    "games": 3,
+    "by_stat": {
+     "passing_tds": {
+      "V5": null,
+      "n_v5": 8,
+      "n_v4": 0
+     },
+     "passing_yards": {
+      "V5": null,
+      "n_v5": 16,
+      "n_v4": 0
+     },
+     "receiving_yards": {
+      "V5": {
+       "n": 113,
+       "games": 3,
+       "player_games": 15,
+       "brier": 0.12013353884327777,
+       "mkt_brier": 0.129704203539823,
+       "diff": -0.009570664696545243,
+       "se_game": 0.011962740287561972,
+       "se_player_game": 0.009690642825912515,
+       "logloss": 0.38921303213345015,
+       "mkt_logloss": 0.41444618854967613,
+       "ece": 0.07892096036491572,
+       "mkt_ece": 0.08641592920353981
+      },
+      "n_v5": 113,
+      "n_v4": 113
+     },
+     "receptions": {
+      "V5": {
+       "n": 103,
+       "games": 3,
+       "player_games": 15,
+       "brier": 0.09919654589373939,
+       "mkt_brier": 0.11661504854368934,
+       "diff": -0.017418502649949947,
+       "se_game": 0.012482632027159407,
+       "se_player_game": 0.009555131926124177,
+       "logloss": 0.32111569280366176,
+       "mkt_logloss": 0.36182609260762627,
+       "ece": 0.10327762961603094,
+       "mkt_ece": 0.13893203883495148
+      },
+      "n_v5": 103,
+      "n_v4": 103
+     },
+     "rushing_yards": {
+      "V5": {
+       "n": 67,
+       "games": 3,
+       "player_games": 7,
+       "brier": 0.142550293095922,
+       "mkt_brier": 0.1357641791044776,
+       "diff": 0.006786113991444393,
+       "se_game": 0.014177654544508547,
+       "se_player_game": 0.015216514732792008,
+       "logloss": 0.4339686035437771,
+       "mkt_logloss": 0.4175868788012493,
+       "ece": 0.0925861928704611,
+       "mkt_ece": 0.09776119402985073
+      },
+      "n_v5": 67,
+      "n_v4": 55
+     },
+     "touchdowns": {
+      "V5": {
+       "n": 56,
+       "games": 3,
+       "player_games": 24,
+       "brier": 0.06990522063852325,
+       "mkt_brier": 0.07832991071428572,
+       "diff": -0.008424690075762452,
+       "se_game": 0.0008233683280528926,
+       "se_player_game": 0.003410347896535466,
+       "logloss": 0.2656582402831558,
+       "mkt_logloss": 0.2878598136919487,
+       "ece": 0.06895396888851073,
+       "mkt_ece": 0.07116071428571429
+      },
+      "n_v5": 56,
+      "n_v4": 52
+     }
+    }
+   },
+   "T-90m": {
+    "V5": {
+     "n": 126,
+     "games": 1,
+     "player_games": 9,
+     "brier": 0.15441984552542895,
+     "mkt_brier": 0.1498486111111111,
+     "diff": 0.004571234414317833,
+     "se_game": NaN,
+     "se_player_game": 0.010077208057618869,
+     "logloss": 0.47618070980492255,
+     "mkt_logloss": 0.47037370816401425,
+     "ece": 0.07054521381083247,
+     "mkt_ece": 0.07400793650793654
+    },
+    "V4": {
+     "n": 106,
+     "games": 1,
+     "player_games": 8,
+     "brier": 0.1483805052314908,
+     "mkt_brier": 0.15528584905660378,
+     "diff": -0.006905343825112995,
+     "se_game": NaN,
+     "se_player_game": 0.006712855876345348,
+     "logloss": 0.4610718819988499,
+     "mkt_logloss": 0.4856582711670587,
+     "ece": 0.06175317068304791,
+     "mkt_ece": 0.07462264150943397
+    },
+    "V3": {
+     "n": 106,
+     "games": 1,
+     "player_games": 8,
+     "brier": 0.14112806560422334,
+     "mkt_brier": 0.15528584905660378,
+     "diff": -0.014157783452380427,
+     "se_game": NaN,
+     "se_player_game": 0.014913139846122168,
+     "logloss": 0.4411557479398792,
+     "mkt_logloss": 0.4856582711670587,
+     "ece": 0.05615257240535186,
+     "mkt_ece": 0.07462264150943397
+    },
+    "V4_ORACLE": {
+     "n": 126,
+     "games": 1,
+     "player_games": 9,
+     "brier": 0.14935338707380247,
+     "mkt_brier": 0.1498486111111111,
+     "diff": -0.0004952240373086445,
+     "se_game": NaN,
+     "se_player_game": 0.008188265621776675,
+     "logloss": 0.46203186413760694,
+     "mkt_logloss": 0.47037370816401425,
+     "ece": 0.05760117913241629,
+     "mkt_ece": 0.07400793650793654
+    },
+    "V5_vs_V4_common": {
+     "n": 106,
+     "games": 1,
+     "player_games": 8,
+     "brier": 0.1539511431842429,
+     "mkt_brier": 0.1483805052314908,
+     "diff": 0.0055706379527521045,
+     "se_game": NaN,
+     "se_player_game": 0.007185742247327431,
+     "logloss": 0.47687761837384013,
+     "mkt_logloss": 0.4610718819988499,
+     "ece": 0.05500069135941828,
+     "mkt_ece": 0.06175317068304791
+    },
+    "rows": 126,
+    "v5_rows": 126,
+    "v4_rows": 106,
+    "games": 1,
+    "by_stat": {
+     "passing_tds": {
+      "V5": null,
+      "n_v5": 4,
+      "n_v4": 0
+     },
+     "passing_yards": {
+      "V5": null,
+      "n_v5": 8,
+      "n_v4": 0
+     },
+     "receiving_yards": {
+      "V5": {
+       "n": 35,
+       "games": 1,
+       "player_games": 5,
+       "brier": 0.20720089997468882,
+       "mkt_brier": 0.19537928571428573,
+       "diff": 0.011821614260403113,
+       "se_game": NaN,
+       "se_player_game": 0.0126111301533417,
+       "logloss": 0.6075711494029993,
+       "mkt_logloss": 0.5902534319346778,
+       "ece": 0.1674546311889846,
+       "mkt_ece": 0.12557142857142856
+      },
+      "n_v5": 35,
+      "n_v4": 35
+     },
+     "receptions": {
+      "V5": {
+       "n": 32,
+       "games": 1,
+       "player_games": 5,
+       "brier": 0.11959716385635213,
+       "mkt_brier": 0.11932265624999999,
+       "diff": 0.00027450760635212585,
+       "se_game": NaN,
+       "se_player_game": 0.015951415420561242,
+       "logloss": 0.36710205766125925,
+       "mkt_logloss": 0.36310895031993073,
+       "ece": 0.11691678402609151,
+       "mkt_ece": 0.13140625
+      },
+      "n_v5": 32,
+      "n_v4": 32
+     },
+     "rushing_yards": {
+      "V5": null,
+      "n_v5": 26,
+      "n_v4": 20
+     },
+     "touchdowns": {
+      "V5": null,
+      "n_v5": 21,
+      "n_v4": 19
+     }
+    }
+   }
+  },
+  "qb_abstained_rows": {
+   "T-24h": {
+    "rows": 0,
+    "V5": null,
+    "games": 0
+   },
+   "T-6h": {
+    "rows": 0,
+    "V5": null,
+    "games": 0
+   },
+   "T-90m": {
+    "rows": 0,
+    "V5": null,
+    "games": 0
+   }
+  },
+  "unchanged_team_rows": {
+   "T-24h": {
+    "V5_vs_V4": {
+     "n": 3513,
+     "games": 16,
+     "player_games": 243,
+     "brier": 0.14328781943336366,
+     "mkt_brier": 0.14333917031027726,
+     "diff": -5.135087691359708e-05,
+     "se_game": 3.7588122694397793e-05,
+     "se_player_game": 4.0914532257331466e-05,
+     "logloss": 0.44187057094472876,
+     "mkt_logloss": 0.4419808263842585,
+     "ece": 0.02161886391340736,
+     "mkt_ece": 0.021945382823114
+    },
+    "V5": {
+     "n": 3513,
+     "games": 16,
+     "player_games": 243,
+     "brier": 0.14328781943336366,
+     "mkt_brier": 0.13912082240048262,
+     "diff": 0.0041669970328810065,
+     "se_game": 0.0025552630892558452,
+     "se_player_game": 0.00278374054200246,
+     "logloss": 0.44187057094472876,
+     "mkt_logloss": 0.42899638613832736,
+     "ece": 0.02161886391340736,
+     "mkt_ece": 0.015750578864156994
+    },
+    "V4": {
+     "n": 3513,
+     "games": 16,
+     "player_games": 243,
+     "brier": 0.14333917031027726,
+     "mkt_brier": 0.13912082240048262,
+     "diff": 0.004218347909794603,
+     "se_game": 0.0025502797051407634,
+     "se_player_game": 0.002782928851001625,
+     "logloss": 0.4419808263842585,
+     "mkt_logloss": 0.42899638613832736,
+     "ece": 0.021945382823114,
+     "mkt_ece": 0.015750578864156994
+    }
+   },
+   "T-6h": {
+    "V5_vs_V4": {
+     "n": 3675,
+     "games": 16,
+     "player_games": 250,
+     "brier": 0.14265935718316874,
+     "mkt_brier": 0.14271106294024608,
+     "diff": -5.170575707733282e-05,
+     "se_game": 3.630814182162539e-05,
+     "se_player_game": 3.9908060691059835e-05,
+     "logloss": 0.4402633666668547,
+     "mkt_logloss": 0.44037863893108437,
+     "ece": 0.018064216454237548,
+     "mkt_ece": 0.018392963356545215
+    },
+    "V5": {
+     "n": 3675,
+     "games": 16,
+     "player_games": 250,
+     "brier": 0.14265935718316874,
+     "mkt_brier": 0.1376929888546439,
+     "diff": 0.0049663683285248545,
+     "se_game": 0.0025420032286398078,
+     "se_player_game": 0.0027280369554121445,
+     "logloss": 0.4402633666668547,
+     "mkt_logloss": 0.4251701769332599,
+     "ece": 0.018064216454237548,
+     "mkt_ece": 0.009574188532555894
+    },
+    "V4": {
+     "n": 3675,
+     "games": 16,
+     "player_games": 250,
+     "brier": 0.14271106294024608,
+     "mkt_brier": 0.1376929888546439,
+     "diff": 0.005018074085602187,
+     "se_game": 0.0025385375770431732,
+     "se_player_game": 0.0027267748462466617,
+     "logloss": 0.44037863893108437,
+     "mkt_logloss": 0.4251701769332599,
+     "ece": 0.018392963356545215,
+     "mkt_ece": 0.009574188532555894
+    }
+   },
+   "T-90m": {
+    "V5_vs_V4": {
+     "n": 1340,
+     "games": 6,
+     "player_games": 96,
+     "brier": 0.14448222498302565,
+     "mkt_brier": 0.14445658544771384,
+     "diff": 2.5639535311820885e-05,
+     "se_game": 7.711739817528506e-05,
+     "se_player_game": 7.135773732391873e-05,
+     "logloss": 0.4453450881422116,
+     "mkt_logloss": 0.4452437381695688,
+     "ece": 0.028802097239825106,
+     "mkt_ece": 0.029087649477166733
+    },
+    "V5": {
+     "n": 1340,
+     "games": 6,
+     "player_games": 96,
+     "brier": 0.14448222498302565,
+     "mkt_brier": 0.13775089514925376,
+     "diff": 0.006731329833771915,
+     "se_game": 0.004278602749870986,
+     "se_player_game": 0.004325238493247684,
+     "logloss": 0.4453450881422116,
+     "mkt_logloss": 0.4271300609790294,
+     "ece": 0.028802097239825106,
+     "mkt_ece": 0.015202985074626855
+    },
+    "V4": {
+     "n": 1340,
+     "games": 6,
+     "player_games": 96,
+     "brier": 0.14445658544771384,
+     "mkt_brier": 0.13775089514925376,
+     "diff": 0.006705690298460094,
+     "se_game": 0.004253046210022838,
+     "se_player_game": 0.004321891788153838,
+     "logloss": 0.4452437381695688,
+     "mkt_logloss": 0.4271300609790294,
+     "ece": 0.029087649477166733,
+     "mkt_ece": 0.015202985074626855
+    }
+   }
+  },
+  "calibration_T90": {
+   "V3": {
+    "ece": 0.0265666170675008,
+    "bins": [
+     {
+      "bin": 0,
+      "n": 498,
+      "p_mean": 0.044509033194164604,
+      "y_mean": 0.06827309236947791
+     },
+     {
+      "bin": 1,
+      "n": 273,
+      "p_mean": 0.1465113618259183,
+      "y_mean": 0.16117216117216118
+     },
+     {
+      "bin": 2,
+      "n": 167,
+      "p_mean": 0.2443573582068822,
+      "y_mean": 0.2634730538922156
+     },
+     {
+      "bin": 3,
+      "n": 119,
+      "p_mean": 0.34677454709500044,
+      "y_mean": 0.3865546218487395
+     },
+     {
+      "bin": 4,
+      "n": 110,
+      "p_mean": 0.44306701184825364,
+      "y_mean": 0.4636363636363636
+     },
+     {
+      "bin": 5,
+      "n": 81,
+      "p_mean": 0.5504447195114746,
+      "y_mean": 0.5925925925925926
+     },
+     {
+      "bin": 6,
+      "n": 93,
+      "p_mean": 0.6516203485884529,
+      "y_mean": 0.7204301075268817
+     },
+     {
+      "bin": 7,
+      "n": 54,
+      "p_mean": 0.7473227161936831,
+      "y_mean": 0.7777777777777778
+     },
+     {
+      "bin": 8,
+      "n": 49,
+      "p_mean": 0.852543815367096,
+      "y_mean": 0.8367346938775511
+     },
+     {
+      "bin": 9,
+      "n": 2,
+      "p_mean": 0.9214278812175798,
+      "y_mean": 1.0
+     }
+    ]
+   },
+   "V4": {
+    "ece": 0.029847138372266734,
+    "bins": [
+     {
+      "bin": 0,
+      "n": 513,
+      "p_mean": 0.044727730881027425,
+      "y_mean": 0.056530214424951264
+     },
+     {
+      "bin": 1,
+      "n": 260,
+      "p_mean": 0.1469334178882821,
+      "y_mean": 0.15384615384615385
+     },
+     {
+      "bin": 2,
+      "n": 166,
+      "p_mean": 0.2452032690128958,
+      "y_mean": 0.30120481927710846
+     },
+     {
+      "bin": 3,
+      "n": 132,
+      "p_mean": 0.3469559566505059,
+      "y_mean": 0.4318181818181818
+     },
+     {
+      "bin": 4,
+      "n": 108,
+      "p_mean": 0.4523210226901724,
+      "y_mean": 0.46296296296296297
+     },
+     {
+      "bin": 5,
+      "n": 84,
+      "p_mean": 0.5541357750207622,
+      "y_mean": 0.6309523809523809
+     },
+     {
+      "bin": 6,
+      "n": 79,
+      "p_mean": 0.6567948427394432,
+      "y_mean": 0.7088607594936709
+     },
+     {
+      "bin": 7,
+      "n": 67,
+      "p_mean": 0.7455871561520215,
+      "y_mean": 0.7611940298507462
+     },
+     {
+      "bin": 8,
+      "n": 36,
+      "p_mean": 0.8345827648682477,
+      "y_mean": 0.8888888888888888
+     },
+     {
+      "bin": 9,
+      "n": 1,
+      "p_mean": 0.9069072606333985,
+      "y_mean": 1.0
+     }
+    ]
+   },
+   "V5": {
+    "ece": 0.030631025153620813,
+    "bins": [
+     {
+      "bin": 0,
+      "n": 516,
+      "p_mean": 0.04467098159468934,
+      "y_mean": 0.05813953488372093
+     },
+     {
+      "bin": 1,
+      "n": 259,
+      "p_mean": 0.14672720328277433,
+      "y_mean": 0.1583011583011583
+     },
+     {
+      "bin": 2,
+      "n": 165,
+      "p_mean": 0.244847457482624,
+      "y_mean": 0.30303030303030304
+     },
+     {
+      "bin": 3,
+      "n": 133,
+      "p_mean": 0.34660839565153184,
+      "y_mean": 0.41353383458646614
+     },
+     {
+      "bin": 4,
+      "n": 107,
+      "p_mean": 0.4528586983591423,
+      "y_mean": 0.4672897196261682
+     },
+     {
+      "bin": 5,
+      "n": 85,
+      "p_mean": 0.5549528059794933,
+      "y_mean": 0.6588235294117647
+     },
+     {
+      "bin": 6,
+      "n": 79,
+      "p_mean": 0.6577818754419996,
+      "y_mean": 0.6962025316455697
+     },
+     {
+      "bin": 7,
+      "n": 66,
+      "p_mean": 0.7479089477868252,
+      "y_mean": 0.7727272727272727
+     },
+     {
+      "bin": 8,
+      "n": 35,
+      "p_mean": 0.8370232089950289,
+      "y_mean": 0.8571428571428571
+     },
+     {
+      "bin": 9,
+      "n": 1,
+      "p_mean": 0.9067781071197635,
+      "y_mean": 1.0
+     }
+    ]
+   },
+   "market_mono": {
+    "ece": 0.0171106500691563,
+    "bins": [
+     {
+      "bin": 0,
+      "n": 521,
+      "p_mean": 0.04584069097888676,
+      "y_mean": 0.05566218809980806
+     },
+     {
+      "bin": 1,
+      "n": 219,
+      "p_mean": 0.14703196347031966,
+      "y_mean": 0.1461187214611872
+     },
+     {
+      "bin": 2,
+      "n": 149,
+      "p_mean": 0.24550335570469797,
+      "y_mean": 0.2483221476510067
+     },
+     {
+      "bin": 3,
+      "n": 121,
+      "p_mean": 0.34260330578512393,
+      "y_mean": 0.34710743801652894
+     },
+     {
+      "bin": 4,
+      "n": 91,
+      "p_mean": 0.44846153846153847,
+      "y_mean": 0.46153846153846156
+     },
+     {
+      "bin": 5,
+      "n": 92,
+      "p_mean": 0.5441304347826087,
+      "y_mean": 0.4891304347826087
+     },
+     {
+      "bin": 6,
+      "n": 86,
+      "p_mean": 0.6461046511627907,
+      "y_mean": 0.7209302325581395
+     },
+     {
+      "bin": 7,
+      "n": 91,
+      "p_mean": 0.749835164835165,
+      "y_mean": 0.7032967032967034
+     },
+     {
+      "bin": 8,
+      "n": 70,
+      "p_mean": 0.8425000000000001,
+      "y_mean": 0.8571428571428571
+     },
+     {
+      "bin": 9,
+      "n": 6,
+      "p_mean": 0.9141666666666667,
+      "y_mean": 1.0
+     }
+    ]
+   }
+  },
+  "runtime_s": 24.4
+ },
+ "runtime_s": 558.9
+}

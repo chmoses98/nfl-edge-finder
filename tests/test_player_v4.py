@@ -121,7 +121,7 @@ def test_v3_and_v4_arms_coexist_in_the_projector_without_collision():
     import scripts.shadow_v2.project_slate_v2 as P
     from nfl_edge.projection import record as R
     assert P.PLAYER_ARMS[:5] == ("DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "DATA_PLAYER_V3", "HYBRID_PLAYER_V3")
-    assert P.PLAYER_ARMS[5:] == ("DATA_PLAYER_V4", "HYBRID_PLAYER_V4")
+    assert P.PLAYER_ARMS[5:7] == ("DATA_PLAYER_V4", "HYBRID_PLAYER_V4")
     ids = {R.record_id("snap", "T", arm, v, "lattice-1.0.0") for arm, v in
            (("DATA_PLAYER_V3", "data-player-dist-3.0.0"), ("DATA_PLAYER_V4", V4.VERSION), ("HYBRID_PLAYER_V4", V4.HYBRID_VERSION))}
     assert len(ids) == 3

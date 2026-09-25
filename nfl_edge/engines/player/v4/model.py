@@ -47,6 +47,13 @@ TARGET_GROUPS, CARRY_GROUPS = ("RB", "WR", "TE"), ("RB", "QB", "WR")
 TD_GROUPS = ("RB", "WR", "TE", "QB")
 MIN_TRAIN = 300
 RUSH_SHIFT = 3.0                      # a carry is Gamma - 3 yards: losses are possible, the right tail is gamma
+# QUARTERBACK IDENTITY (DATA_PLAYER_V5 only; nfl_edge/engines/player/v5). With `config["qb_identity"]` the stages whose
+# answer depends on WHO throws the passes also read the team-game's quarterback-identity features: team volume (a new
+# starter and his efficiency relative to the previous starter), the pass-catchers' catch rate and yards per catch,
+# and the starter's own attempts. V4's config has no such key, so every V4 fit, bundle sha and distribution is
+# exactly what it was; the features are appended, never substituted.
+QB_IDENTITY = {"volume": ("qb_new_starter", "qb_ypa_delta"), "cr": ("qb_cmp_delta",), "ypr": ("qb_ypa_delta",),
+               "attempts": ("qb_new_starter", "qb_exp")}
 ABSENCE = {"vac_same", "vac_other", "vac_off_same", "ret_same", "frac", "self_new", "self_returning", "n_active_same", "own_q"}
 
 
@@ -96,6 +103,11 @@ def share_features(kind: str, cfg: dict) -> list:
 
 def _env(cols: list, cfg: dict) -> list:
     return cols if cfg["market_env"] else [c for c in cols if c not in ("implied_total", "spread_team")]
+
+
+def _qbx(cols: list, cfg: dict, stage: str) -> list:
+    """`cols` plus the stage's quarterback-identity features when the bundle is a V5 bundle (see QB_IDENTITY)."""
+    return list(cols) + list(QB_IDENTITY[stage]) if cfg.get("qb_identity") else cols
 
 
 # ------------------------------------------------------------------------------------------------ distributions
@@ -360,10 +372,13 @@ class V4Bundle:
 
 # ------------------------------------------------------------------------------------------------ fitting
 def fit_bundle(frame: pd.DataFrame, target_season: int, config: dict | None = None, *, first_season: int = 2014,
-               teams: pd.DataFrame | None = None, verbose=print) -> V4Bundle:
-    """frame: the player-game table with v2/v3 and v4 (features.py) columns; prospective rows allowed (ignored in fits)."""
+               teams: pd.DataFrame | None = None, verbose=print, version: str | None = None) -> V4Bundle:
+    """frame: the player-game table with v2/v3 and v4 (features.py) columns; prospective rows allowed (ignored in fits).
+
+    version: the engine version stamped on the bundle and every distribution it makes (DATA_PLAYER_V5 passes its own;
+    None is V4's)."""
     cfg = {**FULL, **(config or {})}
-    b = V4Bundle(target_season=target_season, config=cfg)
+    b = V4Bundle(target_season=target_season, config=cfg, version=version or VERSION)
     teams = team_game_table(frame) if teams is None else teams
     pro = frame.get("is_prospective", pd.Series(False, index=frame.index)).fillna(False).astype(bool)
     tr = frame[(~pro) & (frame.season < target_season) & (frame.season >= first_season)].copy()
@@ -374,7 +389,8 @@ def fit_bundle(frame: pd.DataFrame, target_season: int, config: dict | None = No
     b.info["snap_sd_pooled"] = float(np.std(tr["snap_share"] - tr["ewma_snap_share"]))
     # -- volume
     vcfg_env = cfg["market_env"]
-    b.volume = VolumeModel.fit(teams, target_season, ablate=not cfg["volume"], market_env=vcfg_env)
+    b.volume = VolumeModel.fit(teams, target_season, ablate=not cfg["volume"], market_env=vcfg_env,
+                               extra=tuple(QB_IDENTITY["volume"]) if cfg.get("qb_identity") else ())
     d = b._snap(derive(tr))
     d = b._volume(d, teams)
     # realised shares vs the ACTUAL team volume (targets / team pass attempts, as v2 defines them)
@@ -416,11 +432,11 @@ def fit_bundle(frame: pd.DataFrame, target_season: int, config: dict | None = No
     for grp in TARGET_GROUPS:
         sub = d[(g == grp) & (d["targets"].fillna(0) > 0)]
         if len(sub) >= MIN_TRAIN:
-            b.rate[("cr", grp)] = Linear.fit(sub, env(["p_cr", "implied_total", "log_n_prior"]), (sub.receptions / sub.targets).to_numpy(float),
+            b.rate[("cr", grp)] = Linear.fit(sub, _qbx(env(["p_cr", "implied_total", "log_n_prior"]), cfg, "cr"), (sub.receptions / sub.targets).to_numpy(float),
                                              weights=sub.targets.to_numpy(float))
         sub = d[(g == grp) & (d["receptions"].fillna(0) > 0)]
         if len(sub) >= MIN_TRAIN:
-            b.rate[("ypr", grp)] = Linear.fit(sub, env(["p_ypr", "ewma_team_ypa", "implied_total"]), (sub.receiving_yards / sub.receptions).to_numpy(float),
+            b.rate[("ypr", grp)] = Linear.fit(sub, _qbx(env(["p_ypr", "ewma_team_ypa", "implied_total"]), cfg, "ypr"), (sub.receiving_yards / sub.receptions).to_numpy(float),
                                               weights=sub.receptions.to_numpy(float))
             m = np.clip(b.rate[("ypr", grp)].predict(sub), 3, 25)
             b.unit[("ypr", grp)] = compound_dispersion(sub.receiving_yards.to_numpy(float), sub.receptions.to_numpy(float), m)
@@ -438,7 +454,7 @@ def fit_bundle(frame: pd.DataFrame, target_season: int, config: dict | None = No
     # -- quarterbacks (starters)
     qb = d[(g == "QB") & d["qb_starter"].fillna(False).astype(bool) & d["attempts"].notna()]
     if len(qb) >= MIN_TRAIN:
-        qcols = env(["vol_pa", "ewma_attempts", "snap_mean", "qb_changed_recent", "implied_total", "spread_team"])
+        qcols = _qbx(env(["vol_pa", "ewma_attempts", "snap_mean", "qb_changed_recent", "implied_total", "spread_team"]), cfg, "attempts")
         b.rate[("attempts", "QB")] = Linear.fit(qb, qcols, qb.attempts.to_numpy(float), kind="poisson")
         mu = b.rate[("attempts", "QB")].predict(qb)
         b.kappa[("attempts", "QB")] = fit_shape(qb.attempts.to_numpy(float), mu)

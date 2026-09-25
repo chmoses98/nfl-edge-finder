@@ -26,6 +26,11 @@ PLAYER_CONTEXT_KEEP = ("player_context_id", "position", "team", "availability_st
                        "injury_report_rows_for_week", "role_certainty", "role_class", "depth_chart_rank", "depth_chart_group_rank",
                        "weather_state", "official_inactive_state", "official_inactive_observed_at", "team_pass_attempts",
                        "qb_depth_chart", "qb_schedule")
+# DATA_PLAYER_V5 / HYBRID_PLAYER_V5 ONLY: the point-in-time quarterback resolution of the player's team
+# (nfl_edge/context/qb_resolution.py). It is not in the shared sidecar context (that would change every other arm's
+# context and its id), so it rides on the V5 record's own player_context and survives the lean cut there.
+V5_QB_FIELDS = ("depth_chart_qb1", "effective_projected_qb", "qb_availability_state", "qb_resolution_reason", "qb_resolution_certainty")
+PLAYER_CONTEXT_KEEP_V5 = PLAYER_CONTEXT_KEEP + V5_QB_FIELDS
 GAME_CONTEXT_KEEP = ("game_context_id",)
 LADDER_KEEP = ("identification", "n_rungs_quoted", "median_width", "raw_violations")
 PIT_KEEP = ("data_cutoff", "information_frontier", "max_skew_seconds", "outcome_leak_refused", "pit_version")
@@ -45,11 +50,17 @@ REFUSAL_KEEP = ("record_id", "snapshot_id", "ticker", "series_ticker", "event_ti
 HYBRID_FEATURE_KEEP = ("availability_state", "p_plays", "p_active_no_snap", "inputs_version")
 
 
-def lean(row: dict, *, intermediates: bool = True) -> dict:
+def v5_qb_fields(feat: dict) -> dict:
+    """The five quarterback-resolution fields of a V5 feature row (None where absent)."""
+    return {k: (feat or {}).get(k) for k in V5_QB_FIELDS}
+
+
+def lean(row: dict, *, intermediates: bool = True, data_arm: str = "DATA_PLAYER_V4", context_keep: tuple = PLAYER_CONTEXT_KEEP) -> dict:
     """A lean copy of one finished record dict (the caller recomputes content_hash afterwards).
 
-    intermediates=False (the hybrid arm): the model intermediates are on the DATA_PLAYER_V4 record of the same snapshot
-    and ticker, and are referenced rather than copied."""
+    intermediates=False (the hybrid arm): the model intermediates are on the `data_arm` record of the same snapshot
+    and ticker, and are referenced rather than copied. The defaults are V4's; V5 passes its own data arm and
+    PLAYER_CONTEXT_KEEP_V5 (its hybrid also keeps the quarterback-resolution fields of its feature lineage)."""
     if row.get("p_yes") is None:
         r = {k: row[k] for k in REFUSAL_KEEP if k in row}
         # the run summary's last-trade coverage is computed over every record, refusals included
@@ -58,7 +69,7 @@ def lean(row: dict, *, intermediates: bool = True) -> dict:
         return r
     r = dict(row)
     pc = r.get("player_context") or {}
-    r["player_context"] = {k: pc[k] for k in PLAYER_CONTEXT_KEEP if k in pc}
+    r["player_context"] = {k: pc[k] for k in context_keep if k in pc}
     gc = r.get("game_context") or {}
     r["game_context"] = {k: gc[k] for k in GAME_CONTEXT_KEEP if k in gc}
     ms = r.get("market_state") or {}
@@ -71,7 +82,8 @@ def lean(row: dict, *, intermediates: bool = True) -> dict:
     r["data_quality"] = {k: v for k, v in dq.items() if k != "availability_sources"}
     if not intermediates:
         fl = r.get("feature_lineage") or {}
-        r["feature_lineage"] = {**{k: fl[k] for k in HYBRID_FEATURE_KEEP if k in fl}, "intermediates": "DATA_PLAYER_V4 record, same snapshot and ticker"}
+        keep = HYBRID_FEATURE_KEEP + (V5_QB_FIELDS if context_keep is PLAYER_CONTEXT_KEEP_V5 else ())
+        r["feature_lineage"] = {**{k: fl[k] for k in keep if k in fl}, "intermediates": f"{data_arm} record, same snapshot and ticker"}
     # the catalog's YES rule text is a property of the contract (identical on every arm's record of the ticker) and no
     # reader uses it; the synchronization REASON of a SYNCHRONIZED record is one constant sentence
     r.pop("yes_semantics", None)

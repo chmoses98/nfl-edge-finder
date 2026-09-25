@@ -84,3 +84,19 @@ V4_STUDY_VERDICT = ("market selected; best hybrid (0.85 market) indistinguishabl
 def v4_weight(stat: str | None) -> float:
     """The market weight of HYBRID_PLAYER_V4 for a statistic: global by evidence (see above), floored at the market."""
     return max(V4_MIN_MARKET_WEIGHT, V4_WEIGHT_MARKET)
+
+
+# HYBRID_PLAYER_V5 (hybrid-player-dist-5.0.0) over DATA_PLAYER_V5 (data-player-dist-5.0.0). The weight is INHERITED from
+# HYBRID_PLAYER_V4's preregistered selection, not re-selected: V5 is V4 with one changed input layer (the point-in-time
+# quarterback), and re-running a weight search on the same 2025 rungs to pick a number for it would be selecting on the
+# test set. Same global 0.85-market mixture, same floor (docs/PLAYER_V5.md).
+VERSION_V5 = "hybrid-player-dist-5.0.0"
+V5_STRUCTURE = MIXTURE
+V5_WEIGHT_MARKET = V4_WEIGHT_MARKET
+V5_MIN_MARKET_WEIGHT = V4_MIN_MARKET_WEIGHT
+V5_STUDY_VERDICT = "weight inherited from HYBRID_PLAYER_V4's preregistered selection (0.85 market); not re-selected for V5"
+
+
+def v5_weight(stat: str | None) -> float:
+    """The market weight of HYBRID_PLAYER_V5: V4's global weight, floored at the market (see above)."""
+    return max(V5_MIN_MARKET_WEIGHT, V5_WEIGHT_MARKET)

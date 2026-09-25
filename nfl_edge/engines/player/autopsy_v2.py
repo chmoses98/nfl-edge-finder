@@ -43,8 +43,12 @@ AUTOPSY_VERSION = "autopsy-3.1.0"
 # data component is the DATA-arm record of the same snapshot and ticker, which is autopsied. DATA_PLAYER_V4 joined
 # on 2026-09-24: it had been written since #41 but never autopsied, so no V4 autopsy exists under this version and
 # adding the arm cannot conflict with a write-once one. Its lean lineage is read through `_v4_projection`.
-AUTOPSY_ARMS = ("DATA_PLAYER_DIST", "DATA_PLAYER_V3", "DATA_PLAYER_V4")
+# DATA_PLAYER_V5 joined with its arm (docs/PLAYER_V5.md): its records are lean like V4's and are read through the same
+# `_v4_projection`; unlike V4 its feature lineage names the resolved starter (`projected_qb_id`), so its
+# QB_ENVIRONMENT_MISS component is evaluated rather than left unevaluated.
+AUTOPSY_ARMS = ("DATA_PLAYER_DIST", "DATA_PLAYER_V3", "DATA_PLAYER_V4", "DATA_PLAYER_V5")
 ARM_V4 = "DATA_PLAYER_V4"
+LEAN_STRUCTURAL_ARMS = (ARM_V4, "DATA_PLAYER_V5")
 # a normal's p05-p95 span is 3.29 standard deviations, as its IQR is 1.349: the same scale, read off a wider band
 P05_P95_SPAN = 3.2897
 SHARE_ABS_LARGE = 0.10               # absolute share miss (targets/carries/snaps) that counts as "off"
@@ -168,7 +172,7 @@ def diagnose(rec: dict, book: ResultBook, *, now: datetime | None = None, contex
     out["projected"].update(catch_rate=proj_catch, depth_chart_rank=proj_rank, receptions=pe.get("ewma_receptions"), targets=pe.get("ewma_targets"),
                             carries=pe.get("ewma_carries"), yards=pe.get(f"ewma_{stat}") if stat else None)
     pj = out["projected"]
-    is_v4 = rec.get("model_arm") == ARM_V4
+    is_v4 = rec.get("model_arm") in LEAN_STRUCTURAL_ARMS
     if is_v4:
         _v4_projection(pj, fl, stat)
     pr = book.player(gid, pid) if gid and pid else None

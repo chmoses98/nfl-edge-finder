@@ -65,16 +65,19 @@ import nfl_edge.evaluation.research_record as RR       # family_group(): the key
 DIRNAME = os.path.join("data", "shadow", "v2", "projections")
 BOARD_ARM = "BOARD_V2"
 PLAYER_ARMS = ("DATA_PLAYER_DIST", "MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "DATA_PLAYER_V3", "HYBRID_PLAYER_V3",
-               "DATA_PLAYER_V4", "HYBRID_PLAYER_V4")
+               "DATA_PLAYER_V4", "HYBRID_PLAYER_V4", "DATA_PLAYER_V5", "HYBRID_PLAYER_V5")
 ARMS = (BOARD_ARM,) + PLAYER_ARMS
 # the arm that is an INDEPENDENT football view of the question, per engine, in order of preference. Anything not
 # named here falls back to BOARD_V2, which is the arm that owns every non-player family. DATA_PLAYER_V3 first:
 # DATA_PLAYER_DIST carries a known input defect (nfl_edge/evaluation/eligibility.py KNOWN_DEFECTS) and is primary
 # only on a snapshot written before v3 existed -- where its probability is withheld as DISABLED. DATA_PLAYER_V4 is a
 # challenger reported beside v3 (never promoted into the primary slot by being newer): it is primary only on a
-# snapshot with no v3 row at all. Primary says nothing about authority either way.
-INDEPENDENT_ARMS_BY_ENGINE = {"PLAYER": ("DATA_PLAYER_V3", "DATA_PLAYER_V4", "DATA_PLAYER_DIST")}
-MARKET_DERIVED_ARMS = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3", "HYBRID_PLAYER_V4")
+# snapshot with no v3 row at all. Primary says nothing about authority either way. DATA_PLAYER_V5 (point-in-time QB,
+# docs/PLAYER_V5.md) is supporting research exactly like V4: after V4, primary only when neither v3 nor v4 answered.
+INDEPENDENT_ARMS_BY_ENGINE = {"PLAYER": ("DATA_PLAYER_V3", "DATA_PLAYER_V4", "DATA_PLAYER_V5", "DATA_PLAYER_DIST")}
+MARKET_DERIVED_ARMS = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3", "HYBRID_PLAYER_V4", "HYBRID_PLAYER_V5")
+# the V5 arms carry the team's quarterback resolution; RUN NFL prints its reason only where it says something
+V5_ARMS = ("DATA_PLAYER_V5", "HYBRID_PLAYER_V5")
 PROBABILITY_STATES = ("PRICED", "PROJECTABLE_NOT_YET_VALIDATED")
 PROSPECTIVE_FROZEN = "PROSPECTIVE_FROZEN"
 RESEARCH_ONLY = "RESEARCH ONLY -- a Shadow v2 projection is not validated and authorises nothing"
@@ -230,6 +233,14 @@ def arm_view(row: dict, table: dict, eligibility: dict | None = None) -> dict:
         out["p_yes_low"], out["p_yes_high"] = row.get("p_yes_low"), row.get("p_yes_high")
     if _arm_is_market_derived(row):
         out["market_derived"] = True
+    if row.get("model_arm") in V5_ARMS:
+        # research label for the point-in-time QB challenger, and the team's QB resolution where it moved off chart QB1
+        out["research_arm"] = "V5 point-in-time QB challenger: supporting research, never authority"
+        qr = ab.get("qb_resolution") or {k: (row.get("player_context") or {}).get(k)
+                                         for k in ("qb_resolution_reason", "effective_projected_qb", "qb_resolution_certainty")}
+        if qr.get("qb_resolution_reason") not in (None, "CHART_QB1_AVAILABLE"):
+            out["qb_resolution"] = {"reason": qr.get("qb_resolution_reason"), "effective_projected_qb": qr.get("effective_projected_qb"),
+                                    "certainty": qr.get("qb_resolution_certainty")}
     return out
 
 

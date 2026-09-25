@@ -51,7 +51,7 @@ LARGE_DISAGREEMENT_PP = 5.0
 # player_engine_v3/RESULTS.md). A statistic enters this set only through the eligibility promotion rules.
 VALIDATED_STATS: frozenset = frozenset()
 
-ARMS_NEEDING_LADDER = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3", "HYBRID_PLAYER_V4")
+ARMS_NEEDING_LADDER = ("MARKET_PLAYER_DIST", "HYBRID_PLAYER_DIST", "HYBRID_PLAYER_V3", "HYBRID_PLAYER_V4", "HYBRID_PLAYER_V5")
 QB_STATS = ("passing_yards", "passing_tds", "interceptions", "attempts", "completions", "qb_rushing_yards")
 ADVERSE_AVAILABILITY = ("QUESTIONABLE", "DOUBTFUL", "EXPECTED_OUT", "OUT", "INACTIVE_CONFIRMED", "UNKNOWN")
 
@@ -145,3 +145,44 @@ def decide_v4(inter: dict, *, stat: str | None, p_model: float | None, p_market:
     return {"abstention_version": ABSTENTION_V4_VERSION, "state": state, "production_eligible": state == PROJECTION_VALID,
             "structural_state": structural[0][0] if structural else PROJECTION_VALID,
             "reasons": [f"{s}: {why}" for s, why in full], "large_disagreement": large}
+
+
+# --------------------------------------------------------------------------------------------------------- V5
+# DATA_PLAYER_V5 / HYBRID_PLAYER_V5 (nfl_edge/engines/player/v5) are V4's structure with a point-in-time projected
+# starting quarterback (nfl_edge/context/qb_resolution.py). Their abstention is V4's, unchanged, plus ONE reason: the
+# resolution itself said the team's passing environment is not known well enough -- chart QB1 Doubtful
+# (QB1_DOUBTFUL_ABSTAIN), QB1 out with no eligible QB behind him, no chart QB1, or a chart that post-dated the cutoff
+# -- and the statistic runs through that environment (qb_resolution.is_qb_dependent: every QB statistic, a
+# pass-catcher's receptions / receiving yards / rush+rec yards, a WR / TE anytime TD). A Questionable QB1 is retained
+# and flagged LOW, not abstained. Like every abstention the probability stays on the record; only authority goes.
+ABSTENTION_V5_VERSION = "abstention-v5-1.0.0"
+ABSTAIN_QB_UNCERTAIN = "ABSTAIN_QB_UNCERTAIN"
+STATES_V5 = STATES_V4 + (ABSTAIN_QB_UNCERTAIN,)
+_AFTER_QB = (ABSTAIN_MARKET_INCOMPLETE, ABSTAIN_MODEL_UNVALIDATED, PROJECTION_LOW_CONFIDENCE)
+
+
+def decide_v5(inter: dict, *, stat: str | None, p_model: float | None, p_market: float | None, arm: str = "DATA_PLAYER_V5",
+              engine_version: str | None = None, identity_confidence: str | None = "RESOLVED", availability_state: str | None = None,
+              role_certainty: str | None = None, game_env_known: bool = True, position: str | None = None,
+              ladder_identification: str | None = "IDENTIFIED") -> dict:
+    """decide_v4 on the V5 intermediates, with the point-in-time quarterback (not the raw chart QB1) as the starting
+    quarterback, plus ABSTAIN_QB_UNCERTAIN where the resolution abstained and the statistic depends on the QB."""
+    from nfl_edge.context import qb_resolution as QR
+    base = decide_v4(inter, stat=stat, p_model=p_model, p_market=p_market, arm=arm, engine_version=engine_version,
+                     identity_confidence=identity_confidence, availability_state=availability_state, role_certainty=role_certainty,
+                     game_env_known=game_env_known, qb_starter_known=bool(inter.get("effective_projected_qb")),
+                     ladder_identification=ladder_identification)
+    pos = position or inter.get("pgroup")
+    full = [tuple(r.split(": ", 1)) for r in base["reasons"]]
+    if inter.get("qb_dependent_abstain") and QR.is_qb_dependent(stat, pos):
+        why = (f"{inter.get('qb_resolution_reason')}: the team's quarterback is not resolvable at the cutoff "
+               f"(chart QB1 {inter.get('qb_availability_state')})")
+        i = next((j for j, (s, _) in enumerate(full) if s in _AFTER_QB), len(full))
+        full.insert(i, (ABSTAIN_QB_UNCERTAIN, why))
+    structural = [r for r in full if r[0] != ABSTAIN_MODEL_UNVALIDATED]
+    state = full[0][0] if full else PROJECTION_VALID
+    return {"abstention_version": ABSTENTION_V5_VERSION, "state": state, "production_eligible": state == PROJECTION_VALID,
+            "structural_state": structural[0][0] if structural else PROJECTION_VALID,
+            "reasons": [f"{s}: {why}" for s, why in full], "large_disagreement": base["large_disagreement"],
+            "qb_resolution": {k: inter.get(k) for k in ("depth_chart_qb1", "effective_projected_qb", "qb_availability_state",
+                                                        "qb_resolution_reason", "qb_resolution_certainty")}}
