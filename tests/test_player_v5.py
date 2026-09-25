@@ -11,7 +11,7 @@ difference between the two is the injury report the resolver reads.
 """
 from __future__ import annotations
 
-import hashlib
+import os
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -394,33 +394,28 @@ def test_quarterback_identity_features_are_point_in_time():
 
 
 # ------------------------------------------------------------------------------------------------ V3 / V4 frozen
-# Digests of V3 and V4 on tests/test_player_v4.synthetic_league, computed with the code at main 50a62fb (before V5
-# existed): the V4 bundle sha and every distribution's pmf (rounded to 1e-10), and the V3 bundle's likewise. V5
-# parameterises V4's model and volume code; with V4's own config those must reproduce main exactly.
-V4_GOLDEN = ("d9708c10a51bcdc5", "afed200591c71016907596ad3d9ae8a150bbcae7f87d026f444eb6168de6f390")
-V3_GOLDEN = ("907c1f8fd55cba83", "429a9b36a6519a7aa01278b14607b03cfdaab0f60e7a88dac561af49790a071f")
+# V3 and V4 on tests/test_player_v4.synthetic_league, as computed with the code at main c53294d (before V5 existed):
+# each bundle's artifact sha (exact) and every distribution's mean, sd and total mass (tests/frozen_player_summaries.py,
+# fixture tests/fixtures/player_v4_v3_frozen.npz). V5 parameterises V4's model and volume code; with V4's own config
+# those must reproduce main. An exact digest of every pmf value is NOT used: identical trees gave different digests on
+# different CI runner CPUs (floating-point summation order), which is noise, not a change to V4. Across CI and local
+# environments the moments themselves differ by up to ~6e-8 relative (V3 passing yards); the tolerance is 1e-6. It
+# fails on a feature leaking into a V4 regression (4,652 values) or a 0.25% change to a V4 constant (9,190); it does
+# NOT resolve a 0.03% change to a constant (<= 7e-7 relative), which is below what CI environments reproduce.
+FROZEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "player_v4_v3_frozen.npz")
+FROZEN_RTOL, FROZEN_ATOL = 1e-6, 1e-6
 
 
-def test_v4_and_v3_outputs_are_byte_identical_to_main():
-    import test_player_v4 as T4
-    df, st = T4.synthetic_league()
-    frame = T4.build_frame(df, st)
-    teams = team_game_table(frame)
-    b = M.fit_bundle(frame, 2016, teams=teams, verbose=lambda *a: None)
-    h = hashlib.sha256()
-    for r in b.intermediates(frame[frame.season == 2016], teams).to_dict("records"):
-        for s, d in sorted(b.distributions(r).items()):
-            h.update(f"{r['player_id']}|{r['game_id']}|{s}|".encode() + np.round(np.asarray(d.pmf, float), 10).tobytes())
-    assert (b.artifact_sha, h.hexdigest()) == V4_GOLDEN and b.version == V4.VERSION and "qb_identity" not in b.config
-    bb = DD.fit_bundle(frame[frame.season < 2016], 2016, feature_set="v3", stats=["receptions", "receiving_yards", "passing_yards", "carries"],
-                       verbose=lambda *a: None)
-    te = frame[frame.season == 2016]
-    h3 = hashlib.sha256()
-    for stat, m in sorted(bb.models.items()):
-        rows = te[pdist.population_mask(te, m.spec.pop)]
-        for (p, g), d in zip(zip(rows.player_id, rows.game_id), m.distributions(rows)):
-            h3.update(f"{p}|{g}|{stat}|".encode() + np.round(np.asarray(d.pmf, float), 10).tobytes())
-    assert (bb.artifact_sha, h3.hexdigest()) == V3_GOLDEN
+def test_v4_and_v3_outputs_are_unchanged_from_main():
+    import frozen_player_summaries as FS
+    ref = np.load(FROZEN)
+    now = FS.summaries()
+    b = now["_bundle"]
+    assert b.version == V4.VERSION and "qb_identity" not in b.config
+    for arm in ("v4", "v3"):
+        assert str(now[f"{arm}_sha"]) == str(ref[f"{arm}_sha"]), arm
+        assert list(now[f"{arm}_keys"]) == list(ref[f"{arm}_keys"]), arm
+        np.testing.assert_allclose(now[arm], ref[arm], rtol=FROZEN_RTOL, atol=FROZEN_ATOL, err_msg=arm)
 
 
 def test_v4_stage_features_are_exactly_v4s_without_the_flag(qbl):
