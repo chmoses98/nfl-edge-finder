@@ -5,7 +5,7 @@ with main at c53294d:
     python3 tests/frozen_player_summaries.py tests/fixtures/player_v4_v3_frozen.npz
 
 Why summaries and not a hash of every pmf: ~1.3M pmf values rounded to 1e-10 are not reproducible across CI runner
-CPUs (floating-point summation order differs at ~1e-13), so an exact digest of them flips between identical trees.
+CPUs (floating-point summation order and library builds differ), so an exact digest of them flips between identical trees.
 The mean, standard deviation and total mass of every distribution, compared to a tight relative tolerance, still
 catch any change to V4 or V3 behaviour; the bundles' own artifact shas (fitted parameters) stay exact.
 """

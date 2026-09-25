@@ -398,9 +398,12 @@ def test_quarterback_identity_features_are_point_in_time():
 # each bundle's artifact sha (exact) and every distribution's mean, sd and total mass (tests/frozen_player_summaries.py,
 # fixture tests/fixtures/player_v4_v3_frozen.npz). V5 parameterises V4's model and volume code; with V4's own config
 # those must reproduce main. An exact digest of every pmf value is NOT used: identical trees gave different digests on
-# different CI runner CPUs (floating-point summation order), which is noise, not a change to V4.
+# different CI runner CPUs (floating-point summation order), which is noise, not a change to V4. Across CI and local
+# environments the moments themselves differ by up to ~6e-8 relative (V3 passing yards); the tolerance is 1e-6. It
+# fails on a feature leaking into a V4 regression (4,652 values) or a 0.25% change to a V4 constant (9,190); it does
+# NOT resolve a 0.03% change to a constant (<= 7e-7 relative), which is below what CI environments reproduce.
 FROZEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "player_v4_v3_frozen.npz")
-FROZEN_RTOL, FROZEN_ATOL = 1e-9, 1e-9
+FROZEN_RTOL, FROZEN_ATOL = 1e-6, 1e-6
 
 
 def test_v4_and_v3_outputs_are_unchanged_from_main():
