@@ -6,8 +6,9 @@ with main at c53294d:
 
 Why summaries and not a hash of every pmf: ~1.3M pmf values rounded to 1e-10 are not reproducible across CI runner
 CPUs (floating-point summation order and library builds differ), so an exact digest of them flips between identical trees.
-The mean, standard deviation and total mass of every distribution, compared to a tight relative tolerance, still
-catch any change to V4 or V3 behaviour; the bundles' own artifact shas (fitted parameters) stay exact.
+The mean, standard deviation and total mass of every distribution, compared at 1e-6 relative, catch any material
+change to V4 or V3 behaviour (see the limits stated in tests/test_player_v5.py); the bundles' own artifact shas
+(fitted parameters) stay exact.
 """
 from __future__ import annotations
 
