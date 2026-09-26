@@ -48,9 +48,13 @@ jobs:
         run: |
           gh workflow run workflow-health.yml --ref main && echo "workflow-health dispatched"
           gh workflow run actual-wagers.yml --ref main && echo "actual-wagers dispatched"
+      # POSTGAME (nfl_edge/handicap/automation.py): 4h, 6h, 9h and 13h after each kickoff cluster's last game it also
+      # starts postgame-settle, actual-wagers and shadow-v2-settle -- each gated on its own readiness, so an early
+      # tick is a cheap no-op and later ticks are the retries. Thursday's postgame work (ATL@GB) ran only because
+      # the owner dispatched it at 05:01Z. A failed run is retried at most 3 times per tick, 20 minutes apart.
       - name: Loop the horizon due-rule; dispatch the horizon workflows when owed; chain the successor
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/handicap/horizon_conductor.py --minutes 340 --interval 240 \
-            --targets RUN_NFL,THREE_ARM --ref main --chain-workflow horizon-conductor.yml
+            --targets RUN_NFL,THREE_ARM,POSTGAME --ref main --chain-workflow horizon-conductor.yml

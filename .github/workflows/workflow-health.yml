@@ -13,7 +13,9 @@ on:
 
 permissions:
   contents: write
-  actions: read
+  # write, not read: a DEAD conductor chain is restarted once below (a workflow_dispatch; the chain's concurrency
+  # group collapses any surplus). Everything else here only reads the Actions API.
+  actions: write
 
 concurrency:
   group: workflow-health
@@ -60,6 +62,22 @@ jobs:
       - name: Keep the capture health on market-data
         continue-on-error: true
         run: python3 scripts/ci/publish_market_data.py --src data/ops/capture_health --message "horizon capture health $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      # DEAD-CHAIN ALARM. The conductors keep themselves alive by dispatching their successor, with an hourly cron as
+      # a backstop on the same unreliable scheduler. A dead chain is red here (and restarted once) instead of being
+      # discovered by a missed horizon or a capture gap. The router's conductor is watched read-only and never red.
+      - name: Conductor chains alive
+        id: chains
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/ops/conductor_health.py --workflow horizon-conductor.yml --workflow kalshi-conductor.yml \
+            --optional chmoses98/kalshi-bet-router:router-conductor.yml --restart --summary "$GITHUB_STEP_SUMMARY"
+      - name: A conductor chain is dead
+        if: steps.chains.outcome == 'failure'
+        run: |
+          echo "::error::A self-chaining conductor had no link queued or running. It was re-dispatched once; see the table above."
+          exit 1
       - name: A horizon owed under the conductor was missed
         if: steps.capture_health.outcome == 'failure'
         run: |
