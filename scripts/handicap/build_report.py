@@ -137,6 +137,11 @@ def main():
                     help=("refuse if the Kalshi capture the ledger was PRICED FROM is older than this. A "
                           f"fresh ledger is not a fresh market (default policy {DEFAULT_MAX_CAPTURE_AGE_MIN:.0f}m "
                           "for fresh/horizon builds)"))
+    ap.add_argument("--capture-age-reference", default=None,
+                    help=("ISO instant this build refreshed market-data and froze its pricing inputs. With it, "
+                          "--max-capture-age-min is measured at that freeze instead of at build time; the "
+                          "build-time age is still recorded. Invalid or implausible values fall back to "
+                          "build time (stricter)."))
     ap.add_argument("--require-context-run-id", default=None,
                     help=("the context capture this run produced. It must exist, must not have failed "
                           "closed, and must be one the packet actually read"))
@@ -195,7 +200,11 @@ def main():
     # These run BEFORE the build so a stale-market or failed-context run costs seconds, and -- more to the
     # point -- so it can never reach the manifest, `latest/`, or a horizon being marked captured.
     ledger_path, ledger_man = newest_ledger(a.market_data)
-    cap_vintage = capture_vintage(ledger_man or {}, now)
+    cap_ref = _iso(a.capture_age_reference) if a.capture_age_reference else None
+    if a.capture_age_reference and cap_ref is None:
+        print(f"::warning::--capture-age-reference {a.capture_age_reference!r} is unreadable; "
+              "measuring the Kalshi capture age at build time")
+    cap_vintage = capture_vintage(ledger_man or {}, now, reference=cap_ref)
     if ledger_path is None and a.max_capture_age_min is not None:
         return _fail(a, 2, "FAILED", "no shadow ledger available under the market-data tree", now,
                      week=week_res)
@@ -204,7 +213,12 @@ def main():
         return _fail(a, 9, "FAILED", problem, now, week=week_res)
     if a.max_capture_age_min is not None:
         print(f"kalshi capture: {cap_vintage['snapshot_run_id']} queried {cap_vintage['queried_at']} "
-              f"({cap_vintage['age_min']}m old, limit {a.max_capture_age_min:.0f}m)")
+              f"({cap_vintage['age_min']}m old now; gated at {cap_vintage.get('age_reference')} "
+              f"{cap_vintage.get('age_reference_at')}: {cap_vintage.get('gate_age_min')}m, "
+              f"limit {a.max_capture_age_min:.0f}m)")
+        if cap_vintage.get("age_reference_rejected"):
+            print(f"::warning::capture-age reference ignored ({cap_vintage['age_reference_rejected']}); "
+                  "gated at build time")
 
     ctx_required = None
     if a.require_context_run_id:
@@ -322,6 +336,7 @@ def main():
         "freshness_policy": {
             "max_ledger_age_min": a.max_ledger_age_min,
             "max_capture_age_min": a.max_capture_age_min,
+            "capture_age_measured_at": cap_vintage.get("age_reference"),
             "max_context_age_min": a.max_context_age_min,
             "required_context_run_id": a.require_context_run_id,
             "note": ("Enforced before publication. A gate that could not reach its evidence refuses; it "
@@ -448,7 +463,8 @@ def _report(a, m, out, now):
             f"| model version | `{m['model_version']}` |",
             f"| shadow-pricing vintage | {sp['written_at']} ({sp['age_min']}m old) |",
             f"| Kalshi capture priced from | {kc['queried_at']} "
-            f"(**{kc['age_min']}m** old, limit {_lim(m['freshness_policy']['max_capture_age_min'])}) |",
+            f"(**{kc['age_min']}m** old at build; gated {kc.get('gate_age_min')}m at "
+            f"{kc.get('age_reference', 'BUILD_TIME')}, limit {_lim(m['freshness_policy']['max_capture_age_min'])}) |",
             f"| newest Kalshi capture in tree | {(kc.get('newest_in_tree') or {}).get('captured_at')} "
             f"({(kc.get('newest_in_tree') or {}).get('age_min')}m old) |",
             f"| context vintage | {ctx['captured_at']} ({ctx['age_min']}m old) |",

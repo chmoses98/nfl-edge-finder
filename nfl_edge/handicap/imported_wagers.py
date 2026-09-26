@@ -109,9 +109,18 @@ class ImportedWager:
     test_only: bool = False
     #: Free-form links to the event this wager was on, when established.
     event_refs: dict = field(default_factory=dict)
+    #: The exchange's buy/sell verb for this order, when the router delivered it (BUY / SELL). `side` and
+    #: `actual_price` always state the EXPOSURE the order created (a SELL of YES at p is NO at 1 - p, cash-
+    #: identical on Kalshi's netted book); this says how it was executed. Absent on every record filed before
+    #: the router sent it, and then omitted from the stored record entirely, so older rows keep their exact
+    #: bytes. It is evidence, not identity: see `import_routed_wagers.IDENTITY_FIELDS`.
+    execution_action: str | None = None
 
     def to_dict(self):
-        return asdict(self)
+        d = asdict(self)
+        if d.get("execution_action") is None:
+            d.pop("execution_action", None)
+        return d
 
 
 def validate(record: dict) -> list[str]:
@@ -139,6 +148,9 @@ def validate(record: dict) -> list[str]:
             f"entry_method must be {ENTRY_METHOD_IMPORTED_RECEIPT!r}; "
             f"got {record.get('entry_method')!r}"
         )
+
+    if record.get("execution_action") not in (None, "BUY", "SELL"):
+        problems.append(f"execution_action must be BUY or SELL when present; got {record.get('execution_action')!r}")
 
     if record.get("side") not in ("YES", "NO"):
         problems.append(f"side must be YES or NO; got {record.get('side')!r}")

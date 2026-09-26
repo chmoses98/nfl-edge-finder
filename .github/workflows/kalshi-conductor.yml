@@ -14,7 +14,7 @@ on:
       minutes:
         description: 'how long this conductor loops'
         required: false
-        default: '350'
+        default: '335'
       interval:
         description: 'seconds between capture passes'
         required: false
@@ -54,7 +54,13 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          MINUTES="${{ github.event.inputs.minutes || '350' }}"
+          # 335, not 350. A pass takes ~14 minutes (capture ~12.5 + publish ~1.5) and the loop only checks END
+          # before starting one, so a 350-minute loop ran its last pass into the 358-minute job limit on every
+          # link: run 36243743005 was killed at 20:30:36Z mid-capture, 4 timeouts in 48h, each a 27-33 minute
+          # capture gap (RUN NFL refuses a capture older than 30 minutes). 335 + one pass + setup ends ~8
+          # minutes inside the limit, and the successor -- already pending -- takes over cleanly.
+          MINUTES="${{ github.event.inputs.minutes || '335' }}"
+          if [ "${MINUTES}" -gt 335 ]; then echo "::notice::minutes ${MINUTES} capped at 335 (358-minute job limit)"; MINUTES=335; fi
           INTERVAL="${{ github.event.inputs.interval || '600' }}"
           END=$(( $(date +%s) + MINUTES * 60 ))
           PASS=0

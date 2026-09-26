@@ -228,6 +228,15 @@ be old. It is never allowed to look new.
   queried**. Deliberately *not* `minutes_since_price_change`, which is the time since a price last moved
   and is a microstructure signal, not staleness. The manifest reports both the priced-from vintage and the
   newest capture in the tree.
+* **The capture age is measured at the pricing freeze, not at build time.** A fresh/horizon build refreshes
+  market-data immediately before pricing (an incremental shallow fetch, ~1s) and records that instant as
+  `frozen_at`; `build_report.py --capture-age-reference` gates the Kalshi capture's age at that instant
+  (`vintages.kalshi_capture.gate_age_min`, `age_reference: PRICING_INPUT_FREEZE`) and still records the
+  build-time `age_min` beside it. Measured at build time, the ~11 minutes of pricing and packet build were
+  counted as market staleness: the Saturday week-3 T-24h builds passed the 30m gate at 22.0 and 26.5 minutes,
+  and a capture that landed on schedule could have been refused -- at T-30m, a MISSED horizon. The 30m limit is
+  unchanged. A reference that is unreadable, in the future, older than 60 minutes or earlier than the capture
+  itself is ignored and the gate measures at build time (the stricter reading).
 * **A `force_fresh` context capture that fails, fails the run.** The step is not `continue-on-error`, and
   `context_capture.py` exits 2 when any source failed closed. The build then proves this run's capture
   exists, failed closed on nothing, and is one the packet actually read. No report, no `latest/`, no

@@ -238,3 +238,19 @@ def test_the_capture_state_is_not_fetched_when_nothing_can_be_due():
     HC.one_pass(["RUN_NFL"], _schedule_games(), "test", KO - timedelta(minutes=358), {},
                 state_readers=readers, active=lambda wf: 0, dispatcher=lambda wf, ref: (True, "ok"))
     assert reads == ["r"]
+
+
+def test_the_kalshi_conductor_loop_ends_a_full_pass_inside_its_job_limit():
+    """Every 350-minute link ran its last ~14-minute pass into the 358-minute job limit (run 36243743005 killed
+    at 20:30:36Z mid-capture; 4 timeouts in 48h, each a 27-33 minute capture gap). The loop budget plus one
+    worst-case pass must end inside the limit, and a manual dispatch must not be able to exceed it."""
+    import yaml
+    wf = yaml.safe_load(open(os.path.join(ROOT, ".github", "workflows", "kalshi-conductor.yml")))
+    job = wf["jobs"]["conduct"]
+    default = int(wf[True]["workflow_dispatch"]["inputs"]["minutes"]["default"])
+    loop = next(s for s in job["steps"] if "capture.py" in (s.get("run") or ""))["run"]
+    fallback = int(loop.split("github.event.inputs.minutes || '")[1].split("'")[0])
+    worst_pass_min, setup_min = 18, 2
+    assert default == fallback
+    assert default + worst_pass_min + setup_min <= int(job["timeout-minutes"])
+    assert f'"${{MINUTES}}" -gt {default} ]' in loop and f"MINUTES={default}" in loop

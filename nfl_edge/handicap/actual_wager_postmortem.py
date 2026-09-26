@@ -24,9 +24,10 @@ import math
 from nfl_edge.handicap import settlement_amendments as AM
 from nfl_edge.handicap.settlement_amendments import ECONOMICS_V1, ECONOMICS_V2
 
+from nfl_edge.handicap import position_lifecycle as PL
 from nfl_edge.handicap import wager_risk
 
-POSTMORTEM_VERSION = "actual-wager-postmortem-1.0.0"
+POSTMORTEM_VERSION = "actual-wager-postmortem-1.1.0"
 
 HEADER = (
     "OWNER ACTUAL PLACED WAGERS -- ACCOUNTING ONLY. Every wager here was placed by the owner and recommended by "
@@ -95,7 +96,8 @@ def wager_row(wager: dict, settlement: dict | None, close: dict | None) -> dict:
         "season": wager.get("season"), "week": wager.get("week"), "game_date": wager.get("game_date"),
         "game": (close or {}).get("game_id") or event_of(wager.get("market_ticker")),
         "family": family_of(wager.get("market_ticker")), "market_ticker": wager.get("market_ticker"),
-        "side": side, "contracts": contracts, "execution_price": price,
+        "side": side, "contracts": contracts, "execution_price": price, "executed_at": wager.get("executed_at"),
+        "execution_action": wager.get("execution_action"),
         "stake": _num(wager.get("stake")), "fees": _num(wager.get("fees_paid")),
         "fees_are_estimated": bool(wager.get("fees_are_estimated")),
         "settlement_state": "PENDING", "result": None, "gross_return": None, "net_profit_loss": None,
@@ -234,9 +236,47 @@ def summarise(rows: list) -> dict:
     }
 
 
+def kickoffs_by_game(close_rows) -> dict:
+    """Event game code (26SEP24ATLGB) -> scheduled kickoff, from the canonical close rows (every close carries the
+    kickoff it was selected against). A game whose close rows disagree about kickoff gets none (fail closed)."""
+    out: dict = {}
+    bad = set()
+    for row in close_rows or ():
+        k = row.get("kickoff_utc")
+        if not k or not row.get("ticker"):
+            continue
+        g = PL.game_key(row["ticker"])
+        if g in out and out[g] != k:
+            bad.add(g)
+        out.setdefault(g, k)
+    return {g: k for g, k in out.items() if g not in bad}
+
+
+#: Order-level CLV states for rows that are NOT an independent pregame entry observation.
+CLV_NOT_AN_ENTRY = "NOT_AN_ENTRY_EXIT_OR_REDUCTION"
+CLV_LIVE_ENTRY = "NOT_APPLICABLE_LIVE_ENTRY"
+
+
+def apply_clv_eligibility(rows: list) -> None:
+    """An exit is never a CLV observation, and neither is an entry made after kickoff. The per-order figure is
+    kept as `order_clv_diagnostic` (labelled), never counted."""
+    for r in rows:
+        role, phase = r.get("transaction_role"), r.get("transaction_phase")
+        if role is None:
+            continue
+        if role in PL.EXIT_ROLES or role == PL.REVERSE:
+            state = CLV_NOT_AN_ENTRY
+        elif role in PL.ENTRY_ROLES and phase in (PL.LIVE, PL.POST_FINAL):
+            state = CLV_LIVE_ENTRY
+        else:
+            continue
+        r["order_clv_diagnostic"] = {"state": r.get("clv_state"), "per_contract": r.get("clv_per_contract")}
+        r.update(clv_state=state, clv_per_contract=None, clv_dollars=None)
+
+
 def build(wagers: list, settlements: list, close_rows, *, season: int, week: int | None = None,
           risk_thresholds: wager_risk.RiskThresholds = wager_risk.DEFAULT_THRESHOLDS,
-          amendments: dict | None = None) -> dict:
+          amendments: dict | None = None, quote_at=None) -> dict:
     amendments = amendments or {}
     by_key = {s.get("source_bet_key"): AM.canonical_settlement(s, amendments.get(s.get("settlement_id"), []))
               for s in settlements or () if s.get("source_bet_key")}
@@ -245,6 +285,10 @@ def build(wagers: list, settlements: list, close_rows, *, season: int, week: int
             for w in wagers if w.get("season") == season and (week is None or w.get("week") == week)]
     rows.sort(key=lambda r: (r["week"] or 0, r["game_date"] or "", r["market_ticker"] or "", r["imported_wager_id"] or ""))
     reconcile_fees(rows)
+    # POSITION LIFECYCLE (derived): orders replayed as episodes. Annotates each row with its transaction role and
+    # phase, and withdraws exits and live entries from the order-level CLV counts (see position_lifecycle).
+    lifecycle = PL.build(rows, kickoffs=kickoffs_by_game(close_rows), closes=closes, quote_at=quote_at)
+    apply_clv_eligibility(rows)
 
     def group(key):
         out = {}
@@ -254,7 +298,7 @@ def build(wagers: list, settlements: list, close_rows, *, season: int, week: int
 
     return {"postmortem_version": POSTMORTEM_VERSION, "season": season, "week": week, "header": HEADER,
             "totals": summarise(rows), "by_week": group("week"), "by_family": group("family"),
-            "by_game": group("game"), "wagers": rows,
+            "by_game": group("game"), "wagers": rows, "position_lifecycle": lifecycle,
             # Exposure, concentration and correlation of what was placed (governance only; see wager_risk).
             "risk": wager_risk.assess(rows, thresholds=risk_thresholds)}
 
@@ -285,6 +329,12 @@ def render(doc: dict) -> str:
                      f"{_pct(s['clv']['positive_rate'])} | {no_close} |")
         L.append("")
 
+    L.extend(PL.render_section(doc.get("position_lifecycle")))
+    L.extend(["## Orders (transactions -- NOT independent bets)", "",
+              "The tables below count ORDERS. An order that reduced or closed a position (a cashout) is a transaction "
+              "in the same position, not a second wager; W/L per order and stake summed over orders (turnover) are "
+              "therefore not a betting record. Order-level CLV counts pregame entries only; exits and live entries "
+              "carry the states NOT_AN_ENTRY_EXIT_OR_REDUCTION / NOT_APPLICABLE_LIVE_ENTRY.", ""])
     t = doc["totals"]
     L.extend(["Stake is contracts x execution price PLUS the entry fee the exchange charged on the fills; `fees` is "
               "that entry fee. Net P&L is the router's settlement figure: gross return - stake - settlement fee "
@@ -316,14 +366,16 @@ def render(doc: dict) -> str:
     table("By week", doc["by_week"])
     table("By market family", doc["by_family"])
     table("By game", doc["by_game"])
-    L.extend(["## Wagers", "", "| week | game | family | side | contracts | price | stake | fees | result | gross | "
-              "net | close | CLV/contract | CLV state |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"])
+    L.extend(["## Orders", "", "| week | game | family | side | contracts | price | stake | fees | result | gross | "
+              "net | close | CLV/contract | CLV state | role | phase |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"])
     for r in doc["wagers"]:
         L.append(f"| {r['week']} | {r['game']} | {r['family']} | {r['side']} | {r['contracts']} | {r['execution_price']} | "
                  f"{_money(r['stake'])} | {_money(r['fees'])} | {r['result'] or r['settlement_state']} | "
                  f"{_money(r['gross_return'])} | {_money(r['net_profit_loss'])} | "
                  f"{'—' if r.get('close_price') is None else r['close_price']} | "
-                 f"{'—' if r.get('clv_per_contract') is None else format(r['clv_per_contract'], '+.4f')} | {r['clv_state']} |")
+                 f"{'—' if r.get('clv_per_contract') is None else format(r['clv_per_contract'], '+.4f')} | {r['clv_state']} | "
+                 f"{r.get('transaction_role') or '—'} | {r.get('transaction_phase') or '—'} |")
     L.append("")
     L.extend(wager_risk.render_section(doc.get("risk")))
     return "\n".join(L)

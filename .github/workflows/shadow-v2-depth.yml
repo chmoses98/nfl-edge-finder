@@ -25,7 +25,7 @@ on:
     inputs:
       budget:
         description: 'maximum order-book requests this run'
-        default: '5000'
+        default: '3000'
       window_hours:
         description: 'only games kicking off within this many hours'
         default: '26'
@@ -59,13 +59,17 @@ jobs:
         run: |
           git fetch --depth=1 origin market-data
           rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+      # BUDGET 3000, not 5000. 5000 requests at 3 req/s is ~28 minutes of sweep on top of a ~5 minute market-data
+      # fetch and a ~2 minute publish, and runs 36256548555 and 36266598972 hit the 40-minute limit before the
+      # publish step -- so the whole sweep was lost, not just its tail. 3000 is ~17 minutes of sweep and finishes
+      # inside the limit with room; the kickoff-safety rules in the script are unchanged.
       # The rate is deliberately below the incumbent capture's, which runs continuously at 4 req/s and must keep
       # its headroom; this job is additive traffic on the same account.
       - name: Sweep order-book depth for games approaching kickoff
         run: |
           python3 scripts/shadow_v2/capture_depth_v2.py \
             --market-data /tmp/md --out data/shadow/v2 \
-            --budget "${{ github.event.inputs.budget || 5000 }}" \
+            --budget "${{ github.event.inputs.budget || 3000 }}" \
             --window-hours "${{ github.event.inputs.window_hours || 26 }}" \
             --rps 3.0 \
             --priced-from "/tmp/md/data/shadow/v2/projections/*/*.projections.jsonl.gz" 2>&1 | tail -12

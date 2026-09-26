@@ -71,3 +71,38 @@ def should_chain(now_epoch: float, end_epoch: float, already_chained: bool,
                  lead_min: float = CHAIN_LEAD_MIN) -> bool:
     """Pure: is it time to dispatch this conductor's successor? At most once per conductor run."""
     return (not already_chained) and (end_epoch - now_epoch) <= lead_min * 60
+
+
+#: HANDOVER GUARD. Between one conductor link ending and its successor's first pass there is a ~1-2 minute gap
+#: (queue -> checkout -> schedule load), and a link that ends right on a horizon trigger delays that horizon's
+#: dispatch by the gap plus up to one pass interval. Projected for 2026-09-27: a handover ~23:51Z against the SNF
+#: T-30m trigger at 23:50Z. So a link whose natural end falls within this window of any horizon trigger ends
+#: EARLY instead, GUARD_BEFORE_MIN before that trigger, and the successor is already looping when it arrives.
+HANDOVER_GUARD_BEFORE_MIN = 8.0
+HANDOVER_GUARD_AFTER_MIN = 8.0
+
+
+def handover_end(end_epoch: float, trigger_epochs, now_epoch: float, *,
+                 before_min: float = HANDOVER_GUARD_BEFORE_MIN,
+                 after_min: float = HANDOVER_GUARD_AFTER_MIN) -> tuple[float, str | None]:
+    """Pure: the instant this link should stop looping, moved EARLIER (never later) so the hand-off to its successor
+    does not land within [trigger - before, trigger + after] of any horizon trigger.
+
+    Ending later is never an option -- the job limit is fixed -- and ending earlier costs nothing: the successor
+    is already the group's pending run and starts as soon as this one exits. If the only safe instant is already
+    past, the natural end is kept (the successor's first pass still serves the horizon, a few minutes late at
+    worst) rather than ending immediately in a way that could land on another trigger."""
+    end = float(end_epoch)
+    reason = None
+    triggers = sorted(float(t) for t in (trigger_epochs or []))
+    for _ in range(len(triggers) + 1):
+        hit = next((t for t in triggers if t - before_min * 60 <= end <= t + after_min * 60), None)
+        if hit is None:
+            return end, reason
+        candidate = hit - before_min * 60
+        if candidate <= now_epoch + 60:
+            return end, reason
+        end = candidate
+        reason = (f"hand-off moved {before_min:.0f} min ahead of the horizon trigger at epoch {int(hit)} "
+                  "so the successor is already looping when it fires")
+    return end, reason

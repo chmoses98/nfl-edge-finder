@@ -138,6 +138,7 @@ def build_record(row: dict, games: list) -> ImportedWager:
         fees_are_estimated=bool(row.get("fees_are_estimated", False)),
         fee_state=row.get("fee_state"),
         venue=row.get("venue") or "kalshi",
+        execution_action=row.get("execution_action"),
     )
 
     # A router row carrying a field this ledger does not model is a contract
@@ -157,6 +158,9 @@ def build_record(row: dict, games: list) -> ImportedWager:
 #: the entry method, notes) is deliberately absent: the same order re-delivered under a different batch label is
 #: still the same wager, by the identity rule above. Every economic and placement fact is present, so a
 #: re-delivery that DISAGREES about a stake, a fee or a week is a conflict -- never a quiet no-op.
+#: `execution_action` is deliberately NOT here: it is evidence the router began sending after most records were
+#: filed, so a re-delivery carrying it must land as DUPLICATE_NOOP on a record filed without it. A SELL that had
+#: been filed under the wrong exposure still conflicts -- on `side`, `actual_price` and `stake`.
 IDENTITY_FIELDS = (
     "source_bet_key", "season", "week", "game_date", "market_ticker", "side", "executed_at",
     "contracts", "actual_price", "stake", "fees_paid", "fees_are_estimated", "fee_state", "venue",
