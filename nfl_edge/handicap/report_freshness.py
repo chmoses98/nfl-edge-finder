@@ -161,3 +161,53 @@ def check_context_reached_packet(run_id: str, packet_sources: dict) -> str | Non
         return (f"the packet was built from context captures {used}, which does not include this run's "
                 f"fresh capture {run_id}; the report would carry older context while claiming to be fresh")
     return None
+
+
+# ------------------------------------------------------------------------------------------------------
+# simulation vintage (REPORTING ONLY -- never a gate)
+# ------------------------------------------------------------------------------------------------------
+# The coherent simulation ("sim-1.x", the packet's current player projection system) is not re-run by a
+# force_fresh RUN NFL build: the build prices a fresh LOCAL ledger and takes a fresh context capture, but the
+# simulation is whatever run the market-data clone held when it was fetched. At the 2026 week-3 Thursday T-30m
+# horizon that was run 20260924T183032Z, whose market was observed at 18:18Z while the ledger it was paired
+# with priced the 23:45Z capture -- a 5h27m gap the manifest did not record (a newer run, 20260924T231506Z,
+# reached market-data four minutes after the clone). This records the gap so every reader can see it. It
+# refuses nothing and changes no number in the packet.
+SIM_LAG_WARN_MIN = 120.0
+
+
+def _iso_dt(x):
+    try:
+        d = datetime.fromisoformat(str(x).replace("Z", "+00:00"))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def simulation_vintage(sim_sources: dict | None, cap_vintage: dict | None, now: datetime,
+                       warn_lag_min: float = SIM_LAG_WARN_MIN) -> dict:
+    """How old the attached simulation run's market was, at build time and against the ledger's capture.
+
+    ``sim_sources`` is ``packet["sources"]["simulation"]`` (or None). ``status`` is one of
+    MISSING (no simulation attached), UNKNOWN (no market_observed_at recorded), LAGS_LEDGER (the simulation's
+    market is more than ``warn_lag_min`` older than the capture the ledger priced), or ALIGNED."""
+    if not sim_sources:
+        return {"status": "MISSING", "run_id": None, "market_observed_at": None, "age_min": None,
+                "lag_vs_ledger_capture_min": None, "warn_lag_min": warn_lag_min,
+                "note": "no simulation run attached to this packet"}
+    obs = _iso_dt(sim_sources.get("market_observed_at"))
+    cap = _iso_dt((cap_vintage or {}).get("queried_at"))
+    age = None if obs is None else round((now - obs).total_seconds() / 60.0, 1)
+    lag = None if obs is None or cap is None else round((cap - obs).total_seconds() / 60.0, 1)
+    if obs is None:
+        status = "UNKNOWN"
+    elif lag is not None and lag > warn_lag_min:
+        status = "LAGS_LEDGER"
+    else:
+        status = "ALIGNED"
+    return {"status": status, "run_id": sim_sources.get("run_id"), "sim_version": sim_sources.get("sim_version"),
+            "market_observed_at": obs.isoformat() if obs else None, "generated_at": sim_sources.get("generated_at"),
+            "age_min": age, "lag_vs_ledger_capture_min": lag, "warn_lag_min": warn_lag_min,
+            "note": ("informational only: the simulation is read from market-data as published, not re-run by "
+                     "this build; LAGS_LEDGER means its player distributions predate the market (and any "
+                     "injury/inactive news) the ledger priced")}
