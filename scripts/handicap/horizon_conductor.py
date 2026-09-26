@@ -30,8 +30,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.arms.horizons import captured_state                                   # noqa: E402
 from nfl_edge.data.nfl_calendar import load_schedule, resolve_active_week           # noqa: E402
-from nfl_edge.handicap.conductor import decide, should_chain                         # noqa: E402
-from nfl_edge.handicap.horizons import HORIZONS_MIN, due_horizons                    # noqa: E402
+from nfl_edge.handicap.conductor import decide, handover_end, should_chain           # noqa: E402
+from nfl_edge.handicap.horizons import HORIZONS_MIN, cluster_kickoffs, due_horizons  # noqa: E402
 
 TARGETS = {
     "RUN_NFL": {"workflow": "run-nfl-horizons.yml"},
@@ -118,6 +118,19 @@ def one_pass(targets, games, src, now, dispatched, *, dry_run=False, ref="main",
     return lines
 
 
+def horizon_trigger_epochs(games, src, now) -> list:
+    """Every horizon trigger instant of the active slate (every target uses the same HORIZONS_MIN)."""
+    from datetime import timedelta
+    week = resolve_active_week(games, now, schedule_source=src)
+    if week.get("status") != "OK":
+        return []
+    out = []
+    for c in cluster_kickoffs(week.get("games") or []):
+        for h in HORIZONS_MIN:
+            out.append((c["kickoff_utc"] - timedelta(minutes=h)).timestamp())
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--minutes", type=float, default=340.0)
@@ -144,6 +157,16 @@ def main(argv=None):
                 print(json.dumps(line, default=str), flush=True)
         except Exception as exc:  # noqa: BLE001 -- one bad pass must not end the conductor
             print(json.dumps({"at": now.isoformat(), "decision": "error",
+                              "reason": f"{type(exc).__name__}: {str(exc)[:200]}"}), flush=True)
+        # Never hand over on top of a horizon trigger (conductor.handover_end). Only ever moves the end earlier.
+        try:
+            new_end, why = handover_end(end, horizon_trigger_epochs(games, src, now), time.time())
+            if why and new_end < end:
+                end = new_end
+                print(json.dumps({"at": now.isoformat(), "decision": "handover-guard", "reason": why,
+                                  "loop_ends_at": datetime.fromtimestamp(end, timezone.utc).isoformat()}), flush=True)
+        except Exception as exc:  # noqa: BLE001 -- the guard is an optimisation; the natural end still works
+            print(json.dumps({"at": now.isoformat(), "decision": "handover-guard-error",
                               "reason": f"{type(exc).__name__}: {str(exc)[:200]}"}), flush=True)
         if a.chain_workflow and should_chain(time.time(), end, chained):
             ok, msg = (True, "dry run") if a.dry_run else dispatch(a.chain_workflow, a.ref)
