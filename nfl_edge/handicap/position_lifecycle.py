@@ -25,12 +25,10 @@ An EPISODE is flat -> flat on one market. The episode, not the order, is the ind
 DIRECTION AND THE BUY/SELL VERB
 -------------------------------
 An `imported_wager.v1` record states the side and the price of the contract whose exposure the order created,
-with `stake = contracts x price + entry fee`. That is the BUY representation. The router now also sends
-`execution_action` (BUY / SELL): a SELL of YES at p is carried as the exposure it creates, NO at 1 - p, which is
-cash-identical on Kalshi's netted book. A record without the verb (every record filed before that change) is
-replayed as the exposure its side states, and the transaction says `action_source = SIDE_AS_EXPOSURE_V1` so
-nobody mistakes an assumption for evidence. The public trade tape corroborated the side of every Thursday
-order it could be matched to (docs/POSITION_LIFECYCLE.md).
+with `stake = contracts x price + entry fee`, and the side is replayed as the exposure the order created. The router
+also sends `execution_action`, the verb the exchange REPORTED, which is shown as a label and never used for
+direction: the owner's cashouts carry action=sell with a side the public trade tape confirms is their exposure
+(docs/POSITION_LIFECYCLE.md). A record without the verb says `action_source = SIDE_AS_EXPOSURE_V1`.
 
 PHASE
 -----

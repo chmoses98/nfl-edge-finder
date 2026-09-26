@@ -100,8 +100,12 @@ describe the timeline only. They block nothing and size nothing.
 
 ## Limits
 
-- The buy/sell verb was not delivered for any filed order. It is inferred from the side and corroborated by the
-  tape where the tape has the trade. The router now sends it (`execution_action`, kalshi-bet-router #94).
+- The buy/sell verb was not stored for any filed order. `BUY*` in the ledger above is the replay's default label.
+  Production later showed that the exchange REPORTED order #6 (the cashout) as action=sell. Its filed side (NO),
+  which the tape and the owner confirm is the exposure, is unchanged, and so are the position math and P&L. The
+  router now sends the exchange-reported verb as evidence (`execution_action`). When kalshi-bet-router #94 tried
+  to derive the side from it, the three cashouts (Love 275, KC-5, CLE/TB 1H) conflicted in production, and #96
+  withdrew that derivation. The router's sell sign convention is an open question for its accounting engine.
 - Actual kickoff is not captured, so phase uses scheduled kickoff.
 - The GB moneyline's 01:59:59 trade falls in a tape gap. The live-entry comparison uses a quote 48 s old.
 - Settlement loss times are not captured, so the anti-chase flags use trading exits only and can under-fire.
