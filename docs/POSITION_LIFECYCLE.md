@@ -71,13 +71,20 @@ not new risk.
 
 ## The buy/sell verb
 
-The router's production path used Kalshi's `outcome_side` (the CONTRACT traded) as the side. For a buy that is
-the exposure; for a SELL it inverts it. The router now derives side from the exposure (a SELL of YES at p is
-recorded as NO at 1 - p, cash-identical on Kalshi's netted book) and sends `execution_action` (BUY/SELL).
-The NFL record accepts it as optional evidence (not identity; absent from older records, which keep their bytes).
-Records without it are replayed with `action_source = SIDE_AS_EXPOSURE_V1`. Every 2026 NFL order that could be
-matched to the public trade tape at its second (count and price) showed the taker direction equal to the
-recorded side, so no filed record is a mis-recorded sell.
+Records state a side, a price and `stake = contracts x price + fee`, and the lifecycle replays the side as the
+exposure the order created. The router also sends `execution_action`: the verb the exchange REPORTED. It is
+carried as evidence only, and the side is never derived from it.
+
+Why the verb is not used for direction: kalshi-bet-router #94 briefly derived the side from the legacy rule
+(sell-NO means toward YES). On its first production delivery, the owner's three cashouts (TNF Love 275, week 2
+KC-5 and CLE/TB 1H total) conflicted with their filed records. Those orders carry action=sell. For each one, the
+public trade tape shows one same-second trade with the same count and price and taker direction NO, and the fee
+equals the taker formula to the cent. The owner describes the TNF order as a cashout. So the filed side is the
+exposure, and the legacy rule's reading is contradicted. The router withdrew the rule (#96), and the sell sign
+convention stays an open question for the router's own accounting engine.
+
+For every 2026 NFL order that could be matched to the tape at its second, the taker direction equals the recorded
+side. Records without the verb carry `action_source = SIDE_AS_EXPOSURE_V1`.
 
 ## Anti-chase governance (reporting only)
 

@@ -109,11 +109,11 @@ class ImportedWager:
     test_only: bool = False
     #: Free-form links to the event this wager was on, when established.
     event_refs: dict = field(default_factory=dict)
-    #: The exchange's buy/sell verb for this order, when the router delivered it (BUY / SELL). `side` and
-    #: `actual_price` always state the EXPOSURE the order created (a SELL of YES at p is NO at 1 - p, cash-
-    #: identical on Kalshi's netted book); this says how it was executed. Absent on every record filed before
-    #: the router sent it, and then omitted from the stored record entirely, so older rows keep their exact
-    #: bytes. It is evidence, not identity: see `import_routed_wagers.IDENTITY_FIELDS`.
+    #: The buy/sell verb the EXCHANGE REPORTED for this order's fills, when the router delivered it (BUY /
+    #: SELL). Evidence only: `side`/`actual_price` are never derived from it (the owner's cashouts carry
+    #: action=sell with a side that the trade tape confirms is their exposure; docs/POSITION_LIFECYCLE.md).
+    #: Absent on every record filed before the router sent it, and then omitted from the stored record, so
+    #: older rows keep their exact bytes. Not identity: see `import_routed_wagers.IDENTITY_FIELDS`.
     execution_action: str | None = None
 
     def to_dict(self):
