@@ -2,12 +2,12 @@
  "by_family": {
   "game_winner": {
    "clv": {
-    "mean_per_contract": 0.365,
-    "positive_rate": 1.0,
+    "mean_per_contract": null,
+    "positive_rate": null,
     "states": {
-     "CLV_VALID": 1
+     "NOT_APPLICABLE_LIVE_ENTRY": 1
     },
-    "valid": 1
+    "valid": 0
    },
    "complete": true,
    "established_subset": {
@@ -94,12 +94,13 @@
   },
   "series:KXNFLPASSYDS": {
    "clv": {
-    "mean_per_contract": 0.035,
-    "positive_rate": 0.5,
+    "mean_per_contract": null,
+    "positive_rate": null,
     "states": {
-     "CLV_VALID": 2
+     "NOT_AN_ENTRY_EXIT_OR_REDUCTION": 1,
+     "NOT_APPLICABLE_LIVE_ENTRY": 1
     },
-    "valid": 2
+    "valid": 0
    },
    "complete": true,
    "established_subset": {
@@ -140,12 +141,12 @@
   },
   "series:KXNFLRECYDS": {
    "clv": {
-    "mean_per_contract": -0.010944,
-    "positive_rate": 0.0,
+    "mean_per_contract": null,
+    "positive_rate": null,
     "states": {
-     "CLV_VALID": 1
+     "NOT_APPLICABLE_LIVE_ENTRY": 1
     },
-    "valid": 1
+    "valid": 0
    },
    "complete": true,
    "established_subset": {
@@ -186,12 +187,12 @@
   },
   "series:KXNFLRSHYDS": {
    "clv": {
-    "mean_per_contract": -0.024595,
-    "positive_rate": 0.0,
+    "mean_per_contract": null,
+    "positive_rate": null,
     "states": {
-     "CLV_VALID": 1
+     "NOT_APPLICABLE_LIVE_ENTRY": 1
     },
-    "valid": 1
+    "valid": 0
    },
    "complete": true,
    "established_subset": {
@@ -234,12 +235,14 @@
  "by_game": {
   "2026_03_ATL_GB": {
    "clv": {
-    "mean_per_contract": 0.065743,
-    "positive_rate": 0.3333,
+    "mean_per_contract": -0.005,
+    "positive_rate": 0.0,
     "states": {
-     "CLV_VALID": 6
+     "CLV_VALID": 1,
+     "NOT_AN_ENTRY_EXIT_OR_REDUCTION": 1,
+     "NOT_APPLICABLE_LIVE_ENTRY": 4
     },
-    "valid": 6
+    "valid": 1
    },
    "complete": true,
    "established_subset": {
@@ -282,12 +285,14 @@
  "by_week": {
   "3": {
    "clv": {
-    "mean_per_contract": 0.065743,
-    "positive_rate": 0.3333,
+    "mean_per_contract": -0.005,
+    "positive_rate": 0.0,
     "states": {
-     "CLV_VALID": 6
+     "CLV_VALID": 1,
+     "NOT_AN_ENTRY_EXIT_OR_REDUCTION": 1,
+     "NOT_APPLICABLE_LIVE_ENTRY": 4
     },
-    "valid": 6
+    "valid": 1
    },
    "complete": true,
    "established_subset": {
@@ -328,7 +333,534 @@
   }
  },
  "header": "OWNER ACTUAL PLACED WAGERS -- ACCOUNTING ONLY. Every wager here was placed by the owner and recommended by nothing in this repository. These are real-money facts about a bankroll, not evidence about any model, and they are never used to train or tune one. Counts are small; no rate below establishes an edge.",
- "postmortem_version": "actual-wager-postmortem-1.0.0",
+ "position_lifecycle": {
+  "anti_chase": {
+   "flags": [
+    {
+     "code": "CORRELATED_EXPOSURE_HIGH",
+     "detail": "5 position episodes on one game settle on one game state",
+     "subject": "26SEP24ATLGB"
+    }
+   ],
+   "note": "ANTI-CHASE GOVERNANCE -- REPORTING ONLY. Previous losses are sunk: past P&L never changes the probability of a new wager and a past loss never justifies a larger stake. These flags describe what the transaction timeline shows; nothing here blocks, sizes or recommends a wager."
+  },
+  "episodes": [
+   {
+    "adds": 0,
+    "cash_pnl_from_orders": -49.9983,
+    "cashout_proceeds": 0.0,
+    "cashout_state": "HELD_TO_SETTLEMENT",
+    "cashouts": 0,
+    "close_price_held_side": 0.485,
+    "closed_by": "HELD_TO_SETTLEMENT",
+    "closed_quantity": 0.0,
+    "direction": "LONG_NO",
+    "entry_clv_state": "CLV_VALID",
+    "entry_cost": 49.9983,
+    "entry_timestamp": "2026-09-25T00:14:46Z",
+    "exit_phase": null,
+    "exit_quality": [],
+    "exit_timestamp": null,
+    "family": "series:KXNFL1HTEAMTOTAL",
+    "fee_ambiguous": false,
+    "fees": 1.7235,
+    "game": "2026_03_ATL_GB",
+    "game_key": "26SEP24ATLGB",
+    "live_entry_quality": [],
+    "market_ticker": "KXNFL1HTEAMTOTAL-26SEP24ATLGB-ATL10",
+    "opened_quantity": 98.52,
+    "opening_phase": "PRE_GAME",
+    "peak_capital_at_risk": 49.9983,
+    "peak_quantity": 98.52,
+    "position_classification": "PREGAME_POSITION_HELD_TO_SETTLEMENT",
+    "position_episode_id": "ep-791b67c24889e1e9413e",
+    "pregame_entry_clv_dollars": -0.4926,
+    "pregame_entry_clv_per_contract": -0.005,
+    "pregame_entry_quantity": 98.52,
+    "realized_trading_pnl": 0.0,
+    "reconciliation": "RECONCILED",
+    "reductions": 0,
+    "remaining_position": 98.52,
+    "season": 2026,
+    "settlement_payout": 0.0,
+    "settlement_pnl": -48.2748,
+    "settlement_state": "SETTLED",
+    "settlement_value_yes": 1.0,
+    "thesis": "PREGAME_THESIS",
+    "total_episode_pnl": -49.9983,
+    "transaction_count": 1,
+    "transactions": [
+     {
+      "action_source": "SIDE_AS_EXPOSURE_V1",
+      "closed_quantity": 0.0,
+      "executed_at": "2026-09-25T00:14:46Z",
+      "execution_action": "BUY",
+      "fee": 1.7235,
+      "flags": [],
+      "imported_wager_id": "routed-d74b7c39eeaeea92b0bdf0f2",
+      "opened_quantity": 98.52,
+      "outcome_side": "NO",
+      "position_after": -98.52,
+      "position_before": 0.0,
+      "price": 0.49,
+      "quantity": 98.52,
+      "realized_trading_pnl": null,
+      "seconds_from_scheduled_kickoff": -14.0,
+      "signed_quantity": -98.52,
+      "source_bet_key": "kalshi:v1:aa5c449ced75311bb4a7ea6682758cf4bcb13655ecfd6d2ef0b1d1416fab8ace",
+      "transaction_phase": "PRE_GAME",
+      "transaction_role": "OPEN",
+      "yes_axis_price": 0.51
+     },
+     {
+      "position_after": 0.0,
+      "position_before": -98.52,
+      "quantity": 98.52,
+      "realized_trading_pnl": null,
+      "settlement_pnl": -48.2748,
+      "transaction_phase": "POST_FINAL",
+      "transaction_role": "SETTLEMENT",
+      "yes_axis_price": 1.0
+     }
+    ],
+    "week": 3
+   },
+   {
+    "adds": 0,
+    "cash_pnl_from_orders": -20.0,
+    "cashout_proceeds": 0.0,
+    "cashout_state": "HELD_TO_SETTLEMENT",
+    "cashouts": 0,
+    "closed_by": "HELD_TO_SETTLEMENT",
+    "closed_quantity": 0.0,
+    "direction": "LONG_YES",
+    "entry_clv_state": "NOT_APPLICABLE_LIVE_ENTRY",
+    "entry_cost": 20.0,
+    "entry_timestamp": "2026-09-25T01:59:59Z",
+    "exit_phase": null,
+    "exit_quality": [],
+    "exit_timestamp": null,
+    "family": "game_winner",
+    "fee_ambiguous": false,
+    "fees": 0.9088,
+    "game": "2026_03_ATL_GB",
+    "game_key": "26SEP24ATLGB",
+    "live_entry_quality": [
+     {
+      "benchmark_age_s": 47.9,
+      "benchmark_yes_axis_price": 0.32,
+      "executed_at": "2026-09-25T01:59:59Z",
+      "live_entry_value_per_contract": 0.0,
+      "state": "LIVE_ENTRY_VS_QUOTE"
+     }
+    ],
+    "market_ticker": "KXNFLGAME-26SEP24ATLGB-GB",
+    "opened_quantity": 59.66,
+    "opening_phase": "LIVE",
+    "peak_capital_at_risk": 20.0,
+    "peak_quantity": 59.66,
+    "position_classification": "LIVE_POSITION_HELD_TO_SETTLEMENT",
+    "position_episode_id": "ep-7fbe594a597f916f8895",
+    "pregame_entry_clv_per_contract": null,
+    "realized_trading_pnl": 0.0,
+    "reconciliation": "RECONCILED",
+    "reductions": 0,
+    "remaining_position": 59.66,
+    "season": 2026,
+    "settlement_payout": 0.0,
+    "settlement_pnl": -19.0912,
+    "settlement_state": "SETTLED",
+    "settlement_value_yes": 0.0,
+    "thesis": "LIVE_THESIS",
+    "total_episode_pnl": -20.0,
+    "transaction_count": 1,
+    "transactions": [
+     {
+      "action_source": "SIDE_AS_EXPOSURE_V1",
+      "closed_quantity": 0.0,
+      "executed_at": "2026-09-25T01:59:59Z",
+      "execution_action": "BUY",
+      "fee": 0.9088,
+      "flags": [],
+      "imported_wager_id": "routed-905cd088e4af52dc449d9d04",
+      "opened_quantity": 59.66,
+      "outcome_side": "YES",
+      "position_after": 59.66,
+      "position_before": 0.0,
+      "price": 0.32,
+      "quantity": 59.66,
+      "realized_trading_pnl": null,
+      "seconds_from_scheduled_kickoff": 6299.0,
+      "signed_quantity": 59.66,
+      "source_bet_key": "kalshi:v1:5982b55b6248c634d5e53fef648469dd54e9fa387fbedaa7ddab1fdb0cb441a2",
+      "transaction_phase": "LIVE",
+      "transaction_role": "OPEN",
+      "yes_axis_price": 0.32
+     },
+     {
+      "position_after": 0.0,
+      "position_before": 59.66,
+      "quantity": 59.66,
+      "realized_trading_pnl": null,
+      "settlement_pnl": -19.0912,
+      "transaction_phase": "POST_FINAL",
+      "transaction_role": "SETTLEMENT",
+      "yes_axis_price": 0.0
+     }
+    ],
+    "week": 3
+   },
+   {
+    "adds": 0,
+    "cash_pnl_from_orders": 3.7527,
+    "cashout_proceeds": 30.1653,
+    "cashout_state": "FULL_CASHOUT",
+    "cashouts": 1,
+    "closed_by": "CLOSED_BY_TRADING",
+    "closed_quantity": 91.41,
+    "direction": "LONG_YES",
+    "entry_clv_state": "NOT_APPLICABLE_LIVE_ENTRY",
+    "entry_cost": 24.9978,
+    "entry_timestamp": "2026-09-25T00:15:28Z",
+    "exit_phase": "LIVE",
+    "exit_quality": [
+     {
+      "benchmark_age_s": 18.2,
+      "benchmark_yes_axis_price": 0.33,
+      "executed_at": "2026-09-25T02:43:34Z",
+      "exit_yes_axis_price": 0.33,
+      "live_exit_value_dollars": 0.0,
+      "live_exit_value_per_contract": 0.0,
+      "quantity": 91.41,
+      "state": "LIVE_EXIT_VALUE"
+     }
+    ],
+    "exit_timestamp": "2026-09-25T02:43:34Z",
+    "family": "series:KXNFLPASSYDS",
+    "fee_ambiguous": false,
+    "fees": 2.646,
+    "game": "2026_03_ATL_GB",
+    "game_key": "26SEP24ATLGB",
+    "hindsight_cashout_vs_hold": -61.2447,
+    "hindsight_hold_payout_of_exited": 91.41,
+    "live_entry_quality": [
+     {
+      "benchmark_age_s": 807.5,
+      "benchmark_yes_axis_price": null,
+      "executed_at": "2026-09-25T00:15:28Z",
+      "reason": "QUOTE_STALE",
+      "state": "NO_VALID_LIVE_ENTRY_BENCHMARK"
+     }
+    ],
+    "market_ticker": "KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275",
+    "opened_quantity": 91.41,
+    "opening_phase": "LIVE",
+    "peak_capital_at_risk": 24.9978,
+    "peak_quantity": 91.41,
+    "position_classification": "LIVE_POSITION_FULL_CASHOUT_LIVE",
+    "position_episode_id": "ep-548ec278784a67038dca",
+    "pregame_entry_clv_per_contract": null,
+    "realized_trading_pnl": 6.3987,
+    "reconciliation": "RECONCILED",
+    "reductions": 0,
+    "remaining_position": 0.0,
+    "season": 2026,
+    "settlement_pnl": 0.0,
+    "settlement_state": "NOT_APPLICABLE",
+    "settlement_value_yes": 1.0,
+    "thesis": "LIVE_THESIS",
+    "total_episode_pnl": 3.7527,
+    "transaction_count": 2,
+    "transactions": [
+     {
+      "action_source": "SIDE_AS_EXPOSURE_V1",
+      "closed_quantity": 0.0,
+      "executed_at": "2026-09-25T00:15:28Z",
+      "execution_action": "BUY",
+      "fee": 1.2312,
+      "flags": [
+       "NEAR_SCHEDULED_KICKOFF"
+      ],
+      "imported_wager_id": "routed-d88c4528e6a2688126a88f63",
+      "opened_quantity": 91.41,
+      "outcome_side": "YES",
+      "position_after": 91.41,
+      "position_before": 0.0,
+      "price": 0.26,
+      "quantity": 91.41,
+      "realized_trading_pnl": null,
+      "seconds_from_scheduled_kickoff": 28.0,
+      "signed_quantity": 91.41,
+      "source_bet_key": "kalshi:v1:eb9f43ce614b15da157263ff7873a44ec1bccf77150f826926f8608090c313a1",
+      "transaction_phase": "LIVE",
+      "transaction_role": "OPEN",
+      "yes_axis_price": 0.26
+     },
+     {
+      "action_source": "SIDE_AS_EXPOSURE_V1",
+      "closed_quantity": 91.41,
+      "executed_at": "2026-09-25T02:43:34Z",
+      "execution_action": "BUY",
+      "fee": 1.4148,
+      "flags": [],
+      "imported_wager_id": "routed-4a64cfe129b267582aa8d1e6",
+      "opened_quantity": 0.0,
+      "outcome_side": "NO",
+      "position_after": 0.0,
+      "position_before": 91.41,
+      "price": 0.67,
+      "quantity": 91.41,
+      "realized_trading_pnl": 6.3987,
+      "seconds_from_scheduled_kickoff": 8914.0,
+      "signed_quantity": -91.41,
+      "source_bet_key": "kalshi:v1:21f18997d52472816787ffb526a9c15d74d3607609b16032e4fee203a9381f34",
+      "transaction_phase": "LIVE",
+      "transaction_role": "CASHOUT_CLOSE",
+      "yes_axis_price": 0.33
+     }
+    ],
+    "week": 3
+   },
+   {
+    "adds": 0,
+    "cash_pnl_from_orders": -19.9883,
+    "cashout_proceeds": 0.0,
+    "cashout_state": "HELD_TO_SETTLEMENT",
+    "cashouts": 0,
+    "closed_by": "HELD_TO_SETTLEMENT",
+    "closed_quantity": 0.0,
+    "direction": "LONG_NO",
+    "entry_clv_state": "NOT_APPLICABLE_LIVE_ENTRY",
+    "entry_cost": 19.9883,
+    "entry_timestamp": "2026-09-25T00:16:45Z",
+    "exit_phase": null,
+    "exit_quality": [],
+    "exit_timestamp": null,
+    "family": "series:KXNFLRECYDS",
+    "fee_ambiguous": false,
+    "fees": 0.7588,
+    "game": "2026_03_ATL_GB",
+    "game_key": "26SEP24ATLGB",
+    "live_entry_quality": [
+     {
+      "benchmark_age_s": 879.7,
+      "benchmark_yes_axis_price": null,
+      "executed_at": "2026-09-25T00:16:45Z",
+      "reason": "QUOTE_STALE",
+      "state": "NO_VALID_LIVE_ENTRY_BENCHMARK"
+     }
+    ],
+    "market_ticker": "KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5-60",
+    "opened_quantity": 44.11,
+    "opening_phase": "LIVE",
+    "peak_capital_at_risk": 19.9883,
+    "peak_quantity": 44.11,
+    "position_classification": "LIVE_POSITION_HELD_TO_SETTLEMENT",
+    "position_episode_id": "ep-a5bd30ec865cb5765943",
+    "pregame_entry_clv_per_contract": null,
+    "realized_trading_pnl": 0.0,
+    "reconciliation": "RECONCILED",
+    "reductions": 0,
+    "remaining_position": 44.11,
+    "season": 2026,
+    "settlement_payout": 0.0,
+    "settlement_pnl": -19.2295,
+    "settlement_state": "SETTLED",
+    "settlement_value_yes": 1.0,
+    "thesis": "LIVE_THESIS",
+    "total_episode_pnl": -19.9883,
+    "transaction_count": 1,
+    "transactions": [
+     {
+      "action_source": "SIDE_AS_EXPOSURE_V1",
+      "closed_quantity": 0.0,
+      "executed_at": "2026-09-25T00:16:45Z",
+      "execution_action": "BUY",
+      "fee": 0.7588,
+      "flags": [
+       "NEAR_SCHEDULED_KICKOFF"
+      ],
+      "imported_wager_id": "routed-f0060b19045402cac337f272",
+      "opened_quantity": 44.11,
+      "outcome_side": "NO",
+      "position_after": -44.11,
+      "position_before": 0.0,
+      "price": 0.43594423033325774,
+      "quantity": 44.11,
+      "realized_trading_pnl": null,
+      "seconds_from_scheduled_kickoff": 105.0,
+      "signed_quantity": -44.11,
+      "source_bet_key": "kalshi:v1:7d48f2c561b41ff635d5d5b1c273e43f72e80463c0fe503df5056f7c847ad842",
+      "transaction_phase": "LIVE",
+      "transaction_role": "OPEN",
+      "yes_axis_price": 0.564056
+     },
+     {
+      "position_after": 0.0,
+      "position_before": -44.11,
+      "quantity": 44.11,
+      "realized_trading_pnl": null,
+      "settlement_pnl": -19.2295,
+      "transaction_phase": "POST_FINAL",
+      "transaction_role": "SETTLEMENT",
+      "yes_axis_price": 1.0
+     }
+    ],
+    "week": 3
+   },
+   {
+    "adds": 0,
+    "cash_pnl_from_orders": 36.5224,
+    "cashout_proceeds": 0.0,
+    "cashout_state": "HELD_TO_SETTLEMENT",
+    "cashouts": 0,
+    "closed_by": "HELD_TO_SETTLEMENT",
+    "closed_quantity": 0.0,
+    "direction": "LONG_NO",
+    "entry_clv_state": "NOT_APPLICABLE_LIVE_ENTRY",
+    "entry_cost": 24.9876,
+    "entry_timestamp": "2026-09-25T00:16:21Z",
+    "exit_phase": null,
+    "exit_quality": [],
+    "exit_timestamp": null,
+    "family": "series:KXNFLRSHYDS",
+    "fee_ambiguous": false,
+    "fees": 1.0236,
+    "game": "2026_03_ATL_GB",
+    "game_key": "26SEP24ATLGB",
+    "live_entry_quality": [
+     {
+      "benchmark_age_s": 853.4,
+      "benchmark_yes_axis_price": null,
+      "executed_at": "2026-09-25T00:16:21Z",
+      "reason": "QUOTE_STALE",
+      "state": "NO_VALID_LIVE_ENTRY_BENCHMARK"
+     }
+    ],
+    "market_ticker": "KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30",
+    "opened_quantity": 61.51,
+    "opening_phase": "LIVE",
+    "peak_capital_at_risk": 24.9876,
+    "peak_quantity": 61.51,
+    "position_classification": "LIVE_POSITION_HELD_TO_SETTLEMENT",
+    "position_episode_id": "ep-8a295ead09e12b2e1935",
+    "pregame_entry_clv_per_contract": null,
+    "realized_trading_pnl": 0.0,
+    "reconciliation": "RECONCILED",
+    "reductions": 0,
+    "remaining_position": 61.51,
+    "season": 2026,
+    "settlement_payout": 61.51,
+    "settlement_pnl": 37.546,
+    "settlement_state": "SETTLED",
+    "settlement_value_yes": 0.0,
+    "thesis": "LIVE_THESIS",
+    "total_episode_pnl": 36.5224,
+    "transaction_count": 1,
+    "transactions": [
+     {
+      "action_source": "SIDE_AS_EXPOSURE_V1",
+      "closed_quantity": 0.0,
+      "executed_at": "2026-09-25T00:16:21Z",
+      "execution_action": "BUY",
+      "fee": 1.0236,
+      "flags": [
+       "NEAR_SCHEDULED_KICKOFF"
+      ],
+      "imported_wager_id": "routed-174ed622907e5b860322dcb7",
+      "opened_quantity": 61.51,
+      "outcome_side": "NO",
+      "position_after": -61.51,
+      "position_before": 0.0,
+      "price": 0.38959518777434565,
+      "quantity": 61.51,
+      "realized_trading_pnl": null,
+      "seconds_from_scheduled_kickoff": 81.0,
+      "signed_quantity": -61.51,
+      "source_bet_key": "kalshi:v1:cc9218a975f04eccefce259d6487347b577ca0ce493fcd5132011edcd0ae8c9a",
+      "transaction_phase": "LIVE",
+      "transaction_role": "OPEN",
+      "yes_axis_price": 0.610405
+     },
+     {
+      "position_after": 0.0,
+      "position_before": -61.51,
+      "quantity": 61.51,
+      "realized_trading_pnl": null,
+      "settlement_pnl": 37.546,
+      "transaction_phase": "POST_FINAL",
+      "transaction_role": "SETTLEMENT",
+      "yes_axis_price": 0.0
+     }
+    ],
+    "week": 3
+   }
+  ],
+  "exposure_by_game": {
+   "26SEP24ATLGB": {
+    "additional_cash_added": 0,
+    "cashout_proceeds": 30.1653,
+    "contract_notional_at_peak": 355.21,
+    "gross_transaction_volume": 202.6315,
+    "max_loss_at_peak": 139.972,
+    "max_simultaneous_capital_at_risk": 139.972,
+    "orders": 6,
+    "original_cash_outlay": 139.972,
+    "peak_at": "2026-09-25T01:59:59Z",
+    "position_episodes": 5,
+    "recycled_capital_in_volume": 62.6595,
+    "total_pnl": -49.7115
+   }
+  },
+  "header": "POSITION LIFECYCLE -- ACCOUNTING ONLY. An order is a transaction, not a bet: orders on one market are replayed on Kalshi's single signed position, and each flat-to-flat EPISODE is one independent position. A cashout is position management, not a second wager. Nothing here is model evidence or a recommendation.",
+  "lifecycle_version": "position-lifecycle-1.0.0",
+  "summary": {
+   "cashout_proceeds": 30.1653,
+   "classifications": {
+    "LIVE_POSITION_FULL_CASHOUT_LIVE": 1,
+    "LIVE_POSITION_HELD_TO_SETTLEMENT": 3,
+    "PREGAME_POSITION_HELD_TO_SETTLEMENT": 1
+   },
+   "complete": true,
+   "entry_cost": 139.972,
+   "fees": 7.0607,
+   "full_cashout_count": 1,
+   "held_to_settlement_count": 4,
+   "independent_position_episodes": 5,
+   "live_exit_benchmark": {
+    "exits": 1,
+    "states": {
+     "LIVE_EXIT_VALUE": 1
+    },
+    "valued": 1
+   },
+   "live_thesis_count": 4,
+   "near_scheduled_kickoff_openings": 3,
+   "non_positive_episodes": 3,
+   "partial_cashout_count": 0,
+   "positive_episodes": 2,
+   "pregame_entry_clv": {
+    "mean_per_contract": -0.005,
+    "positive_rate": 0.0,
+    "states": {
+     "CLV_VALID": 1,
+     "NOT_APPLICABLE_LIVE_ENTRY": 4
+    },
+    "valid": 1
+   },
+   "pregame_thesis_count": 1,
+   "realized_trading_pnl": 6.3987,
+   "reconciliation": {
+    "RECONCILED": 5
+   },
+   "reversal_count": 0,
+   "settlement_pnl": -49.0495,
+   "total_pnl": -49.7115,
+   "transactions": 6,
+   "unknown_phase_thesis_count": 0
+  }
+ },
+ "postmortem_version": "actual-wager-postmortem-1.1.0",
  "risk": {
   "bankroll": {
    "reason": "no readable starting-bankroll evidence for the owner's account (the router's bankroll is a secret; nothing is guessed)",
@@ -339,12 +871,12 @@
     "basis": "net_canonical",
     "cluster": "2026_03_ATL_GB#1",
     "entry_quality": {
-     "clv_dollars": 25.6864,
-     "clv_valid": 6,
-     "mean_clv_per_contract": 0.057513,
-     "sign": "POSITIVE"
+     "clv_dollars": -0.4926,
+     "clv_valid": 1,
+     "mean_clv_per_contract": -0.005,
+     "sign": "NEGATIVE"
     },
-    "friction": 7.0607,
+    "friction": null,
     "label": "2026_03_ATL_GB#1",
     "net": -49.7115,
     "outcome_variance": {
@@ -1161,12 +1693,14 @@
  "season": 2026,
  "totals": {
   "clv": {
-   "mean_per_contract": 0.065743,
-   "positive_rate": 0.3333,
+   "mean_per_contract": -0.005,
+   "positive_rate": 0.0,
    "states": {
-    "CLV_VALID": 6
+    "CLV_VALID": 1,
+    "NOT_AN_ENTRY_EXIT_OR_REDUCTION": 1,
+    "NOT_APPLICABLE_LIVE_ENTRY": 4
    },
-   "valid": 6
+   "valid": 1
   },
   "complete": true,
   "established_subset": {
@@ -1207,14 +1741,18 @@
  },
  "wagers": [
   {
+   "action_source": "SIDE_AS_EXPOSURE_V1",
    "amendment_status": "ORIGINAL",
    "close_price": 0.485,
    "close_quality": "EXCELLENT",
    "clv_dollars": -0.4926,
+   "clv_eligible": true,
    "clv_per_contract": -0.005,
    "clv_state": "CLV_VALID",
    "contracts": 98.52,
    "economics_version": "router-settlement-economics.v2",
+   "executed_at": "2026-09-25T00:14:46Z",
+   "execution_action": "BUY",
    "execution_price": 0.49,
    "family": "series:KXNFL1HTEAMTOTAL",
    "fee_reconciliation": "CANONICAL_V2",
@@ -1229,6 +1767,9 @@
    "net_fee_reconciled": -49.9983,
    "net_profit_loss": -49.9983,
    "pl_state": "ESTABLISHED",
+   "position_after": -98.52,
+   "position_before": 0.0,
+   "position_episode_id": "ep-791b67c24889e1e9413e",
    "recorded_economics_version": "router-settlement-economics.v2",
    "recorded_net_profit_loss": -49.9983,
    "result": "LOST",
@@ -1237,17 +1778,23 @@
    "side": "NO",
    "source_bet_key": "kalshi:v1:aa5c449ced75311bb4a7ea6682758cf4bcb13655ecfd6d2ef0b1d1416fab8ace",
    "stake": 49.9983,
+   "transaction_phase": "PRE_GAME",
+   "transaction_role": "OPEN",
    "week": 3
   },
   {
+   "action_source": "SIDE_AS_EXPOSURE_V1",
    "amendment_status": "ORIGINAL",
    "close_price": 0.685,
    "close_quality": "EXCELLENT",
-   "clv_dollars": 21.7759,
-   "clv_per_contract": 0.365,
-   "clv_state": "CLV_VALID",
+   "clv_dollars": null,
+   "clv_eligible": false,
+   "clv_per_contract": null,
+   "clv_state": "NOT_APPLICABLE_LIVE_ENTRY",
    "contracts": 59.66,
    "economics_version": "router-settlement-economics.v2",
+   "executed_at": "2026-09-25T01:59:59Z",
+   "execution_action": "BUY",
    "execution_price": 0.32,
    "family": "game_winner",
    "fee_reconciliation": "CANONICAL_V2",
@@ -1261,7 +1808,14 @@
    "net_canonical": -20.0,
    "net_fee_reconciled": -20.0,
    "net_profit_loss": -20.0,
+   "order_clv_diagnostic": {
+    "per_contract": 0.365,
+    "state": "CLV_VALID"
+   },
    "pl_state": "ESTABLISHED",
+   "position_after": 59.66,
+   "position_before": 0.0,
+   "position_episode_id": "ep-7fbe594a597f916f8895",
    "recorded_economics_version": "router-settlement-economics.v2",
    "recorded_net_profit_loss": -20.0,
    "result": "LOST",
@@ -1270,17 +1824,23 @@
    "side": "YES",
    "source_bet_key": "kalshi:v1:5982b55b6248c634d5e53fef648469dd54e9fa387fbedaa7ddab1fdb0cb441a2",
    "stake": 20.0,
+   "transaction_phase": "LIVE",
+   "transaction_role": "OPEN",
    "week": 3
   },
   {
+   "action_source": "SIDE_AS_EXPOSURE_V1",
    "amendment_status": "ORIGINAL",
    "close_price": 0.755,
    "close_quality": "EXCELLENT",
-   "clv_dollars": 7.76985,
-   "clv_per_contract": 0.085,
-   "clv_state": "CLV_VALID",
+   "clv_dollars": null,
+   "clv_eligible": false,
+   "clv_per_contract": null,
+   "clv_state": "NOT_AN_ENTRY_EXIT_OR_REDUCTION",
    "contracts": 91.41,
    "economics_version": "router-settlement-economics.v2",
+   "executed_at": "2026-09-25T02:43:34Z",
+   "execution_action": "BUY",
    "execution_price": 0.67,
    "family": "series:KXNFLPASSYDS",
    "fee_reconciliation": "CANONICAL_V2",
@@ -1294,7 +1854,14 @@
    "net_canonical": -62.6595,
    "net_fee_reconciled": -62.6595,
    "net_profit_loss": -62.6595,
+   "order_clv_diagnostic": {
+    "per_contract": 0.085,
+    "state": "CLV_VALID"
+   },
    "pl_state": "ESTABLISHED",
+   "position_after": 0.0,
+   "position_before": 91.41,
+   "position_episode_id": "ep-548ec278784a67038dca",
    "recorded_economics_version": "router-settlement-economics.v2",
    "recorded_net_profit_loss": -62.6595,
    "result": "LOST",
@@ -1303,17 +1870,23 @@
    "side": "NO",
    "source_bet_key": "kalshi:v1:21f18997d52472816787ffb526a9c15d74d3607609b16032e4fee203a9381f34",
    "stake": 62.6595,
+   "transaction_phase": "LIVE",
+   "transaction_role": "CASHOUT_CLOSE",
    "week": 3
   },
   {
+   "action_source": "SIDE_AS_EXPOSURE_V1",
    "amendment_status": "ORIGINAL",
    "close_price": 0.245,
    "close_quality": "EXCELLENT",
-   "clv_dollars": -1.37115,
-   "clv_per_contract": -0.015,
-   "clv_state": "CLV_VALID",
+   "clv_dollars": null,
+   "clv_eligible": false,
+   "clv_per_contract": null,
+   "clv_state": "NOT_APPLICABLE_LIVE_ENTRY",
    "contracts": 91.41,
    "economics_version": "router-settlement-economics.v2",
+   "executed_at": "2026-09-25T00:15:28Z",
+   "execution_action": "BUY",
    "execution_price": 0.26,
    "family": "series:KXNFLPASSYDS",
    "fee_reconciliation": "CANONICAL_V2",
@@ -1327,7 +1900,14 @@
    "net_canonical": 66.4122,
    "net_fee_reconciled": 66.4122,
    "net_profit_loss": 66.4122,
+   "order_clv_diagnostic": {
+    "per_contract": -0.015,
+    "state": "CLV_VALID"
+   },
    "pl_state": "ESTABLISHED",
+   "position_after": 91.41,
+   "position_before": 0.0,
+   "position_episode_id": "ep-548ec278784a67038dca",
    "recorded_economics_version": "router-settlement-economics.v2",
    "recorded_net_profit_loss": 66.4122,
    "result": "WON",
@@ -1336,17 +1916,23 @@
    "side": "YES",
    "source_bet_key": "kalshi:v1:eb9f43ce614b15da157263ff7873a44ec1bccf77150f826926f8608090c313a1",
    "stake": 24.9978,
+   "transaction_phase": "LIVE",
+   "transaction_role": "OPEN",
    "week": 3
   },
   {
+   "action_source": "SIDE_AS_EXPOSURE_V1",
    "amendment_status": "ORIGINAL",
    "close_price": 0.425,
    "close_quality": "EXCELLENT",
-   "clv_dollars": -0.48274,
-   "clv_per_contract": -0.010944,
-   "clv_state": "CLV_VALID",
+   "clv_dollars": null,
+   "clv_eligible": false,
+   "clv_per_contract": null,
+   "clv_state": "NOT_APPLICABLE_LIVE_ENTRY",
    "contracts": 44.11,
    "economics_version": "router-settlement-economics.v2",
+   "executed_at": "2026-09-25T00:16:45Z",
+   "execution_action": "BUY",
    "execution_price": 0.43594423033325774,
    "family": "series:KXNFLRECYDS",
    "fee_reconciliation": "CANONICAL_V2",
@@ -1360,7 +1946,14 @@
    "net_canonical": -19.9883,
    "net_fee_reconciled": -19.9883,
    "net_profit_loss": -19.9883,
+   "order_clv_diagnostic": {
+    "per_contract": -0.010944,
+    "state": "CLV_VALID"
+   },
    "pl_state": "ESTABLISHED",
+   "position_after": -44.11,
+   "position_before": 0.0,
+   "position_episode_id": "ep-a5bd30ec865cb5765943",
    "recorded_economics_version": "router-settlement-economics.v2",
    "recorded_net_profit_loss": -19.9883,
    "result": "LOST",
@@ -1369,17 +1962,23 @@
    "side": "NO",
    "source_bet_key": "kalshi:v1:7d48f2c561b41ff635d5d5b1c273e43f72e80463c0fe503df5056f7c847ad842",
    "stake": 19.9883,
+   "transaction_phase": "LIVE",
+   "transaction_role": "OPEN",
    "week": 3
   },
   {
+   "action_source": "SIDE_AS_EXPOSURE_V1",
    "amendment_status": "ORIGINAL",
    "close_price": 0.365,
    "close_quality": "EXCELLENT",
-   "clv_dollars": -1.512838,
-   "clv_per_contract": -0.024595,
-   "clv_state": "CLV_VALID",
+   "clv_dollars": null,
+   "clv_eligible": false,
+   "clv_per_contract": null,
+   "clv_state": "NOT_APPLICABLE_LIVE_ENTRY",
    "contracts": 61.51,
    "economics_version": "router-settlement-economics.v2",
+   "executed_at": "2026-09-25T00:16:21Z",
+   "execution_action": "BUY",
    "execution_price": 0.38959518777434565,
    "family": "series:KXNFLRSHYDS",
    "fee_reconciliation": "CANONICAL_V2",
@@ -1393,7 +1992,14 @@
    "net_canonical": 36.5224,
    "net_fee_reconciled": 36.5224,
    "net_profit_loss": 36.5224,
+   "order_clv_diagnostic": {
+    "per_contract": -0.024595,
+    "state": "CLV_VALID"
+   },
    "pl_state": "ESTABLISHED",
+   "position_after": -61.51,
+   "position_before": 0.0,
+   "position_episode_id": "ep-8a295ead09e12b2e1935",
    "recorded_economics_version": "router-settlement-economics.v2",
    "recorded_net_profit_loss": 36.5224,
    "result": "WON",
@@ -1402,6 +2008,8 @@
    "side": "NO",
    "source_bet_key": "kalshi:v1:cc9218a975f04eccefce259d6487347b577ca0ce493fcd5132011edcd0ae8c9a",
    "stake": 24.9876,
+   "transaction_phase": "LIVE",
+   "transaction_role": "OPEN",
    "week": 3
   }
  ],
