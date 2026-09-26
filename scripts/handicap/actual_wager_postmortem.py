@@ -33,6 +33,7 @@ sys.path.insert(0, ROOT)
 from nfl_edge.handicap import store  # noqa: E402
 from nfl_edge.handicap import settlement_amendments as AM  # noqa: E402
 from nfl_edge.handicap.actual_wager_postmortem import build, render  # noqa: E402
+from nfl_edge.handicap.position_lifecycle import CaptureQuoteLookup  # noqa: E402
 
 
 KEEP = ("ticker", "game_id", "close_status", "close_reason", "close_quality", "close_id", "mid", "no_mid",
@@ -58,6 +59,26 @@ def read_closes(closes_root: str | None, season: int, tickers) -> list:
     return rows
 
 
+def git_quote_lookup(git_dir: str | None, ref: str = "origin/market-data"):
+    """Contemporaneous capture quotes read with `git show` from a (blobless) market-data clone, so only the few
+    quote files around each live exit are fetched. None when no clone was given (benchmarks then report
+    NO_VALID_LIVE_EXIT_BENCHMARK)."""
+    if not git_dir or not os.path.isdir(git_dir):
+        return None
+    import subprocess
+
+    def list_runs(day):
+        out = subprocess.run(["git", "-C", git_dir, "ls-tree", "--name-only", ref, f"data/kalshi/capture/{day}/"],
+                             capture_output=True, text=True)
+        return [p for p in out.stdout.split() if p.endswith(".quotes.jsonl")]
+
+    def read(path):
+        out = subprocess.run(["git", "-C", git_dir, "show", f"{ref}:{path}"], capture_output=True, text=True)
+        return out.stdout.splitlines() if out.returncode == 0 else []
+
+    return CaptureQuoteLookup(list_runs, read)
+
+
 def overdue(wagers: list, settlements: list, today: date, days: int) -> list:
     settled = {s.get("source_bet_key") for s in settlements}
     out = []
@@ -78,6 +99,9 @@ def main(argv=None) -> int:
     ap.add_argument("--season", type=int, required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--today", default=None)
+    ap.add_argument("--capture-git-dir", default=None,
+                    help="a market-data clone (blobless is fine) for contemporaneous live-exit benchmarks")
+    ap.add_argument("--capture-ref", default="origin/market-data")
     ap.add_argument("--fail-on-overdue-days", type=int, default=None)
     a = ap.parse_args(argv)
 
@@ -92,9 +116,11 @@ def main(argv=None) -> int:
     os.makedirs(a.out, exist_ok=True)
     season_dir = os.path.join(a.out, str(a.season))
     os.makedirs(season_dir, exist_ok=True)
-    docs = {"season": build(wagers, settlements, closes, season=a.season, amendments=amendments)}
+    quote_at = git_quote_lookup(a.capture_git_dir, a.capture_ref)
+    docs = {"season": build(wagers, settlements, closes, season=a.season, amendments=amendments, quote_at=quote_at)}
     for wk in sorted({w.get("week") for w in wagers if isinstance(w.get("week"), int)}):
-        docs[f"week_{wk:02d}"] = build(wagers, settlements, closes, season=a.season, week=wk, amendments=amendments)
+        docs[f"week_{wk:02d}"] = build(wagers, settlements, closes, season=a.season, week=wk, amendments=amendments,
+                                       quote_at=quote_at)
     for name, doc in docs.items():
         with open(os.path.join(season_dir, f"{name}.actual_wagers.json"), "w") as f:
             json.dump(doc, f, indent=1, sort_keys=True)
@@ -111,6 +137,13 @@ def main(argv=None) -> int:
         print(f"  {name}: wagers {t['wagers']}, settled {t['settled']}, pending {t['pending']}, "
               f"P&L established {t['pl_established']}, unestablished {t['pl_unestablished']}, "
               f"CLV valid {t['clv']['valid']}, CLV states {t['clv']['states']}")
+        ls = doc["position_lifecycle"]["summary"]
+        print(f"    lifecycle: episodes {ls['independent_position_episodes']} from {ls['transactions']} orders, "
+              f"pregame thesis {ls['pregame_thesis_count']}, live thesis {ls['live_thesis_count']}, full cashouts "
+              f"{ls['full_cashout_count']}, partial {ls['partial_cashout_count']}, held {ls['held_to_settlement_count']}, "
+              f"pregame entry CLV valid {ls['pregame_entry_clv']['valid']}, live exit benchmarks "
+              f"{ls['live_exit_benchmark']['states']}, reconciliation {ls['reconciliation']}, anti-chase flags "
+              f"{len(doc['position_lifecycle']['anti_chase']['flags'])}")
         rk = doc["risk"]
         print(f"    risk: net basis {rk['net_basis']['primary'] or 'NONE_COMPLETE'}, "
               f"clusters {len(rk['groups']['cluster'])}, opposing pairs {len(rk['opposing_pairs'])}, "

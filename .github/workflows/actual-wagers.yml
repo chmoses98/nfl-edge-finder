@@ -10,6 +10,10 @@ name: Owner actual wagers (ledger check + postmortem)
 #      close of the exact contract (scripts/handicap/actual_wager_postmortem.py), plus the RISK & CONCENTRATION
 #      block (same-game / same-market / ladder / YES+NO / correlated clusters, threshold warnings) as
 #      `<name>.risk.json` (nfl_edge/handicap/wager_risk.py);
+#   2b. the POSITION LIFECYCLE (nfl_edge/handicap/position_lifecycle.py): orders replayed as flat-to-flat
+#      episodes, so a cashout is a transaction in one position rather than a second wager; pregame entry CLV
+#      only; live exits valued against the contemporaneous capture quote (read lazily from the blobless
+#      market-data clone -- only the few quote files around each exit are fetched);
 #   3. go RED when a wager is more than 3 days past its game date with no settlement record -- a settlement that
 #      was never delivered, the one reconciliation failure the destination can see on its own.
 #
@@ -62,6 +66,7 @@ jobs:
           S=$(date -u +%Y)
           python3 scripts/handicap/actual_wager_postmortem.py --handicap-root /tmp/hd \
             --closes-root /tmp/md/data/shadow/v2/closes --season "$S" --out data/handicap/actual_wagers \
+            --capture-git-dir /tmp/md --capture-ref origin/market-data \
             --fail-on-overdue-days 3 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Publish the postmortem to market-data
         run: |
