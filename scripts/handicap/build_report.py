@@ -52,7 +52,7 @@ sys.path.insert(0, ROOT)
 from nfl_edge.data.nfl_calendar import load_schedule, resolve_active_week  # noqa: E402
 from nfl_edge.handicap.report_freshness import (  # noqa: E402
     DEFAULT_MAX_CAPTURE_AGE_MIN, capture_vintage, check_capture_age, check_context_reached_packet,
-    check_fresh_context, find_context_run,
+    check_fresh_context, find_context_run, simulation_vintage,
 )
 from nfl_edge.handicap.report_outputs import report_paths, verify_report_outputs  # noqa: E402
 
@@ -301,6 +301,8 @@ def main():
                             captures_used=packet["sources"].get("context_captures"),
                             fresh_capture_this_run=a.require_context_run_id,
                             fresh_capture_sources=(ctx_required or {}).get("sources")),
+            # Reporting only: how far the attached simulation's market trails the ledger's capture.
+            "simulation": simulation_vintage(packet["sources"].get("simulation"), cap_vintage, now),
             "team_profile_basis": packet["sources"].get("team_profile_basis"),
             "qb_profile_basis": packet["sources"].get("qb_profile_basis"),
         },
@@ -427,6 +429,9 @@ def _report(a, m, out, now):
     print(f"  ledger {v['shadow_pricing']['ledger_run_id']} age {v['shadow_pricing']['age_min']}m"
           f"  |  kalshi capture priced from {v['kalshi_capture']['age_min']}m"
           f"  |  context age {v['context']['age_min']}m")
+    sv = v.get("simulation") or {}
+    print(f"  simulation {sv.get('run_id')} [{sv.get('status')}] market age {sv.get('age_min')}m"
+          f"  |  lag vs ledger capture {sv.get('lag_vs_ledger_capture_min')}m")
     print(f"  written to {out}")
 
     if a.github_output:
