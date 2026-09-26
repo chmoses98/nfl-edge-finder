@@ -30,6 +30,9 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.arms.horizons import captured_state                                   # noqa: E402
 from nfl_edge.data.nfl_calendar import load_schedule, resolve_active_week           # noqa: E402
+from nfl_edge.handicap.automation import (                                            # noqa: E402
+    POSTGAME_WORKFLOWS, decide_postgame, postgame_ticks, record_dispatch,
+)
 from nfl_edge.handicap.conductor import decide, handover_end, should_chain           # noqa: E402
 from nfl_edge.handicap.horizons import HORIZONS_MIN, cluster_kickoffs, due_horizons  # noqa: E402
 
@@ -118,6 +121,47 @@ def one_pass(targets, games, src, now, dispatched, *, dry_run=False, ref="main",
     return lines
 
 
+def last_conclusion(workflow: str):
+    r = subprocess.run(["gh", "run", "list", "--workflow", workflow, "--limit", "1", "--json", "status,conclusion"],
+                       cwd=ROOT, capture_output=True, text=True, timeout=60)
+    try:
+        runs = json.loads(r.stdout or "[]")
+    except ValueError:
+        return None
+    return (runs[0].get("conclusion") or runs[0].get("status")) if runs else None
+
+
+def postgame_pass(games, now, attempts, *, dry_run=False, ref="main", workflows=POSTGAME_WORKFLOWS,
+                  active=None, conclusion=None, dispatcher=None) -> list:
+    """POSTGAME target: start the postgame workflows at fixed offsets after each kickoff cluster
+    (nfl_edge/handicap/automation.py). Each workflow's own gate decides what is ready; duplicates are no-ops."""
+    active = active or active_runs
+    conclusion = conclusion or last_conclusion
+    dispatcher = dispatcher or dispatch
+    ticks = postgame_ticks(games or [], now)
+    lines = []
+    for wf in workflows:
+        line = {"at": now.isoformat(), "target": "POSTGAME", "workflow": wf,
+                "due": [t["tick_id"] for t in ticks]}
+        if not ticks:
+            line.update(decision="idle", reason="no postgame tick owed")
+            lines.append(line)
+            continue
+        per_wf = attempts.setdefault(wf, {})
+        n_active = 0 if dry_run else active(wf)
+        last = None if dry_run else conclusion(wf)
+        go, why = decide_postgame(ticks, per_wf, now, n_active, last)
+        line.update(decision=("dispatch" if go else "wait"), reason=why,
+                    state=("RUNNING" if n_active else None), last_conclusion=last)
+        if go:
+            ok, msg = (True, "dry run") if dry_run else dispatcher(wf, ref)
+            line.update(dispatched=ok, message=msg)
+            if ok:
+                record_dispatch(per_wf, ticks, now)
+        lines.append(line)
+    return lines
+
+
 def horizon_trigger_epochs(games, src, now) -> list:
     """Every horizon trigger instant of the active slate (every target uses the same HORIZONS_MIN)."""
     from datetime import timedelta
@@ -135,13 +179,17 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--minutes", type=float, default=340.0)
     ap.add_argument("--interval", type=float, default=240.0)
-    ap.add_argument("--targets", default="RUN_NFL,THREE_ARM")
+    ap.add_argument("--targets", default="RUN_NFL,THREE_ARM",
+                    help="comma list of RUN_NFL, THREE_ARM, POSTGAME (postgame-settle / actual-wagers / shadow-v2-settle)")
     ap.add_argument("--ref", default="main")
     ap.add_argument("--chain-workflow", default=None,
                     help="dispatch this workflow once, near the end, so the next conductor does not depend on cron")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
-    targets = [t.strip() for t in a.targets.split(",") if t.strip() in TARGETS]
+    requested = [t.strip() for t in a.targets.split(",")]
+    targets = [t for t in requested if t in TARGETS]
+    postgame = "POSTGAME" in requested
+    pg_attempts: dict = {}
     end = time.time() + a.minutes * 60
     dispatched: dict = {}
     chained = False
@@ -155,6 +203,9 @@ def main(argv=None):
                 loaded = t0
             for line in one_pass(targets, games, src, now, dispatched, dry_run=a.dry_run, ref=a.ref):
                 print(json.dumps(line, default=str), flush=True)
+            if postgame:
+                for line in postgame_pass(games, now, pg_attempts, dry_run=a.dry_run, ref=a.ref):
+                    print(json.dumps(line, default=str), flush=True)
         except Exception as exc:  # noqa: BLE001 -- one bad pass must not end the conductor
             print(json.dumps({"at": now.isoformat(), "decision": "error",
                               "reason": f"{type(exc).__name__}: {str(exc)[:200]}"}), flush=True)

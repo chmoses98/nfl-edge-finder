@@ -107,6 +107,29 @@ jobs:
       - name: Prove the report path cannot reach Airtable
         run: python3 scripts/ci/assert_no_airtable.py
 
+      # CONCURRENT CONTEXT CAPTURE. The capture (~4.5-6 min, mostly sequential weather calls) reads nothing from
+      # market-data except data/context/state.json, its change-suppression cache, yet it used to wait for the ~5
+      # minute market-data fetch. It now starts here, with state.json read ahead of the tree, and runs while the
+      # dependencies install and the nflverse inputs and market-data download. The step below that used to run it
+      # WAITS for it, proves it had the same state.json the fetched tree holds, and otherwise re-runs it
+      # sequentially exactly as before (scripts/handicap/concurrent_context.py). Nothing here can fail the run.
+      - name: Start the fresh context capture concurrently
+        if: inputs.force_fresh
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/ctx data/context
+          if gh api -H "Accept: application/vnd.github.raw" \
+               "repos/${{ github.repository }}/contents/data/context/state.json?ref=market-data" > /tmp/ctx/state.used.json 2>/tmp/ctx/state.err; then
+            echo "context state read ahead of the market-data tree"
+          else
+            echo "::notice::state.json not read ahead of the tree; the capture is re-run sequentially if the tree disagrees"
+            echo '{}' > /tmp/ctx/state.used.json
+          fi
+          cp /tmp/ctx/state.used.json data/context/state.json
+          python3 scripts/handicap/concurrent_context.py start --dir /tmp/ctx
+
       - name: Install
         run: pip install -q numpy pandas polars scipy pyarrow
 
@@ -167,8 +190,21 @@ jobs:
         id: context
         run: |
           mkdir -p data/context
-          cp /tmp/md/data/context/state.json data/context/state.json 2>/dev/null || echo '{}' > data/context/state.json
-          python3 scripts/data/context_capture.py 2>&1 | tail -5
+          # Normally already done: started concurrently above. 0 = finished with the same state.json this tree
+          # holds; 3/4 = state differed / never started / hung -> run it sequentially, exactly as before; any other
+          # code is the capture's own failure and fails the run, as before.
+          BG=0
+          python3 scripts/handicap/concurrent_context.py wait --dir /tmp/ctx \
+            --tree-state /tmp/md/data/context/state.json --timeout-min 20 || BG=$?
+          if [ "$BG" -eq 3 ] || [ "$BG" -eq 4 ]; then
+            echo "running the context capture sequentially (concurrent result $BG)"
+            find data/context -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
+            cp /tmp/md/data/context/state.json data/context/state.json 2>/dev/null || echo '{}' > data/context/state.json
+            python3 scripts/data/context_capture.py 2>&1 | tail -5
+          elif [ "$BG" -ne 0 ]; then
+            echo "::error::the fresh context capture failed (exit $BG)"
+            exit "$BG"
+          fi
           # The fresh capture is used locally by this report. It is not published: a research question
           # should not add rows to the canonical context stream, and the packet still diffs against the
           # newest PUBLISHED capture, which is already in /tmp/md.
@@ -273,7 +309,8 @@ jobs:
           git fetch --depth=1 origin handicap-reports || true
           git show origin/handicap-reports:state/horizons.json > /tmp/hz/in.json 2>/dev/null || echo '{}' > /tmp/hz/in.json
           python3 scripts/handicap/mark_horizons.py --state /tmp/hz/in.json --out /tmp/hz/horizons.json \
-            --horizon-ids '${{ inputs.horizon_ids }}' --run-id '${{ github.run_id }}'
+            --horizon-ids '${{ inputs.horizon_ids }}' --run-id '${{ github.run_id }}' \
+            --manifest data/handicap_report/manifest.json
 
       - name: Publish the browsable latest report
         if: steps.build.outputs.report_status == 'SUCCESS'

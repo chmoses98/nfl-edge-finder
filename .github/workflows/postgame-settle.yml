@@ -258,6 +258,22 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
+      # WAITING_FOR_SOURCE / PARTIAL_COMPLETE / COMPLETE / BLOCKED in the job summary (nfl_edge/handicap/automation.py).
+      # Reporting only: it cannot turn a run red or green; the steps above and "Report outcome" below do that.
+      - name: Automation state
+        if: always()
+        continue-on-error: true
+        env:
+          GATE_WORK: ${{ steps.gate.outputs.work }}
+          SETTLE_STATUS: ${{ steps.settle.outputs.status }}
+          WRITTEN: ${{ steps.settle.outputs.written }}
+          DEFERRED: ${{ steps.settle.outputs.games_deferred }}
+          ARMS_STATUS: ${{ steps.arms.outputs.status }}
+          AUTOPSY_STATUS: ${{ steps.autopsy.outputs.status }}
+          JOB_STATUS: ${{ job.status }}
+          INPUT_GAMES: ${{ github.event.inputs.games }}
+        run: python3 scripts/ops/automation_state.py postgame --summary "$GITHUB_STEP_SUMMARY"
+
       - name: Report outcome
         if: always()
         env:

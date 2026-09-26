@@ -116,6 +116,35 @@ def summarise(rows: list) -> dict:
             "missed_ids": [r["horizon_id"] for r in owed if r["status"] == "MISSED"]}
 
 
+def run_nfl_latency(state: dict, *, deployed: datetime = CONDUCTOR_DEPLOYED_UTC) -> dict:
+    """SNAPSHOT vs PACKET latency per RUN NFL horizon record (nfl_edge/handicap/latency.py), AFTER_CONDUCTOR only.
+
+    Records written before the split carry only `late_by_min` (== packet publish latency) and `captured_at`; for
+    those the time remaining at publication is derived and the snapshot/processing split is left null -- never
+    reconstructed from a guess."""
+    rows = []
+    for hid, rec in sorted(((state or {}).get("captured") or {}).items()):
+        trig = _dt(rec.get("trigger_utc"))
+        if trig is None or trig < deployed:
+            continue
+        pub = rec.get("packet_publish_latency_min", rec.get("late_by_min"))
+        rem = rec.get("time_remaining_to_kickoff_at_publication_min")
+        if rem is None and _dt(rec.get("kickoff_utc")) and _dt(rec.get("captured_at")):
+            rem = round((_dt(rec["kickoff_utc"]) - _dt(rec["captured_at"])).total_seconds() / 60.0, 1)
+        rows.append({"horizon_id": hid, "status": rec.get("status"),
+                     "snapshot_capture_latency_min": rec.get("snapshot_capture_latency_min"),
+                     "pipeline_processing_min": rec.get("pipeline_processing_min"),
+                     "packet_publish_latency_min": pub,
+                     "time_remaining_to_kickoff_at_publication_min": rem})
+
+    def med(k):
+        v = sorted(r[k] for r in rows if r.get(k) is not None)
+        return v[len(v) // 2] if v else None
+    return {"rows": rows, "median": {k: med(k) for k in ("snapshot_capture_latency_min", "pipeline_processing_min",
+                                                         "packet_publish_latency_min",
+                                                         "time_remaining_to_kickoff_at_publication_min")}}
+
+
 def render(doc: dict) -> str:
     L = [f"# Horizon capture health — season {doc['season']} (as of {doc['as_of']})", "",
          f"Conductor era boundary: {doc['conductor_deployed_utc']}. BEFORE_CONDUCTOR is history and is never "
@@ -133,6 +162,20 @@ def render(doc: dict) -> str:
             if s["missed_ids"]:
                 L.append(f"\n{era} missed: " + ", ".join(s["missed_ids"]))
         L.append("")
+    lat = doc.get("run_nfl_latency") or {}
+    if lat.get("rows"):
+        L += ["## RUN_NFL snapshot vs packet latency (AFTER_CONDUCTOR)", "",
+              "SNAPSHOT_CAPTURE_LATENCY = freeze - trigger; PIPELINE_PROCESSING_TIME = publish - freeze; "
+              "PACKET_PUBLISH_LATENCY = publish - trigger; TIME_REMAINING = kickoff - publish. Blank = recorded "
+              "before the split existed.", "",
+              "| horizon | snapshot capture (min) | processing (min) | packet publish (min) | to kickoff (min) |",
+              "|---|---|---|---|---|"]
+        for r in lat["rows"]:
+            L.append(f"| {r['horizon_id']} | {r['snapshot_capture_latency_min']} | {r['pipeline_processing_min']} | "
+                     f"{r['packet_publish_latency_min']} | {r['time_remaining_to_kickoff_at_publication_min']} |")
+        m = lat["median"]
+        L += [f"| **median** | {m['snapshot_capture_latency_min']} | {m['pipeline_processing_min']} | "
+              f"{m['packet_publish_latency_min']} | {m['time_remaining_to_kickoff_at_publication_min']} |", ""]
     return "\n".join(L) + "\n"
 
 
@@ -157,7 +200,7 @@ def main(argv=None):
            "notes": ["RUN_NFL records were pruned after 45 days until 2026-09-24 (now 400); a pruned record "
                      "would read as MISSED, so an early-season figure quoted late in the season should be checked "
                      "against the history index on handicap-reports."],
-           "targets": targets}
+           "targets": targets, "run_nfl_latency": run_nfl_latency(state)}
     os.makedirs(a.out, exist_ok=True)
     with open(os.path.join(a.out, f"{season}.capture_health.json"), "w") as f:
         json.dump(doc, f, indent=1, sort_keys=True, default=str)

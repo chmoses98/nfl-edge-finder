@@ -55,6 +55,8 @@ from nfl_edge.handicap.report_freshness import (  # noqa: E402
     check_fresh_context, find_context_run, simulation_vintage,
 )
 from nfl_edge.handicap.report_outputs import report_paths, verify_report_outputs  # noqa: E402
+from nfl_edge.handicap.latency import context_frozen_at, manifest_latency  # noqa: E402
+from nfl_edge.handicap.horizons import parse_horizon_id  # noqa: E402
 
 RUN_NFL = os.path.join(ROOT, "scripts", "handicap", "run_nfl.py")
 
@@ -362,6 +364,9 @@ def main():
         "note": ("Evidence only. Model/market differences are labelled DISAGREEMENT ONLY -- REQUIRES "
                  "HANDICAP and are never edges, selections or recommendations."),
     }
+    # Measured when the packet is complete, not at `built_at` (which is stamped before the ~90s build ran).
+    manifest["latency"] = _latency_block(a, cap_vintage, ctx_required,
+                                         now if a.now else datetime.now(timezone.utc))
     if a.focus_game_id and not focus:
         manifest["focus_game_warning"] = (
             f"{a.focus_game_id} is not on this slate; the full canonical packet was built anyway")
@@ -371,6 +376,23 @@ def main():
 
     _report(a, manifest, out, now)
     return 0
+
+
+def _latency_block(a, cap_vintage, ctx_required, now):
+    """SNAPSHOT vs PACKET latency (nfl_edge/handicap/latency.py). Reporting only: never fails a build."""
+    try:
+        recs = []
+        for hid in [h.strip() for h in (a.horizon_ids or "").split(",") if h.strip()]:
+            try:
+                recs.append(parse_horizon_id(hid))
+            except ValueError:
+                continue
+        ctx = (context_frozen_at((ctx_required or {}).get("path"), a.require_context_run_id)
+               if a.require_context_run_id else None)
+        return manifest_latency(recs, kalshi_queried_at=(cap_vintage or {}).get("queried_at"),
+                                context_frozen=ctx, packet_built_at=now)
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"[:200], "reporting_only": True}
 
 
 def _pinned_week_context(games, season, week, now, src):
@@ -488,6 +510,10 @@ def _report(a, m, out, now):
             f"| blocking data-health issues | {m['counts']['blocking_data_issues']} |",
             f"| artifact | `{m['artifact_name'] or 'n/a'}` |",
             f"| horizons captured | {', '.join(m['horizon_ids']) or 'n/a'} |",
+            *[f"| latency {h['horizon_id']} | snapshot capture {h['snapshot_capture_latency_min']}m · "
+              f"processing {h['pipeline_processing_min']}m · packet {h['packet_publish_latency_min']}m after "
+              f"trigger · {h['time_remaining_to_kickoff_at_publication_min']}m to kickoff (at build) |"
+              for h in ((m.get('latency') or {}).get('horizons') or [])],
             "",
         ]
         if m["blocking_data_issues"]:
