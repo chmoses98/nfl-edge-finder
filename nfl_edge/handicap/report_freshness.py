@@ -43,32 +43,72 @@ def _parse_run_stamp(run_id):
         return None
 
 
-def capture_vintage(ledger_manifest: dict, now: datetime) -> dict:
-    """When Kalshi was last successfully queried for the snapshot this ledger was priced from."""
+#: How far back a caller-supplied freeze reference may lie. A fresh RUN NFL build freezes its pricing inputs ~12
+#: minutes before the gate runs; anything much older than that is not a freeze of THIS build, and the gate falls
+#: back to measuring at build time (the stricter reading) rather than trusting it.
+MAX_FREEZE_REFERENCE_AGE_MIN = 60.0
+
+
+def capture_vintage(ledger_manifest: dict, now: datetime, reference: datetime | None = None) -> dict:
+    """When Kalshi was last successfully queried for the snapshot this ledger was priced from.
+
+    `age_min` is always the age at BUILD time (`now`). A fresh RUN NFL build also passes `reference`: the instant it
+    refreshed market-data and froze its pricing inputs. The gate then measures the capture at that freeze
+    (`gate_age_min`), because the ~11 minutes of pricing and packet build that follow cannot make the market the
+    packet quotes any older -- they make the PACKET later, which the latency metrics report separately. Measured at
+    build time, a capture that landed on schedule could be refused for how long our own build took, and a refused
+    T-30m horizon has no retry window. Both ages and the reference are recorded; nothing is inferred.
+
+    A reference that is unparseable, in the future, before the capture itself, or older than
+    MAX_FREEZE_REFERENCE_AGE_MIN is ignored and the gate measures at build time -- doubt resolves to the stricter
+    reading, never the looser one.
+    """
     man = ledger_manifest or {}
     run_id = man.get("snapshot_run_id")
     ts = _parse_run_stamp(run_id)
-    return {
+    age_now = None if ts is None else round((now - ts).total_seconds() / 60.0, 1)
+    out = {
         "snapshot_run_id": run_id,
         "queried_at": ts.isoformat() if ts else None,
-        "age_min": None if ts is None else round((now - ts).total_seconds() / 60.0, 1),
+        "age_min": age_now,
         "basis": ("ledger manifest snapshot_run_id -- the capture manifest's finished_at, i.e. when the "
                   "Kalshi poll completed; not the time since a price last moved"),
     }
+    ref = reference if (reference is None or reference.tzinfo) else reference.replace(tzinfo=timezone.utc)
+    why = None
+    if ref is not None:
+        if ref > now:
+            why = "freeze reference is in the future"
+        elif (now - ref).total_seconds() / 60.0 > MAX_FREEZE_REFERENCE_AGE_MIN:
+            why = f"freeze reference is more than {MAX_FREEZE_REFERENCE_AGE_MIN:.0f}m before the build"
+        elif ts is not None and ts > ref:
+            why = "the capture completed after the stated freeze, so the reference cannot be this build's freeze"
+    if ref is not None and why is None and ts is not None:
+        out.update(age_reference="PRICING_INPUT_FREEZE", age_reference_at=ref.isoformat(),
+                   age_at_freeze_min=round((ref - ts).total_seconds() / 60.0, 1))
+        out["gate_age_min"] = out["age_at_freeze_min"]
+    else:
+        out.update(age_reference="BUILD_TIME", age_reference_at=now.isoformat(), gate_age_min=age_now)
+        if why:
+            out["age_reference_rejected"] = why
+    return out
 
 
 def check_capture_age(vintage: dict, max_age_min) -> str | None:
     """Reason to refuse, or None. An unknown vintage is a refusal, not a pass."""
     if max_age_min is None:
         return None
-    age = (vintage or {}).get("age_min")
+    v = vintage or {}
+    age = v.get("gate_age_min", v.get("age_min"))
     if age is None:
         return ("the ledger does not record which Kalshi capture it was priced from, so market freshness "
                 "cannot be established (limit was "
                 f"{float(max_age_min):.0f}m); refusing rather than assuming it is current")
     if age > float(max_age_min):
-        return (f"the Kalshi capture this ledger was priced from completed {age:.0f}m ago "
-                f"({(vintage or {}).get('snapshot_run_id')}), over the {float(max_age_min):.0f}m limit; "
+        when = (f"{age:.0f}m before this build froze its pricing inputs ({v.get('age_reference_at')})"
+                if v.get("age_reference") == "PRICING_INPUT_FREEZE" else f"{age:.0f}m ago")
+        return (f"the Kalshi capture this ledger was priced from completed {when} "
+                f"({v.get('snapshot_run_id')}), over the {float(max_age_min):.0f}m limit; "
                 "the ledger is fresh but the market it quotes is not")
     return None
 

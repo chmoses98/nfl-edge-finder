@@ -185,6 +185,27 @@ jobs:
           echo "context_run_id=$RID" >> "$GITHUB_OUTPUT"
           echo "fresh context capture: $RID"
 
+      # REFRESH, THEN FREEZE. market-data was fetched ~5-10 minutes ago, at the start of the job, and the Kalshi
+      # conductor publishes a capture every ~15 minutes. Pricing whatever was fetched then, and gating its age at
+      # build time ~11 minutes later, measured our own runtime as market staleness: on 2026-09-26 the T-24h builds
+      # passed the 30m gate at 22.0 and 26.5 minutes, and a capture that had landed on schedule could be refused
+      # -- at T-30m that is a MISSED horizon, with no time left to retry. So the tree is brought up to the newest
+      # published capture immediately before pricing (an incremental shallow fetch: about a second), and that
+      # instant is recorded as the freeze the capture gate measures against. The build-time age is still
+      # recorded beside it. A refresh that fails leaves the tree as fetched and says so; the gate still decides.
+      - name: Refresh market-data and freeze the pricing inputs
+        id: freeze
+        if: steps.week.outputs.status == 'OK' && inputs.force_fresh
+        run: |
+          FROM=$(git -C /tmp/md rev-parse --short=12 HEAD)
+          if git fetch --depth=1 origin market-data 2>&1 | tail -2 && git -C /tmp/md checkout -q --detach origin/market-data; then
+            echo "market-data refreshed before pricing: ${FROM} -> $(git -C /tmp/md rev-parse --short=12 HEAD)"
+          else
+            echo "::warning::could not refresh market-data before pricing; pricing from the tree fetched at the start (${FROM})"
+          fi
+          ls -1 /tmp/md/data/kalshi/capture/*/*.manifest.json 2>/dev/null | tail -1 | xargs -r -n1 basename || true
+          echo "frozen_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Fresh LOCAL shadow-pricing snapshot
         if: steps.week.outputs.status == 'OK' && inputs.force_fresh
         run: |
@@ -218,6 +239,10 @@ jobs:
           # packet read.
           if [ '${{ inputs.force_fresh }}' = 'true' ]; then
             LIMIT="$LIMIT --max-capture-age-min 30"
+            # Measured at the freeze above, not at build time; build_report records both ages.
+            if [ -n '${{ steps.freeze.outputs.frozen_at }}' ]; then
+              LIMIT="$LIMIT --capture-age-reference ${{ steps.freeze.outputs.frozen_at }}"
+            fi
             LIMIT="$LIMIT --require-context-run-id ${{ steps.context.outputs.context_run_id }}"
           fi
           python3 scripts/handicap/build_report.py \
