@@ -32,6 +32,9 @@ def main():
     ap.add_argument("--horizon-ids", default="")
     ap.add_argument("--run-id", default=os.environ.get("GITHUB_RUN_ID"))
     ap.add_argument("--now", default=None)
+    ap.add_argument("--manifest", default=None,
+                    help="the verified report's manifest.json: its latency.snapshot_frozen_at splits the lateness "
+                         "into snapshot capture vs pipeline processing (reporting only; optional)")
     ap.add_argument("--keep-days", type=int, default=400,
                     help="a whole season and then some: capture health reads these records season to date")
     a = ap.parse_args()
@@ -55,7 +58,13 @@ def main():
         print("FAIL: " + "; ".join(bad), file=sys.stderr)
         return 2
 
-    state = mark_captured(state, records, run_id=a.run_id, now=now)
+    frozen = None
+    if a.manifest:
+        try:
+            frozen = ((json.load(open(a.manifest)).get("latency") or {}).get("snapshot_frozen_at"))
+        except (OSError, ValueError, AttributeError) as e:
+            print(f"::warning::could not read the snapshot freeze from {a.manifest} ({e}); latency split omitted")
+    state = mark_captured(state, records, run_id=a.run_id, now=now, snapshot_frozen_at=frozen)
     state = prune(state, now, keep_days=a.keep_days)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)) or ".", exist_ok=True)
     with open(a.out, "w") as f:
@@ -63,7 +72,10 @@ def main():
     print(f"marked {len(records)} horizon(s) captured; state now holds "
           f"{len(state.get('captured') or {})} record(s) -> {a.out}")
     for r in records:
-        print(f"  {r['horizon_id']}")
+        rec = (state.get("captured") or {}).get(r["horizon_id"]) or {}
+        print(f"  {r['horizon_id']}  snapshot capture {rec.get('snapshot_capture_latency_min')}m  "
+              f"processing {rec.get('pipeline_processing_min')}m  published {rec.get('packet_publish_latency_min')}m "
+              f"after trigger  {rec.get('time_remaining_to_kickoff_at_publication_min')}m before kickoff")
     return 0
 
 

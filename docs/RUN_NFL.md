@@ -192,6 +192,28 @@ shadow-pricing vintage and age · Kalshi capture vintage and age · context vint
 `market-data` SHA · workflow run id and URL · games / markets listed / model-supported · blocking
 data-health issues · minutes to each kickoff · the horizons this run captured.
 
+### Snapshot vs packet latency
+
+A horizon's lateness is four numbers, not one (`nfl_edge/handicap/latency.py`; reporting only):
+
+| metric | definition |
+|---|---|
+| `SNAPSHOT_CAPTURE_LATENCY` | snapshot freeze − horizon trigger. The freeze is the later of the Kalshi capture the ledger was priced from and this run's context capture (its last source retrieval). |
+| `PIPELINE_PROCESSING_TIME` | publication − freeze: pricing, packet build, publish |
+| `PACKET_PUBLISH_LATENCY` | publication − trigger (= the old `late_by_min`, kept unchanged) |
+| `TIME_REMAINING_TO_KICKOFF_AT_PUBLICATION` | kickoff − publication |
+
+`manifest.json` → `latency` carries them measured at packet build; `state/horizons.json` records them at the
+moment the horizon is marked (seconds before the push). Workflow health renders a table (AFTER_CONDUCTOR). Week 3
+TNF, reconstructed from `history/index.jsonl` (context freeze = capture start there): snapshot +6.8 to +8.7 min,
+processing 12-15 min, packet +19 to +23 min; the T-30m packet reached `latest/` with **7.1 minutes** to kickoff.
+
+**Where the time goes** (Saturday T-24h builds 36257597988 / 36268362044): market-data fetch + checkout
+4.7-5.0 min (23 GB tree, 46k files; the nflverse download + silver + ids are ~18 s of that step), context
+capture 4.5-5.8 min (sequential weather calls), local shadow pricing 9.3 min, packet build 1.5 min, publish
+0.3 min. The context capture now runs concurrently with the fetch (`scripts/handicap/concurrent_context.py`;
+same script, same state.json input -- verified, else re-run sequentially), taking ~4.5 min off every fresh build.
+
 ### Why the report branch is one commit
 
 `latest/packet.json` is ~25MB. Committing a replacement on top of the previous one every two hours would add

@@ -161,7 +161,7 @@ def delivery_label(late_by_min: float) -> str:
 
 
 def mark_captured(state: dict, records: list, *, run_id=None, status: str = "CAPTURED",
-                  now: datetime | None = None) -> dict:
+                  now: datetime | None = None, snapshot_frozen_at=None) -> dict:
     """Return a NEW state with `records` recorded as captured. Called only after a successful build.
 
     ALREADY-RECORDED HORIZONS ARE NEVER REWRITTEN. One horizon id is one canonical capture: a second run that
@@ -176,7 +176,13 @@ def mark_captured(state: dict, records: list, *, run_id=None, status: str = "CAP
     kickoff, but a ~17 minute build can straddle it; four horizons in weeks 1-2 were recorded CAPTURED at
     17:04 and 00:20 for 17:00 and 00:20 kickoffs. Such a horizon is recorded MISSED with the reason, so it can
     never be read as a delivered T-30m packet, and it is still consumed so no post-kickoff rebuild is attempted.
+
+    LATENCY IS SPLIT (nfl_edge/handicap/latency.py): `late_by_min` is kept, unchanged, and equals
+    `packet_publish_latency_min`; `snapshot_frozen_at` (from the run's manifest) adds the snapshot-capture and
+    pipeline-processing parts and `time_remaining_to_kickoff_at_publication_min`. Reporting only; new records only.
     """
+    from nfl_edge.handicap.latency import publication_latency
+
     now = now or datetime.now(timezone.utc)
     out = dict(state or {})
     captured = dict(out.get("captured") or {})
@@ -195,6 +201,14 @@ def mark_captured(state: dict, records: list, *, run_id=None, status: str = "CAP
             "delivery": delivery_label(late) if late is not None else "UNKNOWN",
             "workflow_run_id": run_id,
         }
+        try:
+            lat = publication_latency(trigger_utc=trigger, kickoff_utc=kickoff, snapshot_frozen=snapshot_frozen_at,
+                                      published_at=now)
+            rec.update({k: lat[k] for k in ("snapshot_frozen_at", "snapshot_capture_latency_min",
+                                            "pipeline_processing_min", "packet_publish_latency_min",
+                                            "time_remaining_to_kickoff_at_publication_min")})
+        except Exception:  # noqa: BLE001 -- reporting only; a capture record is never lost to a metric
+            pass
         if kickoff is not None and now >= kickoff:
             rec["status"] = "MISSED"
             rec["delivery"] = "MISSED"
