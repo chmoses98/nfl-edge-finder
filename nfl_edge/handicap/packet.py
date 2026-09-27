@@ -32,6 +32,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from nfl_edge.handicap.sim_block import game_view as _sim_game_view, load_latest as _sim_load_latest, market_view as _sim_market_view
+from nfl_edge.handicap.sim_block import DEFAULT_LAG_TARGET_MIN as _SIM_DEFAULT_TARGET, freshness as _sim_freshness, select_eligible as _sim_select_eligible
 import nfl_edge.handicap.coverage as COV          # module path, not `from nfl_edge.handicap import ...`:
 import nfl_edge.handicap.shadow_v2_block as SV2   # the report-isolation audit resolves a package-from
                                                   # import to EVERY module in the package, which would make
@@ -1165,7 +1166,7 @@ def _ol_section(inj_records, teams):
 
 
 def build_packet(md_root: str, root: str, season: int, week: int, *, movement_files=None,
-                 now=None) -> dict:
+                 now=None, sim_info_cutoff=None, sim_target_min=None) -> dict:
     """The full slate packet."""
     from nfl_edge.handicap.teamprofile import build_profiles, build_qb_profiles
     now = now or datetime.now(timezone.utc)
@@ -1184,7 +1185,20 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
     tickers = {r["ticker"] for r in slate}
     movement, n_move_files = load_movement(md_root, tickers, max_files=movement_files)
 
-    sim_rows, sim_manifest = _sim_load_latest((md_root, root), at_or_before=now)
+    # SIMULATION: the newest run that saw no later market than this board and no input after the information
+    # cutoff (the horizon freeze for a fresh build; the build instant otherwise). Publication time is never
+    # evidence of information time. Then the operational freshness gate: a stale run is labelled on every
+    # surface, and an unusable one is withheld rather than shown.
+    ledger_stamp = os.path.basename(ledger_path)[:16]
+    info_cutoff = sim_info_cutoff or now
+    sim_rows, sim_manifest, sim_selection = _sim_select_eligible((md_root, root), market_stamp=ledger_stamp,
+                                                                info_cutoff=info_cutoff)
+    board_obs = max((_iso(r.get("observed_at")) for r in slate if _iso(r.get("observed_at"))), default=None)
+    sim_fresh = _sim_freshness(sim_manifest, board_observed_at=board_obs,
+                              target_min=sim_target_min if sim_target_min is not None else _SIM_DEFAULT_TARGET,
+                              selection=sim_selection)
+    if sim_fresh["state"] == "SIM_UNUSABLE":
+        sim_rows, sim_manifest = None, None
     # The Shadow v2 research layer, joined by ticker. One snapshot, all its arms, restricted to this
     # slate's games: taking the newest file per arm independently would let one arm read a later market
     # than another and produce a set of numbers that were never simultaneously true.
@@ -1204,6 +1218,17 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
                                 v2_rows=v2_rows, v2_manifest=v2_manifest, v2_provenance=v2_provenance,
                                 v2_eligibility=v2_eligibility))
 
+    # Every surface that shows a simulation number carries its freshness, so a stale run can never read as
+    # current support on a game file or a market row.
+    fr_short = {k: sim_fresh.get(k) for k in ("state", "lag_min", "target_lag_min", "reason", "usable_as_current")}
+    for g in games:
+        sv = g.get("simulation")
+        if isinstance(sv, dict):
+            sv["freshness"] = fr_short
+        for m in g.get("markets") or []:
+            if isinstance(m.get("simulation"), dict):
+                m["simulation"]["freshness_state"] = sim_fresh["state"]
+
     packet = {
         "schema_version": PACKET_SCHEMA_VERSION,
         "handicap_run_id": now.strftime("%Y%m%dT%H%M%SZ"),
@@ -1219,8 +1244,10 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
             "team_profile_basis": (profiles.get("_meta") or {}).get("basis"),
             "qb_profile_basis": (qb_profiles.get("_meta") or {}).get("basis_season"),
             "simulation": ({k: v for k, v in sim_manifest.items() if k in ("run_id", "sim_version", "generated_at", "cutoff",
-                                                                          "market_observed_at", "bundle_train_seasons", "weights", "sources")}
+                                                                          "market_observed_at", "bundle_train_seasons", "weights", "sources",
+                                                                          "origin", "workflow_run_id")}
                            if sim_manifest else None),
+            "simulation_freshness": sim_fresh,
             "shadow_v2": ({"snapshot_id": v2_manifest.get("snapshot_id"),
                            "arms": sorted(v2_manifest.get("arms") or {}),
                            "arms_missing": v2_manifest.get("arms_missing") or [],

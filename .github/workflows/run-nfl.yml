@@ -229,6 +229,18 @@ jobs:
       # published capture immediately before pricing (an incremental shallow fetch: about a second), and that
       # instant is recorded as the freeze the capture gate measures against. The build-time age is still
       # recorded beside it. A refresh that fails leaves the tree as fetched and says so; the gate still decides.
+      # Which simulation run existed when this job first fetched market-data -- recorded so the manifest can show
+      # whether the one finally attached is different (the TNF T-30 packet attached a run 327 minutes behind its
+      # ledger; a newer one had landed four minutes after the clone).
+      - name: Record the simulation present at checkout
+        id: sim_initial
+        if: steps.week.outputs.status == 'OK'
+        continue-on-error: true
+        run: |
+          RID=$(ls /tmp/md/data/shadow/sim/*/*.projections.jsonl.gz 2>/dev/null | xargs -r -n1 basename | sort | tail -1 | cut -c1-16)
+          echo "initial simulation run: ${RID:-none}"
+          echo "run_id=${RID}" >> "$GITHUB_OUTPUT"
+
       - name: Refresh market-data and freeze the pricing inputs
         id: freeze
         if: steps.week.outputs.status == 'OK' && inputs.force_fresh
@@ -255,6 +267,27 @@ jobs:
             mkdir -p "/tmp/md/data/shadow/ledger/$(basename "$d")"
             cp "$d"* "/tmp/md/data/shadow/ledger/$(basename "$d")/"
           done
+
+      # FROZEN-BUNDLE SIMULATION. The coherent player simulation is re-run HERE, from the inputs this build froze:
+      # the ledger just priced (market at the freeze), the fresh context capture (Sleeper availability), the
+      # injury vintage and depth chart resolved at or before --cutoff, and play-by-play history of games complete
+      # before it. --cutoff is the freeze instant, so no input after the horizon can enter. Operational instance
+      # only: written to this checkout (origin RUN_NFL_FROZEN_BUNDLE), never published, never overwriting the
+      # research stream. PYTHONHASHSEED=0 makes a replay of the same bundle bit-identical (the engine seeds its
+      # own RNG; string-hash order was the only other source of variation). ~60 s for a full slate. If it fails,
+      # the packet attaches the newest ELIGIBLE published run and the freshness gate says how stale it is.
+      - name: Fresh LOCAL coherent simulation from the frozen bundle
+        if: steps.week.outputs.status == 'OK' && inputs.force_fresh && steps.freeze.outputs.frozen_at != ''
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          PYTHONHASHSEED: '0'
+        run: |
+          S=${{ steps.week.outputs.season }}
+          python3 scripts/sim/project_week.py --market-data /tmp/md --out . \
+            --season "$S" --week ${{ steps.week.outputs.week }} \
+            --cutoff '${{ steps.freeze.outputs.frozen_at }}' --origin RUN_NFL_FROZEN_BUNDLE \
+            --bundle "research/simulation_engine/bundle_${S}.json" 2>&1 | tail -12
 
       # ---- build ---------------------------------------------------------------------------------
       - name: Build the handicap packet
@@ -289,6 +322,7 @@ jobs:
             --horizon-ids '${{ inputs.horizon_ids }}' \
             --focus-game-id '${{ inputs.game_id }}' \
             --artifact-name 'run-nfl-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}' \
+            --initial-sim-run-id '${{ steps.sim_initial.outputs.run_id }}' \
             $LIMIT
 
       # Immutable history lives here, not on the report branch: one artifact per run, traceable through its

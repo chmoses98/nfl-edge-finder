@@ -125,6 +125,17 @@ def git_sha(repo: str, ref: str = "HEAD"):
     return r.stdout.strip() if r.returncode == 0 else None
 
 
+def _sim_target(horizon_ids: str) -> float:
+    """Tightest operational simulation-lag target among the horizons this build serves (`...|T-30m`)."""
+    from nfl_edge.handicap.sim_block import lag_target_for
+    mins = []
+    for h in (horizon_ids or "").split(","):
+        tail = h.strip().rsplit("|", 1)[-1]
+        if tail.startswith("T-") and tail.endswith("m") and tail[2:-1].isdigit():
+            mins.append(int(tail[2:-1]))
+    return lag_target_for(mins)
+
+
 def main():
     ap = argparse.ArgumentParser(description="build and verify a RUN NFL handicap report")
     ap.add_argument("--market-data", default="/home/user/_market_data_wt")
@@ -158,6 +169,8 @@ def main():
                     help="what caused this run (manual / shadow-cycle / horizon)")
     ap.add_argument("--horizon-ids", default="", help="comma-separated horizon ids this run satisfies")
     ap.add_argument("--artifact-name", default=None)
+    ap.add_argument("--initial-sim-run-id", default=None,
+                    help="the newest simulation run present when this job first fetched market-data")
     ap.add_argument("--now", default=None)
     ap.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     ap.add_argument("--summary", default=os.environ.get("GITHUB_STEP_SUMMARY"))
@@ -242,6 +255,10 @@ def main():
         cmd += ["--max-ledger-age-min", str(a.max_ledger_age_min)]
     if a.movement_files is not None:
         cmd += ["--movement-files", str(a.movement_files)]
+    # The simulation may read nothing from after this build's information cutoff: the pricing-input freeze for
+    # a fresh horizon build, the build instant otherwise. Its lag target is the tightest horizon served.
+    sim_cut = cap_ref if cap_ref is not None else now
+    cmd += ["--sim-info-cutoff", sim_cut.isoformat(), "--sim-target-min", str(_sim_target(a.horizon_ids))]
     print("+ " + " ".join(cmd), flush=True)
     rc = subprocess.run(cmd, cwd=ROOT).returncode
     if rc != 0:
@@ -364,6 +381,14 @@ def main():
         "note": ("Evidence only. Model/market differences are labelled DISAGREEMENT ONLY -- REQUIRES "
                  "HANDICAP and are never edges, selections or recommendations."),
     }
+    # Initial vs final simulation, and the operational freshness gate (sim_block.freshness).
+    _final_sim = (packet["sources"].get("simulation") or {}).get("run_id")
+    manifest["vintages"]["simulation"].update(
+        initial_simulation_run_id=a.initial_sim_run_id or None,
+        final_selected_simulation_run_id=_final_sim,
+        # None when the run present at checkout was not recorded: unknown is not "unchanged".
+        simulation_changed_during_build=(None if not a.initial_sim_run_id else a.initial_sim_run_id != _final_sim),
+        freshness=packet["sources"].get("simulation_freshness"))
     # Measured when the packet is complete, not at `built_at` (which is stamped before the ~90s build ran).
     manifest["latency"] = _latency_block(a, cap_vintage, ctx_required,
                                          now if a.now else datetime.now(timezone.utc))
@@ -452,6 +477,10 @@ def _report(a, m, out, now):
           f"  |  kalshi capture priced from {v['kalshi_capture']['age_min']}m"
           f"  |  context age {v['context']['age_min']}m")
     sv = v.get("simulation") or {}
+    fr = sv.get("freshness") or {}
+    print(f"  simulation freshness: {fr.get('state')} (lag {fr.get('lag_min')}m, target <= {fr.get('target_lag_min')}m; "
+          f"origin {fr.get('origin')}; initial {sv.get('initial_simulation_run_id')} -> final "
+          f"{sv.get('final_selected_simulation_run_id')}, changed {sv.get('simulation_changed_during_build')})")
     print(f"  simulation {sv.get('run_id')} [{sv.get('status')}] market age {sv.get('age_min')}m"
           f"  |  lag vs ledger capture {sv.get('lag_vs_ledger_capture_min')}m")
     print(f"  written to {out}")

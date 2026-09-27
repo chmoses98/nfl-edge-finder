@@ -74,6 +74,123 @@ def load_latest(roots, at_or_before: datetime | None = None) -> tuple[dict, dict
     return rows, manifest
 
 
+def _parse(s):
+    if not s:
+        return None
+    try:
+        d = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def select_eligible(roots, *, market_stamp: str | None, info_cutoff: datetime) -> tuple:
+    """The newest simulation run a packet may attach WITHOUT reading information from after its freeze.
+
+    Two independent conditions, both required, both proven from the run's own manifest -- never from when it
+    was published:
+
+      MARKET   the run's stamp (the ledger snapshot it priced, ``YYYYmmddTHHMMSSZ``) is at or before the
+               packet's own ledger stamp: the simulation never saw a later market than the board being priced;
+      INPUTS   the run's ``cutoff`` -- the instant every other input (injury vintage, Sleeper availability,
+               depth chart, history) was resolved at or before -- is at or before ``info_cutoff``, the
+               packet's information cutoff (the horizon freeze for a fresh build).
+
+    A run whose manifest carries no parseable ``cutoff`` cannot prove the second condition and is REFUSED
+    (fail closed). Among eligible runs the choice is deterministic: newest stamp, then latest cutoff (the
+    freshest admissible inputs -- a RUN NFL frozen-bundle run beats a shadow-cycle run of the same board),
+    then root order. Returns ({ticker: row} | None, manifest | None, selection record)."""
+    cands = []
+    for i, root in enumerate(roots):
+        for path in glob.glob(os.path.join(root, DIRNAME, "*", "*.projections.jsonl.gz")):
+            cands.append((i, path))
+    refused = {"MARKET_AFTER_LEDGER": 0, "INPUTS_AFTER_CUTOFF": 0, "NO_PROVABLE_CUTOFF": 0}
+    eligible = []
+    for i, path in cands:
+        stamp = os.path.basename(path)[:16]
+        if market_stamp is not None and stamp > market_stamp:
+            refused["MARKET_AFTER_LEDGER"] += 1
+            continue
+        mpath = path.replace(".projections.jsonl.gz", ".manifest.json")
+        try:
+            man = json.load(open(mpath)) if os.path.exists(mpath) else {}
+        except (OSError, ValueError):
+            man = {}
+        cut = _parse(man.get("cutoff"))
+        if cut is None:
+            refused["NO_PROVABLE_CUTOFF"] += 1
+            continue
+        if cut > info_cutoff:
+            refused["INPUTS_AFTER_CUTOFF"] += 1
+            continue
+        eligible.append((stamp, cut, -i, path, man))
+    record = {"market_stamp": market_stamp, "info_cutoff": info_cutoff.isoformat(), "candidates": len(cands),
+              "eligible": len(eligible), "refused": refused, "rule": "sim-selection-2.0.0"}
+    if not eligible:
+        record["selected"] = None
+        return None, None, record
+    stamp, cut, _neg, path, man = max(eligible, key=lambda e: (e[0], e[1], e[2]))
+    rows = {}
+    with gzip.open(path, "rt") as f:
+        for line in f:
+            r = json.loads(line)
+            rows[r["ticker"]] = r
+    man = dict(man)
+    man["_path"] = path
+    record.update(selected=stamp, selected_cutoff=cut.isoformat(), selected_origin=man.get("origin") or "SHADOW_CYCLE")
+    return rows, man, record
+
+
+# ------------------------------------------------------------------ operational freshness gate
+#: Maximum market lag (minutes) between the frozen board and the simulation's market, per decision horizon.
+#: Operational targets for keeping player assumptions contemporaneous with the prices -- not evidence of edge.
+HORIZON_LAG_TARGET_MIN = {30: 20.0, 90: 45.0, 360: 90.0, 1440: 180.0}
+DEFAULT_LAG_TARGET_MIN = 180.0
+#: Same board: the simulation priced the very ledger snapshot the packet prices.
+SAME_BOARD_MIN = 1.0
+#: Beyond this the run describes a different day's information and is withheld outright.
+UNUSABLE_LAG_MIN = 12 * 60.0
+FRESHNESS_STATES = ("SIM_CURRENT", "SIM_ACCEPTABLE", "SIM_STALE", "SIM_UNUSABLE", "SIM_MISSING")
+
+
+def lag_target_for(horizon_minutes) -> float:
+    """The tightest target among the horizons a build serves; no horizon -> the T-24h target."""
+    mins = [HORIZON_LAG_TARGET_MIN.get(int(h)) for h in (horizon_minutes or []) if h is not None]
+    mins = [m for m in mins if m is not None]
+    return min(mins) if mins else DEFAULT_LAG_TARGET_MIN
+
+
+def freshness(manifest: dict | None, *, board_observed_at: datetime | None, target_min: float,
+              selection: dict | None = None) -> dict:
+    """SIM_CURRENT (same board), SIM_ACCEPTABLE (lag <= target), SIM_STALE (lag > target), SIM_UNUSABLE
+    (lag > 12h, or the lag cannot be measured), SIM_MISSING (no eligible run). Lag = the frozen board's market
+    time minus the simulation's market time; information time, never publication time."""
+    out = {"target_lag_min": target_min, "selection": selection, "usable_as_current": False}
+    if not manifest:
+        out.update(state="SIM_MISSING", lag_min=None, run_id=None,
+                   reason="no simulation run is eligible for this packet's frozen board and information cutoff")
+        return out
+    sim_obs = _parse(manifest.get("market_observed_at"))
+    out.update(run_id=manifest.get("run_id"), origin=manifest.get("origin") or "SHADOW_CYCLE",
+               market_observed_at=sim_obs.isoformat() if sim_obs else None, input_cutoff=manifest.get("cutoff"),
+               board_observed_at=board_observed_at.isoformat() if board_observed_at else None)
+    if sim_obs is None or board_observed_at is None:
+        out.update(state="SIM_UNUSABLE", lag_min=None, reason="the simulation's lag behind the board cannot be measured")
+        return out
+    lag = round(max(0.0, (board_observed_at - sim_obs).total_seconds() / 60.0), 1)
+    out["lag_min"] = lag
+    if lag > UNUSABLE_LAG_MIN:
+        out.update(state="SIM_UNUSABLE", reason=f"simulation market is {lag:.0f}m behind the board (> {UNUSABLE_LAG_MIN:.0f}m)")
+    elif lag > target_min:
+        out.update(state="SIM_STALE", reason=f"simulation market is {lag:.0f}m behind the board (target <= {target_min:.0f}m)")
+    elif lag <= SAME_BOARD_MIN:
+        out.update(state="SIM_CURRENT", reason="the simulation priced this packet's own board")
+    else:
+        out.update(state="SIM_ACCEPTABLE", reason=f"simulation market is {lag:.0f}m behind the board (target <= {target_min:.0f}m)")
+    out["usable_as_current"] = out["state"] in ("SIM_CURRENT", "SIM_ACCEPTABLE")
+    return out
+
+
 def _has_quantiles(row: dict) -> bool:
     """Does this artifact REPORT the distribution's quantiles at all?
 

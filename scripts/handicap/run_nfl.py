@@ -60,6 +60,10 @@ def main():
     ap.add_argument("--max-ledger-age-min", type=float, default=None,
                     help="fail if the newest ledger snapshot is older than this")
     ap.add_argument("--no-game-files", action="store_true", help="skip per-game markdown")
+    ap.add_argument("--sim-info-cutoff", default=None,
+                    help="ISO instant: no attached simulation may carry an input resolved after it (default: now)")
+    ap.add_argument("--sim-target-min", type=float, default=None,
+                    help="operational simulation-lag target for this build's horizon (minutes)")
     a = ap.parse_args()
 
     t0 = time.time()
@@ -86,8 +90,11 @@ def main():
         return 3
 
     try:
+        sim_cut = (datetime.fromisoformat(a.sim_info_cutoff.replace("Z", "+00:00"))
+                   if a.sim_info_cutoff else None)
         packet = build_packet(a.market_data, ROOT, a.season, a.week,
-                              movement_files=a.movement_files, now=now)
+                              movement_files=a.movement_files, now=now,
+                              sim_info_cutoff=sim_cut, sim_target_min=a.sim_target_min)
     except ValueError as e:
         print(f"FAIL: {e}", file=sys.stderr)
         return 4
