@@ -1,10 +1,68 @@
 {
- "as_of": "2026-09-26T21:35:39.084228+00:00",
+ "as_of": "2026-09-27T01:16:27.800422+00:00",
  "capture_health_report": "horizon-capture-health-1.0.0",
  "conductor_deployed_utc": "2026-09-24T12:00:00+00:00",
  "notes": [
   "RUN_NFL records were pruned after 45 days until 2026-09-24 (now 400); a pruned record would read as MISSED, so an early-season figure quoted late in the season should be checked against the history index on handicap-reports."
  ],
+ "run_nfl_latency": {
+  "median": {
+   "packet_publish_latency_min": 22.9,
+   "pipeline_processing_min": 9.3,
+   "snapshot_capture_latency_min": 8.9,
+   "time_remaining_to_kickoff_at_publication_min": 1415.0
+  },
+  "rows": [
+   {
+    "horizon_id": "2026-REG-03|20260925T0015Z|T-30m",
+    "packet_publish_latency_min": 22.9,
+    "pipeline_processing_min": null,
+    "snapshot_capture_latency_min": null,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 7.1
+   },
+   {
+    "horizon_id": "2026-REG-03|20260925T0015Z|T-360m",
+    "packet_publish_latency_min": 23.3,
+    "pipeline_processing_min": null,
+    "snapshot_capture_latency_min": null,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 336.7
+   },
+   {
+    "horizon_id": "2026-REG-03|20260925T0015Z|T-90m",
+    "packet_publish_latency_min": 22.3,
+    "pipeline_processing_min": null,
+    "snapshot_capture_latency_min": null,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 67.7
+   },
+   {
+    "horizon_id": "2026-REG-03|20260927T1700Z|T-1440m",
+    "packet_publish_latency_min": 25.0,
+    "pipeline_processing_min": null,
+    "snapshot_capture_latency_min": null,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 1415.0
+   },
+   {
+    "horizon_id": "2026-REG-03|20260927T2005Z|T-1440m",
+    "packet_publish_latency_min": 22.7,
+    "pipeline_processing_min": null,
+    "snapshot_capture_latency_min": null,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 1417.3
+   },
+   {
+    "horizon_id": "2026-REG-03|20260928T0020Z|T-1440m",
+    "packet_publish_latency_min": 18.2,
+    "pipeline_processing_min": 9.3,
+    "snapshot_capture_latency_min": 8.9,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 1421.8
+   }
+  ]
+ },
  "season": 2026,
  "targets": {
   "RUN_NFL": {
@@ -803,9 +861,11 @@
      "horizon_id": "2026-REG-03|20260928T0020Z|T-1440m",
      "horizon_min": 1440,
      "kickoff_utc": "2026-09-28T00:20:00+00:00",
+     "lateness_min": 18.2,
      "n_games": 1,
      "slate_id": "2026-REG-03",
-     "status": "NOT_YET_DUE",
+     "snapshot_id": "2026-09-27T00:38:10.136190+00:00",
+     "status": "DELIVERED_LATE",
      "trigger_utc": "2026-09-27T00:20:00+00:00",
      "week": 3
     },
@@ -897,17 +957,17 @@
    "summary": {
     "AFTER_CONDUCTOR": {
      "counts": {
-      "DELIVERED_LATE": 5,
-      "NOT_YET_DUE": 14
+      "DELIVERED_LATE": 6,
+      "NOT_YET_DUE": 13
      },
-     "delivered": 5,
+     "delivered": 6,
      "delivered_pct": 100.0,
      "horizons": 19,
      "median_lateness_min": 22.9,
      "missed": 0,
      "missed_ids": [],
      "on_time_pct": 0.0,
-     "owed": 5
+     "owed": 6
     },
     "BEFORE_CONDUCTOR": {
      "counts": {
@@ -1721,9 +1781,11 @@
      "horizon_id": "2026-REG-03|20260928T0020Z|T-1440m",
      "horizon_min": 1440,
      "kickoff_utc": "2026-09-28T00:20:00+00:00",
+     "lateness_min": 8.7,
      "n_games": 1,
      "slate_id": "2026-REG-03",
-     "status": "NOT_YET_DUE",
+     "snapshot_id": "2026-09-27T00:28:43.922623+00:00",
+     "status": "DELIVERED_ON_TIME",
      "trigger_utc": "2026-09-27T00:20:00+00:00",
      "week": 3
     },
@@ -1815,17 +1877,17 @@
    "summary": {
     "AFTER_CONDUCTOR": {
      "counts": {
-      "DELIVERED_ON_TIME": 5,
-      "NOT_YET_DUE": 14
+      "DELIVERED_ON_TIME": 6,
+      "NOT_YET_DUE": 13
      },
-     "delivered": 5,
+     "delivered": 6,
      "delivered_pct": 100.0,
      "horizons": 19,
-     "median_lateness_min": 8.4,
+     "median_lateness_min": 8.7,
      "missed": 0,
      "missed_ids": [],
      "on_time_pct": 100.0,
-     "owed": 5
+     "owed": 6
     },
     "BEFORE_CONDUCTOR": {
      "counts": {
