@@ -6,21 +6,24 @@
 
 > POSITION LIFECYCLE -- ACCOUNTING ONLY. An order is a transaction, not a bet: orders on one market are replayed on Kalshi's single signed position, and each flat-to-flat EPISODE is one independent position. A cashout is position management, not a second wager. Nothing here is model evidence or a recommendation.
 
-* Independent position episodes: **5** (from 6 transactions/orders)
-* Pregame thesis: 1 · live thesis: 4 · unknown phase: 0 · opened within 10 min after scheduled kickoff: 3
-* Full cashouts: 1 · partial cashouts: 0 · reversals: 0 · held to settlement: 4
-* Total P&L (all executions and fees): -49.71 = realized trading 6.40 + settlement -49.05 - fees 7.06
-* PREGAME ENTRY CLV (one observation per pregame-opened episode; exits and live entries excluded): 1 valid, mean -0.0050/contract, positive 0.0%; states {'CLV_VALID': 1, 'NOT_APPLICABLE_LIVE_ENTRY': 4}
+* Independent position episodes: **8** (from 9 transactions/orders)
+* Pregame thesis: 1 · live thesis: 4 · unknown phase: 3 · opened within 10 min after scheduled kickoff: 3
+* Full cashouts: 1 · partial cashouts: 0 · reversals: 0 · held to settlement: 7
+* Total P&L (all executions and fees): — = realized trading 6.40 + settlement — - fees 11.37
+* PREGAME ENTRY CLV (one observation per pregame-opened episode; exits and live entries excluded): 1 valid, mean -0.0050/contract, positive 0.0%; states {'CLV_VALID': 1, 'NOT_APPLICABLE_LIVE_ENTRY': 4, 'PHASE_UNKNOWN_NO_PREGAME_CLV': 3}
 * Live exit benchmark: {'exits': 1, 'valued': 1, 'states': {'LIVE_EXIT_VALUE': 1}}
-* Lifecycle vs order-settlement reconciliation: {'RECONCILED': 5}
+* Lifecycle vs order-settlement reconciliation: {'ORDER_SETTLEMENTS_INCOMPLETE': 3, 'RECONCILED': 5}
 
 | episode | market | opened | phase | side | opened qty | entry cost | adds | reductions | cashouts | final qty | settlement | fees | realized trading | settlement P&L | total P&L | entry CLV | exit benchmark | class |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | ep-791b67c24889e1e9413e | KXNFL1HTEAMTOTAL-26SEP24ATLGB-ATL10 | 2026-09-25T00:14:46Z | PRE_GAME | LONG_NO | 98.52 | 50.00 | 0 | 0 | 0 | 98.52 | SETTLED | 1.72 | 0.00 | -48.27 | -50.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-7fbe594a597f916f8895 | KXNFLGAME-26SEP24ATLGB-GB | 2026-09-25T01:59:59Z | LIVE | LONG_YES | 59.66 | 20.00 | 0 | 0 | 0 | 59.66 | SETTLED | 0.91 | 0.00 | -19.09 | -20.00 | NOT_APPLICABLE_LIVE_ENTRY | — | LIVE_POSITION_HELD_TO_SETTLEMENT |
 | ep-548ec278784a67038dca | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2026-09-25T00:15:28Z | LIVE | LONG_YES | 91.41 | 25.00 | 0 | 0 | 1 | 0 | NOT_APPLICABLE | 2.65 | 6.40 | 0.00 | 3.75 | NOT_APPLICABLE_LIVE_ENTRY | LIVE_EXIT_VALUE +0.0000 | LIVE_POSITION_FULL_CASHOUT_LIVE |
+| ep-550de44cc88cd66dd66b | KXNFLREC-26SEP27TENNYG-TENCTATE14-4 | 2026-09-27T16:11:39Z | UNKNOWN | LONG_YES | 82.06 | 40.00 | 0 | 0 | 0 | 82.06 | NOT_SETTLED | 1.43 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-a5bd30ec865cb5765943 | KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5-60 | 2026-09-25T00:16:45Z | LIVE | LONG_NO | 44.11 | 19.99 | 0 | 0 | 0 | 44.11 | SETTLED | 0.76 | 0.00 | -19.23 | -19.99 | NOT_APPLICABLE_LIVE_ENTRY | — | LIVE_POSITION_HELD_TO_SETTLEMENT |
 | ep-8a295ead09e12b2e1935 | KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | 2026-09-25T00:16:21Z | LIVE | LONG_NO | 61.51 | 24.99 | 0 | 0 | 0 | 61.51 | SETTLED | 1.02 | 0.00 | 37.55 | 36.52 | NOT_APPLICABLE_LIVE_ENTRY | — | LIVE_POSITION_HELD_TO_SETTLEMENT |
+| ep-09d5902fdbcab08615f8 | KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10-25 | 2026-09-27T16:12:36Z | UNKNOWN | LONG_YES | 62.79 | 35.00 | 0 | 0 | 0 | 62.79 | NOT_SETTLED | 1.09 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
+| ep-76d6d3ea3e02c7598822 | KXNFLSPREAD-26SEP27LACBUF-BUF8 | 2026-09-27T15:40:25Z | UNKNOWN | LONG_YES | 102.57 | 50.00 | 0 | 0 | 0 | 102.57 | NOT_SETTLED | 1.79 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 
 ### Transactions (chronological, per market)
 
@@ -32,10 +35,13 @@
 | KXNFLGAME-26SEP24ATLGB-GB | (settlement) | — | — | 59.66 | 0.0 | — | 59.66 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2026-09-25T00:15:28Z | BUY* | YES | 91.41 | 0.26 | 1.2312 | 0.0 | 91.41 | OPEN | LIVE | NEAR_SCHEDULED_KICKOFF |
 | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2026-09-25T02:43:34Z | BUY* | NO | 91.41 | 0.67 | 1.4148 | 91.41 | 0.0 | CASHOUT_CLOSE | LIVE | — |
+| KXNFLREC-26SEP27TENNYG-TENCTATE14-4 | 2026-09-27T16:11:39Z | BUY | YES | 82.06 | 0.47 | 1.4309 | 0.0 | 82.06 | OPEN | UNKNOWN | NO_KICKOFF |
 | KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5-60 | 2026-09-25T00:16:45Z | BUY* | NO | 44.11 | 0.43594423033325774 | 0.7588 | 0.0 | -44.11 | OPEN | LIVE | NEAR_SCHEDULED_KICKOFF |
 | KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5-60 | (settlement) | — | — | 44.11 | 1.0 | — | -44.11 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | 2026-09-25T00:16:21Z | BUY* | NO | 61.51 | 0.38959518777434565 | 1.0236 | 0.0 | -61.51 | OPEN | LIVE | NEAR_SCHEDULED_KICKOFF |
 | KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | (settlement) | — | — | 61.51 | 0.0 | — | -61.51 | 0.0 | SETTLEMENT | POST_FINAL | — |
+| KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10-25 | 2026-09-27T16:12:36Z | BUY | YES | 62.79 | 0.54 | 1.0918 | 0.0 | 62.79 | OPEN | UNKNOWN | NO_KICKOFF |
+| KXNFLSPREAD-26SEP27LACBUF-BUF8 | 2026-09-27T15:40:25Z | BUY | YES | 102.57 | 0.47 | 1.7886 | 0.0 | 102.57 | OPEN | UNKNOWN | NO_KICKOFF |
 
 `*` the verb was not delivered (pre-`execution_action` record); the side is replayed as the exposure it states. Position before/after are on Kalshi's signed YES axis (+ long YES, - long NO).
 
@@ -44,6 +50,9 @@
 | game | orders | episodes | original cash outlay | added | cashout proceeds | gross transaction volume | recycled in volume | max simultaneous capital at risk | at | total P&L |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 26SEP24ATLGB | 6 | 5 | 139.97 | 0.00 | 30.17 | 202.63 | 62.66 | 139.97 | 2026-09-25T01:59:59Z | -49.71 |
+| 26SEP27KCMIA | 1 | 1 | 35.00 | 0.00 | 0.00 | 35.00 | 0.00 | 35.00 | 2026-09-27T16:12:36Z | — |
+| 26SEP27LACBUF | 1 | 1 | 50.00 | 0.00 | 0.00 | 50.00 | 0.00 | 50.00 | 2026-09-27T15:40:25Z | — |
+| 26SEP27TENNYG | 1 | 1 | 40.00 | 0.00 | 0.00 | 40.00 | 0.00 | 40.00 | 2026-09-27T16:11:39Z | — |
 
 Gross transaction volume is the sum of order stakes (turnover). It is NOT capital at risk: an exit bought on the complementary side carries a large stake while returning cash.
 
@@ -53,6 +62,7 @@ Gross transaction volume is the sum of order stakes (turnover). It is NOT capita
 
 | code | subject | market | detail |
 |---|---|---|---|
+| SINGLE_GAME_EXPOSURE_HIGH | 26SEP24ATLGB | — | peak capital at risk 139.97 is 52.8% of the sum of per-game peaks (> 50%) |
 | CORRELATED_EXPOSURE_HIGH | 26SEP24ATLGB | — | 5 position episodes on one game settle on one game state |
 
 ## Orders (transactions -- NOT independent bets)
@@ -65,17 +75,19 @@ Stake is contracts x execution price PLUS the entry fee the exchange charged on 
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| all | 6 | 2 | 4 | 0 | 0 | 202.63 | 7.06 | 152.92 | -49.71 | -24.5% | 1 | -0.0050 | 0.0% | 5 |
+| all | 9 | 2 | 4 | 3 | 0 | 327.63 | 11.37 | — | — | — | 1 | -0.0050 | 0.0% | 8 |
 
-ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment corrected it (0 amended; versions {'router-settlement-economics.v2': 6}). As ORIGINALLY RECORDED, net P&L: -49.71. The exchange evidence and the filed settlements are unchanged; an amendment sits beside the record it supersedes.
+ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment corrected it (0 amended; versions {'router-settlement-economics.v2': 6}). As ORIGINALLY RECORDED, net P&L: —. The exchange evidence and the filed settlements are unchanged; an amendment sits beside the record it supersedes.
 
 FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's own figures prove that equality (0 of 6 established wagers). Not every established wager reconciles, so no fee-reconciled total is stated.
+
+Headline gross/net/ROI withheld: 3 pending and 0 settled with an unestablished figure. ESTABLISHED SUBSET ONLY (6 of 9 wagers, not the period's P&L): stake 202.63, gross 152.92, net -49.71, ROI -24.5%.
 
 ## By week
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 3 | 6 | 2 | 4 | 0 | 0 | 202.63 | 7.06 | 152.92 | -49.71 | -24.5% | 1 | -0.0050 | 0.0% | 5 |
+| 3 | 9 | 2 | 4 | 3 | 0 | 327.63 | 11.37 | — | — | — | 1 | -0.0050 | 0.0% | 8 |
 
 ## By market family
 
@@ -84,14 +96,19 @@ FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` eq
 | game_winner | 1 | 0 | 1 | 0 | 0 | 20.00 | 0.91 | 0.00 | -20.00 | -100.0% | 0 | — | — | 1 |
 | series:KXNFL1HTEAMTOTAL | 1 | 0 | 1 | 0 | 0 | 50.00 | 1.72 | 0.00 | -50.00 | -100.0% | 1 | -0.0050 | 0.0% | 0 |
 | series:KXNFLPASSYDS | 2 | 1 | 1 | 0 | 0 | 87.66 | 2.65 | 91.41 | 3.75 | 4.3% | 0 | — | — | 2 |
+| series:KXNFLREC | 1 | 0 | 0 | 1 | 0 | 40.00 | 1.43 | — | — | — | 0 | — | — | 1 |
 | series:KXNFLRECYDS | 1 | 0 | 1 | 0 | 0 | 19.99 | 0.76 | 0.00 | -19.99 | -100.0% | 0 | — | — | 1 |
-| series:KXNFLRSHYDS | 1 | 1 | 0 | 0 | 0 | 24.99 | 1.02 | 61.51 | 36.52 | 146.2% | 0 | — | — | 1 |
+| series:KXNFLRSHYDS | 2 | 1 | 0 | 1 | 0 | 59.99 | 2.12 | — | — | — | 0 | — | — | 2 |
+| spread | 1 | 0 | 0 | 1 | 0 | 50.00 | 1.79 | — | — | — | 0 | — | — | 1 |
 
 ## By game
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 2026_03_ATL_GB | 6 | 2 | 4 | 0 | 0 | 202.63 | 7.06 | 152.92 | -49.71 | -24.5% | 1 | -0.0050 | 0.0% | 5 |
+| KXNFLREC-26SEP27TENNYG | 1 | 0 | 0 | 1 | 0 | 40.00 | 1.43 | — | — | — | 0 | — | — | 1 |
+| KXNFLRSHYDS-26SEP27KCMIA | 1 | 0 | 0 | 1 | 0 | 35.00 | 1.09 | — | — | — | 0 | — | — | 1 |
+| KXNFLSPREAD-26SEP27LACBUF | 1 | 0 | 0 | 1 | 0 | 50.00 | 1.79 | — | — | — | 0 | — | — | 1 |
 
 ## Orders
 
@@ -103,18 +120,21 @@ FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` eq
 | 3 | 2026_03_ATL_GB | series:KXNFLPASSYDS | YES | 91.41 | 0.26 | 25.00 | 1.23 | WON | 91.41 | 66.41 | 0.245 | — | NOT_APPLICABLE_LIVE_ENTRY | OPEN | LIVE |
 | 3 | 2026_03_ATL_GB | series:KXNFLRECYDS | NO | 44.11 | 0.43594423033325774 | 19.99 | 0.76 | LOST | 0.00 | -19.99 | 0.425 | — | NOT_APPLICABLE_LIVE_ENTRY | OPEN | LIVE |
 | 3 | 2026_03_ATL_GB | series:KXNFLRSHYDS | NO | 61.51 | 0.38959518777434565 | 24.99 | 1.02 | WON | 61.51 | 36.52 | 0.365 | — | NOT_APPLICABLE_LIVE_ENTRY | OPEN | LIVE |
+| 3 | KXNFLREC-26SEP27TENNYG | series:KXNFLREC | YES | 82.06 | 0.47 | 40.00 | 1.43 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
+| 3 | KXNFLRSHYDS-26SEP27KCMIA | series:KXNFLRSHYDS | YES | 62.79 | 0.54 | 35.00 | 1.09 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
+| 3 | KXNFLSPREAD-26SEP27LACBUF | spread | YES | 102.57 | 0.47 | 50.00 | 1.79 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
 
 ## RISK & CONCENTRATION
 
 Governance reporting only: where the placed stake sat and how much of the result each exposure explains. Nothing here changes, recommends or caps a stake. Different tickers are not diversification: wagers are grouped by game, market, ladder (one underlying variable) and correlated cluster.
 
-Net basis: **net_canonical** (preference net_canonical > net_fee_reconciled > net_profit_loss). P&L below is on the primary basis (the most-preferred one every wager has); other bases are shown beside it, never merged.
+Net basis: **NONE COMPLETE** (preference net_canonical > net_fee_reconciled > net_profit_loss). No net basis covers every wager in scope; P&L figures are for the wagers that have one and are labelled incomplete.
 
 | basis | wagers with figure | complete | stake | net P&L | ROI |
 |---|---|---|---|---|---|
-| net_canonical (primary) | 6 | yes | 202.63 | -49.71 | -24.5% |
-| net_fee_reconciled | 6 | yes | 202.63 | -49.71 | -24.5% |
-| net_profit_loss | 6 | yes | 202.63 | -49.71 | -24.5% |
+| net_canonical | 6 | NO | 327.63 | -49.71 | — |
+| net_fee_reconciled | 6 | NO | 327.63 | -49.71 | — |
+| net_profit_loss | 6 | NO | 327.63 | -49.71 | — |
 
 Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evidence for the owner's account (the router's bankroll is a secret; nothing is guessed).
 
@@ -122,21 +142,21 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | code | subject | value | threshold | detail |
 |---|---|---|---|---|
-| CONCENTRATION_HIGH | 2026_03_ATL_GB#1 | 100.0% | > 25.0% | one correlated cluster carries 100.0% of the scope's stake |
-| CORRELATED_EXPOSURE_HIGH | 2026_03_ATL_GB#1 | 100.0% | > 16.7% | 6 linked legs (OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET) carry 100.0% of stake |
-| OPPOSING_POSITION_PAIR | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 43.3% | > 0.0% | YES and NO on one contract; 91.41 matched contracts at a combined 0.93 per contract fix that part's result at entry |
-| SINGLE_GAME_DOMINATES_WEEK | 2026_03_ATL_GB | 100.0% | > 33.3% | one game carries 100.0% of the scope's stake |
+| CONCENTRATION_HIGH | 2026_03_ATL_GB#1 | 61.8% | > 25.0% | one correlated cluster carries 61.8% of the scope's stake |
+| CORRELATED_EXPOSURE_HIGH | 2026_03_ATL_GB#1 | 61.8% | > 16.7% | 6 linked legs (OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET) carry 61.8% of stake |
+| OPPOSING_POSITION_PAIR | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 26.8% | > 0.0% | YES and NO on one contract; 91.41 matched contracts at a combined 0.93 per contract fix that part's result at entry |
+| SINGLE_GAME_DOMINATES_WEEK | 2026_03_ATL_GB | 61.8% | > 33.3% | one game carries 61.8% of the scope's stake |
 
 ### Largest exposures
 
 | exposure | which | stake | % of scope stake | % of bankroll |
 |---|---|---|---|---|
-| wager | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 62.66 | 30.9% | NOT_AVAILABLE |
-| game | 2026_03_ATL_GB | 202.63 | 100.0% | NOT_AVAILABLE |
-| market | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 87.66 | 43.3% | NOT_AVAILABLE |
-| ladder | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10 | 87.66 | 43.3% | NOT_AVAILABLE |
-| cluster | 2026_03_ATL_GB#1 | 202.63 | 100.0% | NOT_AVAILABLE |
-| player | GBJLOVE10 | 87.66 | 43.3% | NOT_AVAILABLE |
+| wager | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 62.66 | 19.1% | NOT_AVAILABLE |
+| game | 2026_03_ATL_GB | 202.63 | 61.8% | NOT_AVAILABLE |
+| market | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 87.66 | 26.8% | NOT_AVAILABLE |
+| ladder | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10 | 87.66 | 26.8% | NOT_AVAILABLE |
+| cluster | 2026_03_ATL_GB#1 | 202.63 | 61.8% | NOT_AVAILABLE |
+| player | GBJLOVE10 | 87.66 | 26.8% | NOT_AVAILABLE |
 
 `% of net` is the group's net divided by the scope's net on that basis: when the scope lost, it is the group's share of the total loss (a winning group shows a negative share); shares sum to 100%.
 
@@ -144,51 +164,67 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) | links |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 2026_03_ATL_GB#1 | 6 | 202.63 | 100.0% | -49.71 | 100.0% | -49.71 | 100.0% | -49.71 | 100.0% | OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET |
+| 2026_03_ATL_GB#1 | 6 | 202.63 | 61.8% | -49.71 | 100.0% | -49.71 | 100.0% | -49.71 | 100.0% | OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET |
+| 26SEP27LACBUF#1 | 1 | 50.00 | 15.3% | — (partial) | — | — (partial) | — | — (partial) | — | single wager |
+| 26SEP27TENNYG#1 | 1 | 40.00 | 12.2% | — (partial) | — | — (partial) | — | — (partial) | — | single wager |
+| 26SEP27KCMIA#1 | 1 | 35.00 | 10.7% | — (partial) | — | — (partial) | — | — (partial) | — | single wager |
 
 ### By game
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026_03_ATL_GB | 6 | 202.63 | 100.0% | -49.71 | 100.0% | -49.71 | 100.0% | -49.71 | 100.0% |
+| 2026_03_ATL_GB | 6 | 202.63 | 61.8% | -49.71 | 100.0% | -49.71 | 100.0% | -49.71 | 100.0% |
+| 26SEP27LACBUF | 1 | 50.00 | 15.3% | — (partial) | — | — (partial) | — | — (partial) | — |
+| 26SEP27TENNYG | 1 | 40.00 | 12.2% | — (partial) | — | — (partial) | — | — (partial) | — |
+| 26SEP27KCMIA | 1 | 35.00 | 10.7% | — (partial) | — | — (partial) | — | — (partial) | — |
 
 ### By market family
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| series:KXNFLPASSYDS | 2 | 87.66 | 43.3% | 3.75 | -7.5% | 3.75 | -7.5% | 3.75 | -7.5% |
-| series:KXNFL1HTEAMTOTAL | 1 | 50.00 | 24.7% | -50.00 | 100.6% | -50.00 | 100.6% | -50.00 | 100.6% |
-| series:KXNFLRSHYDS | 1 | 24.99 | 12.3% | 36.52 | -73.5% | 36.52 | -73.5% | 36.52 | -73.5% |
-| game_winner | 1 | 20.00 | 9.9% | -20.00 | 40.2% | -20.00 | 40.2% | -20.00 | 40.2% |
-| series:KXNFLRECYDS | 1 | 19.99 | 9.9% | -19.99 | 40.2% | -19.99 | 40.2% | -19.99 | 40.2% |
+| series:KXNFLPASSYDS | 2 | 87.66 | 26.8% | 3.75 | -7.5% | 3.75 | -7.5% | 3.75 | -7.5% |
+| series:KXNFLRSHYDS | 2 | 59.99 | 18.3% | 36.52 (partial) | -73.5% | 36.52 (partial) | -73.5% | 36.52 (partial) | -73.5% |
+| series:KXNFL1HTEAMTOTAL | 1 | 50.00 | 15.3% | -50.00 | 100.6% | -50.00 | 100.6% | -50.00 | 100.6% |
+| spread | 1 | 50.00 | 15.3% | — (partial) | — | — (partial) | — | — (partial) | — |
+| series:KXNFLREC | 1 | 40.00 | 12.2% | — (partial) | — | — (partial) | — | — (partial) | — |
+| game_winner | 1 | 20.00 | 6.1% | -20.00 | 40.2% | -20.00 | 40.2% | -20.00 | 40.2% |
+| series:KXNFLRECYDS | 1 | 19.99 | 6.1% | -19.99 | 40.2% | -19.99 | 40.2% | -19.99 | 40.2% |
 
 ### By ladder (underlying variable)
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10 | 2 | 87.66 | 43.3% | 3.75 | -7.5% | 3.75 | -7.5% | 3.75 | -7.5% |
-| KXNFL1HTEAMTOTAL-26SEP24ATLGB | 1 | 50.00 | 24.7% | -50.00 | 100.6% | -50.00 | 100.6% | -50.00 | 100.6% |
-| KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26 | 1 | 24.99 | 12.3% | 36.52 | -73.5% | 36.52 | -73.5% | 36.52 | -73.5% |
-| KXNFLGAME-26SEP24ATLGB | 1 | 20.00 | 9.9% | -20.00 | 40.2% | -20.00 | 40.2% | -20.00 | 40.2% |
-| KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5 | 1 | 19.99 | 9.9% | -19.99 | 40.2% | -19.99 | 40.2% | -19.99 | 40.2% |
+| KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10 | 2 | 87.66 | 26.8% | 3.75 | -7.5% | 3.75 | -7.5% | 3.75 | -7.5% |
+| KXNFL1HTEAMTOTAL-26SEP24ATLGB | 1 | 50.00 | 15.3% | -50.00 | 100.6% | -50.00 | 100.6% | -50.00 | 100.6% |
+| KXNFLSPREAD-26SEP27LACBUF | 1 | 50.00 | 15.3% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLREC-26SEP27TENNYG-TENCTATE14 | 1 | 40.00 | 12.2% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10 | 1 | 35.00 | 10.7% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26 | 1 | 24.99 | 7.6% | 36.52 | -73.5% | 36.52 | -73.5% | 36.52 | -73.5% |
+| KXNFLGAME-26SEP24ATLGB | 1 | 20.00 | 6.1% | -20.00 | 40.2% | -20.00 | 40.2% | -20.00 | 40.2% |
+| KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5 | 1 | 19.99 | 6.1% | -19.99 | 40.2% | -19.99 | 40.2% | -19.99 | 40.2% |
 
 ### By market
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2 | 87.66 | 43.3% | 3.75 | -7.5% | 3.75 | -7.5% | 3.75 | -7.5% |
-| KXNFL1HTEAMTOTAL-26SEP24ATLGB-ATL10 | 1 | 50.00 | 24.7% | -50.00 | 100.6% | -50.00 | 100.6% | -50.00 | 100.6% |
-| KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | 1 | 24.99 | 12.3% | 36.52 | -73.5% | 36.52 | -73.5% | 36.52 | -73.5% |
-| KXNFLGAME-26SEP24ATLGB-GB | 1 | 20.00 | 9.9% | -20.00 | 40.2% | -20.00 | 40.2% | -20.00 | 40.2% |
-| KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5-60 | 1 | 19.99 | 9.9% | -19.99 | 40.2% | -19.99 | 40.2% | -19.99 | 40.2% |
+| KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2 | 87.66 | 26.8% | 3.75 | -7.5% | 3.75 | -7.5% | 3.75 | -7.5% |
+| KXNFL1HTEAMTOTAL-26SEP24ATLGB-ATL10 | 1 | 50.00 | 15.3% | -50.00 | 100.6% | -50.00 | 100.6% | -50.00 | 100.6% |
+| KXNFLSPREAD-26SEP27LACBUF-BUF8 | 1 | 50.00 | 15.3% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLREC-26SEP27TENNYG-TENCTATE14-4 | 1 | 40.00 | 12.2% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10-25 | 1 | 35.00 | 10.7% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | 1 | 24.99 | 7.6% | 36.52 | -73.5% | 36.52 | -73.5% | 36.52 | -73.5% |
+| KXNFLGAME-26SEP24ATLGB-GB | 1 | 20.00 | 6.1% | -20.00 | 40.2% | -20.00 | 40.2% | -20.00 | 40.2% |
+| KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5-60 | 1 | 19.99 | 6.1% | -19.99 | 40.2% | -19.99 | 40.2% | -19.99 | 40.2% |
 
 ### By player (parsable player props; not a partition of stake)
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| GBJLOVE10 | 2 | 87.66 | 43.3% | 3.75 | -7.5% | 3.75 | -7.5% | 3.75 | -7.5% |
-| GBKJOHNSON26 | 1 | 24.99 | 12.3% | 36.52 | -73.5% | 36.52 | -73.5% | 36.52 | -73.5% |
-| ATLDLONDON5 | 1 | 19.99 | 9.9% | -19.99 | 40.2% | -19.99 | 40.2% | -19.99 | 40.2% |
+| GBJLOVE10 | 2 | 87.66 | 26.8% | 3.75 | -7.5% | 3.75 | -7.5% | 3.75 | -7.5% |
+| TENCTATE14 | 1 | 40.00 | 12.2% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KCEJOHNSON10 | 1 | 35.00 | 10.7% | — (partial) | — | — (partial) | — | — (partial) | — |
+| GBKJOHNSON26 | 1 | 24.99 | 7.6% | 36.52 | -73.5% | 36.52 | -73.5% | 36.52 | -73.5% |
+| ATLDLONDON5 | 1 | 19.99 | 6.1% | -19.99 | 40.2% | -19.99 | 40.2% | -19.99 | 40.2% |
 
 ### Opposing positions (YES + NO on one contract)
 
@@ -203,9 +239,12 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 * Sizing/concentration is shown as the cluster's share of stake beside its share of net P&L; a large loss share on a large stake share is what concentration does whether or not the entry was good.
 * One or two weeks of wagers is far too few to establish skill or its absence. Nothing here does.
 
-| cluster | wagers | % stake | % of net (net_canonical) | CLV valid | CLV$ | mean CLV/contract | sign | outcome residual vs close | friction | net (net_canonical) |
+| cluster | wagers | % stake | % of net (None) | CLV valid | CLV$ | mean CLV/contract | sign | outcome residual vs close | friction | net (None) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 2026_03_ATL_GB#1 | 6 | 100.0% | 100.0% | 1 | -0.49 | -0.0050 | NEGATIVE | -68.34 | — | -49.71 |
+| 2026_03_ATL_GB#1 | 6 | 61.8% | — | 1 | -0.49 | -0.0050 | NEGATIVE | -68.34 | — | — |
+| 26SEP27LACBUF#1 | 1 | 15.3% | — | 0 | — | — | — | — | — | — |
+| 26SEP27TENNYG#1 | 1 | 12.2% | — | 0 | — | — | — | — | — | — |
+| 26SEP27KCMIA#1 | 1 | 10.7% | — | 0 | — | — | — | — | — | — |
 
 ### Rules and thresholds
 
