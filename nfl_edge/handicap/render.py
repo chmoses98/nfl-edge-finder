@@ -39,6 +39,14 @@ def render_markdown(packet: dict, max_players_per_game: int = 8,
     a(f"- context captures: {packet['sources']['context_captures']}")
     a(f"- team-profile basis: **{packet['sources']['team_profile_basis']}**")
     a(f"- **REAL-MONEY STATUS: {packet['real_money_status']}**")
+    fr = packet["sources"].get("simulation_freshness") or {}
+    if fr:
+        a(f"- **SIMULATION FRESHNESS: {fr.get('state')}** — run `{fr.get('run_id')}` ({fr.get('origin') or '—'}), "
+          f"lag {fr.get('lag_min')}m vs target <= {fr.get('target_lag_min')}m; {fr.get('reason')}")
+        if not fr.get("usable_as_current"):
+            a("> **The player simulation on this packet is NOT current support.** Any simulation number shown is "
+              "labelled with its state; none may be read as reflecting the usage, injury and role picture "
+              "priced on this board.")
     a("")
     a("> This packet contains no recommendations. Every model-vs-market number is a *disagreement*, which is "
       "not an edge. The model has been shown redundant to the closing market on player props and behind it "
@@ -223,14 +231,26 @@ def _sim_projection_section(sv: dict, *, compact: bool, max_rows: int) -> list:
     a = L.append
     a("### COHERENT SIMULATION — PLAYER PROJECTIONS")
     a("")
+    fr = sv.get("freshness") or {}
     if not sv.get("run_id"):
         a("_No simulation projections at or before this build; the board carries the incumbent only. "
           "This is the absence of a simulation run, not the absence of a projection._")
+        if fr.get("state"):
+            a(f"_Simulation freshness: **{fr.get('state')}** — {fr.get('reason')}._")
         a("")
         return L
+    stale = fr.get("state") in ("SIM_STALE", "SIM_UNUSABLE")
+    if stale:
+        a(f"> **{fr.get('state')} — THIS SIMULATION IS NOT CURRENT.** Its market is {fr.get('lag_min')}m behind this "
+          f"board (operational target <= {fr.get('target_lag_min')}m). Player usage, injury and role assumptions "
+          "below predate the prices on this board; nothing here is current simulation support.")
+        a("")
     pp = sv.get("player_projections") or []
     cov = sv.get("coverage") or {}
-    a(f"**This is the current projection system (sim-1.x, run `{sv.get('run_id')}`).** Every number below is "
+    if fr.get("state") and not stale:
+        a(f"_Simulation freshness: **{fr.get('state')}** (lag {fr.get('lag_min')}m, target <= {fr.get('target_lag_min')}m)._")
+    a(f"**{'This is the current projection system' if not stale else 'This is the projection system, from a STALE run'} "
+      f"(sim-1.x, run `{sv.get('run_id')}`).** Every number below is "
       "read off the coherent simulation's own distribution for that player and statistic: one simulated "
       "football game, one distribution per player/stat, and that distribution prices the whole Kalshi ladder. "
       "`football median` is that distribution's own p50.")

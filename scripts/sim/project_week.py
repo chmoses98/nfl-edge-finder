@@ -31,6 +31,10 @@ def main():
     ap.add_argument("--out", default=ROOT)
     ap.add_argument("--bundle", default=None)
     ap.add_argument("--weights", default=os.path.join(B.OUT, "reconciliation_weights.json"))
+    ap.add_argument("--origin", default="SHADOW_CYCLE",
+                    help="who ran this: SHADOW_CYCLE (the published research stream) or RUN_NFL_FROZEN_BUNDLE "
+                         "(an operational instance inside a RUN NFL horizon build, never published)")
+    ap.add_argument("--workflow-run-id", default=os.environ.get("GITHUB_RUN_ID"))
     a = ap.parse_args()
     cutoff = datetime.fromisoformat(a.cutoff.replace("Z", "+00:00")) if a.cutoff else datetime.now(timezone.utc)
     generated_at = datetime.now(timezone.utc)
@@ -60,7 +64,12 @@ def main():
     from collections import Counter
     c = Counter((r["family"], r["support_state"]) for r in rows)
     print(json.dumps({f"{k[0]}|{k[1]}": v for k, v in c.most_common()}, indent=0))
-    manifest = {"run_id": run_id, "sim_version": SIM_VERSION, "season": a.season, "week": a.week, "cutoff": cutoff.isoformat(),
+    manifest = {"run_id": run_id, "sim_version": SIM_VERSION, "origin": a.origin, "workflow_run_id": a.workflow_run_id,
+                # Frozen-input provenance: every input below was resolved at or before `cutoff`; a replay of the
+                # same bundle (same tree, same cutoff, PYTHONHASHSEED=0) reproduces the file bit for bit.
+                "frozen_inputs": {"ledger_run_id": run_id, "market_observed_at": observed_at,
+                                  "cutoff": cutoff.isoformat(), "pythonhashseed": os.environ.get("PYTHONHASHSEED"),
+                                  "cutoff_was_explicit": a.cutoff is not None}, "season": a.season, "week": a.week, "cutoff": cutoff.isoformat(),
                 "generated_at": generated_at.isoformat(), "market_observed_at": observed_at, "ledger_manifest": {k: man.get(k) for k in ("run_id", "written_at")},
                 "bundle": bundle_path, "bundle_train_seasons": bundle.get("train_seasons"),
                 "priors_fit_seasons": list(priors.fit_seasons), "priors_version": priors.version,

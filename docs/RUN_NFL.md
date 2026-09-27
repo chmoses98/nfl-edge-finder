@@ -740,3 +740,48 @@ DATA_PLAYER_V5 / HYBRID_PLAYER_V5 (point-in-time quarterback, docs/PLAYER_V5.md)
 abstention state (`ABSTAIN_QB_UNCERTAIN` where the team's QB could not be resolved), and -- only where the resolution
 moved off the chart QB1 -- `qb_resolution` {reason, effective_projected_qb, certainty}. HYBRID_PLAYER_V5 is
 `market_derived`. V5 takes the primary slot only on a snapshot with neither a v3 nor a v4 row.
+
+## Simulation freshness at decision horizons (2026-09-27)
+
+**Why the player simulation was hours stale.** The coherent simulation (`scripts/sim/project_week.py`) was
+produced only by the shadow-price cycle. That cycle is scheduled every 2 h but GitHub fired it every 3.5–5.5 h
+(runs at 07:58, 13:21, 17:58, 21:30 and 00:50 UTC on 9/26), and within a cycle the simulation starts ~31
+minutes after the capture it prices. RUN NFL attached whatever simulation market-data held: the TNF T-30 packet
+carried a run 327 minutes behind its ledger, and Saturday's Sunday packets ran 145–200 minutes behind.
+
+**Fix: simulate from the frozen bundle.** A `force_fresh` build now runs `project_week.py` itself, after local
+pricing, with `--cutoff` = the freeze instant (`origin RUN_NFL_FROZEN_BUNDLE`, never published). Every input is
+resolved at or before that cutoff: the ledger just priced, the run's own context capture (Sleeper availability),
+the injury vintage and depth chart, and play-by-play history of completed games. It takes ~60 s for a full slate
+(peak ~0.9 GB). `PYTHONHASHSEED=0` makes a replay of the same bundle bit-identical. The engine seeds its own RNG;
+Python's string-hash order was the only other source of variation, and it makes two shadow-cycle runs of the
+same inputs differ.
+
+**Selection by information time (`sim_block.select_eligible`, rule `sim-selection-2.0.0`).** A run may be
+attached only if its market stamp is at or before the packet's ledger stamp **and** its manifest `cutoff` is at
+or before the packet's information cutoff (the freeze for fresh builds, the build instant otherwise). A run with
+no provable cutoff is refused. Publication time is never used. The previous rule picked the newest run published
+before the build instant. On Sunday's 00:39Z board that would have attached the shadow-cycle run of the same
+board, whose inputs were resolved ~40 minutes after a freeze there; the new rule refuses it
+(`INPUTS_AFTER_CUTOFF`).
+
+**Freshness gate (`sim_block.freshness`).** Lag is the board's market time minus the simulation's market time.
+
+| state | meaning |
+|---|---|
+| SIM_CURRENT | same board (lag ≤ 1 min) |
+| SIM_ACCEPTABLE | lag ≤ horizon target |
+| SIM_STALE | lag > target |
+| SIM_UNUSABLE | lag > 12 h or unmeasurable; rows withheld |
+| SIM_MISSING | no eligible run |
+
+Targets: T-30 20 min, T-90 45 min, T-6h 90 min, T-24h (and non-horizon builds) 180 min. A stale state is printed
+on the slate header, on every game's simulation section ("THIS SIMULATION IS NOT CURRENT") and on every market's
+`simulation.freshness_state`. The manifest records `initial_simulation_run_id`,
+`final_selected_simulation_run_id`, `simulation_changed_during_build` and the full freshness block.
+
+**Latency.** The local simulation adds ~1 minute. `price_slate`'s 7–8 minutes are dominated by
+`implied_game_lines`, whose grid search draws from one shared, sequentially consumed RNG. Parallelizing it
+across games would change prices, so it is not done. A bit-identical micro-optimization (count_nonzero for
+np.mean) was measured (139 s → 120 s locally, identical ledger), but the incumbent pricer is hash-pinned by
+`tests/test_incumbent_unchanged.py`, so it was not shipped.
