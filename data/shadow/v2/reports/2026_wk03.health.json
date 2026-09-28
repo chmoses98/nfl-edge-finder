@@ -8,71 +8,70 @@
   "pct_captured": 90.6
  },
  "PROJECTION_COVERAGE": {
-  "records": 1686844,
-  "has_probability": 1038038,
-  "pct_of_records": 61.5,
-  "contracts_with_probability": 9391,
-  "contracts_total": 12317,
-  "pct_contracts": 76.2
+  "records": 1819211,
+  "has_probability": 1046073,
+  "pct_of_records": 57.5,
+  "contracts_with_probability": 9399,
+  "contracts_total": 12344,
+  "pct_contracts": 76.1
  },
  "HORIZON_COMPLETENESS": {
   "records_by_horizon": {
-   "CYCLE": 877376,
-   "T-24h": 39782,
+   "CYCLE": 879964,
+   "T-24h": 42370,
    "T-6h": 42009,
    "T-90m": 39313,
-   "T-30m": 39558
+   "T-30m": 42417
   },
   "quality": {
-   "LATE_ACCEPTABLE": 156454,
-   "ON_TIME": 4208
+   "LATE_ACCEPTABLE": 160324,
+   "ON_TIME": 5785
   },
   "markers": {
-   "CAPTURED": 38
+   "CAPTURED": 40
   },
-  "missed_markers": 1,
+  "missed_markers": 0,
   "missed_markers_note": "computed against the schedule (a missed horizon writes no marker)"
  },
  "SETTLEMENT_COVERAGE": {
-  "probability_rows": 1038038,
-  "settleable_rows": 1037843,
+  "probability_rows": 1046073,
+  "settleable_rows": 1045878,
   "pct_settleable": 100.0,
   "settled_rows": 38441,
   "refused": {},
   "pct_settled_of_kicked_off": 3.9
  },
  "CLOSE_PAIRING_COVERAGE": {
-  "kicked_off_rows": 980480,
-  "close_ok": 875707,
-  "close_one_sided": 33029,
-  "close_missing": 71744,
-  "pct_paired": 92.7,
+  "kicked_off_rows": 983339,
+  "close_ok": 945859,
+  "close_one_sided": 37018,
+  "close_missing": 462,
+  "pct_paired": 100.0,
   "by_quality": {
-   "EXCELLENT": 895384,
+   "EXCELLENT": 969525,
    "GOOD": 13352,
-   "MISSING": 71744
+   "MISSING": 462
   },
   "missing_reasons": {
-   "null": 71282,
    "last confirmation older than the staleness ceiling": 462
   }
  },
  "CLV_COVERAGE": {
-  "kicked_off_rows": 980480,
-  "clv_ok": 908657,
-  "pct_clv": 92.7,
-  "no_view": 79
+  "kicked_off_rows": 983339,
+  "clv_ok": 982793,
+  "pct_clv": 99.9,
+  "no_view": 84
  },
  "PLAYER_CONTEXT_COVERAGE": {
-  "player_probability_rows": 874198,
-  "role_context": "LOADED; 7288 of 874198 rows predate context-1.3.0 and carry none",
-  "injury_known_pct": 91.2,
-  "injury_listed_pct": 13.9,
+  "player_probability_rows": 881394,
+  "role_context": "LOADED; 7288 of 881394 rows predate context-1.3.0 and carry none",
+  "injury_known_pct": 91.3,
+  "injury_listed_pct": 14.0,
   "injury_weak_pct": 7.9,
-  "depth_chart_known_pct": 99.1,
+  "depth_chart_known_pct": 99.2,
   "role_certainty": {
-   "HIGH": 782397,
-   "LOW": 67249,
+   "HIGH": 789024,
+   "LOW": 67818,
    "MEDIUM": 17069,
    "UNKNOWN": 195,
    "ABSENT": 7288
@@ -111,21 +110,17 @@
  "HORIZON_DELIVERY": {
   "capture_health_version": "capture-health-1.1.0",
   "slate_id": "2026-REG-03",
-  "as_of": "2026-09-28T01:22:37.187318+00:00",
+  "as_of": "2026-09-28T05:43:18.219934+00:00",
   "counts": {
-   "DELIVERED_ON_TIME": 14,
+   "DELIVERED_ON_TIME": 16,
    "DELIVERED_LATE": 1,
-   "MISSED": 1,
-   "DUE": 1,
    "NOT_YET_DUE": 3
   },
-  "owed": 16,
-  "delivered": 15,
-  "delivered_pct": 93.8,
-  "on_time_pct": 87.5,
-  "missed": [
-   "2026-REG-03|20260928T0020Z|T-30m"
-  ],
+  "owed": 17,
+  "delivered": 17,
+  "delivered_pct": 100.0,
+  "on_time_pct": 94.1,
+  "missed": [],
   "rows": [
    {
     "horizon_id": "2026-REG-03|20260925T0015Z|T-1440m",
@@ -299,8 +294,9 @@
     "trigger_utc": "2026-09-27T23:50:00+00:00",
     "kickoff_utc": "2026-09-28T00:20:00+00:00",
     "n_games": 1,
-    "status": "MISSED",
-    "cause": "UNATTRIBUTED (no workflow start times supplied)"
+    "snapshot_id": "20260927T233617Z",
+    "lateness_min": -13.7,
+    "status": "DELIVERED_ON_TIME"
    },
    {
     "horizon_id": "2026-REG-03|20260929T0015Z|T-1440m",
@@ -309,7 +305,9 @@
     "trigger_utc": "2026-09-28T00:15:00+00:00",
     "kickoff_utc": "2026-09-29T00:15:00+00:00",
     "n_games": 1,
-    "status": "DUE"
+    "snapshot_id": "20260928T001518Z",
+    "lateness_min": 0.3,
+    "status": "DELIVERED_ON_TIME"
    },
    {
     "horizon_id": "2026-REG-03|20260929T0015Z|T-360m",
