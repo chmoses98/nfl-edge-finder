@@ -6,13 +6,13 @@
 
 > POSITION LIFECYCLE -- ACCOUNTING ONLY. An order is a transaction, not a bet: orders on one market are replayed on Kalshi's single signed position, and each flat-to-flat EPISODE is one independent position. A cashout is position management, not a second wager. Nothing here is model evidence or a recommendation.
 
-* Independent position episodes: **66** (from 71 transactions/orders)
-* Pregame thesis: 57 · live thesis: 9 · unknown phase: 0 · opened within 10 min after scheduled kickoff: 7
-* Full cashouts: 3 · partial cashouts: 0 · reversals: 0 · held to settlement: 63
-* Total P&L (all executions and fees): — = realized trading -960.26 + settlement — - fees 146.49
-* PREGAME ENTRY CLV (one observation per pregame-opened episode; exits and live entries excluded): 57 valid, mean -0.0061/contract, positive 5.3%; states {'CLV_VALID': 57, 'NOT_APPLICABLE_LIVE_ENTRY': 9}
+* Independent position episodes: **70** (from 75 transactions/orders)
+* Pregame thesis: 57 · live thesis: 9 · unknown phase: 4 · opened within 10 min after scheduled kickoff: 7
+* Full cashouts: 3 · partial cashouts: 0 · reversals: 0 · held to settlement: 67
+* Total P&L (all executions and fees): — = realized trading -960.26 + settlement — - fees 157.46
+* PREGAME ENTRY CLV (one observation per pregame-opened episode; exits and live entries excluded): 57 valid, mean -0.0061/contract, positive 5.3%; states {'CLV_VALID': 57, 'NOT_APPLICABLE_LIVE_ENTRY': 9, 'PHASE_UNKNOWN_NO_PREGAME_CLV': 4}
 * Live exit benchmark: {'exits': 3, 'valued': 1, 'states': {'LIVE_EXIT_VALUE': 1, 'NO_VALID_LIVE_EXIT_BENCHMARK': 2}}
-* Lifecycle vs order-settlement reconciliation: {'ORDER_SETTLEMENTS_INCOMPLETE': 4, 'RECONCILED': 62}
+* Lifecycle vs order-settlement reconciliation: {'ORDER_SETTLEMENTS_INCOMPLETE': 4, 'RECONCILED': 66}
 
 | episode | market | opened | phase | side | opened qty | entry cost | adds | reductions | cashouts | final qty | settlement | fees | realized trading | settlement P&L | total P&L | entry CLV | exit benchmark | class |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -27,8 +27,11 @@
 | ep-7fbe594a597f916f8895 | KXNFLGAME-26SEP24ATLGB-GB | 2026-09-25T01:59:59Z | LIVE | LONG_YES | 59.66 | 20.00 | 0 | 0 | 0 | 59.66 | SETTLED | 0.91 | 0.00 | -19.09 | -20.00 | NOT_APPLICABLE_LIVE_ENTRY | — | LIVE_POSITION_HELD_TO_SETTLEMENT |
 | ep-66810b1f648da5695e97 | KXNFLGAME-26SEP27CARCLE-CAR | 2026-09-27T17:02:58Z | LIVE | LONG_YES | 88.13 | 50.00 | 0 | 0 | 0 | 88.13 | SETTLED | 1.53 | 0.00 | -48.47 | -50.00 | NOT_APPLICABLE_LIVE_ENTRY | — | LIVE_POSITION_HELD_TO_SETTLEMENT |
 | ep-c31ee31ba183f0ccd6e0 | KXNFLGAME-26SEP27LACBUF-BUF | 2026-09-27T18:01:25Z | LIVE | LONG_YES | 102.57 | 50.00 | 0 | 0 | 0 | 102.57 | SETTLED | 1.79 | 0.00 | 54.36 | 52.57 | NOT_APPLICABLE_LIVE_ENTRY | — | LIVE_POSITION_HELD_TO_SETTLEMENT |
+| ep-b5bdf8024948b809b8d9 | KXNFLGAME-26SEP27LARDEN-LAR | 2026-09-28T00:18:22Z | UNKNOWN | LONG_YES | 133.65 | 70.50 | 0 | 0 | 0 | 133.65 | NOT_SETTLED | 2.34 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-a766c76d780241dcd96d | KXNFLMOSTRECYDS-26SEP13BUFHOU-HOUNCOLLINS12 | 2026-09-13T16:08:21Z | PRE_GAME | LONG_YES | 111.81 | 50.00 | 0 | 0 | 0 | 111.81 | SETTLED | 1.92 | 0.00 | -48.08 | -50.00 | -0.0350 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-548ec278784a67038dca | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2026-09-25T00:15:28Z | LIVE | LONG_YES | 91.41 | 25.00 | 0 | 0 | 1 | 0 | NOT_APPLICABLE | 2.65 | 6.40 | 0.00 | 3.75 | NOT_APPLICABLE_LIVE_ENTRY | LIVE_EXIT_VALUE +0.0000 | LIVE_POSITION_FULL_CASHOUT_LIVE |
+| ep-4c1785fe0c2ee5ddcc99 | KXNFLPASSYDS-26SEP27LARDEN-LARMSTAFFORD9-250 | 2026-09-28T00:18:10Z | UNKNOWN | LONG_YES | 326.4 | 140.99 | 0 | 0 | 0 | 326.4 | NOT_SETTLED | 5.55 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
+| ep-de08996335c4b2ed33c0 | KXNFLPASSYDS-26SEP27LARDEN-LARMSTAFFORD9-275 | 2026-09-28T00:18:34Z | UNKNOWN | LONG_YES | 119.86 | 35.24 | 0 | 0 | 0 | 119.86 | NOT_SETTLED | 1.69 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-bff57660d8916635fa4b | KXNFLREC-26SEP14DENKC-DENRHARVEY12-3 | 2026-09-14T23:18:21Z | PRE_GAME | LONG_NO | 100.46 | 55.00 | 0 | 0 | 0 | 100.46 | SETTLED | 1.75 | 0.00 | -53.24 | -55.00 | -0.0150 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-24213a8b03c745944aaf | KXNFLREC-26SEP17DETBUF-DETITESLAA18-2 | 2026-09-17T23:37:54Z | PRE_GAME | LONG_NO | 75.83 | 40.00 | 0 | 0 | 0 | 75.83 | SETTLED | 1.33 | 0.00 | -38.67 | -40.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-8dbeadd60c6a1461cd5d | KXNFLREC-26SEP27NYJDET-DETASTBROWN14-8 | 2026-09-27T16:58:28Z | PRE_GAME | LONG_YES | 107.74 | 46.00 | 0 | 0 | 0 | 107.74 | SETTLED | 1.82 | 0.00 | -44.17 | -46.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
@@ -44,8 +47,8 @@
 | ep-90689cc5745afd9a10ad | KXNFLRSHYDS-26SEP13BALIND-INDJTAYLOR28-70 | 2026-09-13T16:27:26Z | PRE_GAME | LONG_YES | 51.97 | 30.00 | 0 | 0 | 0 | 51.97 | SETTLED | 0.90 | 0.00 | 22.87 | 21.97 | +0.0000 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-976e1e1e84adb5061994 | KXNFLRSHYDS-26SEP14DENKC-KCPMAHOMES15-15 | 2026-09-14T23:25:23Z | PRE_GAME | LONG_YES | 86.95 | 45.00 | 0 | 0 | 0 | 86.95 | SETTLED | 1.52 | 0.00 | 43.48 | 41.95 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-8a295ead09e12b2e1935 | KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | 2026-09-25T00:16:21Z | LIVE | LONG_NO | 61.51 | 24.99 | 0 | 0 | 0 | 61.51 | SETTLED | 1.02 | 0.00 | 37.55 | 36.52 | NOT_APPLICABLE_LIVE_ENTRY | — | LIVE_POSITION_HELD_TO_SETTLEMENT |
-| ep-40875a1f8cef0ff57213 | KXNFLRSHYDS-26SEP27BALDAL-BALDHENRY22-100 | 2026-09-27T20:13:29Z | PRE_GAME | LONG_YES | 102.87 | 46.00 | 0 | 0 | 0 | 102.87 | NOT_SETTLED | 1.76 | 0.00 | — | — | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
-| ep-f8394504c89c0465fa42 | KXNFLRSHYDS-26SEP27BALDAL-BALLJACKSON8-40 | 2026-09-27T16:27:06Z | PRE_GAME | LONG_YES | 48.3 | 25.00 | 0 | 0 | 0 | 48.3 | NOT_SETTLED | 0.85 | 0.00 | — | — | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
+| ep-40875a1f8cef0ff57213 | KXNFLRSHYDS-26SEP27BALDAL-BALDHENRY22-100 | 2026-09-27T20:13:29Z | PRE_GAME | LONG_YES | 102.87 | 46.00 | 0 | 0 | 0 | 102.87 | SETTLED | 1.76 | 0.00 | -44.23 | -46.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
+| ep-f8394504c89c0465fa42 | KXNFLRSHYDS-26SEP27BALDAL-BALLJACKSON8-40 | 2026-09-27T16:27:06Z | PRE_GAME | LONG_YES | 48.3 | 25.00 | 0 | 0 | 0 | 48.3 | SETTLED | 0.85 | 0.00 | 24.15 | 23.30 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-09d5902fdbcab08615f8 | KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10-25 | 2026-09-27T16:12:36Z | PRE_GAME | LONG_YES | 62.79 | 35.00 | 0 | 0 | 0 | 62.79 | SETTLED | 1.09 | 0.00 | -33.91 | -35.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-47a329a285f9dd484ae3 | KXNFLSPREAD-26SEP13BALIND-BAL4 | 2026-09-13T16:34:44Z | PRE_GAME | LONG_YES | 21.86 | 10.00 | 0 | 0 | 0 | 21.86 | SETTLED | 0.38 | 0.00 | 12.24 | 11.86 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-0afebb058743556eac1a | KXNFLSPREAD-26SEP13CHICAR-CHI3 | 2026-09-13T06:22:48Z | PRE_GAME | LONG_NO | 41.89 | 20.00 | 0 | 0 | 0 | 41.89 | SETTLED | 0.73 | 0.00 | -19.27 | -20.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
@@ -61,10 +64,10 @@
 | ep-3d48c34fc27b1b09a64c | KXNFLSPREAD-26SEP20MIASF-SF8 | 2026-09-20T20:21:12Z | PRE_GAME | LONG_YES | 106.68 | 70.00 | 0 | 0 | 0 | 106.68 | SETTLED | 1.72 | 0.00 | 38.40 | 36.68 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-42af9447313f839e0180 | KXNFLSPREAD-26SEP20MINCHI-CHI4 | 2026-09-20T16:52:14Z | PRE_GAME | LONG_YES | 125.58 | 70.00 | 0 | 0 | 0 | 125.58 | SETTLED | 2.18 | 0.00 | -67.81 | -70.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-a227af8f5d7a95838ab0 | KXNFLSPREAD-26SEP20WASDAL-DAL4 | 2026-09-20T20:22:05Z | PRE_GAME | LONG_YES | 127.86 | 70.00 | 0 | 0 | 0 | 127.86 | SETTLED | 2.23 | 0.00 | 60.09 | 57.86 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
-| ep-431dc2c622e78f4ea614 | KXNFLSPREAD-26SEP27BALDAL-BAL4 | 2026-09-27T20:13:55Z | PRE_GAME | LONG_YES | 150.76 | 75.00 | 0 | 0 | 0 | 150.76 | NOT_SETTLED | 2.63 | 0.00 | — | — | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
+| ep-431dc2c622e78f4ea614 | KXNFLSPREAD-26SEP27BALDAL-BAL4 | 2026-09-27T20:13:55Z | PRE_GAME | LONG_YES | 150.76 | 75.00 | 0 | 0 | 0 | 150.76 | SETTLED | 2.63 | 0.00 | -72.36 | -75.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-5e55e03bdd4f43ff5665 | KXNFLSPREAD-26SEP27KCMIA-KC8 | 2026-09-27T16:56:52Z | PRE_GAME | LONG_YES | 318.75 | 184.00 | 0 | 0 | 0 | 318.75 | SETTLED | 5.50 | 0.00 | 140.25 | 134.75 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-76d6d3ea3e02c7598822 | KXNFLSPREAD-26SEP27LACBUF-BUF8 | 2026-09-27T15:40:25Z | PRE_GAME | LONG_YES | 244.12 | 118.99 | 1 | 0 | 0 | 244.12 | SETTLED | 4.26 | 0.00 | 129.38 | 125.13 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
-| ep-c1731630031ed49007e5 | KXNFLSPREAD-26SEP27LVNO-NO4 | 2026-09-27T20:15:22Z | PRE_GAME | LONG_YES | 151.66 | 80.00 | 0 | 0 | 0 | 151.66 | NOT_SETTLED | 2.65 | 0.00 | — | — | -0.0200 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
+| ep-c1731630031ed49007e5 | KXNFLSPREAD-26SEP27LVNO-NO4 | 2026-09-27T20:15:22Z | PRE_GAME | LONG_YES | 151.66 | 80.00 | 0 | 0 | 0 | 151.66 | SETTLED | 2.65 | 0.00 | -77.35 | -80.00 | -0.0200 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-325e9ac7fe454660e0e0 | KXNFLSPREAD-26SEP27SEAWAS-SEA8 | 2026-09-27T16:57:33Z | PRE_GAME | LONG_YES | 105.03 | 57.50 | 0 | 0 | 0 | 105.03 | SETTLED | 1.83 | 0.00 | -55.67 | -57.50 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-cea51d8cedb82701494d | KXNFLTD-26SEP13BALIND-BALDHENRY22-1 | 2026-09-13T16:07:22Z | PRE_GAME | LONG_YES | 90.61 | 54.99 | 0 | 0 | 0 | 90.61 | SETTLED | 1.53 | 0.00 | 37.15 | 35.62 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-e21b4bf05443b1546061 | KXNFLTD-26SEP13MIALV-LVAJEANTY2-1 | 2026-09-13T20:17:45Z | PRE_GAME | LONG_YES | 113.74 | 60.00 | 0 | 0 | 0 | 113.74 | SETTLED | 1.99 | 0.00 | 55.73 | 53.74 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
@@ -75,6 +78,7 @@
 | ep-4a28bf354064129ed27d | KXNFLTD-26SEP14DENKC-DENJDOBBINS27-1 | 2026-09-14T23:25:04Z | PRE_GAME | LONG_YES | 119.32 | 40.00 | 0 | 0 | 0 | 119.32 | SETTLED | 1.82 | 0.00 | -38.18 | -40.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-bb13d92cea9b07c42280 | KXNFLTD-26SEP20INDKC-KCKWALKER9-1 | 2026-09-20T23:55:19Z | PRE_GAME | LONG_YES | 79.78 | 49.99 | 0 | 0 | 0 | 79.78 | SETTLED | 1.33 | 0.00 | -48.67 | -49.99 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-bdd69b8f54cf4511a953 | KXNFLTEAMTOTAL-26SEP20NOBAL-BAL29 | 2026-09-20T16:53:20Z | PRE_GAME | LONG_YES | 122.47 | 56.00 | 0 | 0 | 0 | 122.47 | SETTLED | 2.11 | 0.00 | -53.89 | -56.00 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
+| ep-8fde69089e9d0df27f10 | KXNFLTEAMTOTAL-26SEP27LARDEN-LAR25 | 2026-09-28T00:18:54Z | UNKNOWN | LONG_YES | 83.6 | 34.00 | 0 | 0 | 0 | 83.6 | NOT_SETTLED | 1.39 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-5ededd10518a18e8d842 | KXNFLTEAMTOTAL-26SEP27LVNO-NO25 | 2026-09-27T20:15:36Z | PRE_GAME | LONG_YES | 96.35 | 46.00 | 0 | 0 | 0 | 96.35 | SETTLED | 1.68 | 0.00 | 52.03 | 50.35 | -0.0150 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-1dcac56179de6f659375 | KXNFLTEAMTOTAL-26SEP27NYJDET-DET28 | 2026-09-27T16:57:18Z | PRE_GAME | LONG_YES | 126.04 | 69.00 | 0 | 0 | 0 | 126.04 | SETTLED | 2.20 | 0.00 | 59.24 | 57.04 | -0.0050 | — | PREGAME_POSITION_HELD_TO_SETTLEMENT |
 | ep-4246dac3afbdf47f41aa | KXNFLTOTAL-26SEP13DALNYG-48 | 2026-09-14T00:21:29Z | LIVE | LONG_YES | 93.02 | 50.00 | 0 | 0 | 0 | 93.02 | SETTLED | 1.63 | 0.00 | 44.65 | 43.02 | NOT_APPLICABLE_LIVE_ENTRY | — | LIVE_POSITION_HELD_TO_SETTLEMENT |
@@ -110,10 +114,13 @@
 | KXNFLGAME-26SEP27CARCLE-CAR | (settlement) | — | — | 88.13 | 0.0 | — | 88.13 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLGAME-26SEP27LACBUF-BUF | 2026-09-27T18:01:25Z | BUY | YES | 102.57 | 0.47 | 1.7886 | 0.0 | 102.57 | OPEN | LIVE | — |
 | KXNFLGAME-26SEP27LACBUF-BUF | (settlement) | — | — | 102.57 | 1.0 | — | 102.57 | 0.0 | SETTLEMENT | POST_FINAL | — |
+| KXNFLGAME-26SEP27LARDEN-LAR | 2026-09-28T00:18:22Z | BUY | YES | 133.65 | 0.51 | 2.338 | 0.0 | 133.65 | OPEN | UNKNOWN | NO_KICKOFF |
 | KXNFLMOSTRECYDS-26SEP13BUFHOU-HOUNCOLLINS12 | 2026-09-13T16:08:21Z | BUY* | YES | 111.81 | 0.43 | 1.9184 | 0.0 | 111.81 | OPEN | PRE_GAME | — |
 | KXNFLMOSTRECYDS-26SEP13BUFHOU-HOUNCOLLINS12 | (settlement) | — | — | 111.81 | 0.0 | — | 111.81 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2026-09-25T00:15:28Z | BUY* | YES | 91.41 | 0.26 | 1.2312 | 0.0 | 91.41 | OPEN | LIVE | NEAR_SCHEDULED_KICKOFF |
 | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2026-09-25T02:43:34Z | BUY* | NO | 91.41 | 0.67 | 1.4148 | 91.41 | 0.0 | CASHOUT_CLOSE | LIVE | — |
+| KXNFLPASSYDS-26SEP27LARDEN-LARMSTAFFORD9-250 | 2026-09-28T00:18:10Z | BUY | YES | 326.4 | 0.41497549019607843 | 5.5463 | 0.0 | 326.4 | OPEN | UNKNOWN | NO_KICKOFF |
+| KXNFLPASSYDS-26SEP27LARDEN-LARMSTAFFORD9-275 | 2026-09-28T00:18:34Z | BUY | YES | 119.86 | 0.27991656933088604 | 1.6912 | 0.0 | 119.86 | OPEN | UNKNOWN | NO_KICKOFF |
 | KXNFLREC-26SEP14DENKC-DENRHARVEY12-3 | 2026-09-14T23:18:21Z | BUY* | NO | 100.46 | 0.53 | 1.7518 | 0.0 | -100.46 | OPEN | PRE_GAME | — |
 | KXNFLREC-26SEP14DENKC-DENRHARVEY12-3 | (settlement) | — | — | 100.46 | 1.0 | — | -100.46 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLREC-26SEP17DETBUF-DETITESLAA18-2 | 2026-09-17T23:37:54Z | BUY* | NO | 75.83 | 0.51 | 1.3265 | 0.0 | -75.83 | OPEN | PRE_GAME | — |
@@ -145,7 +152,9 @@
 | KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | 2026-09-25T00:16:21Z | BUY* | NO | 61.51 | 0.38959518777434565 | 1.0236 | 0.0 | -61.51 | OPEN | LIVE | NEAR_SCHEDULED_KICKOFF |
 | KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | (settlement) | — | — | 61.51 | 0.0 | — | -61.51 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLRSHYDS-26SEP27BALDAL-BALDHENRY22-100 | 2026-09-27T20:13:29Z | BUY | YES | 102.87 | 0.43 | 1.765 | 0.0 | 102.87 | OPEN | PRE_GAME | — |
+| KXNFLRSHYDS-26SEP27BALDAL-BALDHENRY22-100 | (settlement) | — | — | 102.87 | 0.0 | — | 102.87 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLRSHYDS-26SEP27BALDAL-BALLJACKSON8-40 | 2026-09-27T16:27:06Z | BUY | YES | 48.3 | 0.5 | 0.8453 | 0.0 | 48.3 | OPEN | PRE_GAME | — |
+| KXNFLRSHYDS-26SEP27BALDAL-BALLJACKSON8-40 | (settlement) | — | — | 48.3 | 1.0 | — | 48.3 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10-25 | 2026-09-27T16:12:36Z | BUY | YES | 62.79 | 0.54 | 1.0918 | 0.0 | 62.79 | OPEN | PRE_GAME | — |
 | KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10-25 | (settlement) | — | — | 62.79 | 0.0 | — | 62.79 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLSPREAD-26SEP13BALIND-BAL4 | 2026-09-13T16:34:44Z | BUY* | YES | 21.86 | 0.44 | 0.3771 | 0.0 | 21.86 | OPEN | PRE_GAME | — |
@@ -177,12 +186,14 @@
 | KXNFLSPREAD-26SEP20WASDAL-DAL4 | 2026-09-20T20:22:05Z | BUY* | YES | 127.86 | 0.53 | 2.2295 | 0.0 | 127.86 | OPEN | PRE_GAME | — |
 | KXNFLSPREAD-26SEP20WASDAL-DAL4 | (settlement) | — | — | 127.86 | 1.0 | — | 127.86 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLSPREAD-26SEP27BALDAL-BAL4 | 2026-09-27T20:13:55Z | BUY | YES | 150.76 | 0.48 | 2.6341 | 0.0 | 150.76 | OPEN | PRE_GAME | — |
+| KXNFLSPREAD-26SEP27BALDAL-BAL4 | (settlement) | — | — | 150.76 | 0.0 | — | 150.76 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLSPREAD-26SEP27KCMIA-KC8 | 2026-09-27T16:56:52Z | BUY | YES | 318.75 | 0.56 | 5.4978 | 0.0 | 318.75 | OPEN | PRE_GAME | — |
 | KXNFLSPREAD-26SEP27KCMIA-KC8 | (settlement) | — | — | 318.75 | 1.0 | — | 318.75 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLSPREAD-26SEP27LACBUF-BUF8 | 2026-09-27T15:40:25Z | BUY | YES | 102.57 | 0.47 | 1.7886 | 0.0 | 102.57 | OPEN | PRE_GAME | — |
 | KXNFLSPREAD-26SEP27LACBUF-BUF8 | 2026-09-27T16:58:58Z | BUY | YES | 141.55 | 0.47 | 2.4683 | 102.57 | 244.12 | ADD | PRE_GAME | — |
 | KXNFLSPREAD-26SEP27LACBUF-BUF8 | (settlement) | — | — | 244.12 | 1.0 | — | 244.12 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLSPREAD-26SEP27LVNO-NO4 | 2026-09-27T20:15:22Z | BUY | YES | 151.66 | 0.51 | 2.653 | 0.0 | 151.66 | OPEN | PRE_GAME | — |
+| KXNFLSPREAD-26SEP27LVNO-NO4 | (settlement) | — | — | 151.66 | 0.0 | — | 151.66 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLSPREAD-26SEP27SEAWAS-SEA8 | 2026-09-27T16:57:33Z | BUY | YES | 105.03 | 0.53 | 1.8315 | 0.0 | 105.03 | OPEN | PRE_GAME | — |
 | KXNFLSPREAD-26SEP27SEAWAS-SEA8 | (settlement) | — | — | 105.03 | 0.0 | — | 105.03 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLTD-26SEP13BALIND-BALDHENRY22-1 | 2026-09-13T16:07:22Z | BUY* | YES | 90.61 | 0.59 | 1.5343 | 0.0 | 90.61 | OPEN | PRE_GAME | — |
@@ -203,6 +214,7 @@
 | KXNFLTD-26SEP20INDKC-KCKWALKER9-1 | (settlement) | — | — | 79.78 | 0.0 | — | 79.78 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLTEAMTOTAL-26SEP20NOBAL-BAL29 | 2026-09-20T16:53:20Z | BUY* | YES | 122.47 | 0.44 | 2.1124 | 0.0 | 122.47 | OPEN | PRE_GAME | — |
 | KXNFLTEAMTOTAL-26SEP20NOBAL-BAL29 | (settlement) | — | — | 122.47 | 0.0 | — | 122.47 | 0.0 | SETTLEMENT | POST_FINAL | — |
+| KXNFLTEAMTOTAL-26SEP27LARDEN-LAR25 | 2026-09-28T00:18:54Z | BUY | YES | 83.6 | 0.39 | 1.3922 | 0.0 | 83.6 | OPEN | UNKNOWN | NO_KICKOFF |
 | KXNFLTEAMTOTAL-26SEP27LVNO-NO25 | 2026-09-27T20:15:36Z | BUY | YES | 96.35 | 0.46 | 1.6754 | 0.0 | 96.35 | OPEN | PRE_GAME | — |
 | KXNFLTEAMTOTAL-26SEP27LVNO-NO25 | (settlement) | — | — | 96.35 | 1.0 | — | 96.35 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLTEAMTOTAL-26SEP27NYJDET-DET28 | 2026-09-27T16:57:18Z | BUY | YES | 126.04 | 0.53 | 2.1978 | 0.0 | 126.04 | OPEN | PRE_GAME | — |
@@ -249,11 +261,12 @@
 | 26SEP20PITNE | 1 | 1 | 56.00 | 0.00 | 0.00 | 56.00 | 0.00 | 56.00 | 2026-09-20T16:54:21Z | 37.79 |
 | 26SEP20WASDAL | 1 | 1 | 70.00 | 0.00 | 0.00 | 70.00 | 0.00 | 70.00 | 2026-09-20T20:22:05Z | 57.86 |
 | 26SEP24ATLGB | 6 | 5 | 139.97 | 0.00 | 30.17 | 202.63 | 62.66 | 139.97 | 2026-09-25T01:59:59Z | -49.71 |
-| 26SEP27BALDAL | 4 | 4 | 168.99 | 0.00 | 0.00 | 168.99 | 0.00 | 168.99 | 2026-09-27T20:14:30Z | — |
+| 26SEP27BALDAL | 4 | 4 | 168.99 | 0.00 | 0.00 | 168.99 | 0.00 | 168.99 | 2026-09-27T20:14:30Z | -79.43 |
 | 26SEP27CARCLE | 1 | 1 | 50.00 | 0.00 | 0.00 | 50.00 | 0.00 | 50.00 | 2026-09-27T17:02:58Z | -50.00 |
 | 26SEP27KCMIA | 3 | 3 | 253.50 | 0.00 | 0.00 | 253.50 | 0.00 | 253.50 | 2026-09-27T16:59:33Z | 65.25 |
 | 26SEP27LACBUF | 3 | 2 | 99.99 | 69.00 | 0.00 | 168.99 | 0.00 | 168.99 | 2026-09-27T18:01:25Z | 177.70 |
-| 26SEP27LVNO | 2 | 2 | 126.00 | 0.00 | 0.00 | 126.00 | 0.00 | 126.00 | 2026-09-27T20:15:36Z | — |
+| 26SEP27LARDEN | 4 | 4 | 280.73 | 0.00 | 0.00 | 280.73 | 0.00 | 280.73 | 2026-09-28T00:18:54Z | — |
+| 26SEP27LVNO | 2 | 2 | 126.00 | 0.00 | 0.00 | 126.00 | 0.00 | 126.00 | 2026-09-27T20:15:36Z | -29.65 |
 | 26SEP27NYJDET | 8 | 8 | 206.98 | 0.00 | 0.00 | 206.98 | 0.00 | 206.98 | 2026-09-27T16:58:28Z | 83.38 |
 | 26SEP27SEAWAS | 1 | 1 | 57.50 | 0.00 | 0.00 | 57.50 | 0.00 | 57.50 | 2026-09-27T16:57:33Z | -57.50 |
 | 26SEP27TENNYG | 1 | 1 | 40.00 | 0.00 | 0.00 | 40.00 | 0.00 | 40.00 | 2026-09-27T16:11:39Z | 42.06 |
@@ -276,6 +289,7 @@ Gross transaction volume is the sum of order stakes (turnover). It is NOT capita
 | CORRELATED_EXPOSURE_HIGH | 26SEP24ATLGB | — | 5 position episodes on one game settle on one game state |
 | CORRELATED_EXPOSURE_HIGH | 26SEP27BALDAL | — | 4 position episodes on one game settle on one game state |
 | CORRELATED_EXPOSURE_HIGH | 26SEP27KCMIA | — | 3 position episodes on one game settle on one game state |
+| CORRELATED_EXPOSURE_HIGH | 26SEP27LARDEN | — | 4 position episodes on one game settle on one game state |
 | CORRELATED_EXPOSURE_HIGH | 26SEP27NYJDET | — | 8 position episodes on one game settle on one game state |
 
 ## Orders (transactions -- NOT independent bets)
@@ -288,13 +302,13 @@ Stake is contracts x execution price PLUS the entry fee the exchange charged on 
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| all | 71 | 40 | 27 | 4 | 2 | 6,175.87 | 146.49 | — | — | — | 59 | -0.0060 | 5.1% | 12 |
+| all | 75 | 41 | 30 | 4 | 2 | 6,456.61 | 157.46 | — | — | — | 59 | -0.0060 | 5.1% | 16 |
 
-ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment corrected it (18 amended; versions {'router-settlement-economics.v1': 24, 'router-settlement-economics.v2': 43}). As ORIGINALLY RECORDED, net P&L: —. The exchange evidence and the filed settlements are unchanged; an amendment sits beside the record it supersedes.
+ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment corrected it (18 amended; versions {'router-settlement-economics.v1': 24, 'router-settlement-economics.v2': 47}). As ORIGINALLY RECORDED, net P&L: —. The exchange evidence and the filed settlements are unchanged; an amendment sits beside the record it supersedes.
 
-FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's own figures prove that equality (22 of 65 established wagers). Not every established wager reconciles, so no fee-reconciled total is stated.
+FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's own figures prove that equality (22 of 69 established wagers). Not every established wager reconciles, so no fee-reconciled total is stated.
 
-Headline gross/net/ROI withheld: 4 pending and 2 settled with an unestablished figure. ESTABLISHED SUBSET ONLY (65 of 71 wagers, not the period's P&L): stake 5,789.89, gross 4,925.10, net -890.25, ROI -15.4%.
+Headline gross/net/ROI withheld: 4 pending and 2 settled with an unestablished figure. ESTABLISHED SUBSET ONLY (69 of 75 wagers, not the period's P&L): stake 6,015.88, gross 4,973.40, net -1,067.94, ROI -17.8%.
 
 ## By week
 
@@ -302,24 +316,24 @@ Headline gross/net/ROI withheld: 4 pending and 2 settled with an unestablished f
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | 24 | 15 | 9 | 0 | 2 | 884.93 | 31.29 | — | — | — | 23 | -0.0065 | 4.3% | 1 |
 | 2 | 18 | 9 | 9 | 0 | 0 | 4,016.36 | 72.65 | 2,757.22 | -1,259.14 | -31.4% | 14 | -0.0029 | 14.3% | 4 |
-| 3 | 29 | 16 | 9 | 4 | 0 | 1,274.58 | 42.56 | — | — | — | 22 | -0.0075 | 0.0% | 7 |
+| 3 | 33 | 17 | 12 | 4 | 0 | 1,555.31 | 53.52 | — | — | — | 22 | -0.0075 | 0.0% | 11 |
 
 ## By market family
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| game_winner | 6 | 1 | 5 | 0 | 2 | 529.98 | 19.48 | — | — | — | 3 | -0.0050 | 0.0% | 3 |
+| game_winner | 7 | 1 | 5 | 1 | 2 | 600.48 | 21.82 | — | — | — | 3 | -0.0050 | 0.0% | 4 |
 | series:KXNFL1H | 1 | 1 | 0 | 0 | 0 | 56.00 | 1.60 | 93.79 | 37.79 | 67.5% | 1 | -0.0050 | 0.0% | 0 |
 | series:KXNFL1HTEAMTOTAL | 3 | 1 | 2 | 0 | 0 | 107.50 | 3.65 | 41.26 | -66.24 | -61.6% | 3 | -0.0150 | 0.0% | 0 |
 | series:KXNFL1HTOTAL | 3 | 2 | 1 | 0 | 0 | 373.93 | 8.82 | 399.16 | 25.23 | 6.7% | 2 | -0.0050 | 0.0% | 1 |
 | series:KXNFLMOSTRECYDS | 1 | 0 | 1 | 0 | 0 | 50.00 | 1.92 | 0.00 | -51.92 | -103.8% | 1 | -0.0350 | 0.0% | 0 |
-| series:KXNFLPASSYDS | 2 | 1 | 1 | 0 | 0 | 87.66 | 2.65 | 91.41 | 3.75 | 4.3% | 0 | — | — | 2 |
+| series:KXNFLPASSYDS | 4 | 1 | 1 | 2 | 0 | 263.89 | 9.88 | — | — | — | 0 | — | — | 4 |
 | series:KXNFLREC | 4 | 1 | 3 | 0 | 0 | 180.99 | 6.33 | 82.06 | -100.68 | -55.6% | 4 | -0.0075 | 0.0% | 0 |
 | series:KXNFLRECYDS | 7 | 6 | 1 | 0 | 0 | 111.97 | 3.31 | 164.32 | 52.35 | 46.8% | 6 | -0.0050 | 0.0% | 1 |
-| series:KXNFLRSHYDS | 7 | 4 | 1 | 2 | 0 | 235.97 | 8.20 | — | — | — | 6 | -0.0033 | 0.0% | 1 |
+| series:KXNFLRSHYDS | 7 | 5 | 2 | 0 | 0 | 235.97 | 8.20 | 309.03 | 69.58 | 29.5% | 6 | -0.0033 | 0.0% | 1 |
 | series:KXNFLTD | 8 | 3 | 5 | 0 | 0 | 349.98 | 12.31 | 261.55 | -99.41 | -28.4% | 8 | -0.0063 | 0.0% | 0 |
-| spread | 21 | 13 | 6 | 2 | 0 | 3,817.92 | 68.45 | — | — | — | 20 | -0.0040 | 15.0% | 1 |
-| team_total | 3 | 2 | 1 | 0 | 0 | 170.99 | 5.99 | 222.39 | 51.40 | 30.1% | 3 | -0.0083 | 0.0% | 0 |
+| spread | 21 | 13 | 8 | 0 | 0 | 3,817.92 | 68.45 | 2,963.08 | -859.68 | -22.5% | 20 | -0.0040 | 15.0% | 1 |
+| team_total | 4 | 2 | 1 | 1 | 0 | 204.99 | 7.38 | — | — | — | 3 | -0.0083 | 0.0% | 1 |
 | total | 5 | 5 | 0 | 0 | 0 | 102.99 | 3.79 | 242.78 | 137.30 | 133.3% | 2 | -0.0050 | 0.0% | 3 |
 
 ## By game
@@ -351,14 +365,17 @@ Headline gross/net/ROI withheld: 4 pending and 2 settled with an unestablished f
 | 2026_02_PIT_NE | 1 | 1 | 0 | 0 | 0 | 56.00 | 1.60 | 93.79 | 37.79 | 67.5% | 1 | -0.0050 | 0.0% | 0 |
 | 2026_02_WAS_DAL | 1 | 1 | 0 | 0 | 0 | 70.00 | 2.23 | 127.86 | 57.86 | 82.7% | 1 | -0.0050 | 0.0% | 0 |
 | 2026_03_ATL_GB | 6 | 2 | 4 | 0 | 0 | 202.63 | 7.06 | 152.92 | -49.71 | -24.5% | 1 | -0.0050 | 0.0% | 5 |
-| 2026_03_BAL_DAL | 4 | 1 | 0 | 3 | 0 | 168.99 | 5.96 | — | — | — | 4 | -0.0100 | 0.0% | 0 |
+| 2026_03_BAL_DAL | 4 | 2 | 2 | 0 | 0 | 168.99 | 5.96 | 89.56 | -79.43 | -47.0% | 4 | -0.0100 | 0.0% | 0 |
 | 2026_03_CAR_CLE | 1 | 0 | 1 | 0 | 0 | 50.00 | 1.53 | 0.00 | -50.00 | -100.0% | 0 | — | — | 1 |
 | 2026_03_KC_MIA | 3 | 1 | 2 | 0 | 0 | 253.50 | 7.80 | 318.75 | 65.25 | 25.7% | 3 | -0.0083 | 0.0% | 0 |
 | 2026_03_LAC_BUF | 3 | 3 | 0 | 0 | 0 | 168.99 | 6.05 | 346.69 | 177.70 | 105.2% | 2 | -0.0050 | 0.0% | 1 |
-| 2026_03_LV_NO | 2 | 1 | 0 | 1 | 0 | 126.00 | 4.33 | — | — | — | 2 | -0.0175 | 0.0% | 0 |
+| 2026_03_LV_NO | 2 | 1 | 1 | 0 | 0 | 126.00 | 4.33 | 96.35 | -29.65 | -23.5% | 2 | -0.0175 | 0.0% | 0 |
 | 2026_03_NYJ_DET | 8 | 7 | 1 | 0 | 0 | 206.98 | 6.57 | 290.36 | 83.38 | 40.3% | 8 | -0.0050 | 0.0% | 0 |
 | 2026_03_SEA_WAS | 1 | 0 | 1 | 0 | 0 | 57.50 | 1.83 | 0.00 | -57.50 | -100.0% | 1 | -0.0050 | 0.0% | 0 |
 | 2026_03_TEN_NYG | 1 | 1 | 0 | 0 | 0 | 40.00 | 1.43 | 82.06 | 42.06 | 105.2% | 1 | -0.0050 | 0.0% | 0 |
+| KXNFLGAME-26SEP27LARDEN | 1 | 0 | 0 | 1 | 0 | 70.50 | 2.34 | — | — | — | 0 | — | — | 1 |
+| KXNFLPASSYDS-26SEP27LARDEN | 2 | 0 | 0 | 2 | 0 | 176.24 | 7.24 | — | — | — | 0 | — | — | 2 |
+| KXNFLTEAMTOTAL-26SEP27LARDEN | 1 | 0 | 0 | 1 | 0 | 34.00 | 1.39 | — | — | — | 0 | — | — | 1 |
 
 ## Orders
 
@@ -416,6 +433,9 @@ Headline gross/net/ROI withheld: 4 pending and 2 settled with an unestablished f
 | 3 | 2026_03_KC_MIA | series:KXNFL1HTEAMTOTAL | YES | 69.35 | 0.48 | 34.50 | 1.21 | LOST | 0.00 | -34.50 | 0.46499999999999997 | -0.0150 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_CAR_CLE | game_winner | YES | 88.13 | 0.55 | 50.00 | 1.53 | LOST | 0.00 | -50.00 | 0.545 | — | NOT_APPLICABLE_LIVE_ENTRY | OPEN | LIVE |
 | 3 | 2026_03_LAC_BUF | game_winner | YES | 102.57 | 0.47 | 50.00 | 1.79 | WON | 102.57 | 52.57 | 0.755 | — | NOT_APPLICABLE_LIVE_ENTRY | OPEN | LIVE |
+| 3 | KXNFLGAME-26SEP27LARDEN | game_winner | YES | 133.65 | 0.51 | 70.50 | 2.34 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
+| 3 | KXNFLPASSYDS-26SEP27LARDEN | series:KXNFLPASSYDS | YES | 326.4 | 0.41497549019607843 | 140.99 | 5.55 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
+| 3 | KXNFLPASSYDS-26SEP27LARDEN | series:KXNFLPASSYDS | YES | 119.86 | 0.27991656933088604 | 35.24 | 1.69 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
 | 3 | 2026_03_NYJ_DET | series:KXNFLREC | YES | 107.74 | 0.41 | 46.00 | 1.82 | LOST | 0.00 | -46.00 | 0.405 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_TEN_NYG | series:KXNFLREC | YES | 82.06 | 0.47 | 40.00 | 1.43 | WON | 82.06 | 42.06 | 0.46499999999999997 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_NYJ_DET | series:KXNFLRECYDS | YES | 22.66 | 0.29 | 6.90 | 0.33 | WON | 22.66 | 15.76 | 0.28500000000000003 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
@@ -424,15 +444,16 @@ Headline gross/net/ROI withheld: 4 pending and 2 settled with an unestablished f
 | 3 | 2026_03_NYJ_DET | series:KXNFLRECYDS | YES | 27.42 | 0.57 | 16.10 | 0.47 | WON | 27.42 | 11.32 | 0.565 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_NYJ_DET | series:KXNFLRECYDS | YES | 24.08 | 0.46 | 11.50 | 0.42 | WON | 24.08 | 12.58 | 0.455 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_NYJ_DET | series:KXNFLRECYDS | YES | 23.81 | 0.37 | 9.20 | 0.39 | WON | 23.81 | 14.61 | 0.365 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
-| 3 | 2026_03_BAL_DAL | series:KXNFLRSHYDS | YES | 102.87 | 0.43 | 46.00 | 1.76 | PENDING | — | — | 0.425 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
-| 3 | 2026_03_BAL_DAL | series:KXNFLRSHYDS | YES | 48.3 | 0.5 | 25.00 | 0.85 | PENDING | — | — | 0.495 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
+| 3 | 2026_03_BAL_DAL | series:KXNFLRSHYDS | YES | 102.87 | 0.43 | 46.00 | 1.76 | LOST | 0.00 | -46.00 | 0.425 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
+| 3 | 2026_03_BAL_DAL | series:KXNFLRSHYDS | YES | 48.3 | 0.5 | 25.00 | 0.85 | WON | 48.30 | 23.30 | 0.495 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_KC_MIA | series:KXNFLRSHYDS | YES | 62.79 | 0.54 | 35.00 | 1.09 | LOST | 0.00 | -35.00 | 0.535 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
-| 3 | 2026_03_BAL_DAL | spread | YES | 150.76 | 0.48 | 75.00 | 2.63 | PENDING | — | — | 0.475 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
+| 3 | 2026_03_BAL_DAL | spread | YES | 150.76 | 0.48 | 75.00 | 2.63 | LOST | 0.00 | -75.00 | 0.475 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_KC_MIA | spread | YES | 318.75 | 0.56 | 184.00 | 5.50 | WON | 318.75 | 134.75 | 0.555 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_LAC_BUF | spread | YES | 102.57 | 0.47 | 50.00 | 1.79 | WON | 102.57 | 52.57 | 0.46499999999999997 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_LAC_BUF | spread | YES | 141.55 | 0.47 | 69.00 | 2.47 | WON | 141.55 | 72.55 | 0.46499999999999997 | -0.0050 | CLV_VALID | ADD | PRE_GAME |
-| 3 | 2026_03_LV_NO | spread | YES | 151.66 | 0.51 | 80.00 | 2.65 | PENDING | — | — | 0.49 | -0.0200 | CLV_VALID | OPEN | PRE_GAME |
+| 3 | 2026_03_LV_NO | spread | YES | 151.66 | 0.51 | 80.00 | 2.65 | LOST | 0.00 | -80.00 | 0.49 | -0.0200 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_SEA_WAS | spread | YES | 105.03 | 0.53 | 57.50 | 1.83 | LOST | 0.00 | -57.50 | 0.525 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
+| 3 | KXNFLTEAMTOTAL-26SEP27LARDEN | team_total | YES | 83.6 | 0.39 | 34.00 | 1.39 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
 | 3 | 2026_03_LV_NO | team_total | YES | 96.35 | 0.46 | 46.00 | 1.68 | WON | 96.35 | 50.35 | 0.445 | -0.0150 | CLV_VALID | OPEN | PRE_GAME |
 | 3 | 2026_03_NYJ_DET | team_total | YES | 126.04 | 0.53 | 69.00 | 2.20 | WON | 126.04 | 57.04 | 0.525 | -0.0050 | CLV_VALID | OPEN | PRE_GAME |
 
@@ -444,9 +465,9 @@ Net basis: **NONE COMPLETE** (preference net_canonical > net_fee_reconciled > ne
 
 | basis | wagers with figure | complete | stake | net P&L | ROI |
 |---|---|---|---|---|---|
-| net_canonical | 43 | NO | 6,175.87 | -979.34 | — |
-| net_fee_reconciled | 65 | NO | 6,175.87 | -864.79 | — |
-| net_profit_loss | 65 | NO | 6,175.87 | -890.25 | — |
+| net_canonical | 47 | NO | 6,456.61 | -1,157.03 | — |
+| net_fee_reconciled | 69 | NO | 6,456.61 | -1,042.48 | — |
+| net_profit_loss | 69 | NO | 6,456.61 | -1,067.94 | — |
 
 Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evidence for the owner's account (the router's bankroll is a secret; nothing is guessed).
 
@@ -454,23 +475,23 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | code | subject | value | threshold | detail |
 |---|---|---|---|---|
-| CONCENTRATION_HIGH | 2026_02_IND_KC#1 | 45.2% | > 25.0% | one correlated cluster carries 45.2% of the scope's stake |
-| CORRELATED_EXPOSURE_HIGH | 2026_02_IND_KC#1 | 45.2% | > 16.7% | 3 linked legs (OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET) carry 45.2% of stake |
-| OPPOSING_POSITION_PAIR | KXNFLSPREAD-26SEP20INDKC-KC5 | 44.4% | > 0.0% | YES and NO on one contract; 1794.08 matched contracts at a combined 1.51 per contract fix that part's result at entry |
-| OPPOSING_POSITION_PAIR | KXNFL1HTOTAL-26SEP20CLETB-22 | 4.9% | > 0.0% | YES and NO on one contract; 246.08 matched contracts at a combined 1.21 per contract fix that part's result at entry |
+| CONCENTRATION_HIGH | 2026_02_IND_KC#1 | 43.2% | > 25.0% | one correlated cluster carries 43.2% of the scope's stake |
+| CORRELATED_EXPOSURE_HIGH | 2026_02_IND_KC#1 | 43.2% | > 16.7% | 3 linked legs (OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET) carry 43.2% of stake |
+| OPPOSING_POSITION_PAIR | KXNFLSPREAD-26SEP20INDKC-KC5 | 42.5% | > 0.0% | YES and NO on one contract; 1794.08 matched contracts at a combined 1.51 per contract fix that part's result at entry |
+| OPPOSING_POSITION_PAIR | KXNFL1HTOTAL-26SEP20CLETB-22 | 4.7% | > 0.0% | YES and NO on one contract; 246.08 matched contracts at a combined 1.21 per contract fix that part's result at entry |
 | OPPOSING_POSITION_PAIR | KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 1.4% | > 0.0% | YES and NO on one contract; 91.41 matched contracts at a combined 0.93 per contract fix that part's result at entry |
-| SINGLE_GAME_DOMINATES_WEEK | 2026_02_IND_KC | 45.2% | > 33.3% | one game carries 45.2% of the scope's stake |
+| SINGLE_GAME_DOMINATES_WEEK | 2026_02_IND_KC | 43.2% | > 33.3% | one game carries 43.2% of the scope's stake |
 
 ### Largest exposures
 
 | exposure | which | stake | % of scope stake | % of bankroll |
 |---|---|---|---|---|
-| wager | KXNFLSPREAD-26SEP20INDKC-KC5 | 1,742.47 | 28.2% | NOT_AVAILABLE |
-| game | 2026_02_IND_KC | 2,792.46 | 45.2% | NOT_AVAILABLE |
-| market | KXNFLSPREAD-26SEP20INDKC-KC5 | 2,742.47 | 44.4% | NOT_AVAILABLE |
-| ladder | KXNFLSPREAD-26SEP20INDKC | 2,742.47 | 44.4% | NOT_AVAILABLE |
-| cluster | 2026_02_IND_KC#1 | 2,792.46 | 45.2% | NOT_AVAILABLE |
-| player | BALDHENRY22 | 130.99 | 2.1% | NOT_AVAILABLE |
+| wager | KXNFLSPREAD-26SEP20INDKC-KC5 | 1,742.47 | 27.0% | NOT_AVAILABLE |
+| game | 2026_02_IND_KC | 2,792.46 | 43.2% | NOT_AVAILABLE |
+| market | KXNFLSPREAD-26SEP20INDKC-KC5 | 2,742.47 | 42.5% | NOT_AVAILABLE |
+| ladder | KXNFLSPREAD-26SEP20INDKC | 2,742.47 | 42.5% | NOT_AVAILABLE |
+| cluster | 2026_02_IND_KC#1 | 2,792.46 | 43.2% | NOT_AVAILABLE |
+| player | LARMSTAFFORD9 | 176.24 | 2.7% | NOT_AVAILABLE |
 
 `% of net` is the group's net divided by the scope's net on that basis: when the scope lost, it is the group's share of the total loss (a winning group shows a negative share); shares sum to 100%.
 
@@ -478,257 +499,267 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) | links |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 2026_02_IND_KC#1 | 3 | 2,792.46 | 45.2% | -998.38 | 101.9% | -998.38 | 115.4% | -998.38 | 112.1% | OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET |
-| 2026_02_CLE_TB#1 | 2 | 303.94 | 4.9% | -57.86 | 5.9% | -57.86 | 6.7% | -57.86 | 6.5% | OPPOSING_POSITION_PAIR, SAME_MARKET |
-| 2026_01_DEN_KC#1 | 5 | 299.98 | 4.9% | — (partial) | — | -53.04 (partial) | 6.1% | -58.13 (partial) | 6.5% | SAME_GAME_CORRELATED, SAME_MARKET |
-| 2026_03_KC_MIA#1 | 3 | 253.50 | 4.1% | 65.25 | -6.7% | 65.25 | -7.5% | 65.25 | -7.3% | SAME_GAME_CORRELATED |
-| 2026_02_JAX_DEN#1 | 1 | 250.00 | 4.0% | -250.00 | 25.5% | -250.00 | 28.9% | -250.00 | 28.1% | single wager |
-| 2026_03_NYJ_DET#1 | 8 | 206.98 | 3.4% | 83.38 | -8.5% | 83.38 | -9.6% | 83.38 | -9.4% | SAME_GAME_CORRELATED, SAME_LADDER |
-| 2026_03_ATL_GB#1 | 6 | 202.63 | 3.3% | -49.71 | 5.1% | -49.71 | 5.7% | -49.71 | 5.6% | OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET |
-| 2026_01_MIA_LV#1 | 3 | 179.99 | 2.9% | — (partial) | — | 15.81 | -1.8% | 9.37 | -1.1% | SAME_GAME_CORRELATED |
-| 2026_03_BAL_DAL#1 | 4 | 168.99 | 2.7% | 18.26 (partial) | -1.9% | 18.26 (partial) | -2.1% | 18.26 (partial) | -2.1% | SAME_GAME_CORRELATED |
-| 2026_03_LAC_BUF#1 | 3 | 168.99 | 2.7% | 177.70 | -18.1% | 177.70 | -20.5% | 177.70 | -20.0% | SAME_GAME_CORRELATED, SAME_MARKET |
-| 2026_03_LV_NO#1 | 2 | 126.00 | 2.0% | 50.35 (partial) | -5.1% | 50.35 (partial) | -5.8% | 50.35 (partial) | -5.7% | SAME_GAME_CORRELATED |
-| 2026_01_BAL_IND#1 | 4 | 124.99 | 2.0% | — (partial) | — | 99.75 | -11.5% | 95.89 | -10.8% | SAME_GAME_CORRELATED |
-| 2026_02_LV_LAC#1 | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% | single wager |
-| 2026_02_CAR_ATL#1 | 1 | 70.00 | 1.1% | 65.26 | -6.7% | 65.26 | -7.5% | 65.26 | -7.3% | single wager |
-| 2026_02_MIN_CHI#1 | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% | single wager |
-| 2026_02_GB_NYJ#1 | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% | single wager |
-| 2026_02_MIA_SF#1 | 1 | 70.00 | 1.1% | 36.68 | -3.7% | 36.68 | -4.2% | 36.68 | -4.1% | single wager |
-| 2026_02_PHI_TEN#1 | 1 | 70.00 | 1.1% | 83.08 | -8.5% | 83.08 | -9.6% | 83.08 | -9.3% | single wager |
-| 2026_02_WAS_DAL#1 | 1 | 70.00 | 1.1% | 57.86 | -5.9% | 57.86 | -6.7% | 57.86 | -6.5% | single wager |
-| 2026_02_DET_BUF#1 | 3 | 68.00 | 1.1% | 32.39 | -3.3% | 32.39 | -3.7% | 32.39 | -3.6% | SAME_GAME_CORRELATED, SAME_LADDER |
-| 2026_03_SEA_WAS#1 | 1 | 57.50 | 0.9% | -57.50 | 5.9% | -57.50 | 6.6% | -57.50 | 6.5% | single wager |
-| 2026_02_NO_BAL#1 | 1 | 56.00 | 0.9% | -56.00 | 5.7% | -56.00 | 6.5% | -56.00 | 6.3% | single wager |
-| 2026_02_PIT_NE#1 | 1 | 56.00 | 0.9% | 37.79 | -3.9% | 37.79 | -4.4% | 37.79 | -4.2% | single wager |
-| 2026_03_CAR_CLE#1 | 1 | 50.00 | 0.8% | -50.00 | 5.1% | -50.00 | 5.8% | -50.00 | 5.6% | single wager |
-| 2026_01_NYJ_TEN#1 | 2 | 50.00 | 0.8% | — (partial) | — | 7.20 | -0.8% | 5.17 | -0.6% | SAME_GAME_CORRELATED |
-| 2026_01_BUF_HOU#1 | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 5.8% | -51.92 | 5.8% | single wager |
-| 2026_01_DAL_NYG#1 | 1 | 50.00 | 0.8% | — (partial) | — | 43.02 | -5.0% | 41.40 | -4.7% | single wager |
-| 2026_03_TEN_NYG#1 | 1 | 40.00 | 0.6% | 42.06 | -4.3% | 42.06 | -4.9% | 42.06 | -4.7% | single wager |
-| 2026_01_WAS_PHI#1 | 3 | 39.99 | 0.6% | — (partial) | — | 10.48 | -1.2% | 9.00 | -1.0% | SAME_GAME_CORRELATED |
-| 2026_01_CLE_JAX#1 | 1 | 35.00 | 0.6% | — (partial) | — | 27.79 | -3.2% | 26.70 | -3.0% | single wager |
-| 2026_01_CHI_CAR#1 | 1 | 20.00 | 0.3% | — (partial) | — | -20.00 | 2.3% | -20.73 | 2.3% | single wager |
-| 2026_01_NO_DET#1 | 2 | 19.99 | 0.3% | — (partial) | — | 19.55 | -2.3% | 18.86 | -2.1% | SAME_GAME_CORRELATED |
-| 2026_01_GB_MIN#1 | 1 | 15.00 | 0.2% | — (partial) | — | 13.98 | -1.6% | 13.48 | -1.5% | single wager |
+| 2026_02_IND_KC#1 | 3 | 2,792.46 | 43.2% | -998.38 | 86.3% | -998.38 | 95.8% | -998.38 | 93.5% | OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET |
+| 2026_02_CLE_TB#1 | 2 | 303.94 | 4.7% | -57.86 | 5.0% | -57.86 | 5.5% | -57.86 | 5.4% | OPPOSING_POSITION_PAIR, SAME_MARKET |
+| 2026_01_DEN_KC#1 | 5 | 299.98 | 4.6% | — (partial) | — | -53.04 (partial) | 5.1% | -58.13 (partial) | 5.4% | SAME_GAME_CORRELATED, SAME_MARKET |
+| 26SEP27LARDEN#1 | 4 | 280.73 | 4.3% | — (partial) | — | — (partial) | — | — (partial) | — | SAME_GAME_CORRELATED, SAME_LADDER |
+| 2026_03_KC_MIA#1 | 3 | 253.50 | 3.9% | 65.25 | -5.6% | 65.25 | -6.3% | 65.25 | -6.1% | SAME_GAME_CORRELATED |
+| 2026_02_JAX_DEN#1 | 1 | 250.00 | 3.9% | -250.00 | 21.6% | -250.00 | 24.0% | -250.00 | 23.4% | single wager |
+| 2026_03_NYJ_DET#1 | 8 | 206.98 | 3.2% | 83.38 | -7.2% | 83.38 | -8.0% | 83.38 | -7.8% | SAME_GAME_CORRELATED, SAME_LADDER |
+| 2026_03_ATL_GB#1 | 6 | 202.63 | 3.1% | -49.71 | 4.3% | -49.71 | 4.8% | -49.71 | 4.7% | OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET |
+| 2026_01_MIA_LV#1 | 3 | 179.99 | 2.8% | — (partial) | — | 15.81 | -1.5% | 9.37 | -0.9% | SAME_GAME_CORRELATED |
+| 2026_03_BAL_DAL#1 | 4 | 168.99 | 2.6% | -79.43 | 6.9% | -79.43 | 7.6% | -79.43 | 7.4% | SAME_GAME_CORRELATED |
+| 2026_03_LAC_BUF#1 | 3 | 168.99 | 2.6% | 177.70 | -15.4% | 177.70 | -17.0% | 177.70 | -16.6% | SAME_GAME_CORRELATED, SAME_MARKET |
+| 2026_03_LV_NO#1 | 2 | 126.00 | 2.0% | -29.65 | 2.6% | -29.65 | 2.8% | -29.65 | 2.8% | SAME_GAME_CORRELATED |
+| 2026_01_BAL_IND#1 | 4 | 124.99 | 1.9% | — (partial) | — | 99.75 | -9.6% | 95.89 | -9.0% | SAME_GAME_CORRELATED |
+| 2026_02_LV_LAC#1 | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% | single wager |
+| 2026_02_CAR_ATL#1 | 1 | 70.00 | 1.1% | 65.26 | -5.6% | 65.26 | -6.3% | 65.26 | -6.1% | single wager |
+| 2026_02_MIN_CHI#1 | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% | single wager |
+| 2026_02_GB_NYJ#1 | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% | single wager |
+| 2026_02_MIA_SF#1 | 1 | 70.00 | 1.1% | 36.68 | -3.2% | 36.68 | -3.5% | 36.68 | -3.4% | single wager |
+| 2026_02_PHI_TEN#1 | 1 | 70.00 | 1.1% | 83.08 | -7.2% | 83.08 | -8.0% | 83.08 | -7.8% | single wager |
+| 2026_02_WAS_DAL#1 | 1 | 70.00 | 1.1% | 57.86 | -5.0% | 57.86 | -5.6% | 57.86 | -5.4% | single wager |
+| 2026_02_DET_BUF#1 | 3 | 68.00 | 1.1% | 32.39 | -2.8% | 32.39 | -3.1% | 32.39 | -3.0% | SAME_GAME_CORRELATED, SAME_LADDER |
+| 2026_03_SEA_WAS#1 | 1 | 57.50 | 0.9% | -57.50 | 5.0% | -57.50 | 5.5% | -57.50 | 5.4% | single wager |
+| 2026_02_NO_BAL#1 | 1 | 56.00 | 0.9% | -56.00 | 4.8% | -56.00 | 5.4% | -56.00 | 5.2% | single wager |
+| 2026_02_PIT_NE#1 | 1 | 56.00 | 0.9% | 37.79 | -3.3% | 37.79 | -3.6% | 37.79 | -3.5% | single wager |
+| 2026_03_CAR_CLE#1 | 1 | 50.00 | 0.8% | -50.00 | 4.3% | -50.00 | 4.8% | -50.00 | 4.7% | single wager |
+| 2026_01_NYJ_TEN#1 | 2 | 50.00 | 0.8% | — (partial) | — | 7.20 | -0.7% | 5.17 | -0.5% | SAME_GAME_CORRELATED |
+| 2026_01_BUF_HOU#1 | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 4.8% | -51.92 | 4.9% | single wager |
+| 2026_01_DAL_NYG#1 | 1 | 50.00 | 0.8% | — (partial) | — | 43.02 | -4.1% | 41.40 | -3.9% | single wager |
+| 2026_03_TEN_NYG#1 | 1 | 40.00 | 0.6% | 42.06 | -3.6% | 42.06 | -4.0% | 42.06 | -3.9% | single wager |
+| 2026_01_WAS_PHI#1 | 3 | 39.99 | 0.6% | — (partial) | — | 10.48 | -1.0% | 9.00 | -0.8% | SAME_GAME_CORRELATED |
+| 2026_01_CLE_JAX#1 | 1 | 35.00 | 0.5% | — (partial) | — | 27.79 | -2.7% | 26.70 | -2.5% | single wager |
+| 2026_01_CHI_CAR#1 | 1 | 20.00 | 0.3% | — (partial) | — | -20.00 | 1.9% | -20.73 | 1.9% | single wager |
+| 2026_01_NO_DET#1 | 2 | 19.99 | 0.3% | — (partial) | — | 19.55 | -1.9% | 18.86 | -1.8% | SAME_GAME_CORRELATED |
+| 2026_01_GB_MIN#1 | 1 | 15.00 | 0.2% | — (partial) | — | 13.98 | -1.3% | 13.48 | -1.3% | single wager |
 
 ### By game
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026_02_IND_KC | 3 | 2,792.46 | 45.2% | -998.38 | 101.9% | -998.38 | 115.4% | -998.38 | 112.1% |
-| 2026_02_CLE_TB | 2 | 303.94 | 4.9% | -57.86 | 5.9% | -57.86 | 6.7% | -57.86 | 6.5% |
-| 2026_01_DEN_KC | 5 | 299.98 | 4.9% | — (partial) | — | -53.04 (partial) | 6.1% | -58.13 (partial) | 6.5% |
-| 2026_03_KC_MIA | 3 | 253.50 | 4.1% | 65.25 | -6.7% | 65.25 | -7.5% | 65.25 | -7.3% |
-| 2026_02_JAX_DEN | 1 | 250.00 | 4.0% | -250.00 | 25.5% | -250.00 | 28.9% | -250.00 | 28.1% |
-| 2026_03_NYJ_DET | 8 | 206.98 | 3.4% | 83.38 | -8.5% | 83.38 | -9.6% | 83.38 | -9.4% |
-| 2026_03_ATL_GB | 6 | 202.63 | 3.3% | -49.71 | 5.1% | -49.71 | 5.7% | -49.71 | 5.6% |
-| 2026_01_MIA_LV | 3 | 179.99 | 2.9% | — (partial) | — | 15.81 | -1.8% | 9.37 | -1.1% |
-| 2026_03_BAL_DAL | 4 | 168.99 | 2.7% | 18.26 (partial) | -1.9% | 18.26 (partial) | -2.1% | 18.26 (partial) | -2.1% |
-| 2026_03_LAC_BUF | 3 | 168.99 | 2.7% | 177.70 | -18.1% | 177.70 | -20.5% | 177.70 | -20.0% |
-| 2026_03_LV_NO | 2 | 126.00 | 2.0% | 50.35 (partial) | -5.1% | 50.35 (partial) | -5.8% | 50.35 (partial) | -5.7% |
-| 2026_01_BAL_IND | 4 | 124.99 | 2.0% | — (partial) | — | 99.75 | -11.5% | 95.89 | -10.8% |
-| 2026_02_LV_LAC | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% |
-| 2026_02_CAR_ATL | 1 | 70.00 | 1.1% | 65.26 | -6.7% | 65.26 | -7.5% | 65.26 | -7.3% |
-| 2026_02_MIN_CHI | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% |
-| 2026_02_GB_NYJ | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% |
-| 2026_02_MIA_SF | 1 | 70.00 | 1.1% | 36.68 | -3.7% | 36.68 | -4.2% | 36.68 | -4.1% |
-| 2026_02_PHI_TEN | 1 | 70.00 | 1.1% | 83.08 | -8.5% | 83.08 | -9.6% | 83.08 | -9.3% |
-| 2026_02_WAS_DAL | 1 | 70.00 | 1.1% | 57.86 | -5.9% | 57.86 | -6.7% | 57.86 | -6.5% |
-| 2026_02_DET_BUF | 3 | 68.00 | 1.1% | 32.39 | -3.3% | 32.39 | -3.7% | 32.39 | -3.6% |
-| 2026_03_SEA_WAS | 1 | 57.50 | 0.9% | -57.50 | 5.9% | -57.50 | 6.6% | -57.50 | 6.5% |
-| 2026_02_NO_BAL | 1 | 56.00 | 0.9% | -56.00 | 5.7% | -56.00 | 6.5% | -56.00 | 6.3% |
-| 2026_02_PIT_NE | 1 | 56.00 | 0.9% | 37.79 | -3.9% | 37.79 | -4.4% | 37.79 | -4.2% |
-| 2026_03_CAR_CLE | 1 | 50.00 | 0.8% | -50.00 | 5.1% | -50.00 | 5.8% | -50.00 | 5.6% |
-| 2026_01_NYJ_TEN | 2 | 50.00 | 0.8% | — (partial) | — | 7.20 | -0.8% | 5.17 | -0.6% |
-| 2026_01_BUF_HOU | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 5.8% | -51.92 | 5.8% |
-| 2026_01_DAL_NYG | 1 | 50.00 | 0.8% | — (partial) | — | 43.02 | -5.0% | 41.40 | -4.7% |
-| 2026_03_TEN_NYG | 1 | 40.00 | 0.6% | 42.06 | -4.3% | 42.06 | -4.9% | 42.06 | -4.7% |
-| 2026_01_WAS_PHI | 3 | 39.99 | 0.6% | — (partial) | — | 10.48 | -1.2% | 9.00 | -1.0% |
-| 2026_01_CLE_JAX | 1 | 35.00 | 0.6% | — (partial) | — | 27.79 | -3.2% | 26.70 | -3.0% |
-| 2026_01_CHI_CAR | 1 | 20.00 | 0.3% | — (partial) | — | -20.00 | 2.3% | -20.73 | 2.3% |
-| 2026_01_NO_DET | 2 | 19.99 | 0.3% | — (partial) | — | 19.55 | -2.3% | 18.86 | -2.1% |
-| 2026_01_GB_MIN | 1 | 15.00 | 0.2% | — (partial) | — | 13.98 | -1.6% | 13.48 | -1.5% |
+| 2026_02_IND_KC | 3 | 2,792.46 | 43.2% | -998.38 | 86.3% | -998.38 | 95.8% | -998.38 | 93.5% |
+| 2026_02_CLE_TB | 2 | 303.94 | 4.7% | -57.86 | 5.0% | -57.86 | 5.5% | -57.86 | 5.4% |
+| 2026_01_DEN_KC | 5 | 299.98 | 4.6% | — (partial) | — | -53.04 (partial) | 5.1% | -58.13 (partial) | 5.4% |
+| 26SEP27LARDEN | 4 | 280.73 | 4.3% | — (partial) | — | — (partial) | — | — (partial) | — |
+| 2026_03_KC_MIA | 3 | 253.50 | 3.9% | 65.25 | -5.6% | 65.25 | -6.3% | 65.25 | -6.1% |
+| 2026_02_JAX_DEN | 1 | 250.00 | 3.9% | -250.00 | 21.6% | -250.00 | 24.0% | -250.00 | 23.4% |
+| 2026_03_NYJ_DET | 8 | 206.98 | 3.2% | 83.38 | -7.2% | 83.38 | -8.0% | 83.38 | -7.8% |
+| 2026_03_ATL_GB | 6 | 202.63 | 3.1% | -49.71 | 4.3% | -49.71 | 4.8% | -49.71 | 4.7% |
+| 2026_01_MIA_LV | 3 | 179.99 | 2.8% | — (partial) | — | 15.81 | -1.5% | 9.37 | -0.9% |
+| 2026_03_BAL_DAL | 4 | 168.99 | 2.6% | -79.43 | 6.9% | -79.43 | 7.6% | -79.43 | 7.4% |
+| 2026_03_LAC_BUF | 3 | 168.99 | 2.6% | 177.70 | -15.4% | 177.70 | -17.0% | 177.70 | -16.6% |
+| 2026_03_LV_NO | 2 | 126.00 | 2.0% | -29.65 | 2.6% | -29.65 | 2.8% | -29.65 | 2.8% |
+| 2026_01_BAL_IND | 4 | 124.99 | 1.9% | — (partial) | — | 99.75 | -9.6% | 95.89 | -9.0% |
+| 2026_02_LV_LAC | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% |
+| 2026_02_CAR_ATL | 1 | 70.00 | 1.1% | 65.26 | -5.6% | 65.26 | -6.3% | 65.26 | -6.1% |
+| 2026_02_MIN_CHI | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% |
+| 2026_02_GB_NYJ | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% |
+| 2026_02_MIA_SF | 1 | 70.00 | 1.1% | 36.68 | -3.2% | 36.68 | -3.5% | 36.68 | -3.4% |
+| 2026_02_PHI_TEN | 1 | 70.00 | 1.1% | 83.08 | -7.2% | 83.08 | -8.0% | 83.08 | -7.8% |
+| 2026_02_WAS_DAL | 1 | 70.00 | 1.1% | 57.86 | -5.0% | 57.86 | -5.6% | 57.86 | -5.4% |
+| 2026_02_DET_BUF | 3 | 68.00 | 1.1% | 32.39 | -2.8% | 32.39 | -3.1% | 32.39 | -3.0% |
+| 2026_03_SEA_WAS | 1 | 57.50 | 0.9% | -57.50 | 5.0% | -57.50 | 5.5% | -57.50 | 5.4% |
+| 2026_02_NO_BAL | 1 | 56.00 | 0.9% | -56.00 | 4.8% | -56.00 | 5.4% | -56.00 | 5.2% |
+| 2026_02_PIT_NE | 1 | 56.00 | 0.9% | 37.79 | -3.3% | 37.79 | -3.6% | 37.79 | -3.5% |
+| 2026_03_CAR_CLE | 1 | 50.00 | 0.8% | -50.00 | 4.3% | -50.00 | 4.8% | -50.00 | 4.7% |
+| 2026_01_NYJ_TEN | 2 | 50.00 | 0.8% | — (partial) | — | 7.20 | -0.7% | 5.17 | -0.5% |
+| 2026_01_BUF_HOU | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 4.8% | -51.92 | 4.9% |
+| 2026_01_DAL_NYG | 1 | 50.00 | 0.8% | — (partial) | — | 43.02 | -4.1% | 41.40 | -3.9% |
+| 2026_03_TEN_NYG | 1 | 40.00 | 0.6% | 42.06 | -3.6% | 42.06 | -4.0% | 42.06 | -3.9% |
+| 2026_01_WAS_PHI | 3 | 39.99 | 0.6% | — (partial) | — | 10.48 | -1.0% | 9.00 | -0.8% |
+| 2026_01_CLE_JAX | 1 | 35.00 | 0.5% | — (partial) | — | 27.79 | -2.7% | 26.70 | -2.5% |
+| 2026_01_CHI_CAR | 1 | 20.00 | 0.3% | — (partial) | — | -20.00 | 1.9% | -20.73 | 1.9% |
+| 2026_01_NO_DET | 2 | 19.99 | 0.3% | — (partial) | — | 19.55 | -1.9% | 18.86 | -1.8% |
+| 2026_01_GB_MIN | 1 | 15.00 | 0.2% | — (partial) | — | 13.98 | -1.3% | 13.48 | -1.3% |
 
 ### By market family
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| spread | 21 | 3,817.92 | 61.8% | -796.19 (partial) | 81.3% | -699.84 (partial) | 80.9% | -704.68 (partial) | 79.2% |
-| game_winner | 6 | 529.98 | 8.6% | -267.42 (partial) | 27.3% | -267.42 (partial) | 30.9% | -267.42 (partial) | 30.0% |
-| series:KXNFL1HTOTAL | 3 | 373.93 | 6.1% | 25.23 | -2.6% | 25.23 | -2.9% | 25.23 | -2.8% |
-| series:KXNFLTD | 8 | 349.98 | 5.7% | -49.99 (partial) | 5.1% | -88.43 | 10.2% | -99.41 | 11.2% |
-| series:KXNFLRSHYDS | 7 | 235.97 | 3.8% | 1.52 (partial) | -0.2% | 95.75 (partial) | -11.1% | 92.28 (partial) | -10.4% |
-| series:KXNFLREC | 4 | 180.99 | 2.9% | -43.94 (partial) | 4.5% | -98.93 | 11.4% | -100.68 | 11.3% |
-| team_total | 3 | 170.99 | 2.8% | 51.40 | -5.2% | 51.40 | -5.9% | 51.40 | -5.8% |
-| series:KXNFLRECYDS | 7 | 111.97 | 1.8% | 52.35 | -5.3% | 52.35 | -6.1% | 52.35 | -5.9% |
-| series:KXNFL1HTEAMTOTAL | 3 | 107.50 | 1.7% | -66.24 | 6.8% | -66.24 | 7.7% | -66.24 | 7.4% |
-| total | 5 | 102.99 | 1.7% | 72.39 (partial) | -7.4% | 139.79 | -16.2% | 137.30 | -15.4% |
-| series:KXNFLPASSYDS | 2 | 87.66 | 1.4% | 3.75 | -0.4% | 3.75 | -0.4% | 3.75 | -0.4% |
-| series:KXNFL1H | 1 | 56.00 | 0.9% | 37.79 | -3.9% | 37.79 | -4.4% | 37.79 | -4.2% |
-| series:KXNFLMOSTRECYDS | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 5.8% | -51.92 | 5.8% |
+| spread | 21 | 3,817.92 | 59.1% | -951.18 (partial) | 82.2% | -854.84 | 82.0% | -859.68 | 80.5% |
+| game_winner | 7 | 600.48 | 9.3% | -267.42 (partial) | 23.1% | -267.42 (partial) | 25.7% | -267.42 (partial) | 25.0% |
+| series:KXNFL1HTOTAL | 3 | 373.93 | 5.8% | 25.23 | -2.2% | 25.23 | -2.4% | 25.23 | -2.4% |
+| series:KXNFLTD | 8 | 349.98 | 5.4% | -49.99 (partial) | 4.3% | -88.43 | 8.5% | -99.41 | 9.3% |
+| series:KXNFLPASSYDS | 4 | 263.89 | 4.1% | 3.75 (partial) | -0.3% | 3.75 (partial) | -0.4% | 3.75 (partial) | -0.4% |
+| series:KXNFLRSHYDS | 7 | 235.97 | 3.7% | -21.17 (partial) | 1.8% | 73.06 | -7.0% | 69.58 | -6.5% |
+| team_total | 4 | 204.99 | 3.2% | 51.40 (partial) | -4.4% | 51.40 (partial) | -4.9% | 51.40 (partial) | -4.8% |
+| series:KXNFLREC | 4 | 180.99 | 2.8% | -43.94 (partial) | 3.8% | -98.93 | 9.5% | -100.68 | 9.4% |
+| series:KXNFLRECYDS | 7 | 111.97 | 1.7% | 52.35 | -4.5% | 52.35 | -5.0% | 52.35 | -4.9% |
+| series:KXNFL1HTEAMTOTAL | 3 | 107.50 | 1.7% | -66.24 | 5.7% | -66.24 | 6.4% | -66.24 | 6.2% |
+| total | 5 | 102.99 | 1.6% | 72.39 (partial) | -6.3% | 139.79 | -13.4% | 137.30 | -12.9% |
+| series:KXNFL1H | 1 | 56.00 | 0.9% | 37.79 | -3.3% | 37.79 | -3.6% | 37.79 | -3.5% |
+| series:KXNFLMOSTRECYDS | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 4.8% | -51.92 | 4.9% |
 
 ### By ladder (underlying variable)
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| KXNFLSPREAD-26SEP20INDKC | 2 | 2,742.47 | 44.4% | -948.39 | 96.8% | -948.39 | 109.7% | -948.39 | 106.5% |
-| KXNFL1HTOTAL-26SEP20CLETB | 2 | 303.94 | 4.9% | -57.86 | 5.9% | -57.86 | 6.7% | -57.86 | 6.5% |
-| KXNFLGAME-26SEP20JACDEN | 1 | 250.00 | 4.0% | -250.00 | 25.5% | -250.00 | 28.9% | -250.00 | 28.1% |
-| KXNFLSPREAD-26SEP27KCMIA | 1 | 184.00 | 3.0% | 134.75 | -13.8% | 134.75 | -15.6% | 134.75 | -15.1% |
-| KXNFLGAME-26SEP14DENKC | 2 | 159.99 | 2.6% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLSPREAD-26SEP27LACBUF | 2 | 118.99 | 1.9% | 125.13 | -12.8% | 125.13 | -14.5% | 125.13 | -14.1% |
-| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5 | 6 | 91.98 | 1.5% | 72.34 | -7.4% | 72.34 | -8.4% | 72.34 | -8.1% |
-| KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10 | 2 | 87.66 | 1.4% | 3.75 | -0.4% | 3.75 | -0.4% | 3.75 | -0.4% |
-| KXNFLSPREAD-26SEP27LVNO | 1 | 80.00 | 1.3% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLTD-26SEP13MIALV-MIADACHANE28 | 1 | 80.00 | 1.3% | — (partial) | — | -80.00 | 9.3% | -83.01 | 9.3% |
-| KXNFLSPREAD-26SEP27BALDAL | 1 | 75.00 | 1.2% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLSPREAD-26SEP20LVLAC | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% |
-| KXNFLSPREAD-26SEP20CARATL | 1 | 70.00 | 1.1% | 65.26 | -6.7% | 65.26 | -7.5% | 65.26 | -7.3% |
-| KXNFLSPREAD-26SEP20MINCHI | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% |
-| KXNFLSPREAD-26SEP20GBNYJ | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% |
-| KXNFLSPREAD-26SEP20MIASF | 1 | 70.00 | 1.1% | 36.68 | -3.7% | 36.68 | -4.2% | 36.68 | -4.1% |
-| KXNFL1HTOTAL-26SEP20PHITEN | 1 | 70.00 | 1.1% | 83.08 | -8.5% | 83.08 | -9.6% | 83.08 | -9.3% |
-| KXNFLSPREAD-26SEP20WASDAL | 1 | 70.00 | 1.1% | 57.86 | -5.9% | 57.86 | -6.7% | 57.86 | -6.5% |
-| KXNFLTEAMTOTAL-26SEP27NYJDET-DET | 1 | 69.00 | 1.1% | 57.04 | -5.8% | 57.04 | -6.6% | 57.04 | -6.4% |
-| KXNFLTD-26SEP13MIALV-LVAJEANTY2 | 1 | 60.00 | 1.0% | — (partial) | — | 53.74 | -6.2% | 51.75 | -5.8% |
-| KXNFLSPREAD-26SEP27SEAWAS | 1 | 57.50 | 0.9% | -57.50 | 5.9% | -57.50 | 6.6% | -57.50 | 6.5% |
-| KXNFLTEAMTOTAL-26SEP20NOBAL-BAL | 1 | 56.00 | 0.9% | -56.00 | 5.7% | -56.00 | 6.5% | -56.00 | 6.3% |
-| KXNFL1H-26SEP20PITNE | 1 | 56.00 | 0.9% | 37.79 | -3.9% | 37.79 | -4.4% | 37.79 | -4.2% |
-| KXNFLREC-26SEP14DENKC-DENRHARVEY12 | 1 | 55.00 | 0.9% | — (partial) | — | -55.00 | 6.4% | -56.75 | 6.4% |
-| KXNFLTD-26SEP13BALIND-BALDHENRY22 | 1 | 54.99 | 0.9% | — (partial) | — | 35.62 | -4.1% | 34.08 | -3.8% |
-| KXNFLGAME-26SEP27CARCLE | 1 | 50.00 | 0.8% | -50.00 | 5.1% | -50.00 | 5.8% | -50.00 | 5.6% |
-| KXNFL1HTEAMTOTAL-26SEP24ATLGB | 1 | 50.00 | 0.8% | -50.00 | 5.1% | -50.00 | 5.8% | -50.00 | 5.6% |
-| KXNFLMOSTRECYDS-26SEP13BUFHOU | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 5.8% | -51.92 | 5.8% |
-| KXNFLGAME-26SEP27LACBUF | 1 | 50.00 | 0.8% | 52.57 | -5.4% | 52.57 | -6.1% | 52.57 | -5.9% |
-| KXNFLTOTAL-26SEP13DALNYG | 1 | 50.00 | 0.8% | — (partial) | — | 43.02 | -5.0% | 41.40 | -4.7% |
-| KXNFLTD-26SEP20INDKC-KCKWALKER9 | 1 | 49.99 | 0.8% | -49.99 | 5.1% | -49.99 | 5.8% | -49.99 | 5.6% |
-| KXNFLRSHYDS-26SEP27BALDAL-BALDHENRY22 | 1 | 46.00 | 0.7% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLREC-26SEP27NYJDET-DETASTBROWN14 | 1 | 46.00 | 0.7% | -46.00 | 4.7% | -46.00 | 5.3% | -46.00 | 5.2% |
-| KXNFLTEAMTOTAL-26SEP27LVNO-NO | 1 | 46.00 | 0.7% | 50.35 | -5.1% | 50.35 | -5.8% | 50.35 | -5.7% |
-| KXNFLRSHYDS-26SEP14DENKC-KCPMAHOMES15 | 1 | 45.00 | 0.7% | — (partial) | — | 41.95 | -4.9% | 40.43 | -4.5% |
-| KXNFLTD-26SEP14DENKC-DENJDOBBINS27 | 1 | 40.00 | 0.6% | — (partial) | — | -40.00 | 4.6% | -41.82 | 4.7% |
-| KXNFLREC-26SEP17DETBUF-DETITESLAA18 | 1 | 40.00 | 0.6% | -40.00 | 4.1% | -40.00 | 4.6% | -40.00 | 4.5% |
-| KXNFLREC-26SEP27TENNYG-TENCTATE14 | 1 | 40.00 | 0.6% | 42.06 | -4.3% | 42.06 | -4.9% | 42.06 | -4.7% |
-| KXNFLSPREAD-26SEP13MIALV | 1 | 40.00 | 0.6% | — (partial) | — | 42.06 | -4.9% | 40.63 | -4.6% |
-| KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10 | 1 | 35.00 | 0.6% | -35.00 | 3.6% | -35.00 | 4.0% | -35.00 | 3.9% |
-| KXNFLSPREAD-26SEP13CLEJAC | 1 | 35.00 | 0.6% | — (partial) | — | 27.79 | -3.2% | 26.70 | -3.0% |
-| KXNFL1HTEAMTOTAL-26SEP27KCMIA | 1 | 34.50 | 0.6% | -34.50 | 3.5% | -34.50 | 4.0% | -34.50 | 3.9% |
-| KXNFLRSHYDS-26SEP13BALIND-INDJTAYLOR28 | 1 | 30.00 | 0.5% | — (partial) | — | 21.97 | -2.5% | 21.07 | -2.4% |
-| KXNFLRSHYDS-26SEP13BALIND-BALDHENRY22 | 1 | 30.00 | 0.5% | — (partial) | — | 30.30 | -3.5% | 29.25 | -3.3% |
-| KXNFLTOTAL-26SEP17DETBUF | 2 | 28.00 | 0.5% | 72.39 | -7.4% | 72.39 | -8.4% | 72.39 | -8.1% |
-| KXNFLTD-26SEP13NYJTEN-NYJBHALL20 | 1 | 25.00 | 0.4% | — (partial) | — | 32.20 | -3.7% | 31.23 | -3.5% |
-| KXNFLTD-26SEP13NYJTEN-TENTPOLLARD20 | 1 | 25.00 | 0.4% | — (partial) | — | -25.00 | 2.9% | -26.05 | 2.9% |
-| KXNFLRSHYDS-26SEP27BALDAL-BALLJACKSON8 | 1 | 25.00 | 0.4% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26 | 1 | 24.99 | 0.4% | 36.52 | -3.7% | 36.52 | -4.2% | 36.52 | -4.1% |
-| KXNFL1HTEAMTOTAL-26SEP27BALDAL | 1 | 23.00 | 0.4% | 18.26 | -1.9% | 18.26 | -2.1% | 18.26 | -2.1% |
-| KXNFLGAME-26SEP24ATLGB | 1 | 20.00 | 0.3% | -20.00 | 2.0% | -20.00 | 2.3% | -20.00 | 2.2% |
-| KXNFLSPREAD-26SEP13CHICAR | 1 | 20.00 | 0.3% | — (partial) | — | -20.00 | 2.3% | -20.73 | 2.3% |
-| KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5 | 1 | 19.99 | 0.3% | -19.99 | 2.0% | -19.99 | 2.3% | -19.99 | 2.2% |
-| KXNFLTOTAL-26SEP13WASPHI | 1 | 15.00 | 0.2% | — (partial) | — | 15.77 | -1.8% | 15.23 | -1.7% |
-| KXNFLTD-26SEP13WASPHI-PHIJHURTS1 | 1 | 15.00 | 0.2% | — (partial) | — | -15.00 | 1.7% | -15.59 | 1.8% |
-| KXNFLSPREAD-26SEP13GBMIN | 1 | 15.00 | 0.2% | — (partial) | — | 13.98 | -1.6% | 13.48 | -1.5% |
-| KXNFLSPREAD-26SEP13WASPHI | 1 | 10.00 | 0.2% | — (partial) | — | 9.70 | -1.1% | 9.36 | -1.1% |
-| KXNFLTOTAL-26SEP13NODET | 1 | 10.00 | 0.2% | — (partial) | — | 8.60 | -1.0% | 8.28 | -0.9% |
-| KXNFLSPREAD-26SEP13NODET | 1 | 10.00 | 0.2% | — (partial) | — | 10.94 | -1.3% | 10.58 | -1.2% |
-| KXNFLSPREAD-26SEP13BALIND | 1 | 10.00 | 0.2% | — (partial) | — | 11.86 | -1.4% | 11.49 | -1.3% |
+| KXNFLSPREAD-26SEP20INDKC | 2 | 2,742.47 | 42.5% | -948.39 | 82.0% | -948.39 | 91.0% | -948.39 | 88.8% |
+| KXNFL1HTOTAL-26SEP20CLETB | 2 | 303.94 | 4.7% | -57.86 | 5.0% | -57.86 | 5.5% | -57.86 | 5.4% |
+| KXNFLGAME-26SEP20JACDEN | 1 | 250.00 | 3.9% | -250.00 | 21.6% | -250.00 | 24.0% | -250.00 | 23.4% |
+| KXNFLSPREAD-26SEP27KCMIA | 1 | 184.00 | 2.8% | 134.75 | -11.6% | 134.75 | -12.9% | 134.75 | -12.6% |
+| KXNFLPASSYDS-26SEP27LARDEN-LARMSTAFFORD9 | 2 | 176.24 | 2.7% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLGAME-26SEP14DENKC | 2 | 159.99 | 2.5% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLSPREAD-26SEP27LACBUF | 2 | 118.99 | 1.8% | 125.13 | -10.8% | 125.13 | -12.0% | 125.13 | -11.7% |
+| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5 | 6 | 91.98 | 1.4% | 72.34 | -6.3% | 72.34 | -6.9% | 72.34 | -6.8% |
+| KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10 | 2 | 87.66 | 1.4% | 3.75 | -0.3% | 3.75 | -0.4% | 3.75 | -0.4% |
+| KXNFLSPREAD-26SEP27LVNO | 1 | 80.00 | 1.2% | -80.00 | 6.9% | -80.00 | 7.7% | -80.00 | 7.5% |
+| KXNFLTD-26SEP13MIALV-MIADACHANE28 | 1 | 80.00 | 1.2% | — (partial) | — | -80.00 | 7.7% | -83.01 | 7.8% |
+| KXNFLSPREAD-26SEP27BALDAL | 1 | 75.00 | 1.2% | -75.00 | 6.5% | -75.00 | 7.2% | -75.00 | 7.0% |
+| KXNFLGAME-26SEP27LARDEN | 1 | 70.50 | 1.1% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLSPREAD-26SEP20LVLAC | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% |
+| KXNFLSPREAD-26SEP20CARATL | 1 | 70.00 | 1.1% | 65.26 | -5.6% | 65.26 | -6.3% | 65.26 | -6.1% |
+| KXNFLSPREAD-26SEP20MINCHI | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% |
+| KXNFLSPREAD-26SEP20GBNYJ | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% |
+| KXNFLSPREAD-26SEP20MIASF | 1 | 70.00 | 1.1% | 36.68 | -3.2% | 36.68 | -3.5% | 36.68 | -3.4% |
+| KXNFL1HTOTAL-26SEP20PHITEN | 1 | 70.00 | 1.1% | 83.08 | -7.2% | 83.08 | -8.0% | 83.08 | -7.8% |
+| KXNFLSPREAD-26SEP20WASDAL | 1 | 70.00 | 1.1% | 57.86 | -5.0% | 57.86 | -5.6% | 57.86 | -5.4% |
+| KXNFLTEAMTOTAL-26SEP27NYJDET-DET | 1 | 69.00 | 1.1% | 57.04 | -4.9% | 57.04 | -5.5% | 57.04 | -5.3% |
+| KXNFLTD-26SEP13MIALV-LVAJEANTY2 | 1 | 60.00 | 0.9% | — (partial) | — | 53.74 | -5.2% | 51.75 | -4.8% |
+| KXNFLSPREAD-26SEP27SEAWAS | 1 | 57.50 | 0.9% | -57.50 | 5.0% | -57.50 | 5.5% | -57.50 | 5.4% |
+| KXNFLTEAMTOTAL-26SEP20NOBAL-BAL | 1 | 56.00 | 0.9% | -56.00 | 4.8% | -56.00 | 5.4% | -56.00 | 5.2% |
+| KXNFL1H-26SEP20PITNE | 1 | 56.00 | 0.9% | 37.79 | -3.3% | 37.79 | -3.6% | 37.79 | -3.5% |
+| KXNFLREC-26SEP14DENKC-DENRHARVEY12 | 1 | 55.00 | 0.9% | — (partial) | — | -55.00 | 5.3% | -56.75 | 5.3% |
+| KXNFLTD-26SEP13BALIND-BALDHENRY22 | 1 | 54.99 | 0.9% | — (partial) | — | 35.62 | -3.4% | 34.08 | -3.2% |
+| KXNFLGAME-26SEP27CARCLE | 1 | 50.00 | 0.8% | -50.00 | 4.3% | -50.00 | 4.8% | -50.00 | 4.7% |
+| KXNFL1HTEAMTOTAL-26SEP24ATLGB | 1 | 50.00 | 0.8% | -50.00 | 4.3% | -50.00 | 4.8% | -50.00 | 4.7% |
+| KXNFLMOSTRECYDS-26SEP13BUFHOU | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 4.8% | -51.92 | 4.9% |
+| KXNFLGAME-26SEP27LACBUF | 1 | 50.00 | 0.8% | 52.57 | -4.5% | 52.57 | -5.0% | 52.57 | -4.9% |
+| KXNFLTOTAL-26SEP13DALNYG | 1 | 50.00 | 0.8% | — (partial) | — | 43.02 | -4.1% | 41.40 | -3.9% |
+| KXNFLTD-26SEP20INDKC-KCKWALKER9 | 1 | 49.99 | 0.8% | -49.99 | 4.3% | -49.99 | 4.8% | -49.99 | 4.7% |
+| KXNFLRSHYDS-26SEP27BALDAL-BALDHENRY22 | 1 | 46.00 | 0.7% | -46.00 | 4.0% | -46.00 | 4.4% | -46.00 | 4.3% |
+| KXNFLREC-26SEP27NYJDET-DETASTBROWN14 | 1 | 46.00 | 0.7% | -46.00 | 4.0% | -46.00 | 4.4% | -46.00 | 4.3% |
+| KXNFLTEAMTOTAL-26SEP27LVNO-NO | 1 | 46.00 | 0.7% | 50.35 | -4.4% | 50.35 | -4.8% | 50.35 | -4.7% |
+| KXNFLRSHYDS-26SEP14DENKC-KCPMAHOMES15 | 1 | 45.00 | 0.7% | — (partial) | — | 41.95 | -4.0% | 40.43 | -3.8% |
+| KXNFLTD-26SEP14DENKC-DENJDOBBINS27 | 1 | 40.00 | 0.6% | — (partial) | — | -40.00 | 3.8% | -41.82 | 3.9% |
+| KXNFLREC-26SEP17DETBUF-DETITESLAA18 | 1 | 40.00 | 0.6% | -40.00 | 3.5% | -40.00 | 3.8% | -40.00 | 3.7% |
+| KXNFLREC-26SEP27TENNYG-TENCTATE14 | 1 | 40.00 | 0.6% | 42.06 | -3.6% | 42.06 | -4.0% | 42.06 | -3.9% |
+| KXNFLSPREAD-26SEP13MIALV | 1 | 40.00 | 0.6% | — (partial) | — | 42.06 | -4.0% | 40.63 | -3.8% |
+| KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10 | 1 | 35.00 | 0.5% | -35.00 | 3.0% | -35.00 | 3.4% | -35.00 | 3.3% |
+| KXNFLSPREAD-26SEP13CLEJAC | 1 | 35.00 | 0.5% | — (partial) | — | 27.79 | -2.7% | 26.70 | -2.5% |
+| KXNFL1HTEAMTOTAL-26SEP27KCMIA | 1 | 34.50 | 0.5% | -34.50 | 3.0% | -34.50 | 3.3% | -34.50 | 3.2% |
+| KXNFLTEAMTOTAL-26SEP27LARDEN-LAR | 1 | 34.00 | 0.5% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLRSHYDS-26SEP13BALIND-INDJTAYLOR28 | 1 | 30.00 | 0.5% | — (partial) | — | 21.97 | -2.1% | 21.07 | -2.0% |
+| KXNFLRSHYDS-26SEP13BALIND-BALDHENRY22 | 1 | 30.00 | 0.5% | — (partial) | — | 30.30 | -2.9% | 29.25 | -2.7% |
+| KXNFLTOTAL-26SEP17DETBUF | 2 | 28.00 | 0.4% | 72.39 | -6.3% | 72.39 | -6.9% | 72.39 | -6.8% |
+| KXNFLTD-26SEP13NYJTEN-NYJBHALL20 | 1 | 25.00 | 0.4% | — (partial) | — | 32.20 | -3.1% | 31.23 | -2.9% |
+| KXNFLTD-26SEP13NYJTEN-TENTPOLLARD20 | 1 | 25.00 | 0.4% | — (partial) | — | -25.00 | 2.4% | -26.05 | 2.4% |
+| KXNFLRSHYDS-26SEP27BALDAL-BALLJACKSON8 | 1 | 25.00 | 0.4% | 23.30 | -2.0% | 23.30 | -2.2% | 23.30 | -2.2% |
+| KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26 | 1 | 24.99 | 0.4% | 36.52 | -3.2% | 36.52 | -3.5% | 36.52 | -3.4% |
+| KXNFL1HTEAMTOTAL-26SEP27BALDAL | 1 | 23.00 | 0.4% | 18.26 | -1.6% | 18.26 | -1.8% | 18.26 | -1.7% |
+| KXNFLGAME-26SEP24ATLGB | 1 | 20.00 | 0.3% | -20.00 | 1.7% | -20.00 | 1.9% | -20.00 | 1.9% |
+| KXNFLSPREAD-26SEP13CHICAR | 1 | 20.00 | 0.3% | — (partial) | — | -20.00 | 1.9% | -20.73 | 1.9% |
+| KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5 | 1 | 19.99 | 0.3% | -19.99 | 1.7% | -19.99 | 1.9% | -19.99 | 1.9% |
+| KXNFLTOTAL-26SEP13WASPHI | 1 | 15.00 | 0.2% | — (partial) | — | 15.77 | -1.5% | 15.23 | -1.4% |
+| KXNFLTD-26SEP13WASPHI-PHIJHURTS1 | 1 | 15.00 | 0.2% | — (partial) | — | -15.00 | 1.4% | -15.59 | 1.5% |
+| KXNFLSPREAD-26SEP13GBMIN | 1 | 15.00 | 0.2% | — (partial) | — | 13.98 | -1.3% | 13.48 | -1.3% |
+| KXNFLSPREAD-26SEP13WASPHI | 1 | 10.00 | 0.2% | — (partial) | — | 9.70 | -0.9% | 9.36 | -0.9% |
+| KXNFLTOTAL-26SEP13NODET | 1 | 10.00 | 0.2% | — (partial) | — | 8.60 | -0.8% | 8.28 | -0.8% |
+| KXNFLSPREAD-26SEP13NODET | 1 | 10.00 | 0.2% | — (partial) | — | 10.94 | -1.0% | 10.58 | -1.0% |
+| KXNFLSPREAD-26SEP13BALIND | 1 | 10.00 | 0.2% | — (partial) | — | 11.86 | -1.1% | 11.49 | -1.1% |
 
 ### By market
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| KXNFLSPREAD-26SEP20INDKC-KC5 | 2 | 2,742.47 | 44.4% | -948.39 | 96.8% | -948.39 | 109.7% | -948.39 | 106.5% |
-| KXNFL1HTOTAL-26SEP20CLETB-22 | 2 | 303.94 | 4.9% | -57.86 | 5.9% | -57.86 | 6.7% | -57.86 | 6.5% |
-| KXNFLGAME-26SEP20JACDEN-JAC | 1 | 250.00 | 4.0% | -250.00 | 25.5% | -250.00 | 28.9% | -250.00 | 28.1% |
-| KXNFLSPREAD-26SEP27KCMIA-KC8 | 1 | 184.00 | 3.0% | 134.75 | -13.8% | 134.75 | -15.6% | 134.75 | -15.1% |
-| KXNFLGAME-26SEP14DENKC-DEN | 2 | 159.99 | 2.6% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLSPREAD-26SEP27LACBUF-BUF8 | 2 | 118.99 | 1.9% | 125.13 | -12.8% | 125.13 | -14.5% | 125.13 | -14.1% |
-| KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2 | 87.66 | 1.4% | 3.75 | -0.4% | 3.75 | -0.4% | 3.75 | -0.4% |
-| KXNFLSPREAD-26SEP27LVNO-NO4 | 1 | 80.00 | 1.3% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLTD-26SEP13MIALV-MIADACHANE28-1 | 1 | 80.00 | 1.3% | — (partial) | — | -80.00 | 9.3% | -83.01 | 9.3% |
-| KXNFLSPREAD-26SEP27BALDAL-BAL4 | 1 | 75.00 | 1.2% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLSPREAD-26SEP20LVLAC-LAC7 | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% |
-| KXNFLSPREAD-26SEP20CARATL-CAR3 | 1 | 70.00 | 1.1% | 65.26 | -6.7% | 65.26 | -7.5% | 65.26 | -7.3% |
-| KXNFLSPREAD-26SEP20MINCHI-CHI4 | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% |
-| KXNFLSPREAD-26SEP20GBNYJ-GB4 | 1 | 70.00 | 1.1% | -70.00 | 7.1% | -70.00 | 8.1% | -70.00 | 7.9% |
-| KXNFLSPREAD-26SEP20MIASF-SF8 | 1 | 70.00 | 1.1% | 36.68 | -3.7% | 36.68 | -4.2% | 36.68 | -4.1% |
-| KXNFL1HTOTAL-26SEP20PHITEN-21 | 1 | 70.00 | 1.1% | 83.08 | -8.5% | 83.08 | -9.6% | 83.08 | -9.3% |
-| KXNFLSPREAD-26SEP20WASDAL-DAL4 | 1 | 70.00 | 1.1% | 57.86 | -5.9% | 57.86 | -6.7% | 57.86 | -6.5% |
-| KXNFLTEAMTOTAL-26SEP27NYJDET-DET28 | 1 | 69.00 | 1.1% | 57.04 | -5.8% | 57.04 | -6.6% | 57.04 | -6.4% |
-| KXNFLTD-26SEP13MIALV-LVAJEANTY2-1 | 1 | 60.00 | 1.0% | — (partial) | — | 53.74 | -6.2% | 51.75 | -5.8% |
-| KXNFLSPREAD-26SEP27SEAWAS-SEA8 | 1 | 57.50 | 0.9% | -57.50 | 5.9% | -57.50 | 6.6% | -57.50 | 6.5% |
-| KXNFLTEAMTOTAL-26SEP20NOBAL-BAL29 | 1 | 56.00 | 0.9% | -56.00 | 5.7% | -56.00 | 6.5% | -56.00 | 6.3% |
-| KXNFL1H-26SEP20PITNE-NE | 1 | 56.00 | 0.9% | 37.79 | -3.9% | 37.79 | -4.4% | 37.79 | -4.2% |
-| KXNFLREC-26SEP14DENKC-DENRHARVEY12-3 | 1 | 55.00 | 0.9% | — (partial) | — | -55.00 | 6.4% | -56.75 | 6.4% |
-| KXNFLTD-26SEP13BALIND-BALDHENRY22-1 | 1 | 54.99 | 0.9% | — (partial) | — | 35.62 | -4.1% | 34.08 | -3.8% |
-| KXNFLGAME-26SEP27CARCLE-CAR | 1 | 50.00 | 0.8% | -50.00 | 5.1% | -50.00 | 5.8% | -50.00 | 5.6% |
-| KXNFL1HTEAMTOTAL-26SEP24ATLGB-ATL10 | 1 | 50.00 | 0.8% | -50.00 | 5.1% | -50.00 | 5.8% | -50.00 | 5.6% |
-| KXNFLMOSTRECYDS-26SEP13BUFHOU-HOUNCOLLINS12 | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 5.8% | -51.92 | 5.8% |
-| KXNFLGAME-26SEP27LACBUF-BUF | 1 | 50.00 | 0.8% | 52.57 | -5.4% | 52.57 | -6.1% | 52.57 | -5.9% |
-| KXNFLTOTAL-26SEP13DALNYG-48 | 1 | 50.00 | 0.8% | — (partial) | — | 43.02 | -5.0% | 41.40 | -4.7% |
-| KXNFLTD-26SEP20INDKC-KCKWALKER9-1 | 1 | 49.99 | 0.8% | -49.99 | 5.1% | -49.99 | 5.8% | -49.99 | 5.6% |
-| KXNFLRSHYDS-26SEP27BALDAL-BALDHENRY22-100 | 1 | 46.00 | 0.7% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLREC-26SEP27NYJDET-DETASTBROWN14-8 | 1 | 46.00 | 0.7% | -46.00 | 4.7% | -46.00 | 5.3% | -46.00 | 5.2% |
-| KXNFLTEAMTOTAL-26SEP27LVNO-NO25 | 1 | 46.00 | 0.7% | 50.35 | -5.1% | 50.35 | -5.8% | 50.35 | -5.7% |
-| KXNFLRSHYDS-26SEP14DENKC-KCPMAHOMES15-15 | 1 | 45.00 | 0.7% | — (partial) | — | 41.95 | -4.9% | 40.43 | -4.5% |
-| KXNFLTD-26SEP14DENKC-DENJDOBBINS27-1 | 1 | 40.00 | 0.6% | — (partial) | — | -40.00 | 4.6% | -41.82 | 4.7% |
-| KXNFLREC-26SEP17DETBUF-DETITESLAA18-2 | 1 | 40.00 | 0.6% | -40.00 | 4.1% | -40.00 | 4.6% | -40.00 | 4.5% |
-| KXNFLREC-26SEP27TENNYG-TENCTATE14-4 | 1 | 40.00 | 0.6% | 42.06 | -4.3% | 42.06 | -4.9% | 42.06 | -4.7% |
-| KXNFLSPREAD-26SEP13MIALV-LV4 | 1 | 40.00 | 0.6% | — (partial) | — | 42.06 | -4.9% | 40.63 | -4.6% |
-| KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10-25 | 1 | 35.00 | 0.6% | -35.00 | 3.6% | -35.00 | 4.0% | -35.00 | 3.9% |
-| KXNFLSPREAD-26SEP13CLEJAC-JAC8 | 1 | 35.00 | 0.6% | — (partial) | — | 27.79 | -3.2% | 26.70 | -3.0% |
-| KXNFL1HTEAMTOTAL-26SEP27KCMIA-KC15 | 1 | 34.50 | 0.6% | -34.50 | 3.5% | -34.50 | 4.0% | -34.50 | 3.9% |
-| KXNFLRSHYDS-26SEP13BALIND-INDJTAYLOR28-70 | 1 | 30.00 | 0.5% | — (partial) | — | 21.97 | -2.5% | 21.07 | -2.4% |
-| KXNFLRSHYDS-26SEP13BALIND-BALDHENRY22-80 | 1 | 30.00 | 0.5% | — (partial) | — | 30.30 | -3.5% | 29.25 | -3.3% |
-| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-50 | 1 | 27.59 | 0.4% | 8.57 | -0.9% | 8.57 | -1.0% | 8.57 | -1.0% |
-| KXNFLTD-26SEP13NYJTEN-NYJBHALL20-1 | 1 | 25.00 | 0.4% | — (partial) | — | 32.20 | -3.7% | 31.23 | -3.5% |
-| KXNFLTD-26SEP13NYJTEN-TENTPOLLARD20-1 | 1 | 25.00 | 0.4% | — (partial) | — | -25.00 | 2.9% | -26.05 | 2.9% |
-| KXNFLRSHYDS-26SEP27BALDAL-BALLJACKSON8-40 | 1 | 25.00 | 0.4% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | 1 | 24.99 | 0.4% | 36.52 | -3.7% | 36.52 | -4.2% | 36.52 | -4.1% |
-| KXNFL1HTEAMTOTAL-26SEP27BALDAL-DAL11 | 1 | 23.00 | 0.4% | 18.26 | -1.9% | 18.26 | -2.1% | 18.26 | -2.1% |
-| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-60 | 1 | 20.69 | 0.3% | 9.50 | -1.0% | 9.50 | -1.1% | 9.50 | -1.1% |
-| KXNFLGAME-26SEP24ATLGB-GB | 1 | 20.00 | 0.3% | -20.00 | 2.0% | -20.00 | 2.3% | -20.00 | 2.2% |
-| KXNFLTOTAL-26SEP17DETBUF-61 | 1 | 20.00 | 0.3% | 33.17 | -3.4% | 33.17 | -3.8% | 33.17 | -3.7% |
-| KXNFLSPREAD-26SEP13CHICAR-CHI3 | 1 | 20.00 | 0.3% | — (partial) | — | -20.00 | 2.3% | -20.73 | 2.3% |
-| KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5-60 | 1 | 19.99 | 0.3% | -19.99 | 2.0% | -19.99 | 2.3% | -19.99 | 2.2% |
-| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-70 | 1 | 16.10 | 0.3% | 11.32 | -1.2% | 11.32 | -1.3% | 11.32 | -1.3% |
-| KXNFLTOTAL-26SEP13WASPHI-45 | 1 | 15.00 | 0.2% | — (partial) | — | 15.77 | -1.8% | 15.23 | -1.7% |
-| KXNFLTD-26SEP13WASPHI-PHIJHURTS1-1 | 1 | 15.00 | 0.2% | — (partial) | — | -15.00 | 1.7% | -15.59 | 1.8% |
-| KXNFLSPREAD-26SEP13GBMIN-MIN3 | 1 | 15.00 | 0.2% | — (partial) | — | 13.98 | -1.6% | 13.48 | -1.5% |
-| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-80 | 1 | 11.50 | 0.2% | 12.58 | -1.3% | 12.58 | -1.5% | 12.58 | -1.4% |
-| KXNFLSPREAD-26SEP13WASPHI-PHI6 | 1 | 10.00 | 0.2% | — (partial) | — | 9.70 | -1.1% | 9.36 | -1.1% |
-| KXNFLTOTAL-26SEP13NODET-50 | 1 | 10.00 | 0.2% | — (partial) | — | 8.60 | -1.0% | 8.28 | -0.9% |
-| KXNFLSPREAD-26SEP13NODET-DET7 | 1 | 10.00 | 0.2% | — (partial) | — | 10.94 | -1.3% | 10.58 | -1.2% |
-| KXNFLSPREAD-26SEP13BALIND-BAL4 | 1 | 10.00 | 0.2% | — (partial) | — | 11.86 | -1.4% | 11.49 | -1.3% |
-| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-90 | 1 | 9.20 | 0.1% | 14.61 | -1.5% | 14.61 | -1.7% | 14.61 | -1.6% |
-| KXNFLTOTAL-26SEP17DETBUF-70 | 1 | 8.00 | 0.1% | 39.22 | -4.0% | 39.22 | -4.5% | 39.22 | -4.4% |
-| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-100 | 1 | 6.90 | 0.1% | 15.76 | -1.6% | 15.76 | -1.8% | 15.76 | -1.8% |
+| KXNFLSPREAD-26SEP20INDKC-KC5 | 2 | 2,742.47 | 42.5% | -948.39 | 82.0% | -948.39 | 91.0% | -948.39 | 88.8% |
+| KXNFL1HTOTAL-26SEP20CLETB-22 | 2 | 303.94 | 4.7% | -57.86 | 5.0% | -57.86 | 5.5% | -57.86 | 5.4% |
+| KXNFLGAME-26SEP20JACDEN-JAC | 1 | 250.00 | 3.9% | -250.00 | 21.6% | -250.00 | 24.0% | -250.00 | 23.4% |
+| KXNFLSPREAD-26SEP27KCMIA-KC8 | 1 | 184.00 | 2.8% | 134.75 | -11.6% | 134.75 | -12.9% | 134.75 | -12.6% |
+| KXNFLGAME-26SEP14DENKC-DEN | 2 | 159.99 | 2.5% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLPASSYDS-26SEP27LARDEN-LARMSTAFFORD9-250 | 1 | 140.99 | 2.2% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLSPREAD-26SEP27LACBUF-BUF8 | 2 | 118.99 | 1.8% | 125.13 | -10.8% | 125.13 | -12.0% | 125.13 | -11.7% |
+| KXNFLPASSYDS-26SEP24ATLGB-GBJLOVE10-275 | 2 | 87.66 | 1.4% | 3.75 | -0.3% | 3.75 | -0.4% | 3.75 | -0.4% |
+| KXNFLSPREAD-26SEP27LVNO-NO4 | 1 | 80.00 | 1.2% | -80.00 | 6.9% | -80.00 | 7.7% | -80.00 | 7.5% |
+| KXNFLTD-26SEP13MIALV-MIADACHANE28-1 | 1 | 80.00 | 1.2% | — (partial) | — | -80.00 | 7.7% | -83.01 | 7.8% |
+| KXNFLSPREAD-26SEP27BALDAL-BAL4 | 1 | 75.00 | 1.2% | -75.00 | 6.5% | -75.00 | 7.2% | -75.00 | 7.0% |
+| KXNFLGAME-26SEP27LARDEN-LAR | 1 | 70.50 | 1.1% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLSPREAD-26SEP20LVLAC-LAC7 | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% |
+| KXNFLSPREAD-26SEP20CARATL-CAR3 | 1 | 70.00 | 1.1% | 65.26 | -5.6% | 65.26 | -6.3% | 65.26 | -6.1% |
+| KXNFLSPREAD-26SEP20MINCHI-CHI4 | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% |
+| KXNFLSPREAD-26SEP20GBNYJ-GB4 | 1 | 70.00 | 1.1% | -70.00 | 6.0% | -70.00 | 6.7% | -70.00 | 6.6% |
+| KXNFLSPREAD-26SEP20MIASF-SF8 | 1 | 70.00 | 1.1% | 36.68 | -3.2% | 36.68 | -3.5% | 36.68 | -3.4% |
+| KXNFL1HTOTAL-26SEP20PHITEN-21 | 1 | 70.00 | 1.1% | 83.08 | -7.2% | 83.08 | -8.0% | 83.08 | -7.8% |
+| KXNFLSPREAD-26SEP20WASDAL-DAL4 | 1 | 70.00 | 1.1% | 57.86 | -5.0% | 57.86 | -5.6% | 57.86 | -5.4% |
+| KXNFLTEAMTOTAL-26SEP27NYJDET-DET28 | 1 | 69.00 | 1.1% | 57.04 | -4.9% | 57.04 | -5.5% | 57.04 | -5.3% |
+| KXNFLTD-26SEP13MIALV-LVAJEANTY2-1 | 1 | 60.00 | 0.9% | — (partial) | — | 53.74 | -5.2% | 51.75 | -4.8% |
+| KXNFLSPREAD-26SEP27SEAWAS-SEA8 | 1 | 57.50 | 0.9% | -57.50 | 5.0% | -57.50 | 5.5% | -57.50 | 5.4% |
+| KXNFLTEAMTOTAL-26SEP20NOBAL-BAL29 | 1 | 56.00 | 0.9% | -56.00 | 4.8% | -56.00 | 5.4% | -56.00 | 5.2% |
+| KXNFL1H-26SEP20PITNE-NE | 1 | 56.00 | 0.9% | 37.79 | -3.3% | 37.79 | -3.6% | 37.79 | -3.5% |
+| KXNFLREC-26SEP14DENKC-DENRHARVEY12-3 | 1 | 55.00 | 0.9% | — (partial) | — | -55.00 | 5.3% | -56.75 | 5.3% |
+| KXNFLTD-26SEP13BALIND-BALDHENRY22-1 | 1 | 54.99 | 0.9% | — (partial) | — | 35.62 | -3.4% | 34.08 | -3.2% |
+| KXNFLGAME-26SEP27CARCLE-CAR | 1 | 50.00 | 0.8% | -50.00 | 4.3% | -50.00 | 4.8% | -50.00 | 4.7% |
+| KXNFL1HTEAMTOTAL-26SEP24ATLGB-ATL10 | 1 | 50.00 | 0.8% | -50.00 | 4.3% | -50.00 | 4.8% | -50.00 | 4.7% |
+| KXNFLMOSTRECYDS-26SEP13BUFHOU-HOUNCOLLINS12 | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 4.8% | -51.92 | 4.9% |
+| KXNFLGAME-26SEP27LACBUF-BUF | 1 | 50.00 | 0.8% | 52.57 | -4.5% | 52.57 | -5.0% | 52.57 | -4.9% |
+| KXNFLTOTAL-26SEP13DALNYG-48 | 1 | 50.00 | 0.8% | — (partial) | — | 43.02 | -4.1% | 41.40 | -3.9% |
+| KXNFLTD-26SEP20INDKC-KCKWALKER9-1 | 1 | 49.99 | 0.8% | -49.99 | 4.3% | -49.99 | 4.8% | -49.99 | 4.7% |
+| KXNFLRSHYDS-26SEP27BALDAL-BALDHENRY22-100 | 1 | 46.00 | 0.7% | -46.00 | 4.0% | -46.00 | 4.4% | -46.00 | 4.3% |
+| KXNFLREC-26SEP27NYJDET-DETASTBROWN14-8 | 1 | 46.00 | 0.7% | -46.00 | 4.0% | -46.00 | 4.4% | -46.00 | 4.3% |
+| KXNFLTEAMTOTAL-26SEP27LVNO-NO25 | 1 | 46.00 | 0.7% | 50.35 | -4.4% | 50.35 | -4.8% | 50.35 | -4.7% |
+| KXNFLRSHYDS-26SEP14DENKC-KCPMAHOMES15-15 | 1 | 45.00 | 0.7% | — (partial) | — | 41.95 | -4.0% | 40.43 | -3.8% |
+| KXNFLTD-26SEP14DENKC-DENJDOBBINS27-1 | 1 | 40.00 | 0.6% | — (partial) | — | -40.00 | 3.8% | -41.82 | 3.9% |
+| KXNFLREC-26SEP17DETBUF-DETITESLAA18-2 | 1 | 40.00 | 0.6% | -40.00 | 3.5% | -40.00 | 3.8% | -40.00 | 3.7% |
+| KXNFLREC-26SEP27TENNYG-TENCTATE14-4 | 1 | 40.00 | 0.6% | 42.06 | -3.6% | 42.06 | -4.0% | 42.06 | -3.9% |
+| KXNFLSPREAD-26SEP13MIALV-LV4 | 1 | 40.00 | 0.6% | — (partial) | — | 42.06 | -4.0% | 40.63 | -3.8% |
+| KXNFLPASSYDS-26SEP27LARDEN-LARMSTAFFORD9-275 | 1 | 35.24 | 0.5% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLRSHYDS-26SEP27KCMIA-KCEJOHNSON10-25 | 1 | 35.00 | 0.5% | -35.00 | 3.0% | -35.00 | 3.4% | -35.00 | 3.3% |
+| KXNFLSPREAD-26SEP13CLEJAC-JAC8 | 1 | 35.00 | 0.5% | — (partial) | — | 27.79 | -2.7% | 26.70 | -2.5% |
+| KXNFL1HTEAMTOTAL-26SEP27KCMIA-KC15 | 1 | 34.50 | 0.5% | -34.50 | 3.0% | -34.50 | 3.3% | -34.50 | 3.2% |
+| KXNFLTEAMTOTAL-26SEP27LARDEN-LAR25 | 1 | 34.00 | 0.5% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLRSHYDS-26SEP13BALIND-INDJTAYLOR28-70 | 1 | 30.00 | 0.5% | — (partial) | — | 21.97 | -2.1% | 21.07 | -2.0% |
+| KXNFLRSHYDS-26SEP13BALIND-BALDHENRY22-80 | 1 | 30.00 | 0.5% | — (partial) | — | 30.30 | -2.9% | 29.25 | -2.7% |
+| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-50 | 1 | 27.59 | 0.4% | 8.57 | -0.7% | 8.57 | -0.8% | 8.57 | -0.8% |
+| KXNFLTD-26SEP13NYJTEN-NYJBHALL20-1 | 1 | 25.00 | 0.4% | — (partial) | — | 32.20 | -3.1% | 31.23 | -2.9% |
+| KXNFLTD-26SEP13NYJTEN-TENTPOLLARD20-1 | 1 | 25.00 | 0.4% | — (partial) | — | -25.00 | 2.4% | -26.05 | 2.4% |
+| KXNFLRSHYDS-26SEP27BALDAL-BALLJACKSON8-40 | 1 | 25.00 | 0.4% | 23.30 | -2.0% | 23.30 | -2.2% | 23.30 | -2.2% |
+| KXNFLRSHYDS-26SEP24ATLGB-GBKJOHNSON26-30 | 1 | 24.99 | 0.4% | 36.52 | -3.2% | 36.52 | -3.5% | 36.52 | -3.4% |
+| KXNFL1HTEAMTOTAL-26SEP27BALDAL-DAL11 | 1 | 23.00 | 0.4% | 18.26 | -1.6% | 18.26 | -1.8% | 18.26 | -1.7% |
+| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-60 | 1 | 20.69 | 0.3% | 9.50 | -0.8% | 9.50 | -0.9% | 9.50 | -0.9% |
+| KXNFLGAME-26SEP24ATLGB-GB | 1 | 20.00 | 0.3% | -20.00 | 1.7% | -20.00 | 1.9% | -20.00 | 1.9% |
+| KXNFLTOTAL-26SEP17DETBUF-61 | 1 | 20.00 | 0.3% | 33.17 | -2.9% | 33.17 | -3.2% | 33.17 | -3.1% |
+| KXNFLSPREAD-26SEP13CHICAR-CHI3 | 1 | 20.00 | 0.3% | — (partial) | — | -20.00 | 1.9% | -20.73 | 1.9% |
+| KXNFLRECYDS-26SEP24ATLGB-ATLDLONDON5-60 | 1 | 19.99 | 0.3% | -19.99 | 1.7% | -19.99 | 1.9% | -19.99 | 1.9% |
+| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-70 | 1 | 16.10 | 0.2% | 11.32 | -1.0% | 11.32 | -1.1% | 11.32 | -1.1% |
+| KXNFLTOTAL-26SEP13WASPHI-45 | 1 | 15.00 | 0.2% | — (partial) | — | 15.77 | -1.5% | 15.23 | -1.4% |
+| KXNFLTD-26SEP13WASPHI-PHIJHURTS1-1 | 1 | 15.00 | 0.2% | — (partial) | — | -15.00 | 1.4% | -15.59 | 1.5% |
+| KXNFLSPREAD-26SEP13GBMIN-MIN3 | 1 | 15.00 | 0.2% | — (partial) | — | 13.98 | -1.3% | 13.48 | -1.3% |
+| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-80 | 1 | 11.50 | 0.2% | 12.58 | -1.1% | 12.58 | -1.2% | 12.58 | -1.2% |
+| KXNFLSPREAD-26SEP13WASPHI-PHI6 | 1 | 10.00 | 0.2% | — (partial) | — | 9.70 | -0.9% | 9.36 | -0.9% |
+| KXNFLTOTAL-26SEP13NODET-50 | 1 | 10.00 | 0.2% | — (partial) | — | 8.60 | -0.8% | 8.28 | -0.8% |
+| KXNFLSPREAD-26SEP13NODET-DET7 | 1 | 10.00 | 0.2% | — (partial) | — | 10.94 | -1.0% | 10.58 | -1.0% |
+| KXNFLSPREAD-26SEP13BALIND-BAL4 | 1 | 10.00 | 0.2% | — (partial) | — | 11.86 | -1.1% | 11.49 | -1.1% |
+| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-90 | 1 | 9.20 | 0.1% | 14.61 | -1.3% | 14.61 | -1.4% | 14.61 | -1.4% |
+| KXNFLTOTAL-26SEP17DETBUF-70 | 1 | 8.00 | 0.1% | 39.22 | -3.4% | 39.22 | -3.8% | 39.22 | -3.7% |
+| KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-100 | 1 | 6.90 | 0.1% | 15.76 | -1.4% | 15.76 | -1.5% | 15.76 | -1.5% |
 
 ### By player (parsable player props; not a partition of stake)
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| BALDHENRY22 | 3 | 130.99 | 2.1% | — (partial) | — | 65.92 (partial) | -7.6% | 63.33 (partial) | -7.1% |
-| NYJGWILSON5 | 6 | 91.98 | 1.5% | 72.34 | -7.4% | 72.34 | -8.4% | 72.34 | -8.1% |
-| GBJLOVE10 | 2 | 87.66 | 1.4% | 3.75 | -0.4% | 3.75 | -0.4% | 3.75 | -0.4% |
-| MIADACHANE28 | 1 | 80.00 | 1.3% | — (partial) | — | -80.00 | 9.3% | -83.01 | 9.3% |
-| LVAJEANTY2 | 1 | 60.00 | 1.0% | — (partial) | — | 53.74 | -6.2% | 51.75 | -5.8% |
-| DENRHARVEY12 | 1 | 55.00 | 0.9% | — (partial) | — | -55.00 | 6.4% | -56.75 | 6.4% |
-| HOUNCOLLINS12 | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 5.8% | -51.92 | 5.8% |
-| KCKWALKER9 | 1 | 49.99 | 0.8% | -49.99 | 5.1% | -49.99 | 5.8% | -49.99 | 5.6% |
-| DETASTBROWN14 | 1 | 46.00 | 0.7% | -46.00 | 4.7% | -46.00 | 5.3% | -46.00 | 5.2% |
-| KCPMAHOMES15 | 1 | 45.00 | 0.7% | — (partial) | — | 41.95 | -4.9% | 40.43 | -4.5% |
-| DENJDOBBINS27 | 1 | 40.00 | 0.6% | — (partial) | — | -40.00 | 4.6% | -41.82 | 4.7% |
-| DETITESLAA18 | 1 | 40.00 | 0.6% | -40.00 | 4.1% | -40.00 | 4.6% | -40.00 | 4.5% |
-| TENCTATE14 | 1 | 40.00 | 0.6% | 42.06 | -4.3% | 42.06 | -4.9% | 42.06 | -4.7% |
-| KCEJOHNSON10 | 1 | 35.00 | 0.6% | -35.00 | 3.6% | -35.00 | 4.0% | -35.00 | 3.9% |
-| INDJTAYLOR28 | 1 | 30.00 | 0.5% | — (partial) | — | 21.97 | -2.5% | 21.07 | -2.4% |
-| NYJBHALL20 | 1 | 25.00 | 0.4% | — (partial) | — | 32.20 | -3.7% | 31.23 | -3.5% |
-| TENTPOLLARD20 | 1 | 25.00 | 0.4% | — (partial) | — | -25.00 | 2.9% | -26.05 | 2.9% |
-| BALLJACKSON8 | 1 | 25.00 | 0.4% | — (partial) | — | — (partial) | — | — (partial) | — |
-| GBKJOHNSON26 | 1 | 24.99 | 0.4% | 36.52 | -3.7% | 36.52 | -4.2% | 36.52 | -4.1% |
-| ATLDLONDON5 | 1 | 19.99 | 0.3% | -19.99 | 2.0% | -19.99 | 2.3% | -19.99 | 2.2% |
-| PHIJHURTS1 | 1 | 15.00 | 0.2% | — (partial) | — | -15.00 | 1.7% | -15.59 | 1.8% |
+| LARMSTAFFORD9 | 2 | 176.24 | 2.7% | — (partial) | — | — (partial) | — | — (partial) | — |
+| BALDHENRY22 | 3 | 130.99 | 2.0% | -46.00 (partial) | 4.0% | 19.92 | -1.9% | 17.33 | -1.6% |
+| NYJGWILSON5 | 6 | 91.98 | 1.4% | 72.34 | -6.3% | 72.34 | -6.9% | 72.34 | -6.8% |
+| GBJLOVE10 | 2 | 87.66 | 1.4% | 3.75 | -0.3% | 3.75 | -0.4% | 3.75 | -0.4% |
+| MIADACHANE28 | 1 | 80.00 | 1.2% | — (partial) | — | -80.00 | 7.7% | -83.01 | 7.8% |
+| LVAJEANTY2 | 1 | 60.00 | 0.9% | — (partial) | — | 53.74 | -5.2% | 51.75 | -4.8% |
+| DENRHARVEY12 | 1 | 55.00 | 0.9% | — (partial) | — | -55.00 | 5.3% | -56.75 | 5.3% |
+| HOUNCOLLINS12 | 1 | 50.00 | 0.8% | — (partial) | — | -50.00 | 4.8% | -51.92 | 4.9% |
+| KCKWALKER9 | 1 | 49.99 | 0.8% | -49.99 | 4.3% | -49.99 | 4.8% | -49.99 | 4.7% |
+| DETASTBROWN14 | 1 | 46.00 | 0.7% | -46.00 | 4.0% | -46.00 | 4.4% | -46.00 | 4.3% |
+| KCPMAHOMES15 | 1 | 45.00 | 0.7% | — (partial) | — | 41.95 | -4.0% | 40.43 | -3.8% |
+| DENJDOBBINS27 | 1 | 40.00 | 0.6% | — (partial) | — | -40.00 | 3.8% | -41.82 | 3.9% |
+| DETITESLAA18 | 1 | 40.00 | 0.6% | -40.00 | 3.5% | -40.00 | 3.8% | -40.00 | 3.7% |
+| TENCTATE14 | 1 | 40.00 | 0.6% | 42.06 | -3.6% | 42.06 | -4.0% | 42.06 | -3.9% |
+| KCEJOHNSON10 | 1 | 35.00 | 0.5% | -35.00 | 3.0% | -35.00 | 3.4% | -35.00 | 3.3% |
+| INDJTAYLOR28 | 1 | 30.00 | 0.5% | — (partial) | — | 21.97 | -2.1% | 21.07 | -2.0% |
+| NYJBHALL20 | 1 | 25.00 | 0.4% | — (partial) | — | 32.20 | -3.1% | 31.23 | -2.9% |
+| TENTPOLLARD20 | 1 | 25.00 | 0.4% | — (partial) | — | -25.00 | 2.4% | -26.05 | 2.4% |
+| BALLJACKSON8 | 1 | 25.00 | 0.4% | 23.30 | -2.0% | 23.30 | -2.2% | 23.30 | -2.2% |
+| GBKJOHNSON26 | 1 | 24.99 | 0.4% | 36.52 | -3.2% | 36.52 | -3.5% | 36.52 | -3.4% |
+| ATLDLONDON5 | 1 | 19.99 | 0.3% | -19.99 | 1.7% | -19.99 | 1.9% | -19.99 | 1.9% |
+| PHIJHURTS1 | 1 | 15.00 | 0.2% | — (partial) | — | -15.00 | 1.4% | -15.59 | 1.5% |
 
 ### Opposing positions (YES + NO on one contract)
 
@@ -747,18 +778,19 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | cluster | wagers | % stake | % of net (None) | CLV valid | CLV$ | mean CLV/contract | sign | outcome residual vs close | friction | net (None) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 2026_02_IND_KC#1 | 3 | 45.2% | — | 2 | -9.37 | -0.0050 | NEGATIVE | -48.27 | — | — |
-| 2026_02_CLE_TB#1 | 2 | 4.9% | — | 1 | -1.23 | -0.0050 | NEGATIVE | 0.00 | — | — |
-| 2026_01_DEN_KC#1 | 5 | 4.9% | — | 5 | -4.21 | -0.0066 | NEGATIVE | -197.90 | — | — |
-| 2026_03_KC_MIA#1 | 3 | 4.1% | — | 3 | -2.95 | -0.0065 | NEGATIVE | 76.00 | — | — |
-| 2026_02_JAX_DEN#1 | 1 | 4.0% | — | 1 | -2.73 | -0.0050 | NEGATIVE | -237.83 | — | — |
-| 2026_03_NYJ_DET#1 | 8 | 3.4% | — | 8 | -1.99 | -0.0050 | NEGATIVE | 91.94 | — | — |
-| 2026_03_ATL_GB#1 | 6 | 3.3% | — | 1 | -0.49 | -0.0050 | NEGATIVE | -68.34 | — | — |
-| 2026_01_MIA_LV#1 | 3 | 2.9% | — | 3 | -1.85 | -0.0050 | NEGATIVE | 24.10 | — | — |
-| 2026_03_BAL_DAL#1 | 4 | 2.7% | — | 4 | -2.54 | -0.0074 | NEGATIVE | — | — | — |
-| 2026_03_LAC_BUF#1 | 3 | 2.7% | — | 2 | -1.22 | -0.0050 | NEGATIVE | 155.73 | — | — |
-| 2026_03_LV_NO#1 | 2 | 2.0% | — | 2 | -4.48 | -0.0181 | NEGATIVE | — | — | — |
-| 2026_01_BAL_IND#1 | 4 | 2.0% | — | 4 | -0.56 | -0.0025 | NEGATIVE | 104.18 | — | — |
+| 2026_02_IND_KC#1 | 3 | 43.2% | — | 2 | -9.37 | -0.0050 | NEGATIVE | -48.27 | — | — |
+| 2026_02_CLE_TB#1 | 2 | 4.7% | — | 1 | -1.23 | -0.0050 | NEGATIVE | 0.00 | — | — |
+| 2026_01_DEN_KC#1 | 5 | 4.6% | — | 5 | -4.21 | -0.0066 | NEGATIVE | -197.90 | — | — |
+| 26SEP27LARDEN#1 | 4 | 4.3% | — | 0 | — | — | — | — | — | — |
+| 2026_03_KC_MIA#1 | 3 | 3.9% | — | 3 | -2.95 | -0.0065 | NEGATIVE | 76.00 | — | — |
+| 2026_02_JAX_DEN#1 | 1 | 3.9% | — | 1 | -2.73 | -0.0050 | NEGATIVE | -237.83 | — | — |
+| 2026_03_NYJ_DET#1 | 8 | 3.2% | — | 8 | -1.99 | -0.0050 | NEGATIVE | 91.94 | — | — |
+| 2026_03_ATL_GB#1 | 6 | 3.1% | — | 1 | -0.49 | -0.0050 | NEGATIVE | -68.34 | — | — |
+| 2026_01_MIA_LV#1 | 3 | 2.8% | — | 3 | -1.85 | -0.0050 | NEGATIVE | 24.10 | — | — |
+| 2026_03_BAL_DAL#1 | 4 | 2.6% | — | 4 | -2.54 | -0.0074 | NEGATIVE | -70.93 | — | — |
+| 2026_03_LAC_BUF#1 | 3 | 2.6% | — | 2 | -1.22 | -0.0050 | NEGATIVE | 155.73 | — | — |
+| 2026_03_LV_NO#1 | 2 | 2.0% | — | 2 | -4.48 | -0.0181 | NEGATIVE | -20.84 | — | — |
+| 2026_01_BAL_IND#1 | 4 | 1.9% | — | 4 | -0.56 | -0.0025 | NEGATIVE | 104.18 | — | — |
 | 2026_02_LV_LAC#1 | 1 | 1.1% | — | 1 | 0.66 | +0.0050 | POSITIVE | -68.34 | — | — |
 | 2026_02_CAR_ATL#1 | 1 | 1.1% | — | 1 | 2.03 | +0.0150 | POSITIVE | 65.60 | — | — |
 | 2026_02_MIN_CHI#1 | 1 | 1.1% | — | 1 | -0.63 | -0.0050 | NEGATIVE | -67.19 | — | — |
@@ -776,7 +808,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 | 2026_01_DAL_NYG#1 | 1 | 0.8% | — | 0 | — | — | — | 45.11 | — | — |
 | 2026_03_TEN_NYG#1 | 1 | 0.6% | — | 1 | -0.41 | -0.0050 | NEGATIVE | 43.90 | — | — |
 | 2026_01_WAS_PHI#1 | 3 | 0.6% | — | 3 | -0.43 | -0.0050 | NEGATIVE | 12.38 | — | — |
-| 2026_01_CLE_JAX#1 | 1 | 0.6% | — | 1 | -0.94 | -0.0150 | NEGATIVE | 29.83 | — | — |
+| 2026_01_CLE_JAX#1 | 1 | 0.5% | — | 1 | -0.94 | -0.0150 | NEGATIVE | 29.83 | — | — |
 | 2026_01_CHI_CAR#1 | 1 | 0.3% | — | 1 | -0.21 | -0.0050 | NEGATIVE | -19.06 | — | — |
 | 2026_01_NO_DET#1 | 2 | 0.3% | — | 2 | 0.01 | +0.0003 | POSITIVE | 20.22 | — | — |
 | 2026_01_GB_MIN#1 | 1 | 0.2% | — | 1 | 0.00 | +0.0000 | ZERO | 14.49 | — | — |
