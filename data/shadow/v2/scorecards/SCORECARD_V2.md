@@ -1,10 +1,10 @@
 # Shadow v2 scorecard
 
-scorecard scorecard-2.0.0; rows 794043
+scorecard scorecard-2.0.0; rows 797613
 
 ## Evidence class: PROSPECTIVE_FROZEN
 
-effective predictions 747565: settled 647151, unresolved 100414; evidence rows 794043 (superseded provisional season vintages 46478)
+effective predictions 747565: settled 647151, unresolved 100414; evidence rows 797613 (superseded provisional season vintages 50048)
 
 | metric | model | market (mid) |
 |---|---|---|
