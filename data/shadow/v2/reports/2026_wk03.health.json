@@ -2,77 +2,82 @@
  "season": 2026,
  "week": 3,
  "BOARD_CAPTURE_COVERAGE": {
-  "nfl_board_contracts": 19530,
-  "captured": 17700,
-  "quoted_at_retention": 17700,
+  "nfl_board_contracts": 19942,
+  "captured": 18074,
+  "quoted_at_retention": 18074,
   "pct_captured": 90.6
  },
  "PROJECTION_COVERAGE": {
-  "records": 1180743,
-  "has_probability": 837200,
-  "pct_of_records": 70.9,
-  "contracts_with_probability": 9353,
-  "contracts_total": 11680,
-  "pct_contracts": 80.1
+  "records": 1686844,
+  "has_probability": 1038038,
+  "pct_of_records": 61.5,
+  "contracts_with_probability": 9391,
+  "contracts_total": 12317,
+  "pct_contracts": 76.2
  },
  "HORIZON_COMPLETENESS": {
   "records_by_horizon": {
-   "CYCLE": 764953,
+   "CYCLE": 877376,
    "T-24h": 39782,
-   "T-6h": 27393,
-   "T-90m": 2536,
-   "T-30m": 2536
+   "T-6h": 42009,
+   "T-90m": 39313,
+   "T-30m": 39558
   },
   "quality": {
-   "LATE_ACCEPTABLE": 71269,
-   "ON_TIME": 978
+   "LATE_ACCEPTABLE": 156454,
+   "ON_TIME": 4208
   },
   "markers": {
-   "CAPTURED": 31
+   "CAPTURED": 38
   },
-  "missed_markers": 0,
+  "missed_markers": 1,
   "missed_markers_note": "computed against the schedule (a missed horizon writes no marker)"
  },
  "SETTLEMENT_COVERAGE": {
-  "probability_rows": 837200,
-  "settleable_rows": 837009,
+  "probability_rows": 1038038,
+  "settleable_rows": 1037843,
   "pct_settleable": 100.0,
   "settled_rows": 38441,
   "refused": {},
-  "pct_settled_of_kicked_off": 99.8
+  "pct_settled_of_kicked_off": 3.9
  },
  "CLOSE_PAIRING_COVERAGE": {
-  "kicked_off_rows": 38519,
-  "close_ok": 37423,
-  "close_one_sided": 1096,
-  "close_missing": 0,
-  "pct_paired": 100.0,
+  "kicked_off_rows": 980480,
+  "close_ok": 875707,
+  "close_one_sided": 33029,
+  "close_missing": 71744,
+  "pct_paired": 92.7,
   "by_quality": {
-   "EXCELLENT": 38519
+   "EXCELLENT": 895384,
+   "GOOD": 13352,
+   "MISSING": 71744
   },
-  "missing_reasons": {}
+  "missing_reasons": {
+   "null": 71282,
+   "last confirmation older than the staleness ceiling": 462
+  }
  },
  "CLV_COVERAGE": {
-  "kicked_off_rows": 38519,
-  "clv_ok": 38518,
-  "pct_clv": 100.0,
-  "no_view": 1
+  "kicked_off_rows": 980480,
+  "clv_ok": 908657,
+  "pct_clv": 92.7,
+  "no_view": 79
  },
  "PLAYER_CONTEXT_COVERAGE": {
-  "player_probability_rows": 693157,
-  "role_context": "LOADED; 7288 of 693157 rows predate context-1.3.0 and carry none",
-  "injury_known_pct": 88.9,
-  "injury_listed_pct": 12.9,
-  "injury_weak_pct": 10.0,
-  "depth_chart_known_pct": 98.9,
+  "player_probability_rows": 874198,
+  "role_context": "LOADED; 7288 of 874198 rows predate context-1.3.0 and carry none",
+  "injury_known_pct": 91.2,
+  "injury_listed_pct": 13.9,
+  "injury_weak_pct": 7.9,
+  "depth_chart_known_pct": 99.1,
   "role_certainty": {
-   "HIGH": 618089,
-   "LOW": 52595,
-   "MEDIUM": 14994,
-   "UNKNOWN": 191,
+   "HIGH": 782397,
+   "LOW": 67249,
+   "MEDIUM": 17069,
+   "UNKNOWN": 195,
    "ABSENT": 7288
   },
-  "role_known_pct": 91.3,
+  "role_known_pct": 91.5,
   "availability_known_pct": 93.8,
   "weather_known_pct": 100.0
  },
@@ -90,31 +95,37 @@
   }
  },
  "UNSUPPORTED_RETENTION": {
-  "board_rows_retained": 20190,
+  "board_rows_retained": 20979,
   "unsupported_states": {
-   "RESEARCH_REQUIRED": 5869,
+   "RESEARCH_REQUIRED": 4438,
+   "POST_KICKOFF": 9416,
    "SEMANTICS_AMBIGUOUS": 228,
-   "CAPTURE_ONLY": 107,
-   "NON_FOOTBALL_MODEL": 1497,
-   "NOT_CAPTURED": 1830,
-   "UNSUPPORTED": 234,
-   "IDENTITY_UNRESOLVED": 35,
-   "JOINT_MODEL_REQUIRED": 108
+   "CAPTURE_ONLY": 92,
+   "NON_FOOTBALL_MODEL": 1490,
+   "NOT_CAPTURED": 1868,
+   "UNSUPPORTED": 45,
+   "JOINT_MODEL_REQUIRED": 24,
+   "IDENTITY_UNRESOLVED": 29
   }
  },
  "HORIZON_DELIVERY": {
   "capture_health_version": "capture-health-1.1.0",
   "slate_id": "2026-REG-03",
-  "as_of": "2026-09-27T13:34:12.041721+00:00",
+  "as_of": "2026-09-28T01:22:37.187318+00:00",
   "counts": {
-   "DELIVERED_ON_TIME": 8,
-   "NOT_YET_DUE": 12
+   "DELIVERED_ON_TIME": 14,
+   "DELIVERED_LATE": 1,
+   "MISSED": 1,
+   "DUE": 1,
+   "NOT_YET_DUE": 3
   },
-  "owed": 8,
-  "delivered": 8,
-  "delivered_pct": 100.0,
-  "on_time_pct": 100.0,
-  "missed": [],
+  "owed": 16,
+  "delivered": 15,
+  "delivered_pct": 93.8,
+  "on_time_pct": 87.5,
+  "missed": [
+   "2026-REG-03|20260928T0020Z|T-30m"
+  ],
   "rows": [
    {
     "horizon_id": "2026-REG-03|20260925T0015Z|T-1440m",
@@ -189,7 +200,9 @@
     "trigger_utc": "2026-09-27T15:30:00+00:00",
     "kickoff_utc": "2026-09-27T17:00:00+00:00",
     "n_games": 9,
-    "status": "NOT_YET_DUE"
+    "snapshot_id": "20260927T152204Z",
+    "lateness_min": -7.9,
+    "status": "DELIVERED_ON_TIME"
    },
    {
     "horizon_id": "2026-REG-03|20260927T1700Z|T-30m",
@@ -198,7 +211,9 @@
     "trigger_utc": "2026-09-27T16:30:00+00:00",
     "kickoff_utc": "2026-09-27T17:00:00+00:00",
     "n_games": 9,
-    "status": "NOT_YET_DUE"
+    "snapshot_id": "20260927T162057Z",
+    "lateness_min": -9.1,
+    "status": "DELIVERED_ON_TIME"
    },
    {
     "horizon_id": "2026-REG-03|20260927T2005Z|T-1440m",
@@ -218,7 +233,9 @@
     "trigger_utc": "2026-09-27T14:05:00+00:00",
     "kickoff_utc": "2026-09-27T20:05:00+00:00",
     "n_games": 4,
-    "status": "NOT_YET_DUE"
+    "snapshot_id": "20260927T134813Z",
+    "lateness_min": -16.8,
+    "status": "DELIVERED_ON_TIME"
    },
    {
     "horizon_id": "2026-REG-03|20260927T2005Z|T-90m",
@@ -227,7 +244,9 @@
     "trigger_utc": "2026-09-27T18:35:00+00:00",
     "kickoff_utc": "2026-09-27T20:05:00+00:00",
     "n_games": 4,
-    "status": "NOT_YET_DUE"
+    "snapshot_id": "20260927T184853Z",
+    "lateness_min": 13.9,
+    "status": "DELIVERED_LATE"
    },
    {
     "horizon_id": "2026-REG-03|20260927T2005Z|T-30m",
@@ -236,7 +255,9 @@
     "trigger_utc": "2026-09-27T19:35:00+00:00",
     "kickoff_utc": "2026-09-27T20:05:00+00:00",
     "n_games": 4,
-    "status": "NOT_YET_DUE"
+    "snapshot_id": "20260927T193334Z",
+    "lateness_min": -1.4,
+    "status": "DELIVERED_ON_TIME"
    },
    {
     "horizon_id": "2026-REG-03|20260928T0020Z|T-1440m",
@@ -256,7 +277,9 @@
     "trigger_utc": "2026-09-27T18:20:00+00:00",
     "kickoff_utc": "2026-09-28T00:20:00+00:00",
     "n_games": 1,
-    "status": "NOT_YET_DUE"
+    "snapshot_id": "20260927T181917Z",
+    "lateness_min": -0.7,
+    "status": "DELIVERED_ON_TIME"
    },
    {
     "horizon_id": "2026-REG-03|20260928T0020Z|T-90m",
@@ -265,7 +288,9 @@
     "trigger_utc": "2026-09-27T22:50:00+00:00",
     "kickoff_utc": "2026-09-28T00:20:00+00:00",
     "n_games": 1,
-    "status": "NOT_YET_DUE"
+    "snapshot_id": "20260927T225059Z",
+    "lateness_min": 1.0,
+    "status": "DELIVERED_ON_TIME"
    },
    {
     "horizon_id": "2026-REG-03|20260928T0020Z|T-30m",
@@ -274,7 +299,8 @@
     "trigger_utc": "2026-09-27T23:50:00+00:00",
     "kickoff_utc": "2026-09-28T00:20:00+00:00",
     "n_games": 1,
-    "status": "NOT_YET_DUE"
+    "status": "MISSED",
+    "cause": "UNATTRIBUTED (no workflow start times supplied)"
    },
    {
     "horizon_id": "2026-REG-03|20260929T0015Z|T-1440m",
@@ -283,7 +309,7 @@
     "trigger_utc": "2026-09-28T00:15:00+00:00",
     "kickoff_utc": "2026-09-29T00:15:00+00:00",
     "n_games": 1,
-    "status": "NOT_YET_DUE"
+    "status": "DUE"
    },
    {
     "horizon_id": "2026-REG-03|20260929T0015Z|T-360m",
