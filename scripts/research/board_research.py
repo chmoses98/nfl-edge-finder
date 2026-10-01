@@ -42,6 +42,14 @@ def log(*a):
 
 
 # ------------------------------------------------------------------------------------------------------ sources
+def _git_version(repo) -> tuple:
+    try:
+        out = subprocess.run(["git", "--version"], cwd=repo, capture_output=True, text=True).stdout
+        return tuple(int(x) for x in out.split()[2].split(".")[:2])
+    except (OSError, ValueError, IndexError):
+        return (0, 0)
+
+
 class GitSource:
     """Files of one ref, read through `git cat-file --batch` without a checkout."""
 
@@ -55,6 +63,26 @@ class GitSource:
             meta, path = line.split("\t", 1)
             rows.append((path, meta.split()[2]))
         return rows
+
+    def prefetch(self, items, chunk: int = 400) -> int:
+        """Bulk-fetch the blobs a blobless clone lacks, a few hundred per request. Without it `cat-file` fetches
+        each missing blob lazily, one round trip per file (thousands per week). Returns how many were missing."""
+        oids = [o for _p, o in items]
+        if not oids:
+            return 0
+        if _git_version(self.repo) >= (2, 44):
+            # GIT_NO_LAZY_FETCH (git 2.44+) makes the presence check itself fetch nothing
+            env = {**os.environ, "GIT_NO_LAZY_FETCH": "1"}
+            r = subprocess.run(["git", "cat-file", "--batch-check"], cwd=self.repo, input="\n".join(oids) + "\n",
+                               capture_output=True, text=True, env=env)
+            missing = [line.split()[0] for line in r.stdout.splitlines() if line.endswith(" missing")]
+        else:
+            missing = oids            # older git would lazily fetch inside the check; ask for all, present ones are no-ops
+        for i in range(0, len(missing), chunk):
+            subprocess.run(["git", "-c", "fetch.negotiationAlgorithm=noop", "fetch", "--no-tags", "--no-write-fetch-head",
+                            "--filter=blob:none", "origin", *missing[i:i + chunk]], cwd=self.repo, check=True,
+                           capture_output=True)
+        return len(missing)
 
     def stream(self, items):
         """Yield (path, bytes) for (path, oid) items, in the given order, one process for the whole batch."""
@@ -84,6 +112,9 @@ class GitSource:
 class DirSource:
     def __init__(self, root: str):
         self.root = root
+
+    def prefetch(self, items, chunk: int = 400) -> int:
+        return 0
 
     def ls(self, prefix: str) -> list:
         base = os.path.join(self.root, prefix)
@@ -122,6 +153,7 @@ def discovery_markets(src, run: str | None) -> tuple[dict, str]:
         return {}, None
     use = run or runs[-1]
     items = [(p, o) for p, o in src.ls(f"data/kalshi/discovery/{use}/markets") if p.endswith(".json")]
+    src.prefetch(items)
     out = {}
     for _p, data in src.stream(items):
         try:
@@ -155,6 +187,7 @@ def load_positions(root: str) -> dict:
 
 def corpus_rows(src, prefix: str, suffix: str, game_ids: set):
     items = [(p, o) for p, o in src.ls(prefix) if p.endswith(suffix) and p.split("/")[3] in game_ids]
+    src.prefetch(items)
     for _p, data in src.stream(items):
         for line in gzip.decompress(data).decode().splitlines():
             if line.strip():
@@ -231,6 +264,7 @@ def main():
     builder = B.BoardBuilder(games)
     quotes, mans, state, (lo, hi) = capture_items(src, games, a.days_back)
     log(f"capture {lo}..{hi}: {len(quotes)} quote files, {len(mans)} manifests")
+    log(f"prefetched {src.prefetch(quotes + mans + state)} missing capture blobs")
     for _p, data in src.stream(mans):
         try:
             builder.manifests.add(json.loads(data))

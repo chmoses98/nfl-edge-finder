@@ -280,8 +280,12 @@ def distribution_fields(prefix: str, d: LatticeDistribution | None) -> dict:
 
 
 def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dict | None, *, n_sims: int = 20000,
-                run_id: str, observed_at: str, generated_at: datetime, player_map: dict, verbose=print) -> list[dict]:
-    """Price every FULL-period contract of the priced families on the slate's games."""
+                run_id: str, observed_at: str, generated_at: datetime, player_map: dict, verbose=print,
+                scripts: dict | None = None) -> list[dict]:
+    """Price every FULL-period contract of the priced families on the slate's games.
+
+    `scripts`, when a dict is passed, receives one game-script summary per game (`nfl_edge/sim/script.py`): read
+    from the same simulated rows, drawing no random number, so the projections are identical with or without it."""
     bank = I.historical_bank(int(next(iter(slate["games"].values()))["input"].season))
     out = []
     w_by_stat = {k: v["weight"] for k, v in (weights or {}).get("fitted", {}).items()}
@@ -289,6 +293,10 @@ def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dic
         gi: GameInput = G["input"]
         res = S.simulate(gi, bundle, n=n_sims, bank=bank)
         coh = S.coherence_report(res)
+        if scripts is not None:
+            from nfl_edge.sim.script import script_summary
+            scripts[gid] = {**script_summary(res, gi, coh), "run_id": run_id, "generated_at": generated_at.isoformat(),
+                            "market_observed_at": observed_at, "kickoff_utc": G["kickoff"].isoformat() if G.get("kickoff") else None}
         rows = [r for r in ledger_rows if r.get("game_id") == gid and r.get("family") in GAME_FAMILIES + ("PLAYER_STAT",)
                 and r.get("period") in ("FULL", None)]
         # market ladders per player/stat
@@ -411,6 +419,21 @@ def write_records(root: str, run_id: str, rows: list[dict], manifest: dict) -> s
             f.write(json.dumps(r, default=_json_default) + "\n")
     with open(path.replace(".projections.jsonl.gz", ".manifest.json"), "w") as f:
         json.dump(manifest, f, indent=1, default=_json_default)
+    return path
+
+
+def write_scripts(root: str, run_id: str, scripts: dict) -> str | None:
+    """Write-once game-script summaries beside the projections: <run_id>.<SIM_VERSION>.scripts.json.gz."""
+    if not scripts:
+        return None
+    day = f"{run_id[:4]}-{run_id[4:6]}-{run_id[6:8]}"
+    d = os.path.join(root, "data", "shadow", "sim", day)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, f"{run_id}.{SIM_VERSION}.scripts.json.gz")
+    if os.path.exists(path):
+        raise FileExistsError(path)
+    with gzip.open(path, "wt") as f:
+        json.dump({"run_id": run_id, "sim_version": SIM_VERSION, "games": scripts}, f, default=_json_default)
     return path
 
 

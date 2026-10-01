@@ -670,6 +670,61 @@ def _market_board_section(g: dict, *, max_markets=None) -> list:
     return L
 
 
+def _r(d, nd=1):
+    if not d:
+        return "—"
+    lo, hi = (d.get("range_50") or [None, None])
+    return f"{_num(d.get('mean'), nd)} ({_num(lo, nd)}–{_num(hi, nd)})"
+
+
+def _game_script_section(gs: dict | None, g: dict, *, compact: bool) -> list:
+    """GAME SCRIPT INPUTS: environment -> team volume -> player opportunity, plus research tags. Context only."""
+    L = []
+    a = L.append
+    if not gs:
+        return L
+    a("### GAME SCRIPT INPUTS (context only — authorises nothing)")
+    a("")
+    a(f"_{gs.get('hierarchy')}. {gs.get('authority')}._")
+    a("")
+    mb = gs.get("market_baseline") or {}
+    a(f"**Market baseline** — spread (home) {_num(mb.get('spread_home'))} · total {_num(mb.get('total'))}")
+    for mv in (mb.get("game_line_moves") or [])[:4]:
+        a(f"- move `{mv.get('ticker')}` {_sign(mv.get('move'))}")
+    a("")
+    env = gs.get("game_environment") or {}
+    if env.get("state") == "UNAVAILABLE":
+        a(f"**Game environment / team volume / player opportunity** — UNAVAILABLE: {env.get('reason')}")
+        a("")
+    else:
+        a(f"**Game environment** (simulation, mean and middle 50%) — home margin {_r(env.get('home_margin'))} · "
+          f"total {_r(env.get('total'))} · P(one score) {_pct(env.get('p_one_score'))}% · "
+          f"P(17+ blowout) {_pct(env.get('p_blowout_17plus'))}% · P(total 10+ over centre) {_pct(env.get('p_total_10_over_centre'))}%")
+        a(f"_Score state: {env.get('score_state')}_")
+        a("")
+        a("| team | plays | pass att | designed rush | dropbacks | pass rate | pass rate if leading 14+ / trailing 14+ |")
+        a("|---|---|---|---|---|---|---|")
+        for team, t in (gs.get("team_volume") or {}).items():
+            bf = t.get("by_final_margin") or {}
+            lead, trail = (bf.get("lead14+") or {}).get("pass_rate_mean"), (bf.get("trail14+") or {}).get("pass_rate_mean")
+            a(f"| {team} | {_r(t.get('plays'))} | {_r(t.get('pass_att'))} | {_r(t.get('designed_rush'))} | {_r(t.get('dropbacks'))} | "
+              f"{_r(t.get('pass_rate'), 3)} | {_num(lead, 3)} / {_num(trail, 3)} |")
+        a("")
+        a("| team | player | pos | targets | carries | target share | carry share | role uncertainty |")
+        a("|---|---|---|---|---|---|---|---|")
+        for team, ps in (gs.get("player_opportunity") or {}).items():
+            for p in ps[: (4 if compact else 8)]:
+                a(f"| {team} | {p.get('player')} | {p.get('position') or ''} | {_r(p.get('targets'))} | {_r(p.get('carries'))} | "
+                  f"{_pct(p.get('target_share'))}% | {_pct(p.get('carry_share'))}% | {p.get('role_uncertainty')} |")
+        a("")
+    tags = gs.get("historical_research_tags") or []
+    a(f"**Historical research tags** ({len(tags)}; preregistered hypotheses under test — NOT evidence, NOT a signal)")
+    for t in tags[: (6 if compact else 20)]:
+        a(f"- `{t['tag']}` · {t['hypothesis']} {t['side']} · {t['title']} · {t['n_markets']} market(s), e.g. {', '.join(t['examples'][:2])}")
+    a("")
+    return L
+
+
 def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = False) -> list:
     L = []
     a = L.append
@@ -715,6 +770,7 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
             f"**{p}** spread {_num(v.get('implied_spread'))} / total {_num(v.get('implied_total_median'))}"
             for p, v in g["market_implied_by_period"].items()))
         a("")
+    L.extend(_game_script_section(g.get("game_script_inputs"), g, compact=compact))
 
     # injuries
     recs = g["injuries"]["records"]

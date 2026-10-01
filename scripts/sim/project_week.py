@@ -59,8 +59,9 @@ def main():
     player_map = dict(zip(pmap["kalshi_player_id"].to_list(), pmap["gsis_id"].to_list()))
     slate = P.slate_inputs(a.season, a.week, cutoff, a.market_data, ledger_rows=ledger_rows, priors=priors)
     print("sources", json.dumps(slate["sources"], default=str))
+    scripts = {}
     rows = P.price_slate(slate, ledger_rows, bundle, weights, n_sims=a.n_sims, run_id=run_id, observed_at=observed_at,
-                         generated_at=generated_at, player_map=player_map)
+                         generated_at=generated_at, player_map=player_map, scripts=scripts)
     from collections import Counter
     c = Counter((r["family"], r["support_state"]) for r in rows)
     print(json.dumps({f"{k[0]}|{k[1]}": v for k, v in c.most_common()}, indent=0))
@@ -80,6 +81,9 @@ def main():
                                 "total": G["input"].total_line, "kickoff": G["kickoff"].isoformat()} for gid, G in slate["games"].items()}}
     path = P.write_records(a.out, run_id, rows, manifest)
     print("wrote", path)
+    # game-script summaries (environment, team volume, player opportunity, efficiency): research context only
+    spath = P.write_scripts(a.out, run_id, scripts)
+    print("wrote", spath)
 
 
 if __name__ == "__main__":

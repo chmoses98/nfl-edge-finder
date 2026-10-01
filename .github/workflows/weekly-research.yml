@@ -1,0 +1,113 @@
+name: Weekly Research (board edge, script autopsy, thesis improvement)
+
+# After an NFL week has settled, rebuilds the FULL-BOARD research table for every completed week, then writes the
+# three weekly research reports -- BOARD EDGE DISCOVERY, SCRIPT AUTOPSY, THESIS IMPROVEMENT -- for the newest week
+# and cumulatively, and publishes them to `market-data` under data/research/. RESEARCH ONLY: nothing here reaches
+# the pricer, the gates, the risk policy, the preflight, staking or RUN NFL's betting path, and every report says
+# so (docs/BOARD_RESEARCH.md, docs/WEEKLY_RESEARCH.md).
+#
+# Disk discipline (the lesson of postgame-settle's 2026-09-28 runner deaths): market-data is fetched BLOBLESS and
+# the capture is streamed out of git objects (scripts/research/board_research.py prefetches the blobs it needs in
+# batches); the only checkout is one sparse worktree holding the player-autopsy / anatomy / arm corpora and one
+# discovery run. The publisher's own checkout is the second and last.
+
+on:
+  schedule:
+    - cron: '43 15 * * 2'          # Tuesdays 15:43 UTC: after Monday night's game has settled and been autopsied
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'rebuild and republish even if the newest week is already published (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: weekly-research
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Blobless: trees only. The gate needs one `cat-file -e` and the schedule; nothing is downloaded yet.
+      - name: Fetch market-data and handicap-data (trees only)
+        run: |
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --depth=1 --filter=blob:none origin market-data handicap-data
+          git branch -r
+
+      - name: Decide whether a completed week is missing its reports
+        id: gate
+        env:
+          INPUT_FORCE: ${{ github.event.inputs.force }}
+        run: |
+          ARGS=()
+          if [ "$INPUT_FORCE" = "true" ]; then ARGS+=(--force); fi
+          python3 scripts/data/nflverse_download.py --only schedules --seasons 2026-2026 2>&1 | tail -2
+          python3 scripts/research/weekly_research_gate.py --season 2026 --md-ref origin/market-data \
+            "${ARGS[@]}" --github-output "$GITHUB_OUTPUT"
+
+      - name: Install
+        if: steps.gate.outputs.work == 'true'
+        run: pip install -q numpy pandas polars scipy pyarrow
+
+      - name: Fetch nflverse inputs and build the player map
+        if: steps.gate.outputs.work == 'true'
+        run: |
+          python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,ff_playerids --seasons 2025-2026 2>&1 | tail -3
+          python3 nfl_edge/data/ids.py 2>&1 | tail -3
+          D=$(git ls-tree --name-only origin/market-data data/kalshi/discovery/ | sort | tail -1)
+          rm -rf /tmp/md && git worktree add --no-checkout -f /tmp/md origin/market-data
+          git -C /tmp/md sparse-checkout init --no-cone
+          git -C /tmp/md sparse-checkout set "/$D/" '/data/shadow/player_autopsy/' '/data/shadow/player_anatomy/' \
+            '/data/shadow/arm_evaluations/' '/data/shadow/sim/*/*.scripts.json.gz'
+          git -C /tmp/md checkout -q
+          python3 scripts/kalshi/build_player_map.py --discovery-dir "/tmp/md/$D" --season 2026 2>&1 | tail -4
+
+      - name: Build the full-board research table (every completed week)
+        if: steps.gate.outputs.work == 'true'
+        env:
+          WEEKS: ${{ steps.gate.outputs.weeks }}
+        run: |
+          python3 scripts/research/board_research.py --season 2026 --weeks "$WEEKS" \
+            --md-ref origin/market-data --out data/research/board/2026 2>&1 | tail -12
+
+      - name: Write the weekly and cumulative research reports
+        if: steps.gate.outputs.work == 'true'
+        env:
+          WEEKS: ${{ steps.gate.outputs.weeks }}
+        run: |
+          python3 scripts/research/weekly_research.py --season 2026 --weeks "$WEEKS" --board data/research/board/2026 \
+            --market-data /tmp/md --handicap-ref origin/handicap-data --out data/research/weekly/2026 2>&1 | tail -12
+          ls -R data/research/weekly/2026 | head -40
+
+      - name: Publish (derived, rebuildable research artifacts only)
+        if: steps.gate.outputs.work == 'true'
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/research \
+            --message "weekly research through week ${{ steps.gate.outputs.target }}"
+
+      - name: Report outcome
+        if: always()
+        run: |
+          echo "work=${{ steps.gate.outputs.work }} weeks=${{ steps.gate.outputs.weeks }} target=${{ steps.gate.outputs.target }}"
