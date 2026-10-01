@@ -85,48 +85,8 @@ def load_anatomy(roots, game_ids) -> dict:
     return out
 
 
-def _ts(s):
-    if not s:
-        return None
-    try:
-        t = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
-    except ValueError:
-        try:
-            t = datetime.strptime(str(s), "%Y%m%dT%H%M%SZ")
-        except ValueError:
-            return None
-    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
-
-
-def generated_at(row: dict):
-    """When the projection on this row was actually COMPUTED: the later of its pricing run's instant (`run_id`
-    is the run's UTC start stamp) and the anatomy's own `evaluated_at`.
-
-    This is not `observed_at`. The capture is change-suppressed, so the 2-hourly pricer keeps re-pricing a game's
-    LAST pregame quote for days after the game has been played: the quote is pregame (`minutes_to_kickoff` stays
-    87.5) but the model inputs are read at run time -- availability above all, which on 2026_02_NYG_LA flips a
-    receiver from QUESTIONABLE to OUT the morning after the game he was hurt in. Such a row is a postgame
-    reading and is never autopsy evidence. None when neither stamp parses (the row is then not trusted)."""
-    stamps = [t for t in (_ts(row.get("run_id")), _ts(row.get("evaluated_at"))) if t is not None]
-    return max(stamps) if stamps else None
-
-
-def kickoff_of(row: dict):
-    """The row's kickoff: its own `kickoff_utc`, else observed_at + minutes_to_kickoff."""
-    ko = _ts(row.get("kickoff_utc"))
-    if ko is not None:
-        return ko
-    obs, mtk = _ts(row.get("observed_at")), _f(row.get("minutes_to_kickoff"))
-    if obs is None or mtk is None:
-        return None
-    from datetime import timedelta
-    return obs + timedelta(minutes=mtk)
-
-
-def generated_pregame(row: dict) -> bool:
-    """True only when the row provably was computed strictly before its game's kickoff."""
-    g, ko = generated_at(row), kickoff_of(row)
-    return g is not None and ko is not None and g < ko
+# the generation-time helpers live in a neutral module the board research shares (re-exported here)
+from nfl_edge.shadow.pregame_time import _ts, generated_at, generated_pregame, kickoff_of  # noqa: E402,F401
 
 
 def representative_rows(rows: list) -> list:

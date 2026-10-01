@@ -18,3 +18,11 @@
 7. **No self-training on losses.** Weekly error analysis generates hypotheses into the registry; production changes
    only through the promotion gates (docs/ROADMAP.md, milestone L).
 8. **Real money.** Not authorized. Automatic execution is not implemented.
+
+## Board hypotheses preregistered before Week 4 (2026-10-01)
+
+Eleven full-board hypotheses (`H-20261001-B01` … `B11`, `docs/BOARD_RESEARCH.md` §5) were generated from the 2026
+Weeks 1–3 discovery window and preregistered at 2026-10-01T07:33Z, before the first Week 4 kickoff
+(2026-10-02T00:15Z). Their thresholds are frozen and hashed in the registry; the binding test window is weeks 4–18;
+Weeks 1–3 are never evidence for them. The evaluator (`nfl_edge/research/board_hypotheses.prospective`) runs the
+registered locator over future weeks of the full-board table and SUGGESTS a status; only the owner transitions it.
