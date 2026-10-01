@@ -32,12 +32,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # The append-only guard, the frozen-artifact test and the capture-isolation pair compare against the merge
+      # base with main, which a shallow checkout cannot resolve (they skip rather than fail without it, and a
+      # silently skipped guard is not a guard). They need main's COMMITS AND TREES, not every branch's history:
+      # `fetch-depth: 0` cloned the full history of all branches, market-data included, and by 2026-10-01 that
+      # checkout alone took 4-5.5 minutes and left PR runners stalling in `pip install` until the 15-minute
+      # timeout (runs 36831888277, 36834937928). Depth 1 for the checkout, then main's history without blobs;
+      # the few blobs a guard reads are fetched on demand.
       - uses: actions/checkout@v4
         with:
-          # The append-only guard and the frozen-artifact test both compare against the merge base with
-          # main, which a shallow checkout cannot resolve. They skip rather than fail without it, and a
-          # silently skipped guard is not a guard.
-          fetch-depth: 0
+          fetch-depth: 1
+
+      - name: Fetch main's history for the merge-base guards (commits and trees only)
+        run: |
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --no-tags --filter=blob:none --unshallow origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base HEAD origin/main
 
       - uses: actions/setup-python@v5
         with:
