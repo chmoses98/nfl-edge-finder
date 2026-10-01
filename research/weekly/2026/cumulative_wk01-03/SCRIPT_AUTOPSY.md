@@ -141,7 +141,7 @@ Of 1,810 meaningful misses (excluding NO_LARGE_MISS and INSUFFICIENT_DATA): OPPO
 
 ## 6. Autopsy coverage
 
-- week 1: expected 16 games, diagnosed 15, excluded 1 (2026_01_NE_SEA: no player-anatomy corpus for this game (no instrumented pregame projection)).
+- week 1: expected 16 games, diagnosed 15, excluded 1 (2026_01_NE_SEA: eligible pregame projections exist but no autopsy batch covers them yet (postgame job pending/failed)).
 - week 2: expected 16 games, diagnosed 16, excluded 0 (none).
 - week 3: expected 16 games, diagnosed 16, excluded 0 (none).
 
