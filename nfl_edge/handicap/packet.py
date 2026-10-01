@@ -34,6 +34,7 @@ from datetime import datetime, timedelta, timezone
 from nfl_edge.handicap.sim_block import game_view as _sim_game_view, load_latest as _sim_load_latest, market_view as _sim_market_view
 from nfl_edge.handicap.sim_block import DEFAULT_LAG_TARGET_MIN as _SIM_DEFAULT_TARGET, freshness as _sim_freshness, select_eligible as _sim_select_eligible
 import nfl_edge.handicap.coverage as COV          # module path, not `from nfl_edge.handicap import ...`:
+import nfl_edge.handicap.script_block as SB       # GAME SCRIPT INPUTS + research tags: context only, fail open
 import nfl_edge.handicap.shadow_v2_block as SV2   # the report-isolation audit resolves a package-from
                                                   # import to EVERY module in the package, which would make
                                                   # the Airtable bridge reachable from the report path.
@@ -952,7 +953,8 @@ def _health_flags(game_rows: list, weather: dict, injuries: dict, now, kickoff) 
 
 
 def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, now, implied, sim_rows=None,
-               sim_manifest=None, v2_rows=None, v2_manifest=None, v2_provenance=None, v2_eligibility=None):
+               sim_manifest=None, v2_rows=None, v2_manifest=None, v2_provenance=None, v2_eligibility=None,
+               script=None, script_source=None, research_hyps=None, research_note=None):
     home = next((r.get("home_team") for r in rows if r.get("home_team")), None)
     away = next((r.get("away_team") for r in rows if r.get("away_team")), None)
     kickoff = _iso(next((r.get("kickoff_utc") for r in rows if r.get("kickoff_utc")), None))
@@ -974,6 +976,13 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
     # Every listed contract now terminates in exactly one analysis state. This runs AFTER the incumbent,
     # simulation and Shadow v2 views are attached, because the state is a function of all three.
     COV.classify_game(markets)
+    # HISTORICAL RESEARCH TAGS (context only). Attached after every analysis state is fixed, and read by nothing
+    # on the gate / preflight / risk / stake path, so they cannot move a state, an edge or a threshold.
+    for m in markets:
+        try:
+            m["research_tags"] = SB.market_tags(m, research_hyps or [])
+        except Exception:  # noqa: BLE001 -- optional research context fails open
+            m["research_tags"] = []
 
     weather = weather_state(context_runs, game_id)
     inj_all = injury_state(context_runs, teams)
@@ -1111,6 +1120,12 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
     game["best_expressions"] = best_expressions(game)
     game["correlation_groups"] = correlation_groups(game)
     game["key_questions"] = key_questions(game)
+    # GAME SCRIPT INPUTS: built last, from views already final, so nothing above can depend on it.
+    try:
+        game["game_script_inputs"] = SB.game_script_inputs(game, script, script_source=script_source or "not supplied",
+                                                           hypotheses_note=research_note or "not supplied")
+    except Exception as exc:  # noqa: BLE001 -- optional research context fails open
+        game["game_script_inputs"] = {"state": "UNAVAILABLE", "reason": f"{type(exc).__name__}: {exc}", "authority": SB.AUTHORITY}
     return game
 
 
@@ -1208,6 +1223,15 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
     # PRODUCTION ELIGIBILITY: the newest evidence document at or before this build (published by the Shadow v2
     # settle job). Absent -> every arm is RESEARCH_ONLY and every known-defect arm DISABLED, never TRUSTED.
     v2_eligibility = load_eligibility((md_root, root), at_or_before=now)
+    # GAME SCRIPT summaries of the SAME simulation run, and the board hypotheses under test (context only).
+    try:
+        scripts, script_src = SB.load_scripts((md_root, root), sim_manifest)
+    except Exception as exc:  # noqa: BLE001
+        scripts, script_src = None, f"script summaries unavailable: {type(exc).__name__}"
+    try:
+        research_hyps, research_note = SB.load_research_hypotheses(root)
+    except Exception as exc:  # noqa: BLE001
+        research_hyps, research_note = [], f"registry unavailable: {type(exc).__name__}"
     games = []
     for gid in sorted(by_game, key=lambda g: (
             _iso(next((r.get("kickoff_utc") for r in by_game[g] if r.get("kickoff_utc")), None))
@@ -1216,7 +1240,8 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
                                 context_runs=context_runs, movement=movement, now=now, implied=implied,
                                 sim_rows=sim_rows, sim_manifest=sim_manifest,
                                 v2_rows=v2_rows, v2_manifest=v2_manifest, v2_provenance=v2_provenance,
-                                v2_eligibility=v2_eligibility))
+                                v2_eligibility=v2_eligibility, script=(scripts or {}).get(gid), script_source=script_src,
+                                research_hyps=research_hyps, research_note=research_note))
 
     # Every surface that shows a simulation number carries its freshness, so a stale run can never read as
     # current support on a game file or a market row.
@@ -1248,6 +1273,7 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
                                                                           "origin", "workflow_run_id")}
                            if sim_manifest else None),
             "simulation_freshness": sim_fresh,
+            "game_script": {"source": script_src, "research_hypotheses": research_note, "authority": SB.AUTHORITY},
             "shadow_v2": ({"snapshot_id": v2_manifest.get("snapshot_id"),
                            "arms": sorted(v2_manifest.get("arms") or {}),
                            "arms_missing": v2_manifest.get("arms_missing") or [],

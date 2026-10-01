@@ -998,3 +998,12 @@ Full detail in [`AIRTABLE_BRIDGE.md`](AIRTABLE_BRIDGE.md). The properties this s
   (`research/game_model/RESULTS.md`).
 * It does not make the system profitable. It makes the **process** safe enough to begin prospective
   measurement. Profitability still has to be earned with real prospective CLV, calibration and ROI.
+
+## Research context never carries authority (2026-10-01)
+
+The board research table, the conditional miner, the preregistered board hypotheses, the GAME SCRIPT INPUTS and
+the historical research tags on RUN NFL markets are research context. None of them is an input to a decision
+state, a gate, a preflight check, an edge, a ceiling, a stake or a model probability, and a hypothesis that is
+PREREGISTERED or TESTING is by definition not evidence. A pattern becomes eligible to influence a decision only
+through the hypothesis registry's confirmatory stage AND a separate, owner-approved promotion project — never
+automatically (`docs/BOARD_RESEARCH.md`, `docs/WEEKLY_RESEARCH.md`).

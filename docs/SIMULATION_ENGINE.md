@@ -220,3 +220,14 @@ Every committed summary is a pure render of its JSON by `scripts/sim/write_resul
   expected shares.
 * Component attribution ("+2.4 yards workload") is reported as the football / market / final means only;
   additive attribution is not statistically valid on a nonlinear simulation and is not faked.
+
+## Game-script summary (sim-script-1.0.0)
+
+`nfl_edge/sim/script.py` summarises the SAME simulated rows the contracts are priced from — environment (margin,
+total, team points, one-score and blowout probabilities), team volume (plays, dropbacks, pass attempts, designed
+rushes, sacks, scrambles, pass rate, and those conditional on the final-margin bucket), player opportunity
+(targets, carries, shares, opportunity spread) and efficiency (yards per target / carry) — and `project_week.py`
+writes it beside the projections as `<run_id>.sim-1.1.0.scripts.json.gz` (write-once). It draws no random number:
+projections are identical with or without it (`tests/test_sim_script.py`). Not simulated, and therefore absent:
+score-state paths and lead changes, red-zone trips, routes and snaps. Consumers: RUN NFL's GAME SCRIPT INPUTS and
+the weekly script autopsy (`docs/WEEKLY_RESEARCH.md`), which uses it as the team-volume expectation from Week 4.

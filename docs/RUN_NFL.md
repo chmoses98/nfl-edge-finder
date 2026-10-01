@@ -785,3 +785,28 @@ on the slate header, on every game's simulation section ("THIS SIMULATION IS NOT
 across games would change prices, so it is not done. A bit-identical micro-optimization (count_nonzero for
 np.mean) was measured (139 s → 120 s locally, identical ledger), but the incumbent pricer is hash-pinned by
 `tests/test_incumbent_unchanged.py`, so it was not shipped.
+
+## GAME SCRIPT INPUTS and research tags (context only, 2026-10-01)
+
+Each game file now opens, right after MARKET-IMPLIED vs MODEL, with a **GAME SCRIPT INPUTS** section
+(`nfl_edge/handicap/script_block.py`, stdlib-only):
+
+* **Market baseline** — the packet's own market-implied spread / total / score and the game-line moves.
+* **Game environment** — from the simulation run the packet attached (`<run>.sim-1.1.0.scripts.json.gz`, written by
+  `scripts/sim/project_week.py`; `nfl_edge/sim/script.py`): margin and total ranges, P(one score), P(17+ blowout),
+  P(total 10+ over / under the centre). The simulator does not draw score paths; it says so.
+* **Team volume** — plays, pass attempts, designed rushes, dropbacks, pass rate, and pass rate when the team finishes
+  leading / trailing by 14+ (the nearest valid proxy for score state).
+* **Player opportunity** — targets / carries ranges, shares and a role-uncertainty reading from the spread of the
+  player's simulated opportunity.
+* **Model / market disagreement** — the existing largest disagreements, labelled research-only.
+* **Historical research tags** — markets that fall under a preregistered board hypothesis
+  (`docs/BOARD_RESEARCH.md` §5): PRICE_BUCKET_ / DISAGREEMENT_ / MOVEMENT_ / LADDER_ / EXPRESSION_ / ROLE_RESEARCH_CANDIDATE.
+  Each market row carries its tags in `research_tags`.
+
+**No authority.** Tags and script inputs are attached after every analysis state, ranking and expression is
+final; nothing on the gate, preflight, risk, stake, approval, evaluation or position path reads them; they cannot
+create a BET state, change an edge, a threshold, a stake or a model probability. `tests/test_run_nfl_script_context.py`
+builds the same game with and without them and requires every decision field to be byte-identical. A missing
+script file or registry yields an explicit UNAVAILABLE section; RUN NFL is unchanged without them (fail open).
+A simulation run written before sim-script-1.0.0 has no script file and is reported as such, never reconstructed.
