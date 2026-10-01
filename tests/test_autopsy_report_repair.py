@@ -125,6 +125,20 @@ def test_exclusion_reasons_are_named_never_silent():
     assert m["eligible_not_diagnosed"] == 0 and m["diagnosed_games"] == 1
 
 
+def test_a_game_never_instrumented_is_not_called_a_pending_postgame_job():
+    # 2026_01_NE_SEA (the Wednesday opener) predates the anatomy job: no corpus, so nothing can ever be diagnosed
+    sched = [{"game_id": "2026_01_NE_SEA", "status": "FINAL"}, {"game_id": "2026_01_ARI_LAC", "status": "FINAL"},
+             {"game_id": "2026_01_ATL_PIT", "status": "FINAL"}]
+    canonical = [rec("a", "20260913T160500Z", gid="2026_01_ARI_LAC")]
+    m = PA.coverage_manifest(sched, None, canonical, anatomy_games={"2026_01_ARI_LAC", "2026_01_ATL_PIT"})
+    why = {g["game_id"]: g["exclusion_reason"] for g in m["games"]}
+    assert why == {"2026_01_NE_SEA": PA.EXCLUDE_NO_ANATOMY, "2026_01_ATL_PIT": PA.EXCLUDE_NOT_DIAGNOSED,
+                   "2026_01_ARI_LAC": None}
+    # without the presence set the old inference stands (and the report says anatomy was not read)
+    assert {g["exclusion_reason"] for g in PA.coverage_manifest(sched, None, canonical)["games"] if not g["included"]} \
+        == {PA.EXCLUDE_NOT_DIAGNOSED}
+
+
 # ---------------------------------------------------------------- 1. the gate and the workflow
 def _touch(path, text="x"):
     os.makedirs(os.path.dirname(path), exist_ok=True)

@@ -431,13 +431,16 @@ def anatomy_units(rows: list) -> dict:
             "excluded_rows": excluded_rows(rows)}
 
 
-def coverage_manifest(schedule: list, anatomy: dict | None, canonical: list, raw_records: list | None = None) -> dict:
+def coverage_manifest(schedule: list, anatomy: dict | None, canonical: list, raw_records: list | None = None,
+                      anatomy_games: set | None = None) -> dict:
     """The week's autopsy coverage, game by game: expected (the schedule), eligible (instrumented pregame
     projections), diagnosed (canonical autopsies), excluded (with a reason). A report that cannot show this
     for its week is not allowed to look complete.
 
     `schedule` rows: {game_id, status, kickoff_utc}. `anatomy` maps game_id -> anatomy_units(...) (None when the
-    caller did not read the anatomy corpus: eligibility is then inferred from diagnosis alone, and said so)."""
+    caller did not read the anatomy corpus: eligibility is then inferred from diagnosis alone, and said so).
+    `anatomy_games`, when given without `anatomy`, is the set of games that HAVE an anatomy corpus: an undiagnosed
+    game outside it is reported as having no instrumented projection, not as a pending postgame job."""
     by_game = defaultdict(list)
     for r in canonical:
         by_game[r.get("game_id")].append(r)
@@ -463,6 +466,8 @@ def coverage_manifest(schedule: list, anatomy: dict | None, canonical: list, raw
         if g.get("status") != "FINAL":
             reason = EXCLUDE_NOT_FINAL
         elif anatomy is not None and an is None and not recs:
+            reason = EXCLUDE_NO_ANATOMY
+        elif anatomy is None and anatomy_games is not None and gid not in anatomy_games and not recs:
             reason = EXCLUDE_NO_ANATOMY
         elif an is not None and an["eligible_units"] == 0:
             reason = EXCLUDE_NO_ELIGIBLE

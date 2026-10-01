@@ -368,10 +368,16 @@ def main():
     from nfl_edge.settlement.results import games_from_schedule_text, load_schedule_text
     text, _ = load_schedule_text(ROOT)
     schedule = [{"game_id": g.game_id, "status": g.status, "week": g.week, "season": g.season} for g in games_from_schedule_text(text, seasons=[a.season])]
+    # which games have an anatomy corpus at all (the gate's own test): an undiagnosed game without one was never
+    # instrumented (e.g. the season opener predates the anatomy job) -- that is not a pending postgame job
+    anat_dir = os.path.join(a.market_data, "data", "shadow", "player_anatomy") if a.market_data else None
+    anatomy_games = ({g for g in os.listdir(anat_dir) if os.path.isdir(os.path.join(anat_dir, g))}
+                     if anat_dir and os.path.isdir(anat_dir) else None)
     autopsy_cov = {}
     for w in weeks:
         sw = [g for g in schedule if g["week"] == w]
-        autopsy_cov[str(w)] = PA.coverage_manifest(sw, None, [x for x in can_all if x.get("week") == w])
+        autopsy_cov[str(w)] = PA.coverage_manifest(sw, None, [x for x in can_all if x.get("week") == w],
+                                                   anatomy_games=anatomy_games)
     # expression autopsy of the actual positions
     expression_doc = None
     wag = [w for w in git_json_files(a.handicap_ref, f"data/imported_wagers/{a.season}", a.repo) if w.get("week") in set(weeks)]
