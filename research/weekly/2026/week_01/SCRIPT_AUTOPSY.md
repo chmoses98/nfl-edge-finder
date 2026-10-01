@@ -107,5 +107,5 @@ Of 584 meaningful misses (excluding NO_LARGE_MISS and INSUFFICIENT_DATA): OPPORT
 
 ## 6. Autopsy coverage
 
-- week 1: expected 16 games, diagnosed 15, excluded 1 (2026_01_NE_SEA: eligible pregame projections exist but no autopsy batch covers them yet (postgame job pending/failed)).
+- week 1: expected 16 games, diagnosed 15, excluded 1 (2026_01_NE_SEA: no player-anatomy corpus for this game (no instrumented pregame projection)).
 
