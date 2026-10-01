@@ -60,6 +60,38 @@ def evaluated_games(corpus_root: str, evaluation_version: str | None, suffix: st
     return out
 
 
+BATCH_PATTERNS = (("arm_evaluations", "*.arm_game_evaluations.jsonl.gz"), ("player_autopsy", "*.autopsy.jsonl.gz"))
+
+
+def _batch_of(filename: str) -> str | None:
+    """`<version>.<batch>.<suffix>...` -> the batch id (a UTC stamp, so string order is time order)."""
+    for part in os.path.basename(filename).split("."):
+        if len(part) == 16 and part[8] == "T" and part.endswith("Z") and part[:8].isdigit():
+            return part
+    return None
+
+
+def report_staleness(market_data: str) -> dict:
+    """Is the newest published three-arm report older than the newest arm evaluation or autopsy it should show?
+
+    Reports are derived and rebuilt only after a run that WROTE evidence. When that rebuild fails (2026-09-28: the
+    runner died creating a third full market-data checkout, three runs in a row) the evidence stays published and
+    the report silently stays behind it -- Week 3 read as 69 diagnosed projections, all from ATL-GB, while 1,012
+    sat in the corpus. A stale report is therefore WORK in its own right, so the next poll repairs it."""
+    shadow = os.path.join(market_data, "data", "shadow")
+    newest_evidence = None
+    for sub, pat in BATCH_PATTERNS:
+        for path in glob.glob(os.path.join(shadow, sub, "*", pat)):
+            b = _batch_of(path)
+            if b and (newest_evidence is None or b > newest_evidence):
+                newest_evidence = b
+    reports = [os.path.basename(d) for d in glob.glob(os.path.join(shadow, "arm_reports", "*"))
+               if os.path.isdir(d) and os.path.exists(os.path.join(d, "cumulative.REPORT.md"))]
+    newest_report = max((r for r in reports if _batch_of(r)), default=None)
+    stale = bool(newest_evidence and (newest_report is None or newest_evidence > newest_report))
+    return {"stale": stale, "newest_evidence_batch": newest_evidence, "newest_report_batch": newest_report}
+
+
 def arms_start(market_data: str) -> str | None:
     """The earliest day a three-arm snapshot exists for. Games before it have no challenger forecast and never will."""
     days = sorted(os.path.basename(d) for d in glob.glob(os.path.join(
@@ -75,6 +107,9 @@ def main():
                     help="fetch the schedule over https when no local copy exists")
     ap.add_argument("--eval-version", default=EVALUATION_VERSION)
     ap.add_argument("--lookback-days", type=float, default=10.0)
+    ap.add_argument("--autopsy-lookback-days", type=float, default=0.0,
+                    help="window for player-autopsy work (default: --lookback-days). Widen it after an autopsy rule "
+                         "version change to re-diagnose older games without re-settling them")
     ap.add_argument("--min-hours-after-kickoff", type=float, default=4.0)
     ap.add_argument("--github-output", default="")
     ap.add_argument("--since", default="", help="ignore games kicking off before this YYYY-MM-DD "
@@ -114,9 +149,11 @@ def main():
             continue
         settled_enough = now >= ko + timedelta(hours=a.min_hours_after_kickoff)
         in_window = ko >= now - timedelta(days=a.lookback_days)
+        in_autopsy_window = ko >= now - timedelta(days=a.autopsy_lookback_days or a.lookback_days)
         if settled_enough and in_window:
             if a_start and g.kickoff_utc[:10] >= a_start and g.game_id not in arms_done:
                 arms_work.append(g.game_id)
+        if settled_enough and in_autopsy_window:
             has_anatomy = os.path.isdir(os.path.join(a.market_data, "data", "shadow", "player_anatomy", g.game_id))
             if has_anatomy and g.game_id not in autopsy_done:
                 autopsy_work.append(g.game_id)
@@ -139,6 +176,8 @@ def main():
               "already_evaluated_games": len(done),
               "arms_corpus_starts": a_start, "games_needing_arm_evaluation": sorted(arms_work),
               "games_needing_player_autopsy": sorted(autopsy_work)}
+    rep = report_staleness(a.market_data)
+    report["three_arm_report"] = rep
     print(json.dumps(report, indent=1))
     if outside:
         print(f"::notice::{len(outside)} final game(s) older than {a.lookback_days} days have no evaluation "
@@ -151,8 +190,11 @@ def main():
             f.write("game_args=" + " ".join(f"--game {g}" for g in work) + "\n")
             f.write(f"arms_work={'true' if arms_work else 'false'}\n")
             f.write(f"autopsy_work={'true' if autopsy_work else 'false'}\n")
+            f.write(f"report_work={'true' if rep['stale'] else 'false'}\n")
+            f.write(f"report_batch={rep['newest_evidence_batch'] or ''}\n")
     print(f"work={'true' if work else 'false'} ({len(work)} game(s)); arms_work={'true' if arms_work else 'false'} "
-          f"({len(arms_work)}); autopsy_work={'true' if autopsy_work else 'false'} ({len(autopsy_work)})")
+          f"({len(arms_work)}); autopsy_work={'true' if autopsy_work else 'false'} ({len(autopsy_work)}); "
+          f"report_work={'true' if rep['stale'] else 'false'} (evidence {rep['newest_evidence_batch']}, report {rep['newest_report_batch']})")
     return 0
 
 

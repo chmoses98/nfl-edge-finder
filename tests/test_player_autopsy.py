@@ -29,7 +29,7 @@ def book(players, snaps, complete=True):
     return result_book_from_records(rec, min_hours_after_kickoff=0)
 
 
-def ledger_row(pid, stat, *, mu, muo, eff, q, threshold, name="P", run="r1", mtk=30.0, cv=0.55, mid=0.5, p_plays=0.97, team="H",
+def ledger_row(pid, stat, *, mu, muo, eff, q, threshold, name="P", run="20260913T160500Z", mtk=30.0, cv=0.55, mid=0.5, p_plays=0.97, team="H",
                family="scale_emp_binned", decomposition="opportunity_x_efficiency", pred="x"):
     return {"prediction_id": f"{pred}|{pid}|{stat}|{threshold}|{run}", "run_id": run, "observed_at": "2026-09-13T16:00:00+00:00",
             "minutes_to_kickoff": mtk, "game_id": GAME, "season": 2026, "week": 2, "team": team, "player_id": pid, "player_name": name,

@@ -45,6 +45,10 @@ on:
         description: 'how far back to look for final games with no evaluations'
         required: false
         default: '10'
+      autopsy_lookback_days:
+        description: 'window for player-autopsy work only (blank = lookback_days); widen after an autopsy rule-version change'
+        required: false
+        default: ''
       dry_run:
         description: 'plan and report, publish nothing (true/false)'
         required: false
@@ -98,10 +102,11 @@ jobs:
         id: gate
         env:
           INPUT_LOOKBACK: ${{ github.event.inputs.lookback_days }}
+          INPUT_AUTOPSY_LOOKBACK: ${{ github.event.inputs.autopsy_lookback_days }}
         run: |
           python3 scripts/data/nflverse_download.py --only schedules --seasons 2026-2026 2>&1 | tail -2
           python3 scripts/shadow/settle_gate.py --market-data /tmp/md \
-            --lookback-days "${INPUT_LOOKBACK:-10}" \
+            --lookback-days "${INPUT_LOOKBACK:-10}" --autopsy-lookback-days "${INPUT_AUTOPSY_LOOKBACK:-0}" \
             --github-output "$GITHUB_OUTPUT"
 
       # Behind the gate on purpose. The gate and the downloader are stdlib-only, so an idle poll still costs
@@ -117,11 +122,11 @@ jobs:
       # ModuleNotFoundError in the arms path instead of the settlement path. Any one of the three, or a manual
       # dispatch naming games, pays for the stack; none of them and the poll stays cheap.
       - name: Install the dependencies the settlement scripts import
-        if: steps.gate.outputs.work == 'true' || steps.gate.outputs.arms_work == 'true' || steps.gate.outputs.autopsy_work == 'true' || github.event.inputs.games != ''
+        if: steps.gate.outputs.work == 'true' || steps.gate.outputs.arms_work == 'true' || steps.gate.outputs.autopsy_work == 'true' || steps.gate.outputs.report_work == 'true' || github.event.inputs.games != ''
         run: pip install -q numpy pandas polars scipy pyarrow
 
       - name: Fetch final results (player statistics, snap counts, identities)
-        if: steps.gate.outputs.work == 'true' || steps.gate.outputs.arms_work == 'true' || steps.gate.outputs.autopsy_work == 'true' || github.event.inputs.games != ''
+        if: steps.gate.outputs.work == 'true' || steps.gate.outputs.arms_work == 'true' || steps.gate.outputs.autopsy_work == 'true' || steps.gate.outputs.report_work == 'true' || github.event.inputs.games != ''
         run: |
           python3 scripts/data/nflverse_download.py --only stats_player,snap_counts,players \
             --seasons 2026-2026 2>&1 | tail -4
@@ -174,9 +179,8 @@ jobs:
         if: steps.settle.outputs.status == 'WROTE' && github.event.inputs.dry_run != 'true'
         continue-on-error: true
         run: |
-          git fetch --depth=1 origin market-data
-          rm -rf /tmp/md2 && git worktree add -f /tmp/md2 origin/market-data
-          python3 scripts/shadow/eval_report.py --market-data /tmp/md2 \
+          scripts/ci/refresh_market_data_worktree.sh /tmp/md
+          python3 scripts/shadow/eval_report.py --market-data /tmp/md \
             --out data/shadow/scorecards/${{ steps.settle.outputs.batch_id }} 2>&1 | tail -20
 
       - name: Publish the scorecards
@@ -207,11 +211,15 @@ jobs:
         env:
           INPUT_GAMES: ${{ github.event.inputs.games }}
           INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          INPUT_LOOKBACK: ${{ github.event.inputs.lookback_days }}
+          INPUT_AUTOPSY_LOOKBACK: ${{ github.event.inputs.autopsy_lookback_days }}
         run: |
           ARGS=()
           for g in $INPUT_GAMES; do ARGS+=(--game "$g"); done
           if [ "$INPUT_DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+          LOOKBACK="${INPUT_LOOKBACK:-10}"
           python3 scripts/shadow/player_autopsy.py --market-data /tmp/md --out data/shadow/player_autopsy \
+            --lookback-days "${INPUT_AUTOPSY_LOOKBACK:-$LOOKBACK}" \
             "${ARGS[@]}" --github-output "$GITHUB_OUTPUT"
       - name: Validate the three-arm artifacts before anything is published
         if: steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE'
@@ -228,21 +236,22 @@ jobs:
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/player_autopsy \
             --message "player autopsy ${{ steps.autopsy.outputs.batch_id }} (${{ steps.autopsy.outputs.written }} records)"
+      # Also when the gate found the published report OLDER than the newest evidence (`report_work`): a rebuild that
+      # died after its evidence was published leaves nothing else that would ever retry it.
       - name: Rebuild the three-arm per-slate, weekly and cumulative reports
         id: arm_report
-        if: (steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE') && github.event.inputs.dry_run != 'true'
+        if: (steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE' || steps.gate.outputs.report_work == 'true') && github.event.inputs.dry_run != 'true'
         continue-on-error: true
         run: |
-          git fetch --depth=1 origin market-data
-          rm -rf /tmp/md3 && git worktree add -f /tmp/md3 origin/market-data
-          python3 scripts/shadow/arm_report.py --market-data /tmp/md3 \
-            --out data/shadow/arm_reports/${{ steps.arms.outputs.batch_id || steps.autopsy.outputs.batch_id }} 2>&1 | tail -5
+          scripts/ci/refresh_market_data_worktree.sh /tmp/md
+          python3 scripts/shadow/arm_report.py --market-data /tmp/md \
+            --out data/shadow/arm_reports/${{ steps.arms.outputs.batch_id || steps.autopsy.outputs.batch_id || steps.gate.outputs.report_batch }} 2>&1 | tail -5
       - name: Publish the three-arm reports
-        if: (steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE') && github.event.inputs.dry_run != 'true'
+        if: (steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE' || steps.gate.outputs.report_work == 'true') && steps.arm_report.outcome == 'success' && github.event.inputs.dry_run != 'true'
         continue-on-error: true
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/arm_reports \
-            --message "three-arm reports ${{ steps.arms.outputs.batch_id || steps.autopsy.outputs.batch_id }}"
+            --message "three-arm reports ${{ steps.arms.outputs.batch_id || steps.autopsy.outputs.batch_id || steps.gate.outputs.report_batch }}"
 
       - name: Upload the run's artifacts
         if: steps.settle.outputs.status == 'WROTE' || steps.arms.outputs.status == 'WROTE' || steps.autopsy.outputs.status == 'WROTE'

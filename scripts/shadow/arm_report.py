@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import gzip
 import json
 import os
 import sys
@@ -26,6 +27,7 @@ from nfl_edge.research import hypothesis_registry_v2 as HR                      
 from nfl_edge.research import localized_signals as LS                              # noqa: E402
 from nfl_edge.shadow import evaluation_store as ST                                 # noqa: E402
 from nfl_edge.shadow.eval_scorecard import latest_pregame_view                     # noqa: E402
+from nfl_edge.shadow import player_autopsy as PA                                    # noqa: E402
 from nfl_edge.shadow.player_autopsy import SUFFIX as AUTOPSY_SUFFIX, rank         # noqa: E402
 
 
@@ -62,6 +64,32 @@ def game_centre_evaluations(registry_path, week_signals) -> list:
     return out
 
 
+def schedule_rows(market_data: str) -> list:
+    """{game_id, season, week, status, kickoff_utc} for every scheduled game, from the same schedule settlement
+    reads. Empty (and said so by the caller) when no schedule copy is available locally."""
+    from nfl_edge.settlement.results import games_from_schedule_text, load_schedule_text
+    try:
+        text, _src = load_schedule_text(ROOT, market_data=market_data or None)
+    except FileNotFoundError:
+        return []
+    return [{"game_id": g.game_id, "season": g.season, "week": g.week, "status": g.status, "kickoff_utc": g.kickoff_utc}
+            for g in games_from_schedule_text(text)]
+
+
+def anatomy_coverage(anatomy_roots: list, game_ids) -> dict:
+    """game_id -> PA.anatomy_units(...), one game in memory at a time. Games with no anatomy are absent."""
+    out = {}
+    for gid in sorted(game_ids):
+        rows = []
+        for root in anatomy_roots:
+            for path in sorted(glob.glob(os.path.join(root, gid, f"*.{PA.ANATOMY_SUFFIX}.jsonl.gz"))):
+                with gzip.open(path, "rt") as f:
+                    rows.extend(json.loads(line) for line in f if line.strip())
+        if rows:
+            out[gid] = PA.anatomy_units(rows)
+    return out
+
+
 def build(games, contracts, autopsies, funnels, *, title, eval_version=None, evaluations=None):
     sc = build_arm_scorecard(games, contracts, evaluation_version=eval_version)
     latest, _ = latest_pregame_view([g for g in games if g.get("record_status") == R.OK])
@@ -94,6 +122,8 @@ def main():
     ap.add_argument("--season", type=int, default=0)
     ap.add_argument("--week", type=int, default=0)
     ap.add_argument("--eval-version", default="")
+    ap.add_argument("--no-anatomy-coverage", action="store_true",
+                    help="skip reading the anatomy corpus for the per-week coverage manifest (eligibility then inferred)")
     ap.add_argument("--registry", default=os.path.join(ROOT, HR.DEFAULT_PATH),
                     help="hypothesis registry holding the preregistered game-centre hypotheses (read only)")
     a = ap.parse_args()
@@ -104,7 +134,12 @@ def main():
         froots.append(os.path.join(a.market_data, "data", "shadow", "arms"))
     games = ST.read_corpus(eroots, suffix=AE.GAME_SUFFIX)
     contracts = ST.read_corpus(eroots, suffix=AE.CONTRACT_SUFFIX)
-    autopsies = ST.read_corpus(aroots, suffix=AUTOPSY_SUFFIX)
+    raw_autopsies = ST.read_corpus(aroots, suffix=AUTOPSY_SUFFIX)
+    # ONE diagnosis per (game, player, stat): newest rule version per game, computed before kickoff
+    autopsies = PA.canonical_autopsies(raw_autopsies)
+    print(f"autopsy corpus: {len(raw_autopsies)} records -> {len(autopsies)} canonical units")
+    anat_roots = [os.path.join(a.market_data, "data", "shadow", "player_anatomy")] if a.market_data else []
+    sched = schedule_rows(a.market_data)
     funnels = load_funnels(froots)
     if a.season:
         games = [g for g in games if g.get("season") == a.season]; contracts = [c for c in contracts if c.get("season") == a.season]
@@ -128,6 +163,17 @@ def main():
         aw = [x for x in autopsies if x.get("week") == week and (season is None or x.get("season") == season)]
         scw, mdw = build(gw, cw, aw, [], title=f"Three-arm game-centre experiment — {season} week {week}", eval_version=ver)
         scw["season"], scw["week"] = season, week        # read back by the shadow-v2 weekly report (localized_signals)
+        # COVERAGE: expected (schedule) vs eligible (pregame anatomy) vs diagnosed, with a reason per exclusion
+        sw = [g for g in sched if g["week"] == week and (season is None or g["season"] == season)]
+        if not sw:
+            sw = [{"game_id": gid, "status": "FINAL"} for gid in sorted({g.get("game_id") for g in gw})]
+        anat = None if a.no_anatomy_coverage or not anat_roots else anatomy_coverage(anat_roots, [g["game_id"] for g in sw])
+        cov = PA.coverage_manifest(sw, anat, aw, [x for x in raw_autopsies if x.get("week") == week])
+        cov.update({"season": season, "week": week, "schedule_source": "schedule" if sched else "arm evaluations (no schedule copy)"})
+        scw["autopsy_coverage"] = {k: v for k, v in cov.items() if k != "games"}
+        with open(os.path.join(a.out, f"week{int(week):02d}.autopsy_coverage.json"), "w") as f:
+            json.dump(cov, f, indent=1, default=str)
+        mdw += "\n" + PA.render_coverage(cov, title=f"Player-autopsy coverage — {season} week {week}")
         _write(a.out, f"week{int(week):02d}", scw, mdw)
         # per-slate: one file per game of the week, the game's own rows only
         for gid in sorted({g.get("game_id") for g in gw}):

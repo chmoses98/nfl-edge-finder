@@ -27,12 +27,16 @@ from __future__ import annotations
 
 import math
 import os
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 from nfl_edge.settlement.results import ResultBook
 
-AUTOPSY_VERSION = "autopsy-1.0.0"
+# 1.1.0 (2026-10-01): the representative row must have been GENERATED before kickoff, not merely carry a pregame
+# quote (see `generated_at` below), and ties are broken by the latest pre-kickoff generation instead of by the
+# prediction id. 1.0.0 records stay in the corpus untouched; readers take one record per unit through
+# `canonical_autopsies`, which prefers the newest rule version.
+AUTOPSY_VERSION = "autopsy-1.1.0"
 SUFFIX = "autopsy"
 
 # Thresholds. Named once; a change is a visible edit to a diagnostic rule, never a tuning.
@@ -81,19 +85,70 @@ def load_anatomy(roots, game_ids) -> dict:
     return out
 
 
+def _ts(s):
+    if not s:
+        return None
+    try:
+        t = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            t = datetime.strptime(str(s), "%Y%m%dT%H%M%SZ")
+        except ValueError:
+            return None
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def generated_at(row: dict):
+    """When the projection on this row was actually COMPUTED: the later of its pricing run's instant (`run_id`
+    is the run's UTC start stamp) and the anatomy's own `evaluated_at`.
+
+    This is not `observed_at`. The capture is change-suppressed, so the 2-hourly pricer keeps re-pricing a game's
+    LAST pregame quote for days after the game has been played: the quote is pregame (`minutes_to_kickoff` stays
+    87.5) but the model inputs are read at run time -- availability above all, which on 2026_02_NYG_LA flips a
+    receiver from QUESTIONABLE to OUT the morning after the game he was hurt in. Such a row is a postgame
+    reading and is never autopsy evidence. None when neither stamp parses (the row is then not trusted)."""
+    stamps = [t for t in (_ts(row.get("run_id")), _ts(row.get("evaluated_at"))) if t is not None]
+    return max(stamps) if stamps else None
+
+
+def kickoff_of(row: dict):
+    """The row's kickoff: its own `kickoff_utc`, else observed_at + minutes_to_kickoff."""
+    ko = _ts(row.get("kickoff_utc"))
+    if ko is not None:
+        return ko
+    obs, mtk = _ts(row.get("observed_at")), _f(row.get("minutes_to_kickoff"))
+    if obs is None or mtk is None:
+        return None
+    from datetime import timedelta
+    return obs + timedelta(minutes=mtk)
+
+
+def generated_pregame(row: dict) -> bool:
+    """True only when the row provably was computed strictly before its game's kickoff."""
+    g, ko = generated_at(row), kickoff_of(row)
+    return g is not None and ko is not None and g < ko
+
+
 def representative_rows(rows: list) -> list:
     """One anatomy row per (player, stat): the latest provably pregame snapshot, then the rung nearest the model's
-    median (mu for the direct TD model). Deterministic tie-breaks on prediction_id."""
+    median (mu for the direct TD model). Deterministic tie-breaks.
+
+    "Provably pregame" means BOTH the quote and the computation precede kickoff (`generated_pregame`). Among the
+    rows quoting the latest pregame price, the run that computed latest before kickoff wins; the prediction id
+    only breaks a tie inside one run. (autopsy-1.0.0 broke the tie by prediction id alone, which on a game the
+    pricer kept re-pricing after kickoff could select a postgame computation: 86 of 3,021 records.)"""
     groups = defaultdict(list)
     for r in rows:
         mtk = r.get("minutes_to_kickoff")
-        if mtk is None or float(mtk) <= 0 or r.get("player_id") is None:
+        if mtk is None or float(mtk) <= 0 or r.get("player_id") is None or not generated_pregame(r):
             continue
         groups[(r["player_id"], r.get("stat"))].append(r)
     out = []
     for key in sorted(groups):
         rs = groups[key]
-        best_run = min(rs, key=lambda r: (float(r["minutes_to_kickoff"]), str(r.get("observed_at")), str(r.get("prediction_id"))))["run_id"]
+        best = min(rs, key=lambda r: (float(r["minutes_to_kickoff"]), -generated_at(r).timestamp(),
+                                      str(r.get("observed_at")), str(r.get("prediction_id"))))
+        best_run = best["run_id"]
         snap = [r for r in rs if r["run_id"] == best_run]
         centre = _f((snap[0].get("model_quantiles") or {}).get("p50"))
         if centre is None:
@@ -104,6 +159,22 @@ def representative_rows(rows: list) -> list:
         out.append(min(snap, key=lambda r: (abs(_f(r.get("threshold")) - centre) if _f(r.get("threshold")) is not None else 1e9,
                                             str(r.get("prediction_id")))))
     return out
+
+
+def excluded_rows(rows: list) -> dict:
+    """Why anatomy rows of a game are NOT eligible to represent a unit (counts by reason). Never silent."""
+    out = defaultdict(int)
+    for r in rows:
+        mtk = r.get("minutes_to_kickoff")
+        if r.get("player_id") is None:
+            out["no player identity"] += 1
+        elif mtk is None or float(mtk) <= 0:
+            out["quote not pregame"] += 1
+        elif generated_at(r) is None:
+            out["generation time unknown"] += 1
+        elif not generated_pregame(r):
+            out["computed at or after kickoff (re-priced stale pregame quote)"] += 1
+    return dict(out)
 
 
 def team_volume(book: ResultBook, game_id: str, team: str, column: str) -> dict | None:
@@ -328,4 +399,141 @@ def rank(records: list) -> list:
 
 
 def autopsy_game(rows: list, book: ResultBook, *, now=None) -> list:
-    return rank([diagnose(r, book, now=now) for r in representative_rows(rows)])
+    out = []
+    for r in representative_rows(rows):
+        rec = diagnose(r, book, now=now)
+        rec["generated_at"] = generated_at(r).isoformat()
+        out.append(rec)
+    return rank(out)
+
+
+def _version_key(v) -> tuple:
+    try:
+        return tuple(int(x) for x in str(v).rsplit("-", 1)[-1].split("."))
+    except ValueError:
+        return (0,)
+
+
+def record_generated_at(rec: dict):
+    """The generation instant of the projection an AUTOPSY record diagnoses. An autopsy record's own
+    `evaluated_at` is the postgame diagnosis time and must never be read as this: 1.1.0 records carry the
+    projection's `generated_at`; 1.0.0 records only carry the pricing `run_id`."""
+    return _ts(rec.get("generated_at")) or _ts(rec.get("run_id"))
+
+
+def record_generated_pregame(rec: dict) -> bool:
+    g, ko = record_generated_at(rec), kickoff_of(rec)
+    return g is not None and ko is not None and g < ko
+
+
+def canonical_autopsies(records: list) -> list:
+    """ONE diagnosis per (game, player, statistic) for every report.
+
+    The corpus is append-only and keyed by prediction id, so a unit can legitimately hold several records: the
+    same unit under a newer rule version, or a newer representative row once a later pregame anatomy file was
+    published. Counting all of them double-counts a player (26 units did, Weeks 1-3). The reader therefore takes
+    the newest rule version present for the GAME (never a mix of rules inside one game), drops any record whose projection was computed at or after
+    kickoff, and then the latest pregame quote, latest pregame computation, prediction id. Deterministic, and
+    the dropped records stay in the corpus."""
+    top = {}
+    for r in records:
+        g, v = r.get("game_id"), _version_key(r.get("evaluation_version"))
+        top[g] = max(top.get(g, v), v)
+    units = defaultdict(list)
+    for r in records:
+        if _version_key(r.get("evaluation_version")) == top[r.get("game_id")]:
+            units[(r.get("game_id"), r.get("player_id"), r.get("stat"))].append(r)
+    out = []
+    for key in sorted(units, key=lambda k: tuple(str(x) for x in k)):
+        rs = units[key]
+        pre = [r for r in rs if record_generated_pregame(r)]
+        if not pre:
+            continue
+        out.append(min(pre, key=lambda r: (float(r.get("minutes_to_kickoff") or 0), -record_generated_at(r).timestamp(),
+                                           str(r.get("prediction_id")))))
+    return rank(out)
+
+
+# ======================================================================================================
+# coverage: which games of a week were (and were not) diagnosed, and why
+# ======================================================================================================
+EXCLUDE_NOT_FINAL = "game not final (or no kickoff) when the report was built"
+EXCLUDE_NO_ANATOMY = "no player-anatomy corpus for this game (no instrumented pregame projection)"
+EXCLUDE_NO_ELIGIBLE = "anatomy exists, but no row was both quoted and computed before kickoff"
+EXCLUDE_NOT_DIAGNOSED = "eligible pregame projections exist but no autopsy batch covers them yet (postgame job pending/failed)"
+
+
+def anatomy_units(rows: list) -> dict:
+    """Per game: how many (player, stat) units are eligible to be diagnosed, and why the other rows are not."""
+    rep = representative_rows(rows)
+    return {"anatomy_rows": len(rows), "eligible_units": len(rep),
+            "eligible_unit_ids": sorted(f"{r['player_id']}|{r.get('stat')}" for r in rep),
+            "excluded_rows": excluded_rows(rows)}
+
+
+def coverage_manifest(schedule: list, anatomy: dict | None, canonical: list, raw_records: list | None = None) -> dict:
+    """The week's autopsy coverage, game by game: expected (the schedule), eligible (instrumented pregame
+    projections), diagnosed (canonical autopsies), excluded (with a reason). A report that cannot show this
+    for its week is not allowed to look complete.
+
+    `schedule` rows: {game_id, status, kickoff_utc}. `anatomy` maps game_id -> anatomy_units(...) (None when the
+    caller did not read the anatomy corpus: eligibility is then inferred from diagnosis alone, and said so)."""
+    by_game = defaultdict(list)
+    for r in canonical:
+        by_game[r.get("game_id")].append(r)
+    raw = defaultdict(int)
+    for r in raw_records or []:
+        raw[r.get("game_id")] += 1
+    games, excluded = [], []
+    for g in sorted(schedule, key=lambda g: g["game_id"]):
+        gid = g["game_id"]
+        recs = by_game.get(gid, [])
+        an = (anatomy or {}).get(gid)
+        row = {"game_id": gid, "status": g.get("status"), "diagnosed_units": len(recs),
+               "raw_autopsy_records": raw.get(gid, 0),
+               "units_with_box_score": sum(1 for r in recs if r.get("actual_stat") is not None),
+               "by_classification": dict(sorted(Counter(r.get("classification") for r in recs).items())),
+               "autopsy_versions": sorted({str(r.get("evaluation_version")) for r in recs})}
+        if an is not None:
+            row.update({"anatomy_rows": an["anatomy_rows"], "eligible_units": an["eligible_units"],
+                        "excluded_anatomy_rows": an["excluded_rows"]})
+            ids = {f"{r.get('player_id')}|{r.get('stat')}" for r in recs}
+            row["eligible_not_diagnosed"] = len(set(an["eligible_unit_ids"]) - ids)
+        reason = None
+        if g.get("status") != "FINAL":
+            reason = EXCLUDE_NOT_FINAL
+        elif anatomy is not None and an is None and not recs:
+            reason = EXCLUDE_NO_ANATOMY
+        elif an is not None and an["eligible_units"] == 0:
+            reason = EXCLUDE_NO_ELIGIBLE
+        elif not recs:
+            reason = EXCLUDE_NOT_DIAGNOSED if (an is None or an["eligible_units"]) else EXCLUDE_NO_ELIGIBLE
+        row["included"] = reason is None
+        row["exclusion_reason"] = reason
+        (games if reason is None else excluded).append(row)
+    allrows = games + excluded
+    return {"expected_games": len(schedule),
+            "eligible_games": sum(1 for r in allrows if (r.get("eligible_units") or r["diagnosed_units"]) > 0),
+            "diagnosed_games": len(games), "excluded_games": len(excluded),
+            "projection_units": sum(r["diagnosed_units"] for r in games),
+            "units_with_box_score": sum(r["units_with_box_score"] for r in games),
+            "eligible_units": (sum(r.get("eligible_units", 0) for r in allrows) if anatomy is not None else None),
+            "eligible_not_diagnosed": (sum(r.get("eligible_not_diagnosed", 0) for r in allrows) if anatomy is not None else None),
+            "anatomy_read": anatomy is not None,
+            "games": sorted(allrows, key=lambda r: r["game_id"])}
+
+
+def render_coverage(m: dict, *, title: str = "Player-autopsy coverage") -> str:
+    lines = [f"## {title}", "",
+             f"Expected games {m['expected_games']} · eligible {m['eligible_games']} · diagnosed {m['diagnosed_games']} · "
+             f"excluded {m['excluded_games']} · canonical projection units {m['projection_units']} "
+             f"({m['units_with_box_score']} with a box-score value)"
+             + (f" · eligible units {m['eligible_units']}, eligible but undiagnosed {m['eligible_not_diagnosed']}" if m["anatomy_read"]
+                else " · anatomy not read: eligibility inferred from diagnoses only"), "",
+             "| game | included | diagnosed units | raw records | eligible units | undiagnosed | rule | exclusion reason |",
+             "|---|---|---|---|---|---|---|---|"]
+    for r in m["games"]:
+        lines.append(f"| {r['game_id']} | {'yes' if r['included'] else 'NO'} | {r['diagnosed_units']} | {r['raw_autopsy_records']} | "
+                     f"{r.get('eligible_units', '—')} | {r.get('eligible_not_diagnosed', '—')} | {', '.join(r['autopsy_versions']) or '—'} | "
+                     f"{r['exclusion_reason'] or ''} |")
+    return "\n".join(lines) + "\n"
