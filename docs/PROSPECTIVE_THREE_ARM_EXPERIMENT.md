@@ -174,3 +174,46 @@ recommendation means one good contract or a board that mostly failed mapping and
    their own suffixes, which is what was done rather than a second store.
 8. **Nothing on the report path can import the experiment**: the isolation audit's reachable set was checked and a
    test now asserts the arms package, the funnel and the autopsy are unreachable from the packet and the gates.
+
+## Week 3 autopsy gap: root cause and repair (2026-10-01)
+
+**Symptom.** The published Week 3 report showed 69 diagnosed player projections, almost all ATL–GB, and the
+cumulative table (2,076 projections) was Weeks 1–2 plus that one game.
+
+**The evidence was never missing.** All 16 Week 3 games had anatomy and autopsy batches on `market-data`
+(1,012 records); eligible-but-undiagnosed units were 0. What was missing was the **report**:
+
+1. `postgame-settle.yml` rebuilt the three-arm report only in a run that had just written evidence, and it did so
+   from a fresh full checkout of `market-data` (`/tmp/md3`) on top of `/tmp/md`, `/tmp/md2` (the incumbent
+   report's own fresh checkout) and the publisher's `_market_data_wt`. Runs 36360505616, 36413306905 and
+   36520841698 each died a few seconds into creating the fourth copy (job steps stuck `in_progress`, logs
+   unrecoverable); every run that skipped the incumbent report (no `/tmp/md2`) rebuilt the three-arm report fine.
+   The last good report (`20260928T043505Z`) predates 15 of the 16 Week 3 autopsy batches.
+2. Nothing retried a report whose rebuild died: later polls found no new evidence and skipped the step.
+
+**Repair.**
+
+* One checkout per job, refreshed in place (`scripts/ci/refresh_market_data_worktree.sh`), and the publisher's
+  dead scratch checkout dropped before each report rebuild.
+* The gate reports `report_work` when the newest arm evaluation or autopsy batch is newer than the newest complete
+  report (`settle_gate.report_staleness`), so a failed rebuild is repaired on the next poll with no person involved.
+* Every weekly report carries an **autopsy coverage manifest** (`weekNN.autopsy_coverage.json` and a table in
+  `weekNN.REPORT.md`): expected games (schedule), eligible games and units (pregame anatomy), diagnosed games and
+  units, and each excluded game with its reason. A week that silently covered one game would now print
+  "excluded 15".
+
+**Two autopsy defects found while reproducing the counts, fixed as rule version `autopsy-1.1.0`.** 1.0.0 records
+stay in the corpus untouched; the report reads one record per unit through `player_autopsy.canonical_autopsies`.
+
+* *Post-kickoff computations.* The capture is change-suppressed, so the 2-hourly pricer keeps re-pricing a game's
+  last pregame QUOTE for days after the game, with availability read at run time (2026_02_NYG_LA: a receiver
+  flips QUESTIONABLE → OUT the morning after he was hurt). 1.0.0 picked among those rows by prediction id and used a
+  postgame computation for 86 of 3,021 records — most of the 1.0.0 `AVAILABILITY_MISS` labels came from them.
+  1.1.0 requires the computation itself (`run_id`, anatomy `evaluated_at`) to precede kickoff, and breaks quote
+  ties by the latest pregame computation.
+* *Double counting.* A later pregame anatomy file produced a second representative for 26 units; the report
+  counted both. The reader now takes the newest rule version per game and one record per (game, player, stat).
+
+Weeks 1–3 under 1.1.0 (canonical, local rerun on the published anatomy): 2,980 units; 1,810 meaningful misses
+(OPPORTUNITY 980, TEAM_VOLUME 174, EFFICIENCY 525, AVAILABILITY 39, UNEXPLAINED 92);
+OPPORTUNITY + TEAM_VOLUME 63.8%, EFFICIENCY 29.0%. The owner's 1.0.0 reading (63.6% / 29.0%) holds.
