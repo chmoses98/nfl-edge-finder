@@ -426,7 +426,10 @@ def test_the_weekly_report_assembles_slice_and_game_centre_evidence_from_publish
     assert [w for _, w in slice_ev["evaluated_weeks"]] == [2, 3] and slice_ev["new_independent_games"] == 40
     assert slice_ev["excluded_weeks"] == [] or all(x["week"] == 1 for x in slice_ev["excluded_weeks"])
     assert by_id["H2-GC-MARGIN-2026W02"]["new_independent_games"] == 0     # no arm report on this market-data
-    assert doc["n_under_test"] == 2 and doc["multiple_comparisons"]["m"] == 2
+    # the multiplicity family is EVERY Stage B/C hypothesis of the registry (two game-centre tests in 2026 week 3;
+    # thirteen once the eleven board hypotheses were preregistered before week 4), never a hand-picked subset
+    m = len(HR.multiplicity_family(HR.current(os.path.join(ROOT, HR.DEFAULT_PATH))))
+    assert m >= 2 and doc["n_under_test"] == m and doc["multiple_comparisons"]["m"] == m
     text = mod.render(S3.build(wk(3, "C")), mod.health(wk(3, "C"), [], [], 2026, 3), wk(3, "C"), "2026_wk03", doc)
     assert "H2-GC-TOTAL-2026W02" in text and "suggestion only; owner approval required" in text
 

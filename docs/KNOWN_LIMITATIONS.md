@@ -489,3 +489,13 @@
     the exchange's own figures prove the equality. The router fix is NOT applied: re-delivering corrected nets
     would CONFLICT (correctly) on every settlement already filed, here and in cfb-edge-finder, so it needs a
     deliberate amendment design approved by the owner.
+
+## Full-board research (2026-10-01)
+
+* The board table settles from football only the families the production engines settle; 7,561 Weeks 1–3
+  contracts (first-TD, race-to-N, team stats, fantasy points, longest plays, unresolved players) carry the exchange's
+  terminal result in a separate tier and are outside the canonical analysis.
+* `2H` settlement of an overtime game and `GAME_PLAYER_LEADER` disagree with the exchange on 42 contracts; they are
+  flagged and excluded, and the `settle_v2` period / leader rules are unchanged pending review.
+* The role-certainty proxy (P(plays) and prior-game count) is not a role model.
+* 48 games: every board reading is hypothesis-generating; nothing is confirmatory before the preregistered window.
