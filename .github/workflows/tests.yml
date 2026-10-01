@@ -50,16 +50,28 @@ jobs:
           git fetch --no-tags --filter=blob:none --unshallow origin '+refs/heads/main:refs/remotes/origin/main'
           git merge-base HEAD origin/main
 
+      # Cached wheels come from the Actions cache, not PyPI: PR runners on 2026-10-01 repeatedly hung in
+      # the install step (normally ~10 s) until the job's 15-minute timeout.
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
 
       # requirements-test.txt is the TRANSITIVE set, derived by walking the import graph rather than by
       # reading the top of each test file. A missing dependency does not skip a test -- it fails it, or
       # fails collection for the whole module -- so the list has to be complete, and
       # tests/test_ci_dependencies.py fails if it falls behind.
+      # Bounded: a stalled download fails this attempt in 3 minutes and retries, instead of eating the job.
       - name: Install test dependencies
-        run: python3 -m pip install --quiet -r requirements-test.txt
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 180 python3 -m pip install --quiet --timeout 30 --retries 5 -r requirements-test.txt; then
+              exit 0
+            fi
+            echo "::warning::pip install attempt $attempt did not finish; retrying"
+          done
+          exit 1
 
       - name: Syntax check every module
         run: python3 -m compileall -q nfl_edge scripts tests
