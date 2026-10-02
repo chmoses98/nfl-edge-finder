@@ -37,8 +37,37 @@ def try_get(url, timeout=60):
         return None, {"status": "error", "error": str(e)[:200], "retrieved_at": datetime.now(timezone.utc).isoformat()}
 
 
-def main():
+#: The three independent sources one capture run is made of. Weather rows are derived from the schedule.
+PRIMARY_SOURCES = ("schedule", "sleeper_players", "espn_injuries")
+
+
+def capture_health(man: dict) -> str:
+    """HEALTHY / DEGRADED / FAILED for one capture run, from its own manifest.
+
+    HEALTHY   nothing failed closed.
+    DEGRADED  at least one source failed closed but at least one primary source was retrieved: the run published
+              what it captured, the manifest's `failed_closed` names what is missing, and the next run retries.
+              Consumers that need a complete capture (RUN NFL's fresh capture) still refuse it -- the exit code
+              below is unchanged -- so this classification only stops the 3-hourly collector itself from going
+              red for one upstream hiccup (run 36382280662: one source, one run, red).
+    FAILED    every primary source failed: nothing was captured, which is not a single upstream's bad minute.
+    """
+    failed = list(man.get("failed_closed") or [])
+    if not failed:
+        return "HEALTHY"
+    sources = man.get("sources") or {}
+    retrieved = [s for s in PRIMARY_SOURCES if (sources.get(s) or {}).get("status") == 200]
+    return "DEGRADED" if retrieved else "FAILED"
+
+
+def main(argv=None):
+    import argparse
     import hashlib
+    ap = argparse.ArgumentParser()
+    # Explicit only (no $GITHUB_OUTPUT default): RUN NFL runs this script inside its own steps.
+    ap.add_argument("--github-output", default=None,
+                    help="append health=<HEALTHY|DEGRADED|FAILED> and failed_closed=<...> to this file")
+    a = ap.parse_args(argv)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"); now = datetime.now(timezone.utc)
     d = os.path.join(OUT, now.strftime("%Y-%m-%d")); os.makedirs(d, exist_ok=True)
     man = {"run_id": run_id, "sources": {}, "failed_closed": []}
@@ -142,9 +171,14 @@ def main():
         man["sources"]["espn_injuries"]["teams"] = len(j.get("injuries", [])); man["sources"]["espn_injuries"]["rows"] = len(slim)
     else:
         man["failed_closed"].append("espn injuries unavailable")
+    man["health"] = capture_health(man)
     json.dump(state, open(state_path, "w"))
     json.dump(man, open(os.path.join(d, f"{run_id}.manifest.json"), "w"), indent=1)
     print(json.dumps(man, default=str)[:1500])
+    if a.github_output:
+        with open(a.github_output, "a") as f:
+            f.write(f"health={man['health']}\nfailed_closed={'; '.join(man['failed_closed'])}\n")
+    # Unchanged contract: 2 whenever any source failed closed. RUN NFL's fresh capture depends on it.
     return 0 if not man["failed_closed"] else 2
 
 

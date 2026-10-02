@@ -26,13 +26,38 @@ jobs:
           git fetch --depth=1 origin market-data || true
           mkdir -p data/context
           git show origin/market-data:data/context/state.json > data/context/state.json 2>/dev/null || echo '{}' > data/context/state.json
+      # continue-on-error so a PARTIAL capture is still published (its manifest names what failed closed). The
+      # capture classifies itself (scripts/data/context_capture.py capture_health) and the last step enforces it.
       - id: cap
         continue-on-error: true
-        run: python3 scripts/data/context_capture.py
+        run: python3 scripts/data/context_capture.py --github-output "$GITHUB_OUTPUT"
       - name: Publish
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           python3 scripts/ci/publish_market_data.py --src data/context --message "context capture $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-      - if: steps.cap.outcome != 'success'
-        run: echo "::warning::context capture failed closed on at least one source"; exit 1
+      # ONE enforcement step. It used to warn AND exit 1 whenever any single source failed closed, so one upstream
+      # hiccup in one 3-hourly run turned the collector red (run 36382280662) while the capture it did make was
+      # published. Now: HEALTHY -> green; DEGRADED (some sources captured, the manifest names the rest; the next
+      # run retries) -> green with a warning and a summary line; FAILED (every source failed) or no health at all
+      # (the capture crashed) -> red. RUN NFL's own fresh capture is unaffected: it still refuses any failed-closed
+      # capture through the script's exit code.
+      - name: Capture health
+        if: always()
+        env:
+          HEALTH: ${{ steps.cap.outputs.health }}
+          FAILED_CLOSED: ${{ steps.cap.outputs.failed_closed }}
+          CAP_OUTCOME: ${{ steps.cap.outcome }}
+        run: |
+          case "${HEALTH}" in
+            HEALTHY)
+              echo "context capture HEALTHY"
+              echo "### Context capture: HEALTHY" >> "$GITHUB_STEP_SUMMARY" ;;
+            DEGRADED)
+              echo "::warning::context capture DEGRADED: failed closed on ${FAILED_CLOSED}; the rest was published and the next run retries"
+              printf '### Context capture: DEGRADED\n\nfailed closed: %s. Everything else was captured and published; the manifest records it and the next run retries.\n' "${FAILED_CLOSED}" >> "$GITHUB_STEP_SUMMARY" ;;
+            *)
+              echo "::error::context capture FAILED (health=${HEALTH:-none}, capture step ${CAP_OUTCOME}; failed closed: ${FAILED_CLOSED:-n/a})"
+              printf '### Context capture: FAILED\n\nhealth=%s, capture step %s, failed closed: %s\n' "${HEALTH:-none}" "${CAP_OUTCOME}" "${FAILED_CLOSED:-n/a}" >> "$GITHUB_STEP_SUMMARY"
+              exit 1 ;;
+          esac

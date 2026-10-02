@@ -25,6 +25,7 @@ from __future__ import annotations
 import csv
 import io
 import os
+import sys
 from datetime import datetime, timedelta, timezone
 
 # A week block stays "active" until its last kickoff plus this much. An NFL game runs a little over three
@@ -106,11 +107,18 @@ def parse_schedule(text: str) -> list:
 
 
 def load_schedule(root: str, *, market_data: str | None = None, path: str | None = None,
-                  allow_download: bool = False, timeout: int = 60):
+                  allow_download: bool = False, timeout: int = 60, download_attempts: int = 1,
+                  retry_wait_s: float = 10.0, _urlopen=None, _sleep=None):
     """Return `(games, source)`. Raises FileNotFoundError when no schedule can be read at all.
 
     Fail closed: a caller that cannot read the schedule must not fall back to a guessed week, so this
     raises rather than returning an empty list that would read as "the season is over".
+
+    `download_attempts` bounds the retry of the download only (default 1 = one try, the historical behaviour).
+    The 15-minute horizon gates pass 3: one dropped connection to the nflverse release made a whole gate run
+    red with "cannot read the schedule" (exit 6) -- runs 34770263696 and 36464087768 -- although the next
+    request would have succeeded. After the last attempt the error is raised exactly as before, so a real
+    outage still fails closed.
     """
     tried = []
     for p in ([path] if path else schedule_candidates(root, market_data)):
@@ -119,10 +127,24 @@ def load_schedule(root: str, *, market_data: str | None = None, path: str | None
                 return parse_schedule(f.read()), p
         tried.append(p)
     if allow_download:
+        import time
         import urllib.request
-        req = urllib.request.Request(SCHEDULE_URL, headers={"User-Agent": "nfl-edge-finder calendar"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return parse_schedule(r.read().decode()), SCHEDULE_URL
+        opener = _urlopen or urllib.request.urlopen
+        sleep = _sleep or time.sleep
+        attempts = max(1, int(download_attempts))
+        for attempt in range(1, attempts + 1):
+            req = urllib.request.Request(SCHEDULE_URL, headers={"User-Agent": "nfl-edge-finder calendar"})
+            try:
+                with opener(req, timeout=timeout) as r:
+                    raw = r.read().decode()
+            except Exception as e:  # noqa: BLE001 -- retried a bounded number of times, then re-raised
+                if attempt >= attempts:
+                    raise
+                print(f"schedule download attempt {attempt}/{attempts} failed ({e}); retrying in "
+                      f"{retry_wait_s * attempt:.0f}s", file=sys.stderr)
+                sleep(retry_wait_s * attempt)
+                continue
+            return parse_schedule(raw), SCHEDULE_URL
     raise FileNotFoundError(
         "no NFL schedule available; looked at " + ", ".join(str(t) for t in tried) +
         " (pass --schedule, or allow a download)")
