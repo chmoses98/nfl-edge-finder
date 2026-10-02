@@ -31,7 +31,9 @@ jobs:
     # The three drivers stream every game from its own projection files and re-read the whole settlement corpus
     # for the scorecard; that is bounded in memory but grows in time with the season. 45 minutes was sized for a
     # run that never got past its fetch step.
-    timeout-minutes: 90
+    # 120 = the evidence path (fetch + settle + closes + publish: 34-46 min on 2026-10-01/02) + the derived
+    # rebuild's own 50-minute step limit + its publish, with headroom. The cron is 3-hourly, so it cannot overlap.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -82,9 +84,15 @@ jobs:
             --message "shadow v2 settlements ${{ steps.settle.outputs.batch_id }} (${{ steps.settle.outputs.written }} records) + closes ${{ steps.closes.outputs.written }}"
       # Derived, rebuildable research table + scorecard v3 + weekly report + health gate. Failure here must not
       # block publishing the immutable batches above.
+      #
+      # BOUNDED. With no limit of its own this step ran into the JOB limit on ~28 consecutive runs between
+      # 2026-09-27 and 2026-10-01 (36937919712: evidence published 23:30Z, killed at 00:26Z) -- every run ended
+      # TIMED_OUT although its settlement evidence was already published. A step past its limit fails, and
+      # continue-on-error turns that into a DEGRADED run (see "Run health" below), not a dead job.
       - name: Rebuild the research export, scorecard v3, weekly report and health gate
         id: research
         continue-on-error: true
+        timeout-minutes: 50
         run: |
           WEEK=$(python3 scripts/shadow_v2/active_week.py --market-data /tmp/md)
           echo "active week: $WEEK"
@@ -107,7 +115,23 @@ jobs:
       # immutable projection file) rides with whichever publish runs first, so the next run reuses it instead of
       # re-indexing the archive. A no-op when the rebuild changed nothing.
       - name: Publish the research export, scorecard v3 and weekly report
+        id: research_publish
         if: steps.research.outcome == 'success'
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
             --message "shadow v2 research export + scorecard + weekly report (batch ${{ steps.settle.outputs.batch_id }})"
+      # Reporting only (exit 0 always): HEALTHY / DEGRADED / FAILED / NOT_APPLICABLE as one JSON line and in the job
+      # summary, plus a ::warning:: when DEGRADED. The steps above decide red: an evidence step or the derived
+      # publish failing fails the job; a derived rebuild that failed or ran past its limit does not.
+      - name: Run health
+        if: always()
+        continue-on-error: true
+        env:
+          SETTLE_STATUS: ${{ steps.settle.outputs.status }}
+          CLOSES_STATUS: ${{ steps.closes.outputs.status }}
+          INDEX_WRITTEN: ${{ steps.settle.outputs.index_written }}
+          EVIDENCE_PUBLISH: ${{ steps.publish_evidence.outcome }}
+          RESEARCH: ${{ steps.research.outcome }}
+          RESEARCH_PUBLISH: ${{ steps.research_publish.outcome }}
+          JOB_STATUS: ${{ job.status }}
+        run: python3 scripts/ops/automation_state.py shadow-v2-settle --summary "$GITHUB_STEP_SUMMARY"

@@ -136,6 +136,53 @@ def classify_postgame(*, gate_work: str | None, settle_status: str | None, writt
                                             else "every candidate game was already evaluated")}
 
 
+#: Operational health of one finished run (the reliability contract's states). NOT_APPLICABLE = nothing was owed.
+HEALTH_STATES = ("HEALTHY", "DEGRADED", "FAILED", "NOT_APPLICABLE")
+
+
+def classify_shadow_v2_settle(*, settle_status: str | None, closes_status: str | None, index_written=None,
+                              evidence_publish: str | None = None, research: str | None = None,
+                              research_publish: str | None = None, job_status: str | None = None) -> dict:
+    """The health of ONE finished shadow-v2-settle run, from its step outputs and step outcomes.
+
+    The run's primary product is the write-once EVIDENCE (settlement, close and CLV batches), published first. The
+    research export / scorecard v3 / weekly report after it is DERIVED and rebuildable from the corpus every run.
+
+        FAILED          an evidence step failed (the job itself is red; this only names it)
+        DEGRADED        the evidence is settled and published (or nothing was owed), but the derived rebuild failed
+                        or ran past its step limit -- the previous published report stands, the next run rebuilds
+        HEALTHY         evidence written and published, derived rebuild published
+        NOT_APPLICABLE  no game was ready and nothing new to pair; the derived rebuild still ran cleanly
+
+    Between 2026-09-27 and 2026-10-01 the derived rebuild ran into the 90-minute JOB limit on ~28 consecutive runs
+    (e.g. 36937919712: evidence published 23:30Z, research step killed 00:26Z), so every run ended TIMED_OUT
+    although its settlement evidence was already on market-data. The step now has its own limit and reports here.
+    """
+    def n(x):
+        try:
+            return int(x or 0)
+        except (TypeError, ValueError):
+            return 0
+    oc = {k: str(v or "").lower() for k, v in (("evidence_publish", evidence_publish), ("research", research),
+                                               ("research_publish", research_publish), ("job", job_status))}
+    wrote = (str(settle_status or "").upper() == "WROTE" or str(closes_status or "").upper() == "WROTE"
+             or n(index_written) > 0)
+    if oc["evidence_publish"] == "failure" or (oc["job"] == "failure" and oc["research_publish"] != "failure"):
+        return {"health": "FAILED", "reason": "a settlement/close/CLV evidence step failed; nothing derived can "
+                                              "stand in for it -- see the failed step"}
+    if oc["research_publish"] == "failure":
+        return {"health": "FAILED", "reason": "the derived research export was rebuilt but could not be published"}
+    if oc["research"] not in ("success", ""):
+        return {"health": "DEGRADED",
+                "reason": ("settlement evidence " + ("published" if wrote else "unchanged (nothing new owed)") +
+                           f"; the derived research export / scorecard v3 / weekly report did not finish "
+                           f"({oc['research']}, including running past its step limit) -- the previous published "
+                           "report stands and the next run rebuilds it")}
+    if wrote:
+        return {"health": "HEALTHY", "reason": "settlement evidence and the derived research export published"}
+    return {"health": "NOT_APPLICABLE", "reason": "no game newly ready to settle or pair; derived rebuild clean"}
+
+
 #: A conductor chain with no queued/running link whose last activity is older than this is dead. A healthy
 #: hand-off shows the successor as pending/queued, so the only legitimate gap is seconds.
 CHAIN_DEAD_AFTER_MIN = 15.0

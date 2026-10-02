@@ -194,8 +194,15 @@ jobs:
             --trigger shadow-cycle --max-ledger-age-min 45 --max-capture-age-min 45 \
             --artifact-name 'run-nfl-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}'
 
+      # Like every step after "Publish ledger", this cannot fail the pricing job: on 2026-09-21 (run 35668066839)
+      # the artifact service answered 403 on finalize and the run went red with its ledger already published.
+      # Reported, not fatal -- and the browsable latest/ publish below still requires the upload, because the
+      # packet's manifest names this artifact: a latest/ pointing at an artifact that does not exist is not
+      # published; the previous latest/ stands with its own timestamp, exactly as when the report does not build.
       - name: Upload the report artifact
+        id: upload_report
         if: steps.report.outputs.report_status == 'SUCCESS'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: run-nfl-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}
@@ -204,7 +211,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish the browsable latest report
-        if: steps.report.outputs.report_status == 'SUCCESS'
+        if: steps.report.outputs.report_status == 'SUCCESS' && steps.upload_report.outcome == 'success'
         continue-on-error: true
         run: |
           python3 scripts/ci/publish_handicap_report.py --src data/handicap_report \
@@ -222,4 +229,6 @@ jobs:
             echo "::notice::no active NFL slate: ${{ steps.week.outputs.reason }}"
           elif [ "${{ steps.report.outputs.report_status }}" != "SUCCESS" ]; then
             echo "::warning::handicap report did not build this cycle; the previous latest/ report stands with its own timestamp"
+          elif [ "${{ steps.upload_report.outcome }}" == "failure" ]; then
+            echo "::warning::the handicap report built but its run artifact did not upload; latest/ was not replaced and the previous report stands with its own timestamp"
           fi

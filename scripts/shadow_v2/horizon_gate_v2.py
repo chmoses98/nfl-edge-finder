@@ -33,7 +33,7 @@ def main():
     a = ap.parse_args()
     now = datetime.fromisoformat(a.now.replace("Z", "+00:00")) if a.now else datetime.now(timezone.utc)
     try:
-        games, src = load_schedule(ROOT, market_data=a.market_data, path=a.schedule, allow_download=a.allow_download)
+        games, src = load_schedule(ROOT, market_data=a.market_data, path=a.schedule, allow_download=a.allow_download, download_attempts=3)
     except Exception as e:  # noqa: BLE001
         print(f"FAIL: cannot read the schedule: {e}", file=sys.stderr)
         return 6
