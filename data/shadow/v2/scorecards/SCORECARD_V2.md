@@ -1,22 +1,22 @@
 # Shadow v2 scorecard
 
-scorecard scorecard-2.0.0; rows 1857688
+scorecard scorecard-2.0.0; rows 1859024
 
 ## Evidence class: PROSPECTIVE_FROZEN
 
-effective predictions 1799820: settled 1672695, unresolved 127125; evidence rows 1857688 (superseded provisional season vintages 57868)
+effective predictions 1801156: settled 1673423, unresolved 127733; evidence rows 1859024 (superseded provisional season vintages 57868)
 
 | metric | model | market (mid) |
 |---|---|---|
-| n | 1672695 | 1672695 |
+| n | 1673423 | 1673423 |
 | Brier | 0.1497 | 0.1436 |
-| log loss | 0.4687 | 0.4413 |
-| Brier - market (clustered by game) | 0.0061 ± 0.0011 (z 5.76) | |
+| log loss | 0.4688 | 0.4414 |
+| Brier - market (clustered by game) | 0.0061 ± 0.0011 (z 5.75) | |
 | ECE | 0.0373 | |
 | sharpness | 0.3071 | |
-| directional hit rate vs mid | 0.5374 (n=1672528) | |
+| directional hit rate vs mid | 0.5374 (n=1673256) | |
 
-executable (ask, fees once, edge >= 0.05): taken 309716, P&L/contract -0.0236, fee-unknown 0
+executable (ask, fees once, edge >= 0.05): taken 309912, P&L/contract -0.0236, fee-unknown 0
 
 ### by engine
 
@@ -26,13 +26,13 @@ executable (ask, fees once, edge >= 0.05): taken 309716, P&L/contract -0.0236, f
 | JOINT | 9396 | 0.0781 | 0.0777 | 0.0004 ± 0.0011 (0.32) |
 | PERIOD | 217423 | 0.1458 | 0.1463 | -0.0004 ± 0.0007 (-0.63) |
 | PLAYER | 1242010 | 0.1502 | 0.1404 | 0.0098 ± 0.0014 (7.22) |
-| SEASON | 91728 | 0.1421 | 0.1618 | -0.0197 ± 0.0061 (-3.25) |
+| SEASON | 92456 | 0.1422 | 0.1618 | -0.0196 ± 0.0061 (-3.25) |
 
 ### by model_arm
 
 | value | n | Brier | market | diff ± se (z) |
 |---|---|---|---|---|
-| BOARD_V2 | 430685 | 0.1481 | 0.1526 | -0.0045 ± 0.0015 (-3.09) |
+| BOARD_V2 | 431413 | 0.1481 | 0.1526 | -0.0045 ± 0.0015 (-3.09) |
 | DATA_PLAYER_DIST | 203102 | 0.1842 | 0.1400 | 0.0442 ± 0.0045 (9.81) |
 | DATA_PLAYER_V3 | 106428 | 0.1483 | 0.1407 | 0.0076 ± 0.0029 (2.58) |
 | DATA_PLAYER_V4 | 106829 | 0.1460 | 0.1381 | 0.0079 ± 0.0019 (4.23) |
@@ -55,7 +55,7 @@ executable (ask, fees once, edge >= 0.05): taken 309716, P&L/contract -0.0236, f
 | PLAYER_STAT | 1242010 | 0.1502 | 0.1404 | 0.0098 ± 0.0014 (7.22) |
 | SPREAD | 122570 | 0.1642 | 0.1633 | 0.0010 ± 0.0006 (1.51) |
 | TEAM_TOTAL | 66210 | 0.1227 | 0.1264 | -0.0037 ± 0.0008 (-4.77) |
-| TEAM_WINS_BY_WEEK | 91728 | 0.1421 | 0.1618 | -0.0197 ± 0.0061 (-3.25) |
+| TEAM_WINS_BY_WEEK | 92456 | 0.1422 | 0.1618 | -0.0196 ± 0.0061 (-3.25) |
 | TOTAL | 105025 | 0.1427 | 0.1431 | -0.0005 ± 0.0008 (-0.63) |
 | WIN_MARGIN_BUCKET | 5628 | 0.1177 | 0.1182 | -0.0005 ± 0.0009 (-0.56) |
 
@@ -80,14 +80,14 @@ executable (ask, fees once, edge >= 0.05): taken 309716, P&L/contract -0.0236, f
 | team_points | 66210 | 0.1227 | 0.1264 | -0.0037 ± 0.0008 (-4.77) |
 | total_points | 105025 | 0.1427 | 0.1431 | -0.0005 ± 0.0008 (-0.63) |
 | touchdowns | 185437 | 0.0890 | 0.0863 | 0.0027 ± 0.0013 (2.09) |
-| wins | 91728 | 0.1421 | 0.1618 | -0.0197 ± 0.0061 (-3.25) |
+| wins | 92456 | 0.1422 | 0.1618 | -0.0196 ± 0.0061 (-3.25) |
 
 ### by horizon_label
 
 | value | n | Brier | market | diff ± se (z) |
 |---|---|---|---|---|
 | CYCLE | 1322792 | 0.1496 | 0.1421 | 0.0075 ± 0.0011 (7.02) |
-| None | 91728 | 0.1421 | 0.1618 | -0.0197 ± 0.0061 (-3.25) |
+| None | 92456 | 0.1422 | 0.1618 | -0.0196 ± 0.0061 (-3.25) |
 | T-24h | 74101 | 0.1531 | 0.1449 | 0.0082 ± 0.0010 (8.40) |
 | T-30m | 53754 | 0.1542 | 0.1457 | 0.0085 ± 0.0013 (6.73) |
 | T-6h | 77162 | 0.1532 | 0.1450 | 0.0082 ± 0.0010 (8.17) |
@@ -98,7 +98,7 @@ executable (ask, fees once, edge >= 0.05): taken 309716, P&L/contract -0.0236, f
 | value | n | Brier | market | diff ± se (z) |
 |---|---|---|---|---|
 | FULL | 170465 | 0.1498 | 0.1501 | -0.0003 ± 0.0003 (-0.89) |
-| None | 1416773 | 0.1509 | 0.1436 | 0.0073 ± 0.0012 (5.91) |
+| None | 1417501 | 0.1509 | 0.1436 | 0.0073 ± 0.0012 (5.90) |
 | PARTIAL | 85457 | 0.1291 | 0.1303 | -0.0013 ± 0.0005 (-2.48) |
 
 ### by availability_state
@@ -106,7 +106,7 @@ executable (ask, fees once, edge >= 0.05): taken 309716, P&L/contract -0.0236, f
 | value | n | Brier | market | diff ± se (z) |
 |---|---|---|---|---|
 | EXPECTED_ACTIVE | 1161397 | 0.1514 | 0.1412 | 0.0102 ± 0.0015 (6.99) |
-| None | 430685 | 0.1481 | 0.1526 | -0.0045 ± 0.0015 (-3.09) |
+| None | 431413 | 0.1481 | 0.1526 | -0.0045 ± 0.0015 (-3.09) |
 | QUESTIONABLE | 9121 | 0.1243 | 0.1069 | 0.0174 ± 0.0133 (1.30) |
 | UNKNOWN | 71492 | 0.1343 | 0.1322 | 0.0021 ± 0.0051 (0.41) |
 
@@ -114,5 +114,5 @@ executable (ask, fees once, edge >= 0.05): taken 309716, P&L/contract -0.0236, f
 
 | value | n | Brier | market | diff ± se (z) |
 |---|---|---|---|---|
-| none | 1670495 | 0.1496 | 0.1435 | 0.0061 ± 0.0011 (5.74) |
-| unknown | 2200 | 0.1997 | 0.1780 | 0.0218 ± 0.0074 (2.93) |
+| none | 1670783 | 0.1496 | 0.1435 | 0.0061 ± 0.0011 (5.72) |
+| unknown | 2640 | 0.2007 | 0.1793 | 0.0214 ± 0.0074 (2.90) |
