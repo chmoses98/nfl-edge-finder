@@ -116,12 +116,43 @@ def test_the_report_workflows_request_no_secrets(name):
     assert "secrets" not in (_wf(name).get("jobs") or {}), f"{name} declares job-level secrets"
 
 
+# The Edge Finder app export (scripts/app_export.py, docs/APP_EXPORT.md) reads the handicap-data ledger so the
+# app can show recorded decisions and wagers beside the board. Reading is `git fetch --depth=1` plus
+# `git archive ... | tar -x` into RUNNER_TEMP: no worktree, no checkout, no push. Those two command shapes are
+# the ONLY way a report workflow may name the ledger branch; everything else below still treats the name as
+# a violation, and `test_the_report_workflows_read_the_ledger_only_through_git_archive` pins the shapes.
+_LEDGER_READ_RE = re.compile(r"git (?:fetch --depth=1 origin handicap-data|archive origin/handicap-data data)\b")
+
+
+def _executable_yaml_without_ledger_reads(name: str) -> str:
+    """`_executable_yaml` with the two read-only ledger shapes blanked out of every `run` block BEFORE the
+    dump (the dump folds long lines, so the shapes are matched on the step text, never on the rendering)."""
+    doc = _wf(name)
+    for step in _steps(doc):
+        if step.get("run"):
+            step["run"] = _LEDGER_READ_RE.sub("git <read-only ledger extract>", step["run"])
+    return yaml.safe_dump(doc, default_flow_style=False)
+
+
 @pytest.mark.parametrize("name", REPORT_WORKFLOWS)
 def test_the_report_workflows_never_invoke_preflight_or_the_recommendation_writers(name):
-    doc = _executable_yaml(name)
+    doc = _executable_yaml_without_ledger_reads(name)
     for forbidden in ("preflight.yml", "preflight_airtable.py", "preflight_candidate.py",
                       "sync_airtable.py", "validate_recommendations.py", "handicap-data"):
         assert forbidden not in doc, f"{name} runs {forbidden}"
+
+
+@pytest.mark.parametrize("name", REPORT_WORKFLOWS)
+def test_the_report_workflows_read_the_ledger_only_through_git_archive(name):
+    """Every mention of the ledger branch is one of the two read-only shapes, and no push, worktree or
+    checkout ever names it. A `git push origin handicap-data` on this path is the bug the guard exists for."""
+    for step in _steps(_wf(name)):
+        for line in (step.get("run") or "").splitlines():
+            if "handicap-data" in line:
+                assert _LEDGER_READ_RE.search(line), f"{name} names handicap-data outside a read-only extract: {line.strip()}"
+                assert not re.search(r"git (push|worktree|checkout|commit)", line), f"{name} writes the ledger: {line.strip()}"
+            if "git push" in line:
+                assert "handicap-data" not in line and "market-data" not in line, f"{name} pushes a ledger: {line.strip()}"
 
 
 @pytest.mark.parametrize("name", REPORT_WORKFLOWS)
@@ -134,7 +165,7 @@ def test_the_report_workflows_only_write_the_report_branch(name):
         if "publish_market_data.py" in run:
             pytest.fail(f"{name} publishes to market-data from the report path")
     assert "handicap-reports" in doc or name == "run-nfl-horizons.yml"
-    assert "handicap-data" not in doc
+    assert "handicap-data" not in _executable_yaml_without_ledger_reads(name)
     _ = branches
 
 

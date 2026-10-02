@@ -346,6 +346,35 @@ jobs:
             --horizon-ids '${{ inputs.horizon_ids }}' --run-id '${{ github.run_id }}' \
             --manifest data/handicap_report/manifest.json
 
+      # ---- Edge Finder app payload (docs/APP_EXPORT.md) --------------------------------------------
+      # A pure adapter over the report just built plus a READ-ONLY extract of the handicap-data ledger
+      # (git archive into RUNNER_TEMP; no worktree, no push, nothing written back). The ledger is read so
+      # the app can show the owner's recorded decisions, wagers and settlements beside the model board; no
+      # recommendation is created here, and the report path itself still never imports the ledger reader.
+      #
+      # continue-on-error so a failed export can never block the report publish that follows it; the
+      # exporter leaves a health.json (export_failed) beside the previous good payload, which the publish
+      # carries onto the branch, and the final step turns the failure into a red job AFTER the report is up.
+      - name: Export the Edge Finder app payload
+        id: app_export
+        if: steps.build.outputs.report_status == 'SUCCESS'
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/app_ledger" "$RUNNER_TEMP/app_out"
+          git fetch --depth=1 origin handicap-data
+          git archive origin/handicap-data data | tar -x -C "$RUNNER_TEMP/app_ledger"
+          # last-known-good payload, so a failed export degrades the previous one instead of blanking it
+          git fetch --depth=1 origin handicap-reports || true
+          if git rev-parse -q --verify origin/handicap-reports:app/latest >/dev/null 2>&1; then
+            git archive origin/handicap-reports app/latest | tar -x -C "$RUNNER_TEMP/app_out"
+          fi
+          HZ=""
+          if [ -f /tmp/hz/horizons.json ]; then HZ="--horizon-state /tmp/hz/horizons.json"; fi
+          python3 scripts/app_export.py --reports-dir data/handicap_report \
+            --handicap-root "$RUNNER_TEMP/app_ledger" --market-data-root /tmp/md $HZ \
+            --out "$RUNNER_TEMP/app_out/app/latest" \
+            --commit-sha "$GITHUB_SHA" --workflow-run-id "$GITHUB_RUN_ID"
+
       - name: Publish the browsable latest report
         if: steps.build.outputs.report_status == 'SUCCESS'
         run: |
@@ -353,5 +382,13 @@ jobs:
           # be a real if.
           EXTRA=""
           if [ -f /tmp/hz/horizons.json ]; then EXTRA="--horizon-state /tmp/hz/horizons.json"; fi
+          if [ -d "$RUNNER_TEMP/app_out/app/latest" ]; then EXTRA="$EXTRA --app-src $RUNNER_TEMP/app_out/app/latest"; fi
           python3 scripts/ci/publish_handicap_report.py --src data/handicap_report $EXTRA \
             --message "run nfl ${{ steps.week.outputs.season }} week ${{ steps.week.outputs.week }} — packet ${{ steps.build.outputs.packet_sha }} ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+
+      # The report is published above whatever happened to the export; now the job can be honest about it.
+      - name: Fail the job if the app export failed
+        if: steps.app_export.outcome == 'failure'
+        run: |
+          echo "::error::the Edge Finder app export failed; the report was published and app/latest carries a health.json with export_failed=true"
+          exit 1

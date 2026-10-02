@@ -23,6 +23,9 @@ So `handicap-reports` holds one thing: the newest good report, at a stable path 
     latest/analysis/games/*.json  one shard per game, one row per executable contract
     state/horizons.json           which decision horizons have been captured (idempotency)
     history/index.jsonl           one manifest line per published run -- traceability without the bloat
+    app/latest/                   the Edge Finder app payload (edge_finder_contract documents) built from
+                                  this report by scripts/app_export.py; carried forward unchanged when a
+                                  run does not supply one (docs/APP_EXPORT.md)
 
 **`latest/` is replaced atomically**: the whole tree is removed and rewritten in a single commit, so a
 reader never sees this run's `slate.md` beside last run's `games/`. Nothing here is published unless the
@@ -70,6 +73,11 @@ Generated RUN NFL handicap packets. **Never merge into `main`.**
 * `state/horizons.json` — which decision horizons (T-24h / T-6h / T-90m / T-30m) have been captured.
 * `history/index.jsonl` — one manifest line per published run, for tracing an Actions artifact back to its
   source SHAs, model version and packet SHA.
+* `app/latest/` — the Edge Finder app payload (`manifest.json`, `events.json`, `markets.json`,
+  `model_prices.json`, `recommendations.json`, `wagers.json`, `settlements.json`, `board.json`,
+  `performance.json`, `health.json`, `event_detail/`), built from the report that stands in `latest/` by
+  `scripts/app_export.py` on `main`. `health.json` says whether the last export succeeded; a failed export
+  leaves the previous payload in place and marks it so.
 
 Evidence only. Nothing on this branch is a bet, a recommendation, or a real-money authority, and no part of
 producing it touches Airtable. See `docs/RUN_NFL.md` on `main`.
@@ -220,18 +228,42 @@ def prepare_worktree(repo, wt, branch):
     return exists
 
 
-def stage(wt, src, manifest, horizon_state, replace_latest: bool = True):
+APP_LATEST = os.path.join("app", "latest")
+
+
+def app_src_is_publishable(app_src) -> bool:
+    """An app staging directory is carried onto the branch only when it holds something the app can read:
+    a complete payload (manifest.json) or at least a health.json (the exporter's failure record)."""
+    if not app_src or not os.path.isdir(app_src):
+        return False
+    return any(os.path.exists(os.path.join(app_src, name)) for name in ("manifest.json", "health.json"))
+
+
+def stage(wt, src, manifest, horizon_state, replace_latest: bool = True, app_src=None):
     """Write latest/, append the history line and refresh the state file.
 
     `replace_latest=False` records the run without touching `latest/`: the run happened, its manifest
     belongs in the index and any horizon it satisfied is genuinely captured, but a fresher report is
     already published and must stay.
+
+    `app_src` is the Edge Finder app payload built FROM `src` (scripts/app_export.py). It replaces
+    `app/latest` exactly when `latest/` is replaced, so the two surfaces never describe different reports;
+    when the run supplies none (or an unreadable one) the branch's existing `app/latest` is carried forward
+    as it is, which is what the exporter's own last-known-good rule expects.
     """
     if replace_latest:
         latest = os.path.join(wt, "latest")
         if os.path.exists(latest):
             shutil.rmtree(latest)
         shutil.copytree(src, latest)
+        if app_src_is_publishable(app_src):
+            app_latest = os.path.join(wt, APP_LATEST)
+            if os.path.exists(app_latest):
+                shutil.rmtree(app_latest)
+            os.makedirs(os.path.dirname(app_latest), exist_ok=True)
+            shutil.copytree(app_src, app_latest)
+        elif app_src:
+            print(f"::notice::app/latest not replaced: {app_src} holds no manifest.json or health.json")
     readme = os.path.join(wt, "README.md")
     if not os.path.exists(readme):
         with open(readme, "w") as f:
@@ -265,6 +297,8 @@ def main():
     ap.add_argument("--repo", default=os.getcwd())
     ap.add_argument("--horizon-state", default=None,
                     help="JSON file to write to state/horizons.json (already marked by the caller)")
+    ap.add_argument("--app-src", default=None,
+                    help="Edge Finder app payload built from --src by scripts/app_export.py; becomes app/latest")
     ap.add_argument("--attempts", type=int, default=6)
     ap.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     a = ap.parse_args()
@@ -297,7 +331,8 @@ def main():
         regressed = would_regress(manifest, published_manifest(wt))
         if regressed:
             print(f"::notice::latest/ not replaced: {regressed}")
-        stage(wt, src, manifest, horizon_state, replace_latest=not regressed)
+        stage(wt, src, manifest, horizon_state, replace_latest=not regressed,
+              app_src=os.path.abspath(a.app_src) if a.app_src else None)
         # One root commit per publish: the tree is the whole state, so nothing is lost by dropping the
         # parent, and the branch does not accumulate a 25MB packet every two hours.
         sh(["git", "checkout", "-q", "--orphan", "_publish"], cwd=wt)
