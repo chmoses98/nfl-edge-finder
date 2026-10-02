@@ -210,12 +210,39 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
+      # Edge Finder app payload from this cycle's report (docs/APP_EXPORT.md). Read-only ledger extract into
+      # RUNNER_TEMP; tolerated like the report publish below, because this job's product is the ledger.
+      - name: Export the Edge Finder app payload
+        id: app_export
+        if: steps.report.outputs.report_status == 'SUCCESS'
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/app_ledger" "$RUNNER_TEMP/app_out"
+          git fetch --depth=1 origin handicap-data
+          git archive origin/handicap-data data | tar -x -C "$RUNNER_TEMP/app_ledger"
+          git fetch --depth=1 origin handicap-reports || true
+          if git rev-parse -q --verify origin/handicap-reports:app/latest >/dev/null 2>&1; then
+            git archive origin/handicap-reports app/latest | tar -x -C "$RUNNER_TEMP/app_out"
+          fi
+          python3 scripts/app_export.py --reports-dir data/handicap_report \
+            --handicap-root "$RUNNER_TEMP/app_ledger" --market-data-root /tmp/md \
+            --out "$RUNNER_TEMP/app_out/app/latest" \
+            --commit-sha "$GITHUB_SHA" --workflow-run-id "$GITHUB_RUN_ID"
+
       - name: Publish the browsable latest report
         if: steps.report.outputs.report_status == 'SUCCESS' && steps.upload_report.outcome == 'success'
         continue-on-error: true
         run: |
-          python3 scripts/ci/publish_handicap_report.py --src data/handicap_report \
+          EXTRA=""
+          if [ -d "$RUNNER_TEMP/app_out/app/latest" ]; then EXTRA="--app-src $RUNNER_TEMP/app_out/app/latest"; fi
+          python3 scripts/ci/publish_handicap_report.py --src data/handicap_report $EXTRA \
             --message "run nfl ${{ steps.week.outputs.season }} week ${{ steps.week.outputs.week }} — packet ${{ steps.report.outputs.packet_sha }} (shadow cycle $(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+
+      - name: Fail the job if the app export failed
+        if: steps.app_export.outcome == 'failure'
+        run: |
+          echo "::error::the Edge Finder app export failed; the report publish was attempted and app/latest carries a health.json with export_failed=true"
+          exit 1
 
       - name: Report outcome
         if: always()
