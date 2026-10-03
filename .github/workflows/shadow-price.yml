@@ -229,6 +229,18 @@ jobs:
             --out "$RUNNER_TEMP/app_out/app/latest" \
             --commit-sha "$GITHUB_SHA" --workflow-run-id "$GITHUB_RUN_ID"
 
+      # ---- Edge Finder research explorer (docs/APP_EXPORT.md, "Research explorer") -----------------
+      # Same inputs, same app root: written into app/latest/explorer, so the publish below carries it with
+      # app/latest. Its own command and its own failure flag: a research failure never blocks the v1 export or
+      # the report publish (the v1 payload is already written; publish_explorer leaves no half tree behind).
+      - name: Export the Edge Finder research explorer
+        id: research_export
+        if: steps.app_export.outcome == 'success'
+        continue-on-error: true
+        run: |
+          python3 scripts/research_export.py --reports-dir data/handicap_report \
+            --market-data-root /tmp/md --out "$RUNNER_TEMP/app_out/app/latest"
+
       - name: Publish the browsable latest report
         if: steps.report.outputs.report_status == 'SUCCESS' && steps.upload_report.outcome == 'success'
         continue-on-error: true
@@ -242,6 +254,12 @@ jobs:
         if: steps.app_export.outcome == 'failure'
         run: |
           echo "::error::the Edge Finder app export failed; the report publish was attempted and app/latest carries a health.json with export_failed=true"
+          exit 1
+
+      - name: Fail the job if the research explorer export failed
+        if: steps.research_export.outcome == 'failure'
+        run: |
+          echo "::error::the Edge Finder research explorer export failed; app/latest was published without a fresh explorer/"
           exit 1
 
       - name: Report outcome
