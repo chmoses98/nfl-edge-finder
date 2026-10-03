@@ -182,7 +182,8 @@ was and the script exits 1.
 
 Measured bytes per directory (`research.tree_bytes`, real 2026-10-02 report): teams 4,526,848; players
 6,677,718; events 2,470,069; market_history 6,057,752; rankings 481,265; series 1,206,729; metrics.json
-152,970; search_index.json 169,286; index.json 174,890; capabilities.json 19,432 -- 21.9 MB in all. Largest
+152,970; search_index.json 169,286; index.json 141,638 (compact since contract 1.1.1); capabilities.json
+19,432 -- 21.9 MB in all. Largest GAME packet (`packet.render_text`, contract 1.1.1): 63,415 chars (2026_04_JAX_CIN). Largest
 files: team 144,994, event 144,956, player 62,972, market history 379,225. The capture read covers ten days
 before the earliest kickoff (1,380 quote files for week 4).
 
@@ -210,7 +211,10 @@ different rating code path), per-game player logs, and any market history beyond
 research_export`) immediately after the app export, `if: steps.app_export.outcome == 'success'`,
 `continue-on-error: true`, writing into the same `$RUNNER_TEMP/app_out/app/latest`; the existing publish step
 carries `explorer/` with `app/latest`. A final **"Fail the job if the research explorer export failed"** turns
-the job red after the report is up. (The v1 publish removes the previous explorer files as stale, so a failed
-explorer run leaves `app/latest` without an explorer rather than with one describing another run.)
+the job red after the report is up. Since contract 1.1.1 `publish.publish` never prunes `explorer/`, so a failed
+explorer run keeps the previous tree (whose `run_id` then names the previous publication). The step stays in
+`shadow-price.yml` because that workflow republishes `app/latest` every two hours: without it the explorer
+would describe an older payload (older markets and model prices) for most of the day. NFL publishes every
+2 h, so no `research.refresh_due` gate is used; every run rebuilds the tree.
 
 Tests: `tests/test_research_export.py` on `tests/fixtures/research_export/` (291 KB real slice).
