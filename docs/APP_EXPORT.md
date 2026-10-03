@@ -151,3 +151,66 @@ equal to the market-data postmortem's `established_subset` to the cent.
 * `market.player_id` is typed as a participant-id string but events carry no player participants, so the
   cross reference cannot be checked; either a `players` collection or a documented "unchecked" status would
   make the field honest.
+
+## Research explorer (`app/latest/explorer/`, contract 1.1.0)
+
+`scripts/research_export.py` publishes the research graph beside the v1 payload, from the same report, after
+the v1 export has run:
+
+    python3 scripts/research_export.py --reports-dir data/handicap_report --market-data-root /tmp/md \
+        --out <staging>/app/latest [--now <aware ISO>]
+
+It reads the v1 publication in `--out` (`manifest.json` `run_id` and `generated_at`, events, markets, model
+prices, recommendations, wagers, settlements), so every `evt_` / `prt_` / `mkt_` id is the v1 one (teams:
+`nflverse_team` codes through the same `build.participant` call; players: `gsis_id`; games:
+`nflverse_game_id`). It refuses an app root whose `health.json` says the v1 export failed. Stdlib only, no
+network, no model fitting: per-game averages, rankings, rolling means and quote compression are arithmetic
+over stored values. `research.publish_explorer` stages and swaps, so a failure leaves the previous tree as it
+was and the script exits 1.
+
+### What is published, from where
+
+| directory | count (week 4 real data) | source |
+|---|---|---|
+| `teams/` | 32 | packet `team_profiles` (28 raw metrics x SEASON / L6 / L34 where n_games >= 4, 22 opponent-adjusted ridge ratings), schedule results (game list for 4 seasons, record), injuries of the current game, team-subject markets + model prices within 150 KB |
+| `players/` | 318 | only players with `simulation.player_projections` in the packet: simulated stat means (+ sd, p05..p95, market/final means in extensions), projected target / carry shares, QB profile rates (SEASON, L200_DROPBACKS, split `pressure`), availability (injury + depth chart, joined by name within team), player markets + model prices |
+| `events/` | 51 | every v1 event. Board games: matchup rows (22 adjusted ratings + 3 season scoring metrics, home vs away with ranks), players, simulation distributions (player stats + margin / total / team points), injuries, depth charts, weather, venue, notes, packet `matchup.pairs` / quarterbacks / offensive line / game script / model view in extensions, game-level markets + projections within 150 KB. Past (wagered) games: markets, wager ids with outcomes and owner CLV, final score |
+| `rankings/` | 53 | one per team metric per published window, over every team with a value |
+| `series/` | 96 | points for / against / margin per completed game (last 40 per team, trailing 4-game mean), linked to the game and the opponent |
+| `market_history/` | 16 | per board event: pregame capture quotes of the game-level FULL markets (game winner, spread, total, team total), main lines first, change points + 6 h heartbeat, hourly-thinned above 240 points, within 400 KB (422 tickers, 37,117 points) |
+| `metrics.json` | 73 metrics | including `met_nfl.incumbent_fair_probability` whose `extensions.scorecard` carries the incumbent cumulative scorecard (calibration bands, Brier / log loss vs market, CLV, per family) |
+
+Measured bytes per directory (`research.tree_bytes`, real 2026-10-02 report): teams 4,526,848; players
+6,677,718; events 2,470,069; market_history 6,057,752; rankings 481,265; series 1,206,729; metrics.json
+152,970; search_index.json 169,286; index.json 174,890; capabilities.json 19,432 -- 21.9 MB in all. Largest
+files: team 144,994, event 144,956, player 62,972, market history 379,225. The capture read covers ten days
+before the earliest kickoff (1,380 quote files for week 4).
+
+### Capability statuses (audit 2026-10-03, section 4 matrix and section 10)
+
+| status | capabilities | why |
+|---|---|---|
+| VERIFIED | historical_results, opponents, injuries, market_prices, market_price_history, player_props, team_props, game_markets, weather, calibration, historical_accuracy, clv, wager_history, search | production captures / schedule / scorecards / ledger; calibration, accuracy and CLV are research evaluations (the model trails the market) |
+| PARTIAL | team_profiles, player_profiles, event_research, team_metrics, team_game_logs, opponent_adjustment, recent_form_windows, lineups, matchup_metrics, projection_distributions, raw_projections, advanced_stats, situational_splits, rankings, time_series, comparisons | current snapshot only; no committed history (silver tables rebuilt per run); fixed L6 / L34 windows; depth chart is intention, not snaps; projections research-only |
+| RESEARCH | player_metrics, player_game_logs, usage | 2026 player values are not committed as a table; history only as 2016-2025 research parquets |
+| UNAVAILABLE | schedule_strength, play_by_play, venue_effects | nothing computes SOS; pbp is never committed; no venue effect estimate |
+
+OL quality metrics are not published (the packet states no blocking grades are captured; the injured/listed
+linemen ride in event extensions). Home/away splits are listed as an UNAVAILABLE split dimension.
+
+### Deliberately not published
+
+Per-run incumbent model-probability history (`data/shadow/ledger`, too heavy for the export step), the 2025
+backfill candles, Shadow v2 and three-arm arms, `research/game_model/ratings_snapshots.parquet` (parquet and a
+different rating code path), per-game player logs, and any market history beyond the current week.
+
+### Workflow
+
+`run-nfl.yml` and `shadow-price.yml` run **"Export the Edge Finder research explorer"** (`id:
+research_export`) immediately after the app export, `if: steps.app_export.outcome == 'success'`,
+`continue-on-error: true`, writing into the same `$RUNNER_TEMP/app_out/app/latest`; the existing publish step
+carries `explorer/` with `app/latest`. A final **"Fail the job if the research explorer export failed"** turns
+the job red after the report is up. (The v1 publish removes the previous explorer files as stale, so a failed
+explorer run leaves `app/latest` without an explorer rather than with one describing another run.)
+
+Tests: `tests/test_research_export.py` on `tests/fixtures/research_export/` (291 KB real slice).
