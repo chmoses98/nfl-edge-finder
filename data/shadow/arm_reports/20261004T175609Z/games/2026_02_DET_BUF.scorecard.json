@@ -1,0 +1,6885 @@
+{
+ "preregistration": {
+  "hypothesis_id": "H-20260910-026",
+  "arms": [
+   "CURRENT_MARKET_PRIOR",
+   "DATA_ONLY",
+   "HYBRID_30_DATA"
+  ],
+  "hybrid_weight_market": 0.7,
+  "hybrid_weight_data": 0.3,
+  "n_sims": 40000,
+  "primary_horizons_min": [
+   1440,
+   360,
+   90,
+   30
+  ],
+  "primary_game_center_metrics": [
+   "margin_rmse",
+   "margin_mae",
+   "total_rmse",
+   "total_mae"
+  ],
+  "primary_market_pricing_metrics": [
+   "paired_brier_vs_current",
+   "paired_payout_mse_vs_market_at_snapshot",
+   "movement_toward_close"
+  ],
+  "min_games_for_verdict": 64,
+  "disagreement_bands_points": [
+   "<=1",
+   "1-2",
+   "2-3",
+   "3-5",
+   ">5"
+  ],
+  "arms_version": "three-arm-1.0.0",
+  "data_only_version": "data_only-1.0.0",
+  "crn_version": "crn-1.0.0"
+ },
+ "preregistration_sha": "ef0a095ace1ec698",
+ "evaluation_version": null,
+ "primary_sample_unit": "latest_pregame",
+ "min_games_for_verdict": 64,
+ "sample_units": {
+  "raw": {
+   "n_rows": 44,
+   "n_unique_contracts": 0,
+   "n_games": 1,
+   "n_weeks": 1,
+   "note": "every pregame snapshot; repeated, correlated; diagnostics only"
+  },
+  "T-24h": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0,
+   "target_minutes": 1440.0,
+   "tolerance_minutes": 120.0,
+   "selection_rule": "freshest snapshot at or before the horizon, within the tolerance; ties broken on (observed_at, prediction_id)",
+   "n_selected": 0,
+   "n_unavailable": 1,
+   "n_contracts_considered": 1,
+   "actual_minutes_to_kickoff": {
+    "n": 0
+   }
+  },
+  "T-6h": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0,
+   "target_minutes": 360.0,
+   "tolerance_minutes": 120.0,
+   "selection_rule": "freshest snapshot at or before the horizon, within the tolerance; ties broken on (observed_at, prediction_id)",
+   "n_selected": 0,
+   "n_unavailable": 1,
+   "n_contracts_considered": 1,
+   "actual_minutes_to_kickoff": {
+    "n": 0
+   }
+  },
+  "T-90m": {
+   "n_rows": 1,
+   "n_unique_contracts": 0,
+   "n_games": 1,
+   "n_weeks": 1,
+   "target_minutes": 90.0,
+   "tolerance_minutes": 120.0,
+   "selection_rule": "freshest snapshot at or before the horizon, within the tolerance; ties broken on (observed_at, prediction_id)",
+   "n_selected": 1,
+   "n_unavailable": 0,
+   "n_contracts_considered": 1,
+   "actual_minutes_to_kickoff": {
+    "n": 1,
+    "min": 166.6,
+    "median": 166.6,
+    "max": 166.6,
+    "mean": 166.6
+   }
+  },
+  "T-30m": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0,
+   "target_minutes": 30.0,
+   "tolerance_minutes": 120.0,
+   "selection_rule": "freshest snapshot at or before the horizon, within the tolerance; ties broken on (observed_at, prediction_id)",
+   "n_selected": 0,
+   "n_unavailable": 1,
+   "n_contracts_considered": 1,
+   "actual_minutes_to_kickoff": {
+    "n": 0
+   }
+  },
+  "latest_pregame": {
+   "n_rows": 1,
+   "n_unique_contracts": 0,
+   "n_games": 1,
+   "n_weeks": 1,
+   "selection_rule": "one row per (game, ticker): the smallest positive minutes_to_kickoff, ties broken on (observed_at, prediction_id)",
+   "rows_not_provably_pregame_excluded": 0,
+   "actual_minutes_to_kickoff": {
+    "n": 1,
+    "min": 166.6,
+    "median": 166.6,
+    "max": 166.6,
+    "mean": 166.6
+   }
+  }
+ },
+ "contract_sample_units": {
+  "raw": {
+   "n_rows": 2451,
+   "n_unique_contracts": 77,
+   "n_games": 1,
+   "n_weeks": 1
+  },
+  "T-24h": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0
+  },
+  "T-6h": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0
+  },
+  "T-90m": {
+   "n_rows": 77,
+   "n_unique_contracts": 77,
+   "n_games": 1,
+   "n_weeks": 1
+  },
+  "T-30m": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0
+  },
+  "latest_pregame": {
+   "n_rows": 77,
+   "n_unique_contracts": 77,
+   "n_games": 1,
+   "n_weeks": 1
+  }
+ },
+ "games": {
+  "raw": {
+   "n_rows": 44,
+   "n_unique_contracts": 0,
+   "n_games": 1,
+   "n_weeks": 1,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "excluded_not_usable": 0,
+     "status_counts": {
+      "OK": 44
+     },
+     "margin": {
+      "mae": 5.693181818181818,
+      "rmse": 5.787427596248456,
+      "bias": -5.693181818181818,
+      "se_mae": 0.1586277613568105,
+      "se_bias": 0.1586277613568105
+     },
+     "total": {
+      "mae": 19.363636363636363,
+      "rmse": 19.40858526060521,
+      "bias": -19.363636363636363,
+      "se_mae": 0.20131940346191995,
+      "se_bias": 0.20131940346191995
+     },
+     "home_win": {
+      "n": 44,
+      "brier": 0.12289059917613637,
+      "log_loss": 0.4303077863474485
+     },
+     "implied_scores": {
+      "home_mae": 12.528409090909092,
+      "away_mae": 6.8352272727272725
+     }
+    },
+    "DATA_ONLY": {
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "excluded_not_usable": 0,
+     "status_counts": {
+      "OK": 44
+     },
+     "margin": {
+      "mae": 6.356352107942727,
+      "rmse": 6.357845983742793,
+      "bias": -6.356352107942727,
+      "se_mae": 0.021016844211624763,
+      "se_bias": 0.021016844211624763
+     },
+     "total": {
+      "mae": 23.586011528881247,
+      "rmse": 23.59763608072612,
+      "bias": -23.586011528881247,
+      "se_mae": 0.11294048215117032,
+      "se_bias": 0.11294048215117032
+     },
+     "home_win": {
+      "n": 44,
+      "brier": 0.1416976335227273,
+      "log_loss": 0.4721311263660725
+     },
+     "implied_scores": {
+      "home_mae": 14.971181818411997,
+      "away_mae": 8.614829710469268
+     }
+    },
+    "HYBRID_30_DATA": {
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "excluded_not_usable": 0,
+     "status_counts": {
+      "OK": 44
+     },
+     "margin": {
+      "mae": 5.892132905110088,
+      "rmse": 5.940652968240075,
+      "bias": -5.892132905110088,
+      "se_mae": 0.11555000101421274,
+      "se_bias": 0.11555000101421274
+     },
+     "total": {
+      "mae": 20.63034891320984,
+      "rmse": 20.65860855927447,
+      "bias": -20.63034891320984,
+      "se_mae": 0.16472749340217707,
+      "se_bias": 0.16472749340217707
+     },
+     "home_win": {
+      "n": 44,
+      "brier": 0.12554538944602273,
+      "log_loss": 0.43643393104076406
+     },
+     "implied_scores": {
+      "home_mae": 13.26124090915996,
+      "away_mae": 7.3691080040498695
+     }
+    }
+   },
+   "market_at_snapshot": {
+    "n_rows": 44,
+    "n_unique_contracts": 0,
+    "n_games": 1,
+    "n_weeks": 1,
+    "margin": {
+     "mae": 5.693181818181818,
+     "rmse": 5.787427596248456,
+     "bias": -5.693181818181818
+    },
+    "total": {
+     "mae": 19.363636363636363,
+     "rmse": 19.40858526060521,
+     "bias": -19.363636363636363
+    }
+   },
+   "market_at_close": {
+    "n_rows": 44,
+    "n_unique_contracts": 0,
+    "n_games": 1,
+    "n_weeks": 1,
+    "margin": {
+     "mae": 4.5,
+     "rmse": 4.5,
+     "bias": -4.5
+    },
+    "total": {
+     "mae": 17.5,
+     "rmse": 17.5,
+     "bias": -17.5
+    }
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "margin": {
+      "mean_diff_abs_error": 0.6631702897609066,
+      "se": 0.1446612835121673,
+      "ci95": [
+       0.37963417407705874,
+       0.9467064054447545
+      ],
+      "effect_size_d": 0.6911087780201334,
+      "mean_diff_sq_error": 6.927887371176213,
+      "se_sq": 1.619881238456673,
+      "share_a_closer": 0.29545454545454547
+     },
+     "total": {
+      "mean_diff_abs_error": 4.22237516524489,
+      "se": 0.155259693619336,
+      "ci95": [
+       3.9180661657509916,
+       4.526684164738789
+      ],
+      "effect_size_d": 4.099885758199748,
+      "mean_diff_sq_error": 180.1552467802048,
+      "se_sq": 5.999619635264753,
+      "share_a_closer": 0.0
+     },
+     "home_win_brier": {
+      "n": 44,
+      "mean_diff": 0.0188070343465909,
+      "se": 0.005158582681745787,
+      "ci95": [
+       0.008696212290369158,
+       0.02891785640281264
+      ]
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "margin": {
+      "mean_diff_abs_error": 0.19895108692827226,
+      "se": 0.043398385053650186,
+      "ci95": [
+       0.1138902522231179,
+       0.28401192163342664
+      ],
+      "effect_size_d": 0.6911087780201345,
+      "mean_diff_sq_error": 1.7970395072414305,
+      "se_sq": 0.4453573903294025,
+      "share_a_closer": 0.29545454545454547
+     },
+     "total": {
+      "mean_diff_abs_error": 1.266712549573471,
+      "se": 0.046577908085800646,
+      "ci95": [
+       1.1754198497253017,
+       1.3580052494216404
+      ],
+      "effect_size_d": 4.099885758199774,
+      "mean_diff_sq_error": 50.08492578714665,
+      "se_sq": 1.5415432889643856,
+      "share_a_closer": 0.0
+     },
+     "home_win_brier": {
+      "n": 44,
+      "mean_diff": 0.0026547902698863543,
+      "se": 0.0010461766582751735,
+      "ci95": [
+       0.0006042840196670142,
+       0.004705296520105694
+      ]
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "margin": {
+      "mean_diff_abs_error": -0.4642192028326341,
+      "se": 0.1012628984585171,
+      "ci95": [
+       -0.6626944838113277,
+       -0.2657439218539406
+      ],
+      "effect_size_d": -0.6911087780201328,
+      "mean_diff_sq_error": -5.130847863934781,
+      "se_sq": 1.175048585466059,
+      "share_a_closer": 0.7045454545454546
+     },
+     "total": {
+      "mean_diff_abs_error": -2.9556626156714176,
+      "se": 0.10868178553353533,
+      "ci95": [
+       -3.168678915317147,
+       -2.7426463160256884
+      ],
+      "effect_size_d": -4.099885758199736,
+      "mean_diff_sq_error": -130.070320993058,
+      "se_sq": 4.460483566671378,
+      "share_a_closer": 1.0
+     },
+     "home_win_brier": {
+      "n": 44,
+      "mean_diff": -0.016152244076704545,
+      "se": 0.004675579106425365,
+      "ci95": [
+       -0.02531637912529826,
+       -0.006988109028110829
+      ]
+     }
+    }
+   ],
+   "paired_vs_market_at_snapshot": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "margin": {
+      "mean_diff_abs_error": 0.0,
+      "se": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "share_arm_closer": 0.0
+     },
+     "total": {
+      "mean_diff_abs_error": 0.0,
+      "se": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "share_arm_closer": 0.0
+     }
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "margin": {
+      "mean_diff_abs_error": 0.6631702897609066,
+      "se": 0.1446612835121673,
+      "ci95": [
+       0.37963417407705874,
+       0.9467064054447545
+      ],
+      "share_arm_closer": 0.29545454545454547
+     },
+     "total": {
+      "mean_diff_abs_error": 4.22237516524489,
+      "se": 0.155259693619336,
+      "ci95": [
+       3.9180661657509916,
+       4.526684164738789
+      ],
+      "share_arm_closer": 0.0
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "margin": {
+      "mean_diff_abs_error": 0.19895108692827226,
+      "se": 0.043398385053650186,
+      "ci95": [
+       0.1138902522231179,
+       0.28401192163342664
+      ],
+      "share_arm_closer": 0.29545454545454547
+     },
+     "total": {
+      "mean_diff_abs_error": 1.266712549573471,
+      "se": 0.046577908085800646,
+      "ci95": [
+       1.1754198497253017,
+       1.3580052494216404
+      ],
+      "share_arm_closer": 0.0
+     }
+    }
+   ],
+   "paired_vs_close": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "close",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "margin": {
+      "mean_diff_abs_error": 1.1931818181818181,
+      "se": 0.1586277613568105,
+      "ci95": [
+       0.8822714059224696,
+       1.5040922304411666
+      ],
+      "share_arm_closer": 0.0
+     },
+     "total": {
+      "mean_diff_abs_error": 1.8636363636363635,
+      "se": 0.20131940346191995,
+      "ci95": [
+       1.4690503328510005,
+       2.258222394421727
+      ],
+      "share_arm_closer": 0.0
+     }
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "close",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "margin": {
+      "mean_diff_abs_error": 1.8563521079427254,
+      "se": 0.021016844211624763,
+      "ci95": [
+       1.815159093287941,
+       1.89754512259751
+      ],
+      "share_arm_closer": 0.0
+     },
+     "total": {
+      "mean_diff_abs_error": 6.086011528881252,
+      "se": 0.11294048215117031,
+      "ci95": [
+       5.864648183864958,
+       6.307374873897546
+      ],
+      "share_arm_closer": 0.0
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "close",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "margin": {
+      "mean_diff_abs_error": 1.3921329051100892,
+      "se": 0.11555000101421271,
+      "ci95": [
+       1.1656549031222323,
+       1.6186109070979462
+      ],
+      "share_arm_closer": 0.0
+     },
+     "total": {
+      "mean_diff_abs_error": 3.1303489132098337,
+      "se": 0.16472749340217707,
+      "ci95": [
+       2.8074830261415666,
+       3.4532148002781007
+      ],
+      "share_arm_closer": 0.0
+     }
+    }
+   ],
+   "movement": {
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "margin": {
+      "counts": {
+       "away": 14,
+       "toward": 13,
+       "unchanged": 17
+      },
+      "n_directional": 27,
+      "toward_share": 0.48148148148148145,
+      "closer_than_market_share": 0.29545454545454547,
+      "mean_deviation_from_market": -0.6631702897609066,
+      "mean_abs_deviation_from_market": 0.911362246942829
+     },
+     "total": {
+      "counts": {
+       "away": 39,
+       "unchanged": 5
+      },
+      "n_directional": 39,
+      "toward_share": 0.0,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -4.22237516524489,
+      "mean_abs_deviation_from_market": 4.22237516524489
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "n_rows": 44,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "margin": {
+      "counts": {
+       "away": 14,
+       "toward": 13,
+       "unchanged": 17
+      },
+      "n_directional": 27,
+      "toward_share": 0.48148148148148145,
+      "closer_than_market_share": 0.29545454545454547,
+      "mean_deviation_from_market": -0.19895108692827235,
+      "mean_abs_deviation_from_market": 0.2734086740828489
+     },
+     "total": {
+      "counts": {
+       "away": 39,
+       "unchanged": 5
+      },
+      "n_directional": 39,
+      "toward_share": 0.0,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -1.266712549573471,
+      "mean_abs_deviation_from_market": 1.266712549573471
+     }
+    }
+   },
+   "disagreement_bands": {
+    "DATA_ONLY": {
+     "margin": {
+      "<=1": {
+       "n_rows": 27,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "margin_mae_arm": 6.418487500050172,
+       "margin_mae_market": 6.444444444444445,
+       "toward_share": 0.48148148148148145
+      },
+      "1-2": {
+       "n_rows": 17,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "margin_mae_arm": 6.25766648518384,
+       "margin_mae_market": 4.5,
+       "toward_share": null
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_rows": 2,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 23.144857146735788,
+       "total_mae_market": 21.5,
+       "toward_share": 0.0
+      },
+      "2-3": {
+       "n_rows": 2,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 23.144857146735788,
+       "total_mae_market": 20.5,
+       "toward_share": 0.0
+      },
+      "3-5": {
+       "n_rows": 25,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 23.860144000088,
+       "total_mae_market": 19.98,
+       "toward_share": 0.0
+      },
+      ">5": {
+       "n_rows": 15,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 23.246765245442123,
+       "total_mae_market": 17.9,
+       "toward_share": 0.0
+      }
+     }
+    },
+    "HYBRID_30_DATA": {
+     "margin": {
+      "<=1": {
+       "n_rows": 44,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "margin_mae_arm": 5.892132905110088,
+       "margin_mae_market": 5.693181818181818,
+       "toward_share": 0.48148148148148145
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_rows": 4,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 21.643457144020743,
+       "total_mae_market": 21.0,
+       "toward_share": 0.0
+      },
+      "1-2": {
+       "n_rows": 40,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 20.52903809012875,
+       "total_mae_market": 19.2,
+       "toward_share": 0.0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     }
+    }
+   },
+   "by_center_source": {
+    "consensus_line": 5,
+    "kalshi_implied": 39
+   },
+   "by_data_quality_state": {
+    "CURRENT_MARKET_PRIOR": {
+     "consensus_fallback": 5,
+     "kalshi_implied": 39
+    },
+    "DATA_ONLY": {
+     "OK": 44
+    },
+    "HYBRID_30_DATA": {
+     "None": 44
+    }
+   },
+   "close_center_status": {
+    "OK": 44
+   },
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "T-24h": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "n_games": 0,
+     "excluded": 0
+    },
+    "DATA_ONLY": {
+     "n_games": 0,
+     "excluded": 0
+    },
+    "HYBRID_30_DATA": {
+     "n_games": 0,
+     "excluded": 0
+    }
+   },
+   "market_at_snapshot": {
+    "n_games": 0
+   },
+   "market_at_close": {
+    "n_games": 0
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_market_at_snapshot": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_close": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "close",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "close",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "close",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "movement": {
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "margin": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     },
+     "total": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "margin": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     },
+     "total": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     }
+    }
+   },
+   "disagreement_bands": {
+    "DATA_ONLY": {
+     "margin": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     }
+    },
+    "HYBRID_30_DATA": {
+     "margin": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     }
+    }
+   },
+   "by_center_source": {},
+   "by_data_quality_state": {
+    "CURRENT_MARKET_PRIOR": {},
+    "DATA_ONLY": {},
+    "HYBRID_30_DATA": {}
+   },
+   "close_center_status": {},
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "T-6h": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "n_games": 0,
+     "excluded": 0
+    },
+    "DATA_ONLY": {
+     "n_games": 0,
+     "excluded": 0
+    },
+    "HYBRID_30_DATA": {
+     "n_games": 0,
+     "excluded": 0
+    }
+   },
+   "market_at_snapshot": {
+    "n_games": 0
+   },
+   "market_at_close": {
+    "n_games": 0
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_market_at_snapshot": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_close": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "close",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "close",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "close",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "movement": {
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "margin": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     },
+     "total": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "margin": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     },
+     "total": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     }
+    }
+   },
+   "disagreement_bands": {
+    "DATA_ONLY": {
+     "margin": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     }
+    },
+    "HYBRID_30_DATA": {
+     "margin": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     }
+    }
+   },
+   "by_center_source": {},
+   "by_data_quality_state": {
+    "CURRENT_MARKET_PRIOR": {},
+    "DATA_ONLY": {},
+    "HYBRID_30_DATA": {}
+   },
+   "close_center_status": {},
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "T-90m": {
+   "n_rows": 1,
+   "n_unique_contracts": 0,
+   "n_games": 1,
+   "n_weeks": 1,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "excluded_not_usable": 0,
+     "status_counts": {
+      "OK": 1
+     },
+     "margin": {
+      "mae": 4.5,
+      "rmse": 4.5,
+      "bias": -4.5,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "total": {
+      "mae": 17.5,
+      "rmse": 17.5,
+      "bias": -17.5,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "home_win": {
+      "n": 1,
+      "brier": 0.095372880625,
+      "log_loss": 0.3693622311278861
+     },
+     "implied_scores": {
+      "home_mae": 11.0,
+      "away_mae": 6.5
+     }
+    },
+    "DATA_ONLY": {
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "excluded_not_usable": 0,
+     "status_counts": {
+      "OK": 1
+     },
+     "margin": {
+      "mae": 6.25766648518384,
+      "rmse": 6.25766648518384,
+      "bias": -6.25766648518384,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "total": {
+      "mae": 23.03609031051328,
+      "rmse": 23.03609031051328,
+      "bias": -23.03609031051328,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "home_win": {
+      "n": 1,
+      "brier": 0.14615329,
+      "log_loss": 0.48175237628028356
+     },
+     "implied_scores": {
+      "home_mae": 14.64687839784856,
+      "away_mae": 8.38921191266472
+     }
+    },
+    "HYBRID_30_DATA": {
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "excluded_not_usable": 0,
+     "status_counts": {
+      "OK": 1
+     },
+     "margin": {
+      "mae": 5.027299945555153,
+      "rmse": 5.027299945555153,
+      "bias": -5.027299945555153,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "total": {
+      "mae": 19.160827093153983,
+      "rmse": 19.160827093153983,
+      "bias": -19.160827093153983,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "home_win": {
+      "n": 1,
+      "brier": 0.09458700249999999,
+      "log_loss": 0.3675192456934103
+     },
+     "implied_scores": {
+      "home_mae": 12.094063519354567,
+      "away_mae": 7.066763573799417
+     }
+    }
+   },
+   "market_at_snapshot": {
+    "n_rows": 1,
+    "n_unique_contracts": 0,
+    "n_games": 1,
+    "n_weeks": 1,
+    "margin": {
+     "mae": 4.5,
+     "rmse": 4.5,
+     "bias": -4.5
+    },
+    "total": {
+     "mae": 17.5,
+     "rmse": 17.5,
+     "bias": -17.5
+    }
+   },
+   "market_at_close": {
+    "n_rows": 1,
+    "n_unique_contracts": 0,
+    "n_games": 1,
+    "n_weeks": 1,
+    "margin": {
+     "mae": 4.5,
+     "rmse": 4.5,
+     "bias": -4.5
+    },
+    "total": {
+     "mae": 17.5,
+     "rmse": 17.5,
+     "bias": -17.5
+    }
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_market_at_snapshot": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_close": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "close",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "close",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "close",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "movement": {
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "margin": {
+      "counts": {
+       "unchanged": 1
+      },
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -1.7576664851838406,
+      "mean_abs_deviation_from_market": 1.7576664851838406
+     },
+     "total": {
+      "counts": {
+       "unchanged": 1
+      },
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -5.536090310513281,
+      "mean_abs_deviation_from_market": 5.536090310513281
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "margin": {
+      "counts": {
+       "unchanged": 1
+      },
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -0.5272999455551526,
+      "mean_abs_deviation_from_market": 0.5272999455551526
+     },
+     "total": {
+      "counts": {
+       "unchanged": 1
+      },
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -1.6608270931539835,
+      "mean_abs_deviation_from_market": 1.6608270931539835
+     }
+    }
+   },
+   "disagreement_bands": {
+    "DATA_ONLY": {
+     "margin": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_rows": 1,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "margin_mae_arm": 6.25766648518384,
+       "margin_mae_market": 4.5,
+       "toward_share": null
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_rows": 1,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 23.03609031051328,
+       "total_mae_market": 17.5,
+       "toward_share": null
+      }
+     }
+    },
+    "HYBRID_30_DATA": {
+     "margin": {
+      "<=1": {
+       "n_rows": 1,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "margin_mae_arm": 5.027299945555153,
+       "margin_mae_market": 4.5,
+       "toward_share": null
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_rows": 1,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 19.160827093153983,
+       "total_mae_market": 17.5,
+       "toward_share": null
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     }
+    }
+   },
+   "by_center_source": {
+    "kalshi_implied": 1
+   },
+   "by_data_quality_state": {
+    "CURRENT_MARKET_PRIOR": {
+     "kalshi_implied": 1
+    },
+    "DATA_ONLY": {
+     "OK": 1
+    },
+    "HYBRID_30_DATA": {
+     "None": 1
+    }
+   },
+   "close_center_status": {
+    "OK": 1
+   },
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "T-30m": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "n_games": 0,
+     "excluded": 0
+    },
+    "DATA_ONLY": {
+     "n_games": 0,
+     "excluded": 0
+    },
+    "HYBRID_30_DATA": {
+     "n_games": 0,
+     "excluded": 0
+    }
+   },
+   "market_at_snapshot": {
+    "n_games": 0
+   },
+   "market_at_close": {
+    "n_games": 0
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_market_at_snapshot": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_close": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "close",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "close",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "close",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "movement": {
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "margin": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     },
+     "total": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "n_rows": 0,
+     "n_unique_contracts": 0,
+     "n_games": 0,
+     "n_weeks": 0,
+     "margin": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     },
+     "total": {
+      "counts": {},
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": null,
+      "mean_deviation_from_market": null,
+      "mean_abs_deviation_from_market": null
+     }
+    }
+   },
+   "disagreement_bands": {
+    "DATA_ONLY": {
+     "margin": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     }
+    },
+    "HYBRID_30_DATA": {
+     "margin": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     }
+    }
+   },
+   "by_center_source": {},
+   "by_data_quality_state": {
+    "CURRENT_MARKET_PRIOR": {},
+    "DATA_ONLY": {},
+    "HYBRID_30_DATA": {}
+   },
+   "close_center_status": {},
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "latest_pregame": {
+   "n_rows": 1,
+   "n_unique_contracts": 0,
+   "n_games": 1,
+   "n_weeks": 1,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "excluded_not_usable": 0,
+     "status_counts": {
+      "OK": 1
+     },
+     "margin": {
+      "mae": 4.5,
+      "rmse": 4.5,
+      "bias": -4.5,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "total": {
+      "mae": 17.5,
+      "rmse": 17.5,
+      "bias": -17.5,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "home_win": {
+      "n": 1,
+      "brier": 0.095372880625,
+      "log_loss": 0.3693622311278861
+     },
+     "implied_scores": {
+      "home_mae": 11.0,
+      "away_mae": 6.5
+     }
+    },
+    "DATA_ONLY": {
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "excluded_not_usable": 0,
+     "status_counts": {
+      "OK": 1
+     },
+     "margin": {
+      "mae": 6.25766648518384,
+      "rmse": 6.25766648518384,
+      "bias": -6.25766648518384,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "total": {
+      "mae": 23.03609031051328,
+      "rmse": 23.03609031051328,
+      "bias": -23.03609031051328,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "home_win": {
+      "n": 1,
+      "brier": 0.14615329,
+      "log_loss": 0.48175237628028356
+     },
+     "implied_scores": {
+      "home_mae": 14.64687839784856,
+      "away_mae": 8.38921191266472
+     }
+    },
+    "HYBRID_30_DATA": {
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "excluded_not_usable": 0,
+     "status_counts": {
+      "OK": 1
+     },
+     "margin": {
+      "mae": 5.027299945555153,
+      "rmse": 5.027299945555153,
+      "bias": -5.027299945555153,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "total": {
+      "mae": 19.160827093153983,
+      "rmse": 19.160827093153983,
+      "bias": -19.160827093153983,
+      "se_mae": null,
+      "se_bias": null
+     },
+     "home_win": {
+      "n": 1,
+      "brier": 0.09458700249999999,
+      "log_loss": 0.3675192456934103
+     },
+     "implied_scores": {
+      "home_mae": 12.094063519354567,
+      "away_mae": 7.066763573799417
+     }
+    }
+   },
+   "market_at_snapshot": {
+    "n_rows": 1,
+    "n_unique_contracts": 0,
+    "n_games": 1,
+    "n_weeks": 1,
+    "margin": {
+     "mae": 4.5,
+     "rmse": 4.5,
+     "bias": -4.5
+    },
+    "total": {
+     "mae": 17.5,
+     "rmse": 17.5,
+     "bias": -17.5
+    }
+   },
+   "market_at_close": {
+    "n_rows": 1,
+    "n_unique_contracts": 0,
+    "n_games": 1,
+    "n_weeks": 1,
+    "margin": {
+     "mae": 4.5,
+     "rmse": 4.5,
+     "bias": -4.5
+    },
+    "total": {
+     "mae": 17.5,
+     "rmse": 17.5,
+     "bias": -17.5
+    }
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_market_at_snapshot": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "paired_vs_close": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "close",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "close",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "close",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "movement": {
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "margin": {
+      "counts": {
+       "unchanged": 1
+      },
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -1.7576664851838406,
+      "mean_abs_deviation_from_market": 1.7576664851838406
+     },
+     "total": {
+      "counts": {
+       "unchanged": 1
+      },
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -5.536090310513281,
+      "mean_abs_deviation_from_market": 5.536090310513281
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "n_rows": 1,
+     "n_unique_contracts": 0,
+     "n_games": 1,
+     "n_weeks": 1,
+     "margin": {
+      "counts": {
+       "unchanged": 1
+      },
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -0.5272999455551526,
+      "mean_abs_deviation_from_market": 0.5272999455551526
+     },
+     "total": {
+      "counts": {
+       "unchanged": 1
+      },
+      "n_directional": 0,
+      "toward_share": null,
+      "closer_than_market_share": 0.0,
+      "mean_deviation_from_market": -1.6608270931539835,
+      "mean_abs_deviation_from_market": 1.6608270931539835
+     }
+    }
+   },
+   "disagreement_bands": {
+    "DATA_ONLY": {
+     "margin": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_rows": 1,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "margin_mae_arm": 6.25766648518384,
+       "margin_mae_market": 4.5,
+       "toward_share": null
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_rows": 1,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 23.03609031051328,
+       "total_mae_market": 17.5,
+       "toward_share": null
+      }
+     }
+    },
+    "HYBRID_30_DATA": {
+     "margin": {
+      "<=1": {
+       "n_rows": 1,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "margin_mae_arm": 5.027299945555153,
+       "margin_mae_market": 4.5,
+       "toward_share": null
+      },
+      "1-2": {
+       "n_games": 0
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     },
+     "total": {
+      "<=1": {
+       "n_games": 0
+      },
+      "1-2": {
+       "n_rows": 1,
+       "n_unique_contracts": 0,
+       "n_games": 1,
+       "n_weeks": 1,
+       "total_mae_arm": 19.160827093153983,
+       "total_mae_market": 17.5,
+       "toward_share": null
+      },
+      "2-3": {
+       "n_games": 0
+      },
+      "3-5": {
+       "n_games": 0
+      },
+      ">5": {
+       "n_games": 0
+      }
+     }
+    }
+   },
+   "by_center_source": {
+    "kalshi_implied": 1
+   },
+   "by_data_quality_state": {
+    "CURRENT_MARKET_PRIOR": {
+     "kalshi_implied": 1
+    },
+    "DATA_ONLY": {
+     "OK": 1
+    },
+    "HYBRID_30_DATA": {
+     "None": 1
+    }
+   },
+   "close_center_status": {
+    "OK": 1
+   },
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  }
+ },
+ "contracts": {
+  "raw": {
+   "n_rows": 2451,
+   "n_unique_contracts": 77,
+   "n_games": 1,
+   "n_weeks": 1,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_rows": 2451,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "brier": 0.15856217021164842,
+      "log_loss": 0.47558988290775,
+      "mean_predicted": 0.4475982048143607,
+      "actual_rate": 0.6446348429212566,
+      "mean_signed_error": -0.19703663810689506
+     },
+     "payout": {
+      "n_rows": 2451,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "mse": 0.1585621249033559,
+      "mae": 0.3206478172174632,
+      "mean_signed": -0.1969974500203998,
+      "market_at_snapshot_mse": 0.157304314565483,
+      "market_at_close_mse": 0.13994199306405478,
+      "n_with_close": 2451
+     }
+    },
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "event": {
+      "n_rows": 2451,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "brier": 0.2044761737693794,
+      "log_loss": 0.5953501099211258,
+      "mean_predicted": 0.3994805181558543,
+      "actual_rate": 0.6446348429212566,
+      "mean_signed_error": -0.24515432476540192
+     },
+     "payout": {
+      "n_rows": 2451,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "mse": 0.2044761147022895,
+      "mae": 0.36845295797633637,
+      "mean_signed": -0.24510894532843752,
+      "market_at_snapshot_mse": 0.157304314565483,
+      "market_at_close_mse": 0.13994199306405478,
+      "n_with_close": 2451
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "event": {
+      "n_rows": 2451,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "brier": 0.1743033416006224,
+      "log_loss": 0.5156680304604132,
+      "mean_predicted": 0.4296962362301092,
+      "actual_rate": 0.6446348429212566,
+      "mean_signed_error": -0.2149386066911465
+     },
+     "payout": {
+      "n_rows": 2451,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "mse": 0.1743032973229041,
+      "mae": 0.33801820685434497,
+      "mean_signed": -0.2148995716034272,
+      "market_at_snapshot_mse": 0.157304314565483,
+      "market_at_close_mse": 0.13994199306405478,
+      "n_with_close": 2451
+     }
+    }
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "brier_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.0614127545698052,
+       "se": null,
+       "ci95": null
+      },
+      "log_loss_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.15913107325798043,
+       "se": null,
+       "ci95": null
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "mse_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.06141270861607143,
+       "se": null,
+       "ci95": null
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "brier_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.025020482629870132,
+       "se": null,
+       "ci95": null
+      },
+      "log_loss_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.05927529917810212,
+       "se": null,
+       "ci95": null
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "mse_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.025020467211850653,
+       "se": null,
+       "ci95": null
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "event": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "brier_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": -0.036392271939935064,
+       "se": null,
+       "ci95": null
+      },
+      "log_loss_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": -0.09985577407987829,
+       "se": null,
+       "ci95": null
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "mse_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": -0.03639224140422078,
+       "se": null,
+       "ci95": null
+      }
+     }
+    }
+   ],
+   "paired_vs_market": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_contracts": 2451,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 2451,
+      "n_clusters": 1,
+      "mean": 0.0012578103378722992,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_close",
+     "n_contracts": 2451,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 2451,
+      "n_clusters": 1,
+      "mean": 0.018620131839300287,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_contracts": 2451,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 2451,
+      "n_clusters": 1,
+      "mean": 0.047171800136806406,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_close",
+     "n_contracts": 2451,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 2451,
+      "n_clusters": 1,
+      "mean": 0.06453412163823441,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_contracts": 2451,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 2451,
+      "n_clusters": 1,
+      "mean": 0.016998982757420445,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_close",
+     "n_contracts": 2451,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 2451,
+      "n_clusters": 1,
+      "mean": 0.03436130425884844,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "calibration": {
+    "CURRENT_MARKET_PRIOR": [
+     {
+      "band": "0.00-0.10",
+      "n": 223,
+      "mean_predicted": 0.07370795964125557,
+      "actual_rate": 0.04035874439461883
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 428,
+      "mean_predicted": 0.14717225467289716,
+      "actual_rate": 0.2383177570093458
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 345,
+      "mean_predicted": 0.24614702898550717,
+      "actual_rate": 0.3072463768115942
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 232,
+      "mean_predicted": 0.34294256465517253,
+      "actual_rate": 0.603448275862069
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 214,
+      "mean_predicted": 0.45042441588785015,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 274,
+      "mean_predicted": 0.5490909671532846,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 221,
+      "mean_predicted": 0.6467167420814481,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 68,
+      "mean_predicted": 0.7506209558823529,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 152,
+      "mean_predicted": 0.8528699013157894,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 294,
+      "mean_predicted": 0.9615938775510213,
+      "actual_rate": 1.0
+     }
+    ],
+    "DATA_ONLY": [
+     {
+      "band": "0.00-0.10",
+      "n": 299,
+      "mean_predicted": 0.06582165551839468,
+      "actual_rate": 0.24749163879598662
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 452,
+      "mean_predicted": 0.14558761061946907,
+      "actual_rate": 0.26548672566371684
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 348,
+      "mean_predicted": 0.255651077586207,
+      "actual_rate": 0.4367816091954023
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 308,
+      "mean_predicted": 0.35363352272727316,
+      "actual_rate": 0.6168831168831169
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 308,
+      "mean_predicted": 0.4451470779220779,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 169,
+      "mean_predicted": 0.5561421597633139,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 127,
+      "mean_predicted": 0.6319279527559055,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 114,
+      "mean_predicted": 0.7476875000000005,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 111,
+      "mean_predicted": 0.8449950450450451,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 215,
+      "mean_predicted": 0.9552361627906973,
+      "actual_rate": 1.0
+     }
+    ],
+    "HYBRID_30_DATA": [
+     {
+      "band": "0.00-0.10",
+      "n": 255,
+      "mean_predicted": 0.06805725490196085,
+      "actual_rate": 0.07450980392156863
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 442,
+      "mean_predicted": 0.1508208710407241,
+      "actual_rate": 0.28054298642533937
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 319,
+      "mean_predicted": 0.24766700626959265,
+      "actual_rate": 0.329153605015674
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 246,
+      "mean_predicted": 0.34329857723577223,
+      "actual_rate": 0.5813008130081301
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 298,
+      "mean_predicted": 0.4517901006711409,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 221,
+      "mean_predicted": 0.5481649321266971,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 187,
+      "mean_predicted": 0.6386485294117644,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 85,
+      "mean_predicted": 0.7570858823529414,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 147,
+      "mean_predicted": 0.8496913265306122,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 251,
+      "mean_predicted": 0.9611502988047806,
+      "actual_rate": 1.0
+     }
+    ]
+   },
+   "by_family": {
+    "BOTH_TEAMS_SCORE_N": 80,
+    "GAME_WINNER": 88,
+    "SPREAD": 975,
+    "TEAM_TOTAL": 567,
+    "TOTAL": 741
+   },
+   "by_settlement_status": {
+    "SETTLED": 2451
+   },
+   "by_close_status": {
+    "OK": 2451
+   },
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "T-24h": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     },
+     "payout": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     }
+    },
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "event": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     },
+     "payout": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "event": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     },
+     "payout": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     }
+    }
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "brier_diff": {
+       "n": 0
+      },
+      "log_loss_diff": {
+       "n": 0
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "mse_diff": {
+       "n": 0
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "brier_diff": {
+       "n": 0
+      },
+      "log_loss_diff": {
+       "n": 0
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "mse_diff": {
+       "n": 0
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "event": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "brier_diff": {
+       "n": 0
+      },
+      "log_loss_diff": {
+       "n": 0
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "mse_diff": {
+       "n": 0
+      }
+     }
+    }
+   ],
+   "paired_vs_market": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_close",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_close",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_close",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "calibration": {
+    "CURRENT_MARKET_PRIOR": [],
+    "DATA_ONLY": [],
+    "HYBRID_30_DATA": []
+   },
+   "by_family": {},
+   "by_settlement_status": {},
+   "by_close_status": {},
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "T-6h": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     },
+     "payout": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     }
+    },
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "event": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     },
+     "payout": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "event": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     },
+     "payout": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     }
+    }
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "brier_diff": {
+       "n": 0
+      },
+      "log_loss_diff": {
+       "n": 0
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "mse_diff": {
+       "n": 0
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "brier_diff": {
+       "n": 0
+      },
+      "log_loss_diff": {
+       "n": 0
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "mse_diff": {
+       "n": 0
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "event": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "brier_diff": {
+       "n": 0
+      },
+      "log_loss_diff": {
+       "n": 0
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "mse_diff": {
+       "n": 0
+      }
+     }
+    }
+   ],
+   "paired_vs_market": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_close",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_close",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_close",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "calibration": {
+    "CURRENT_MARKET_PRIOR": [],
+    "DATA_ONLY": [],
+    "HYBRID_30_DATA": []
+   },
+   "by_family": {},
+   "by_settlement_status": {},
+   "by_close_status": {},
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "T-90m": {
+   "n_rows": 77,
+   "n_unique_contracts": 77,
+   "n_games": 1,
+   "n_weeks": 1,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "brier": 0.13664934096590908,
+      "log_loss": 0.41784560569170603,
+      "mean_predicted": 0.48831136363636357,
+      "actual_rate": 0.6753246753246753,
+      "mean_signed_error": -0.18701331168831165
+     },
+     "payout": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "mse": 0.13664933040990257,
+      "mae": 0.2901386363636364,
+      "mean_signed": -0.18699675324675316,
+      "market_at_snapshot_mse": 0.13684253246753245,
+      "market_at_close_mse": 0.1369327922077922,
+      "n_with_close": 77
+     }
+    },
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "event": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "brier": 0.19806209553571422,
+      "log_loss": 0.5769766789496865,
+      "mean_predicted": 0.42461948051948056,
+      "actual_rate": 0.6753246753246753,
+      "mean_signed_error": -0.25070519480519493
+     },
+     "payout": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "mse": 0.19806203902597397,
+      "mae": 0.3558863636363636,
+      "mean_signed": -0.2506668831168832,
+      "market_at_snapshot_mse": 0.13684253246753245,
+      "market_at_close_mse": 0.1369327922077922,
+      "n_with_close": 77
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "event": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "brier": 0.16166982359577925,
+      "log_loss": 0.47712090486980824,
+      "mean_predicted": 0.4588840909090909,
+      "actual_rate": 0.6753246753246753,
+      "mean_signed_error": -0.21644058441558447
+     },
+     "payout": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "mse": 0.1616697976217533,
+      "mae": 0.3146925324675324,
+      "mean_signed": -0.21641461038961046,
+      "market_at_snapshot_mse": 0.13684253246753245,
+      "market_at_close_mse": 0.1369327922077922,
+      "n_with_close": 77
+     }
+    }
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "brier_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.0614127545698052,
+       "se": null,
+       "ci95": null
+      },
+      "log_loss_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.15913107325798043,
+       "se": null,
+       "ci95": null
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "mse_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.06141270861607143,
+       "se": null,
+       "ci95": null
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "brier_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.025020482629870132,
+       "se": null,
+       "ci95": null
+      },
+      "log_loss_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.05927529917810212,
+       "se": null,
+       "ci95": null
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "mse_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.025020467211850653,
+       "se": null,
+       "ci95": null
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "event": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "brier_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": -0.036392271939935064,
+       "se": null,
+       "ci95": null
+      },
+      "log_loss_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": -0.09985577407987829,
+       "se": null,
+       "ci95": null
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "mse_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": -0.03639224140422078,
+       "se": null,
+       "ci95": null
+      }
+     }
+    }
+   ],
+   "paired_vs_market": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": -0.0001932020576298674,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_close",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": -0.00028346179788961103,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": 0.061219506558441564,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_close",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": 0.061129246818181826,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": 0.02482726515422079,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_close",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": 0.024737005413961045,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "calibration": {
+    "CURRENT_MARKET_PRIOR": [
+     {
+      "band": "0.00-0.10",
+      "n": 6,
+      "mean_predicted": 0.06325416666666667,
+      "actual_rate": 0.0
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 13,
+      "mean_predicted": 0.14468846153846154,
+      "actual_rate": 0.23076923076923078
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 10,
+      "mean_predicted": 0.23926250000000002,
+      "actual_rate": 0.3
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 6,
+      "mean_predicted": 0.33797916666666666,
+      "actual_rate": 0.6666666666666666
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 3,
+      "mean_predicted": 0.4384166666666667,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 11,
+      "mean_predicted": 0.5522295454545454,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 8,
+      "mean_predicted": 0.66073125,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 2,
+      "mean_predicted": 0.7606375000000001,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 6,
+      "mean_predicted": 0.8540458333333333,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 12,
+      "mean_predicted": 0.9664854166666667,
+      "actual_rate": 1.0
+     }
+    ],
+    "DATA_ONLY": [
+     {
+      "band": "0.00-0.10",
+      "n": 10,
+      "mean_predicted": 0.061955,
+      "actual_rate": 0.2
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 13,
+      "mean_predicted": 0.14434230769230771,
+      "actual_rate": 0.3076923076923077
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 10,
+      "mean_predicted": 0.2566025,
+      "actual_rate": 0.5
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 8,
+      "mean_predicted": 0.35684999999999995,
+      "actual_rate": 0.625
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 10,
+      "mean_predicted": 0.44623749999999995,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 5,
+      "mean_predicted": 0.561005,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 4,
+      "mean_predicted": 0.63446875,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 4,
+      "mean_predicted": 0.7478,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 4,
+      "mean_predicted": 0.84079375,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 9,
+      "mean_predicted": 0.9576916666666667,
+      "actual_rate": 1.0
+     }
+    ],
+    "HYBRID_30_DATA": [
+     {
+      "band": "0.00-0.10",
+      "n": 8,
+      "mean_predicted": 0.058403125,
+      "actual_rate": 0.0
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 14,
+      "mean_predicted": 0.15067142857142857,
+      "actual_rate": 0.2857142857142857
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 9,
+      "mean_predicted": 0.24456666666666665,
+      "actual_rate": 0.4444444444444444
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 5,
+      "mean_predicted": 0.329575,
+      "actual_rate": 0.6
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 10,
+      "mean_predicted": 0.45402000000000003,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 6,
+      "mean_predicted": 0.547725,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 6,
+      "mean_predicted": 0.6466166666666667,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 2,
+      "mean_predicted": 0.73055,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 6,
+      "mean_predicted": 0.8481583333333332,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 11,
+      "mean_predicted": 0.9683795454545454,
+      "actual_rate": 1.0
+     }
+    ]
+   },
+   "by_family": {
+    "BOTH_TEAMS_SCORE_N": 4,
+    "GAME_WINNER": 2,
+    "SPREAD": 25,
+    "TEAM_TOTAL": 27,
+    "TOTAL": 19
+   },
+   "by_settlement_status": {
+    "SETTLED": 77
+   },
+   "by_close_status": {
+    "OK": 77
+   },
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "T-30m": {
+   "n_rows": 0,
+   "n_unique_contracts": 0,
+   "n_games": 0,
+   "n_weeks": 0,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     },
+     "payout": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     }
+    },
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "event": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     },
+     "payout": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "event": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     },
+     "payout": {
+      "n_rows": 0,
+      "n_unique_contracts": 0,
+      "n_games": 0,
+      "n_weeks": 0
+     }
+    }
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "brier_diff": {
+       "n": 0
+      },
+      "log_loss_diff": {
+       "n": 0
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "mse_diff": {
+       "n": 0
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "brier_diff": {
+       "n": 0
+      },
+      "log_loss_diff": {
+       "n": 0
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "mse_diff": {
+       "n": 0
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "event": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "brier_diff": {
+       "n": 0
+      },
+      "log_loss_diff": {
+       "n": 0
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 0,
+      "n_games": 0,
+      "mse_diff": {
+       "n": 0
+      }
+     }
+    }
+   ],
+   "paired_vs_market": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_close",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_close",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_close",
+     "n_contracts": 0,
+     "n_games": 0,
+     "mse_diff": {
+      "n": 0
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "calibration": {
+    "CURRENT_MARKET_PRIOR": [],
+    "DATA_ONLY": [],
+    "HYBRID_30_DATA": []
+   },
+   "by_family": {},
+   "by_settlement_status": {},
+   "by_close_status": {},
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  },
+  "latest_pregame": {
+   "n_rows": 77,
+   "n_unique_contracts": 77,
+   "n_games": 1,
+   "n_weeks": 1,
+   "arms": {
+    "CURRENT_MARKET_PRIOR": {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "brier": 0.13664934096590908,
+      "log_loss": 0.41784560569170603,
+      "mean_predicted": 0.48831136363636357,
+      "actual_rate": 0.6753246753246753,
+      "mean_signed_error": -0.18701331168831165
+     },
+     "payout": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "mse": 0.13664933040990257,
+      "mae": 0.2901386363636364,
+      "mean_signed": -0.18699675324675316,
+      "market_at_snapshot_mse": 0.13684253246753245,
+      "market_at_close_mse": 0.1369327922077922,
+      "n_with_close": 77
+     }
+    },
+    "DATA_ONLY": {
+     "arm": "DATA_ONLY",
+     "event": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "brier": 0.19806209553571422,
+      "log_loss": 0.5769766789496865,
+      "mean_predicted": 0.42461948051948056,
+      "actual_rate": 0.6753246753246753,
+      "mean_signed_error": -0.25070519480519493
+     },
+     "payout": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "mse": 0.19806203902597397,
+      "mae": 0.3558863636363636,
+      "mean_signed": -0.2506668831168832,
+      "market_at_snapshot_mse": 0.13684253246753245,
+      "market_at_close_mse": 0.1369327922077922,
+      "n_with_close": 77
+     }
+    },
+    "HYBRID_30_DATA": {
+     "arm": "HYBRID_30_DATA",
+     "event": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "brier": 0.16166982359577925,
+      "log_loss": 0.47712090486980824,
+      "mean_predicted": 0.4588840909090909,
+      "actual_rate": 0.6753246753246753,
+      "mean_signed_error": -0.21644058441558447
+     },
+     "payout": {
+      "n_rows": 77,
+      "n_unique_contracts": 77,
+      "n_games": 1,
+      "n_weeks": 1,
+      "mse": 0.1616697976217533,
+      "mae": 0.3146925324675324,
+      "mean_signed": -0.21641461038961046,
+      "market_at_snapshot_mse": 0.13684253246753245,
+      "market_at_close_mse": 0.1369327922077922,
+      "n_with_close": 77
+     }
+    }
+   },
+   "paired": [
+    {
+     "arm": "DATA_ONLY",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "brier_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.0614127545698052,
+       "se": null,
+       "ci95": null
+      },
+      "log_loss_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.15913107325798043,
+       "se": null,
+       "ci95": null
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "mse_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.06141270861607143,
+       "se": null,
+       "ci95": null
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "CURRENT_MARKET_PRIOR",
+     "event": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "brier_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.025020482629870132,
+       "se": null,
+       "ci95": null
+      },
+      "log_loss_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.05927529917810212,
+       "se": null,
+       "ci95": null
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "mse_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": 0.025020467211850653,
+       "se": null,
+       "ci95": null
+      }
+     }
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "DATA_ONLY",
+     "event": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "brier_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": -0.036392271939935064,
+       "se": null,
+       "ci95": null
+      },
+      "log_loss_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": -0.09985577407987829,
+       "se": null,
+       "ci95": null
+      }
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE",
+     "payout": {
+      "n_contracts": 77,
+      "n_games": 1,
+      "mse_diff": {
+       "n": 77,
+       "n_clusters": 1,
+       "mean": -0.03639224140422078,
+       "se": null,
+       "ci95": null
+      }
+     }
+    }
+   ],
+   "paired_vs_market": [
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_snapshot",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": -0.0001932020576298674,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "CURRENT_MARKET_PRIOR",
+     "versus": "market_at_close",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": -0.00028346179788961103,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_snapshot",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": 0.061219506558441564,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "DATA_ONLY",
+     "versus": "market_at_close",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": 0.061129246818181826,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_snapshot",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": 0.02482726515422079,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+     "arm": "HYBRID_30_DATA",
+     "versus": "market_at_close",
+     "n_contracts": 77,
+     "n_games": 1,
+     "mse_diff": {
+      "n": 77,
+      "n_clusters": 1,
+      "mean": 0.024737005413961045,
+      "se": null,
+      "ci95": null
+     },
+     "evidence": "INSUFFICIENT_EVIDENCE"
+    }
+   ],
+   "calibration": {
+    "CURRENT_MARKET_PRIOR": [
+     {
+      "band": "0.00-0.10",
+      "n": 6,
+      "mean_predicted": 0.06325416666666667,
+      "actual_rate": 0.0
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 13,
+      "mean_predicted": 0.14468846153846154,
+      "actual_rate": 0.23076923076923078
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 10,
+      "mean_predicted": 0.23926250000000002,
+      "actual_rate": 0.3
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 6,
+      "mean_predicted": 0.33797916666666666,
+      "actual_rate": 0.6666666666666666
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 3,
+      "mean_predicted": 0.4384166666666667,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 11,
+      "mean_predicted": 0.5522295454545454,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 8,
+      "mean_predicted": 0.66073125,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 2,
+      "mean_predicted": 0.7606375000000001,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 6,
+      "mean_predicted": 0.8540458333333333,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 12,
+      "mean_predicted": 0.9664854166666667,
+      "actual_rate": 1.0
+     }
+    ],
+    "DATA_ONLY": [
+     {
+      "band": "0.00-0.10",
+      "n": 10,
+      "mean_predicted": 0.061955,
+      "actual_rate": 0.2
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 13,
+      "mean_predicted": 0.14434230769230771,
+      "actual_rate": 0.3076923076923077
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 10,
+      "mean_predicted": 0.2566025,
+      "actual_rate": 0.5
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 8,
+      "mean_predicted": 0.35684999999999995,
+      "actual_rate": 0.625
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 10,
+      "mean_predicted": 0.44623749999999995,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 5,
+      "mean_predicted": 0.561005,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 4,
+      "mean_predicted": 0.63446875,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 4,
+      "mean_predicted": 0.7478,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 4,
+      "mean_predicted": 0.84079375,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 9,
+      "mean_predicted": 0.9576916666666667,
+      "actual_rate": 1.0
+     }
+    ],
+    "HYBRID_30_DATA": [
+     {
+      "band": "0.00-0.10",
+      "n": 8,
+      "mean_predicted": 0.058403125,
+      "actual_rate": 0.0
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 14,
+      "mean_predicted": 0.15067142857142857,
+      "actual_rate": 0.2857142857142857
+     },
+     {
+      "band": "0.20-0.30",
+      "n": 9,
+      "mean_predicted": 0.24456666666666665,
+      "actual_rate": 0.4444444444444444
+     },
+     {
+      "band": "0.30-0.40",
+      "n": 5,
+      "mean_predicted": 0.329575,
+      "actual_rate": 0.6
+     },
+     {
+      "band": "0.40-0.50",
+      "n": 10,
+      "mean_predicted": 0.45402000000000003,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.50-0.60",
+      "n": 6,
+      "mean_predicted": 0.547725,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.60-0.70",
+      "n": 6,
+      "mean_predicted": 0.6466166666666667,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.70-0.80",
+      "n": 2,
+      "mean_predicted": 0.73055,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 6,
+      "mean_predicted": 0.8481583333333332,
+      "actual_rate": 1.0
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 11,
+      "mean_predicted": 0.9683795454545454,
+      "actual_rate": 1.0
+     }
+    ]
+   },
+   "by_family": {
+    "BOTH_TEAMS_SCORE_N": 4,
+    "GAME_WINNER": 2,
+    "SPREAD": 25,
+    "TEAM_TOTAL": 27,
+    "TOTAL": 19
+   },
+   "by_settlement_status": {
+    "SETTLED": 77
+   },
+   "by_close_status": {
+    "OK": 77
+   },
+   "evidence": "INSUFFICIENT_EVIDENCE"
+  }
+ },
+ "no_automatic_learning": "this scorecard measures, reports and diagnoses; it changes no weight, feature, threshold or gate, and promotion requires a separate owner-approved project",
+ "headline_evidence": "INSUFFICIENT_EVIDENCE",
+ "headline_n_games": 1,
+ "deviation_signal": {
+  "unit": "one game per horizon view",
+  "meaningful_deviation_points": 1.0,
+  "denominator": "toward + away only; unchanged and no_close never in the denominator",
+  "arms": {
+   "DATA_ONLY": {
+    "role": "primary"
+   },
+   "HYBRID_30_DATA": {
+    "role": "derived: 0.3\u00d7DATA_ONLY deviation, not independent"
+   }
+  },
+  "views": {
+   "T-24h": {
+    "DATA_ONLY": {
+     "role": "primary",
+     "margin": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    },
+    "HYBRID_30_DATA": {
+     "role": "derived: 0.3\u00d7DATA_ONLY deviation, not independent",
+     "margin": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    }
+   },
+   "T-6h": {
+    "DATA_ONLY": {
+     "role": "primary",
+     "margin": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    },
+    "HYBRID_30_DATA": {
+     "role": "derived: 0.3\u00d7DATA_ONLY deviation, not independent",
+     "margin": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    }
+   },
+   "T-90m": {
+    "DATA_ONLY": {
+     "role": "primary",
+     "margin": {
+      "n_games": 1,
+      "below_threshold": 0,
+      "meaningful": 1,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 1,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": 0.0,
+      "share_closer_to_actual_than_close": 0.0,
+      "n_with_actual": 1,
+      "n_with_close": 1,
+      "mean_signed_close_move_points": 0.0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 1,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 1,
+        "below_threshold": 0,
+        "meaningful": 1,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 1,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": 0.0,
+        "share_closer_to_actual_than_close": 0.0,
+        "n_with_actual": 1,
+        "n_with_close": 1,
+        "mean_signed_close_move_points": 0.0,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 1
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 1,
+      "below_threshold": 0,
+      "meaningful": 1,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 1,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": 0.0,
+      "share_closer_to_actual_than_close": 0.0,
+      "n_with_actual": 1,
+      "n_with_close": 1,
+      "mean_signed_close_move_points": 0.0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 1,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 1,
+        "below_threshold": 0,
+        "meaningful": 1,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 1,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": 0.0,
+        "share_closer_to_actual_than_close": 0.0,
+        "n_with_actual": 1,
+        "n_with_close": 1,
+        "mean_signed_close_move_points": 0.0,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 1
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    },
+    "HYBRID_30_DATA": {
+     "role": "derived: 0.3\u00d7DATA_ONLY deviation, not independent",
+     "margin": {
+      "n_games": 1,
+      "below_threshold": 1,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 1,
+        "below_threshold": 0,
+        "meaningful": 1,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 1,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": 0.0,
+        "share_closer_to_actual_than_close": 0.0,
+        "n_with_actual": 1,
+        "n_with_close": 1,
+        "mean_signed_close_move_points": 0.0,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 1
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 1,
+      "below_threshold": 0,
+      "meaningful": 1,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 1,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": 0.0,
+      "share_closer_to_actual_than_close": 0.0,
+      "n_with_actual": 1,
+      "n_with_close": 1,
+      "mean_signed_close_move_points": 0.0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 1,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 1,
+        "below_threshold": 0,
+        "meaningful": 1,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 1,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": 0.0,
+        "share_closer_to_actual_than_close": 0.0,
+        "n_with_actual": 1,
+        "n_with_close": 1,
+        "mean_signed_close_move_points": 0.0,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 1
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    }
+   },
+   "T-30m": {
+    "DATA_ONLY": {
+     "role": "primary",
+     "margin": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    },
+    "HYBRID_30_DATA": {
+     "role": "derived: 0.3\u00d7DATA_ONLY deviation, not independent",
+     "margin": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 0,
+      "below_threshold": 0,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    }
+   },
+   "latest_pregame": {
+    "DATA_ONLY": {
+     "role": "primary",
+     "margin": {
+      "n_games": 1,
+      "below_threshold": 0,
+      "meaningful": 1,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 1,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": 0.0,
+      "share_closer_to_actual_than_close": 0.0,
+      "n_with_actual": 1,
+      "n_with_close": 1,
+      "mean_signed_close_move_points": 0.0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 1,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 1,
+        "below_threshold": 0,
+        "meaningful": 1,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 1,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": 0.0,
+        "share_closer_to_actual_than_close": 0.0,
+        "n_with_actual": 1,
+        "n_with_close": 1,
+        "mean_signed_close_move_points": 0.0,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 1
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 1,
+      "below_threshold": 0,
+      "meaningful": 1,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 1,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": 0.0,
+      "share_closer_to_actual_than_close": 0.0,
+      "n_with_actual": 1,
+      "n_with_close": 1,
+      "mean_signed_close_move_points": 0.0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 1,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 1,
+        "below_threshold": 0,
+        "meaningful": 1,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 1,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": 0.0,
+        "share_closer_to_actual_than_close": 0.0,
+        "n_with_actual": 1,
+        "n_with_close": 1,
+        "mean_signed_close_move_points": 0.0,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 1
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    },
+    "HYBRID_30_DATA": {
+     "role": "derived: 0.3\u00d7DATA_ONLY deviation, not independent",
+     "margin": {
+      "n_games": 1,
+      "below_threshold": 1,
+      "meaningful": 0,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 0,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": null,
+      "share_closer_to_actual_than_close": null,
+      "n_with_actual": 0,
+      "n_with_close": 0,
+      "mean_signed_close_move_points": null,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 0,
+      "bands": {
+       "<=1": {
+        "n_games": 1,
+        "below_threshold": 0,
+        "meaningful": 1,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 1,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": 0.0,
+        "share_closer_to_actual_than_close": 0.0,
+        "n_with_actual": 1,
+        "n_with_close": 1,
+        "mean_signed_close_move_points": 0.0,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 1
+       },
+       "1-2": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     },
+     "total": {
+      "n_games": 1,
+      "below_threshold": 0,
+      "meaningful": 1,
+      "toward": 0,
+      "away": 0,
+      "unchanged": 1,
+      "no_close": 0,
+      "no_view": 0,
+      "directional": 0,
+      "toward_rate": null,
+      "toward_rate_wilson95": null,
+      "share_closer_to_actual_than_snapshot_market": 0.0,
+      "share_closer_to_actual_than_close": 0.0,
+      "n_with_actual": 1,
+      "n_with_close": 1,
+      "mean_signed_close_move_points": 0.0,
+      "signed_close_move_sum": 0.0,
+      "signed_close_move_n": 1,
+      "bands": {
+       "<=1": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "1-2": {
+        "n_games": 1,
+        "below_threshold": 0,
+        "meaningful": 1,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 1,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": 0.0,
+        "share_closer_to_actual_than_close": 0.0,
+        "n_with_actual": 1,
+        "n_with_close": 1,
+        "mean_signed_close_move_points": 0.0,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 1
+       },
+       "2-3": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       "3-5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       },
+       ">5": {
+        "n_games": 0,
+        "below_threshold": 0,
+        "meaningful": 0,
+        "toward": 0,
+        "away": 0,
+        "unchanged": 0,
+        "no_close": 0,
+        "no_view": 0,
+        "directional": 0,
+        "toward_rate": null,
+        "toward_rate_wilson95": null,
+        "share_closer_to_actual_than_snapshot_market": null,
+        "share_closer_to_actual_than_close": null,
+        "n_with_actual": 0,
+        "n_with_close": 0,
+        "mean_signed_close_move_points": null,
+        "signed_close_move_sum": 0.0,
+        "signed_close_move_n": 0
+       }
+      },
+      "bands_note": "bands cover every usable game (threshold not applied); the '<=1' band includes deviations of exactly 1.0, which the threshold counts as meaningful"
+     }
+    }
+   }
+  }
+ },
+ "autopsy_summary": {
+  "n": 61,
+  "classifications": {
+   "EFFICIENCY_MISS": 11,
+   "NO_LARGE_MISS": 17,
+   "OPPORTUNITY_MISS": 25,
+   "TEAM_VOLUME_MISS": 4,
+   "UNEXPLAINED_VARIANCE": 4
+  }
+ },
+ "funnel_summary": {
+  "n_snapshots": 0,
+  "newest": null
+ }
+}
