@@ -446,6 +446,37 @@ def history_request(packet: dict, v1docs: dict) -> tuple[set, str, str]:
     return wanted, start, end
 
 
+def player_opportunity(game: dict) -> tuple[dict, str | None]:
+    """One packet game's `game_script_inputs.player_opportunity` as {team: [player rows]}, and the packet's reason
+    when it says the block is UNAVAILABLE (else None).
+
+    `nfl_edge.handicap.script_block.game_script_inputs` writes one of two shapes: {team: [rows]} when the simulation
+    published a game script for the game, or {"state": "UNAVAILABLE", "reason": <script source>} when it did not
+    (e.g. 2026_04_PIT_CLE in the 2026-10-05 week-4 packet). An absent block reads as empty, as it always has. Any
+    other shape is refused rather than read as "no players"."""
+    gid = game.get("game_id")
+    po = (game.get("game_script_inputs") or {}).get("player_opportunity")
+    if po is None:
+        return {}, None
+    if isinstance(po, dict) and "state" in po:
+        reason = po.get("reason")
+        if po["state"] == "UNAVAILABLE" and set(po) <= {"state", "reason"} and isinstance(reason, (str, type(None))):
+            return {}, reason or "no reason given"
+    elif isinstance(po, dict) and all(isinstance(rows, list) and all(isinstance(x, dict) for x in rows)
+                                      for rows in po.values()):
+        return po, None
+    shape = sorted(po)[:6] if isinstance(po, dict) else type(po).__name__
+    raise ResearchExportError(f"{gid}: game_script_inputs.player_opportunity has an unrecognised shape {shape!r}: "
+                              "expected {team: [player rows]} or {'state': 'UNAVAILABLE', 'reason': ...}")
+
+
+def opportunity_note(unavailable: dict, n_games: int) -> str:
+    """Says which games the packet published without player opportunity, and the packet's reason."""
+    reasons = ", ".join(sorted(set(unavailable.values())))
+    return (f"packet game_script_inputs.player_opportunity UNAVAILABLE for {len(unavailable)} of {n_games} games "
+            f"({', '.join(sorted(unavailable))}; reason: {reasons}): no projected usage shares for their players")
+
+
 # ------------------------------------------------------------------------------------------------ the builder
 
 class _Builder:
@@ -479,6 +510,7 @@ class _Builder:
         self.team_obs: dict[str, list] = {}
         self.team_series: dict[str, list] = {}
         self.player_rows: dict[str, dict] = {}
+        self.opportunity_unavailable: dict[str, str] = {}
         self.warnings: list[str] = []
         self.sched_as_of = None
         self.sim_generated_at = None
@@ -698,8 +730,11 @@ class _Builder:
             if sim.get("generated_at"):
                 self.sim_generated_at = _max_ts(self.sim_generated_at, sim["generated_at"])
             opp_by_id = {}
-            for team, lst in ((g.get("game_script_inputs") or {}).get("player_opportunity") or {}).items():
-                for x in lst or []:
+            by_team, unavailable = player_opportunity(g)
+            if unavailable is not None:
+                self.opportunity_unavailable[gid] = unavailable
+            for team, lst in by_team.items():
+                for x in lst:
                     opp_by_id[x.get("player")] = {**x, "team": team}
             qbs = {}
             for team, lst in (g.get("quarterbacks") or {}).items():
@@ -1528,7 +1563,8 @@ def _cap_table(b: "_Builder", docs: list[dict]) -> list[dict]:
           evidence=ev(ap["team"]), windows=[w for w in raw_windows if w != "SEASON"] + ["L200_DROPBACKS"]),
         C(capability="usage", status="RESEARCH", entity_types=["PLAYER"],
           summary="projected target / carry shares for projected players (simulation inputs)",
-          limitations=["projected shares, not observed usage; usage history is 2016-2025 research parquets only"],
+          limitations=["projected shares, not observed usage; usage history is 2016-2025 research parquets only"]
+          + ([opportunity_note(b.opportunity_unavailable, len(b.games))] if b.opportunity_unavailable else []),
           evidence=ev(ap["player"]), metrics=usage_ids),
         C(capability="lineups", status="PARTIAL", entity_types=["EVENT", "PLAYER"],
           summary="Sleeper depth chart per team (slot, order, status) in event context",
@@ -1712,6 +1748,14 @@ def export_explorer(app_root, *, reports_dir, market_data_root=None, now=None, r
         warnings.append("no capture quotes read: no market history")
     if not inputs["scorecard"]:
         warnings.append("no incumbent scorecard: calibration / accuracy summaries absent")
+    games = inputs["packet"].get("games") or []
+    unavailable = {}
+    for g in games:
+        reason = player_opportunity(g)[1]
+        if reason is not None:
+            unavailable[g["game_id"]] = reason
+    if unavailable:
+        warnings.append(opportunity_note(unavailable, len(games)))
     index = R.publish_explorer(app_root=Path(app_root), sport=SPORT, run_id=manifest["run_id"], generated_at=now,
                                documents=docs, quality=q, as_of=as_of, commit_sha=manifest.get("commit_sha"),
                                base_manifest_run_id=manifest["run_id"], warnings=warnings)

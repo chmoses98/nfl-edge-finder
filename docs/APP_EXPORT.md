@@ -199,6 +199,10 @@ before the earliest kickoff (1,380 quote files for week 4).
 OL quality metrics are not published (the packet states no blocking grades are captured; the injured/listed
 linemen ride in event extensions). Home/away splits are listed as an UNAVAILABLE split dimension.
 
+A game whose packet `game_script_inputs.player_opportunity` is `{"state": "UNAVAILABLE", "reason": ...}` (the
+simulation published no game script for it) contributes no projected usage shares; the index `warnings` and the
+`usage` capability's limitations name those games and the reason. Any other non-list shape fails the export.
+
 ### Deliberately not published
 
 Per-run incumbent model-probability history (`data/shadow/ledger`, too heavy for the export step), the 2025
