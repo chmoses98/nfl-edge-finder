@@ -232,3 +232,31 @@ targets, against the rest of the population.
 
 Player-projection candidates beyond A1-A5 are chosen only after the frozen five-season baseline and its error
 decomposition exist, and are registered in an addendum to this file before they are run.
+
+---
+
+# Stage 2 addendum (registered after the frozen baseline's error decomposition, before any arm result was read)
+
+**What the baseline said.** Variance shares of player-game error along TEAM VOLUME -> PLAYER SHARE -> EFFICIENCY
+(2021-2024, read before 2025 finished): receptions 60-64% share; rush yards 36-47% share, 37-42% efficiency,
+14-17% team volume; passing yards 45-50% share (the starter's share of team attempts), 31-40% team volume. The
+simulated QB1 was not the team's leading passer in 7-10% of team-games.
+
+**Candidate considered and NOT registered (negative design result).** A usage-first quarterback-starter rule was
+designed on the pre-evaluation seasons 2018-2020 ONLY. Starter identification accuracy there: incumbent
+(depth-chart rank, then long-run attempt share) 0.933 / 0.918 / 0.944; short-run attempt share first 0.884 / 0.878
+/ 0.877; previous-game share first 0.890 / 0.890 / 0.879; hybrids (switch only when another eligible QB holds
+>= 0.5-0.7 of recent attempts and the chart QB1 < 0.5) 0.925 / 0.919 / 0.939-0.946. No variant beats the
+incumbent on the design seasons, so none is run on 2021-2025. Recorded so it is not re-tried silently.
+
+**R1 outside_share_repair (registered).** From the reproduction audit: `training.fit_bundle` estimates the share of
+team volume that goes outside the eligible set from `assemble`'s per-team-game "first" eligible row after
+`fillna(0)`. When that row's player has no player-feature row (today's nflverse rebuild of snap_counts_2020 labels
+616 two-way players with compound positions such as `FB/D`), the team's volume reads 0 and the estimate turns
+negative (2023 bundle: carry -0.0053, target -0.0046 today vs +0.0055 / +0.0025 committed). R1 takes the team
+volume from the team-game row. It is judged by the same section-6 promotion rule as A1-A5.
+
+**Calibration diagnostic added (reporting only, no rule changes).** The incumbent's 50% / 90% coverage counts an
+integer outcome on the interval's endpoint as covered, which inflates coverage for small counts. Every
+calibration table therefore also reports the RANDOMIZED PIT `F(y-1) + U * p(y)` (U from a fixed seed) computed
+from the stored pmf, and its 10-bin chi-square uniformity statistic. The promotion rule (section 6) is unchanged.
