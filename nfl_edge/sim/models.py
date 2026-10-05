@@ -100,15 +100,34 @@ def _env_design(tf: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-def fit_game_env(tf: pd.DataFrame) -> dict:
-    """Fit the volume/split models on team-game rows that already carry the prior-only features."""
-    d = _env_design(tf)
+OPP_DEF_COLUMNS = ["def_plays", "def_sec_per_play", "def_pass_rate", "def_neutral_pass_rate", "def_pass_td_share"]
+
+
+def _with_opponent_def(tf: pd.DataFrame) -> pd.DataFrame:
+    """Research arm A4 (research/game_script_v2/PREREGISTRATION.md): replace a team-game row's own ``def_*``
+    (what ITS defence allowed) with the OPPONENT's ``def_*`` -- the columns the simulator serves."""
+    opp = tf[["game_id", "team"] + OPP_DEF_COLUMNS].rename(columns={"team": "opp", **{c: f"_o_{c}" for c in OPP_DEF_COLUMNS}})
+    d = tf.merge(opp, on=["game_id", "opp"], how="left")
+    for c in OPP_DEF_COLUMNS:
+        d[c] = d[f"_o_{c}"]
+    return d.drop(columns=[f"_o_{c}" for c in OPP_DEF_COLUMNS])
+
+
+def fit_game_env(tf: pd.DataFrame, plays_features: list[str] | None = None, pass_rate_features: list[str] | None = None,
+                 opponent_def: bool = False) -> dict:
+    """Fit the volume/split models on team-game rows that already carry the prior-only features.
+
+    The defaults are the incumbent model.  A research arm may pass extra feature columns (carried on the
+    artifact and read back by the simulator) or ``opponent_def=True`` (arm A4); neither is deployed."""
+    plays_features = list(plays_features or PLAYS_FEATURES)
+    pass_rate_features = list(pass_rate_features or PASS_RATE_FEATURES)
+    d = _env_design(_with_opponent_def(tf) if opponent_def else tf)
     d = d[d["team_n_prior"] >= 4]
-    plays = ridge_fit(d[PLAYS_FEATURES].to_numpy(float), d["plays"].to_numpy(float), lam=1.0)
-    pr = ridge_fit(d[PASS_RATE_FEATURES].to_numpy(float), d["pass_rate"].to_numpy(float), lam=1.0)
+    plays = ridge_fit(d[plays_features].to_numpy(float), d["plays"].to_numpy(float), lam=1.0)
+    pr = ridge_fit(d[pass_rate_features].to_numpy(float), d["pass_rate"].to_numpy(float), lam=1.0)
     # residual correlation between the two teams of one game (pace is shared)
-    d = d.assign(_rp=d["plays"] - ridge_predict(plays, d[PLAYS_FEATURES].to_numpy(float)),
-                 _rr=d["pass_rate"] - ridge_predict(pr, d[PASS_RATE_FEATURES].to_numpy(float)))
+    d = d.assign(_rp=d["plays"] - ridge_predict(plays, d[plays_features].to_numpy(float)),
+                 _rr=d["pass_rate"] - ridge_predict(pr, d[pass_rate_features].to_numpy(float)))
     pair = d.merge(d[["game_id", "team", "_rp", "_rr"]].rename(columns={"team": "opp", "_rp": "_rp_o", "_rr": "_rr_o"}),
                    on=["game_id", "opp"], how="inner")
     rho_plays = float(np.corrcoef(pair["_rp"], pair["_rp_o"])[0, 1])
@@ -136,9 +155,13 @@ def fit_game_env(tf: pd.DataFrame) -> dict:
               "sack_rate": float(d["sacks"].sum() / d["dropbacks"].sum()),
               "scramble_rate": float(d["scrambles"].sum() / d["dropbacks"].sum()),
               "kneels": float(d["kneels"].mean())}
-    return {"version": MODELS_VERSION, "plays": plays, "pass_rate": pr, "rho_plays": rho_plays, "rho_pass_rate": rho_pr,
-            "td_given_points": pooled.tolist(), "pass_td_share": pts_share, "league": league,
-            "train_seasons": sorted(int(s) for s in d["season"].unique()), "n_rows": int(len(d))}
+    out = {"version": MODELS_VERSION, "plays": plays, "pass_rate": pr, "rho_plays": rho_plays, "rho_pass_rate": rho_pr,
+           "td_given_points": pooled.tolist(), "pass_td_share": pts_share, "league": league,
+           "train_seasons": sorted(int(s) for s in d["season"].unique()), "n_rows": int(len(d))}
+    # Only a research arm records its feature lists; the incumbent artifact keeps exactly its old keys.
+    if plays_features != PLAYS_FEATURES or pass_rate_features != PASS_RATE_FEATURES or opponent_def:
+        out.update(plays_features=plays_features, pass_rate_features=pass_rate_features, opponent_def=bool(opponent_def))
+    return out
 
 
 # ------------------------------------------------------------------------------------- opportunity
@@ -239,11 +262,13 @@ def _bin_index(pred: np.ndarray, edges: list[float]) -> np.ndarray:
     return np.searchsorted(np.asarray(edges), pred, side="right")
 
 
-def fit_carry_model(carries: pd.DataFrame) -> dict:
+def fit_carry_model(carries: pd.DataFrame, features: list[str] | None = None) -> dict:
     """``carries``: one row per training carry joined with the runner's prior-only features and the team
-    context (team_margin realised).  Scrambles and kneels are modelled separately (flat empirical banks)."""
+    context (team_margin realised).  Scrambles and kneels are modelled separately (flat empirical banks).
+    ``features`` defaults to the incumbent list; a research arm may extend it (recorded on the artifact)."""
+    features = list(features or CARRY_FEATURES)
     c = carries[(carries["qb_scramble"] == 0) & (carries["qb_kneel"] == 0)].copy()
-    X = _eff_design(c, CARRY_FEATURES); y = c["yards"].to_numpy(float)
+    X = _eff_design(c, features); y = c["yards"].to_numpy(float)
     m = ridge_fit(X, y, lam=5.0)
     pred = ridge_predict(m, X)
     edges = _bin_edges(pred, N_BINS)
@@ -262,19 +287,20 @@ def fit_carry_model(carries: pd.DataFrame) -> dict:
     pg = pg[pg["k"] >= 3]
     r2 = (pg["y"] - pg["mu"]) ** 2 - pg["s2"]
     tau2 = float(max(0.0, (r2 * pg["k"] ** 2).sum() / (pg["k"] ** 4).sum()))
-    return {"ridge": m, "features": CARRY_FEATURES, "edges": edges, "banks": banks, "tau2": tau2,
+    return {"ridge": m, "features": features, "edges": edges, "banks": banks, "tau2": tau2,
             "scramble_quantiles": np.quantile(scr, np.linspace(0, 1, 201)).tolist() if len(scr) else [0.0] * 201,
             "kneel_mean": float(kneel.mean()) if len(kneel) else -1.0, "n": int(len(y))}
 
 
-def fit_target_model(targets: pd.DataFrame) -> dict:
+def fit_target_model(targets: pd.DataFrame, features: list[str] | None = None) -> dict:
     """Per-target outcome as (complete, yards | complete).  Catch probability is a logistic; expected yards per
     target is a ridge; the empirical bank of yards-given-completion is binned on both predictions so a
     5-yard-aDOT back and a 15-yard-aDOT wideout do not share a distribution.  In simulation a target is
     completed with the player's own catch probability and, if complete, draws yards from the cell's bank
     rescaled to the player's expected yards per reception."""
+    features = list(features or TARGET_FEATURES)
     t = targets.copy()
-    Xc = _eff_design(t, TARGET_FEATURES)
+    Xc = _eff_design(t, features)
     catch = logistic_fit(Xc, t["complete"].to_numpy(float), lam=1.0)
     ypt = ridge_fit(Xc, t["yards"].to_numpy(float), lam=5.0)
     pc = logistic_predict(catch, Xc); py = ridge_predict(ypt, Xc)
@@ -296,7 +322,7 @@ def fit_target_model(targets: pd.DataFrame) -> dict:
     pg = pg[pg["k"] >= 3]
     r2 = (pg["y"] - pg["mu"]) ** 2 - pg["s2"]
     tau2 = float(max(0.0, (r2 * pg["k"] ** 2).sum() / (pg["k"] ** 4).sum()))
-    return {"catch": catch, "ypt": ypt, "features": TARGET_FEATURES, "c_edges": c_edges, "y_edges": y_edges,
+    return {"catch": catch, "ypt": ypt, "features": features, "c_edges": c_edges, "y_edges": y_edges,
             "cells": cells, "tau2": tau2, "n": int(len(t))}
 
 

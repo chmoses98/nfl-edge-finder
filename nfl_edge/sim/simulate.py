@@ -133,6 +133,8 @@ def _team_env_rows(ti: TeamInput, margin_team: np.ndarray, total: np.ndarray) ->
             "def_sec_per_play": o["def_sec_per_play"], "off_neutral_pass_rate": f["off_neutral_pass_rate"],
             "off_pass_rate": f["off_pass_rate"], "off_proe": f["off_proe"], "def_pass_rate": o["def_pass_rate"],
             "def_neutral_pass_rate": o["def_neutral_pass_rate"], "home": float(ti.home)}
+    # research arms (research/game_script_v2): opponent-adjusted MATCHUP features live on the team's own row
+    cols.update({k: v for k, v in f.items() if isinstance(k, str) and k.startswith("mx_")})
     N = len(margin_team)
     X = {k: np.full(N, float(v)) for k, v in cols.items()}
     X["game_total"] = total.astype(float); X["team_margin"] = margin_team.astype(float)
@@ -164,8 +166,9 @@ def simulate(g: GameInput, bundle: dict, n: int = 20000, seed: int = 11, bank: R
     # 2. team volume, jointly for the two teams (residual correlation on plays and pass rate)
     sides = ((g.home, margin, hp), (g.away, -margin, ap))
     Xs = [_team_env_rows(ti, mt, total) for ti, mt, _ in sides]
-    mu_plays = [M.ridge_predict(ge["plays"], _design(X, M.PLAYS_FEATURES)) for X in Xs]
-    mu_pr = [M.ridge_predict(ge["pass_rate"], _design(X, M.PASS_RATE_FEATURES)) for X in Xs]
+    plays_feats = ge.get("plays_features", M.PLAYS_FEATURES); pr_feats = ge.get("pass_rate_features", M.PASS_RATE_FEATURES)
+    mu_plays = [M.ridge_predict(ge["plays"], _design(X, plays_feats)) for X in Xs]
+    mu_pr = [M.ridge_predict(ge["pass_rate"], _design(X, pr_feats)) for X in Xs]
     z = rng.standard_normal((n, 2)); rho = ge["rho_plays"]
     e_plays = np.column_stack([z[:, 0], rho * z[:, 0] + np.sqrt(1 - rho ** 2) * z[:, 1]]) * ge["plays"]["resid_sd"]
     z = rng.standard_normal((n, 2)); rho = ge["rho_pass_rate"]
@@ -244,26 +247,28 @@ def _simulate_players(rng, ti: TeamInput, T: dict, bundle: dict, res: SimResult,
     f, o = ti.features, ti.opp_features
     base = {"def_ypc": o["def_ypc"], "off_ypc": f["off_ypc"], "def_ypa": o["def_ypa"], "off_ypa": f["off_ypa"],
             "def_comp_rate": o["def_comp_rate"], "off_comp_rate": f["off_comp_rate"], "home": float(ti.home)}
+    base.update({k: v for k, v in f.items() if isinstance(k, str) and k.startswith("mx_")})
+    car_feats = cm.get("features", M.CARRY_FEATURES); tar_feats = tm.get("features", M.TARGET_FEATURES)
     Pd = P.copy()
     for k, v in base.items():
         Pd[k] = v
     Pd["team_margin"] = 0.0
-    Xcar = M._eff_design(Pd, M.CARRY_FEATURES); Xtar = M._eff_design(Pd, M.TARGET_FEATURES)
+    Xcar = M._eff_design(Pd, car_feats); Xtar = M._eff_design(Pd, tar_feats)
     # margin enters linearly: mu(row) = mu(0) + beta_margin * margin / sd_margin
     def _with_margin(model, X, feats):
         mu0 = M.ridge_predict(model, X)
         j = feats.index("team_margin")
         slope = model["beta"][j] / model["sd"][j]
         return mu0[None, :] + slope * margin_team[:, None]
-    mu_c = _with_margin(cm["ridge"], Xcar, M.CARRY_FEATURES)                      # (n, m)
+    mu_c = _with_margin(cm["ridge"], Xcar, car_feats)                      # (n, m)
     def _with_margin_logit(model, X, feats):
         mu = np.asarray(model["mu"]); sd = np.asarray(model["sd"])
         Z = (np.where(np.isfinite(X), X, mu) - mu) / sd
         eta0 = model["intercept"] + Z @ np.asarray(model["beta"])
         j = feats.index("team_margin"); slope = model["beta"][j] / sd[j]
         return 1 / (1 + np.exp(-(eta0[None, :] + slope * margin_team[:, None])))
-    p_catch = np.clip(_with_margin_logit(tm["catch"], Xtar, M.TARGET_FEATURES), 0.2, 0.95)   # (n, m)
-    mu_t = _with_margin(tm["ypt"], Xtar, M.TARGET_FEATURES)                                 # (n, m)
+    p_catch = np.clip(_with_margin_logit(tm["catch"], Xtar, tar_feats), 0.2, 0.95)   # (n, m)
+    mu_t = _with_margin(tm["ypt"], Xtar, tar_feats)                                 # (n, m)
     edges = np.asarray(cm["edges"]); banks = cm["banks"]
     bank_q = np.array([b["quantiles"] for b in banks]); bank_mean = np.array([b["mean"] for b in banks])
     c_edges = np.asarray(tm["c_edges"]); y_edges = np.asarray(tm["y_edges"])

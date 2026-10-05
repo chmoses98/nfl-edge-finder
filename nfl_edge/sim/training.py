@@ -135,8 +135,12 @@ def assemble(seasons, cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print,
 
 
 def fit_bundle(target_season: int, frames: dict | None = None, history_start: int = 2016,
-               cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print) -> dict:
-    """Fit every primitive on seasons < target_season (after the warm-up seasons) and return the bundle."""
+               cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print, arm: dict | None = None) -> dict:
+    """Fit every primitive on seasons < target_season (after the warm-up seasons) and return the bundle.
+
+    ``arm`` is a RESEARCH ablation spec (research/game_script_v2/PREREGISTRATION.md, section 5): extra feature
+    columns for the volume / efficiency models and/or the opponent-``def_*`` training join.  ``None`` is the
+    incumbent and produces the incumbent bundle unchanged."""
     seasons = list(range(history_start, target_season))
     if frames is None:
         frames = assemble(range(history_start, target_season + 1), cfg, verbose=verbose,
@@ -153,16 +157,29 @@ def fit_bundle(target_season: int, frames: dict | None = None, history_start: in
     car = frames["carries"]; car = car[car["season"].isin(train)]
     tar = frames["targets"]; tar = tar[tar["season"].isin(train)]
     verbose(f"fit {target_season}: train seasons {train}, team rows {len(tf)}, eligible rows {len(e)}, carries {len(car)}, targets {len(tar)}")
-    game_env = M.fit_game_env(tf)
+    arm = arm or {}
+    if arm:
+        game_env = M.fit_game_env(tf, plays_features=M.PLAYS_FEATURES + list(arm.get("plays_extra", [])),
+                                  pass_rate_features=M.PASS_RATE_FEATURES + list(arm.get("pass_rate_extra", [])),
+                                  opponent_def=bool(arm.get("opponent_def")))
+    else:
+        game_env = M.fit_game_env(tf)
     ec = e[e["y_share_carry"].notna()].rename(columns={"y_share_carry": "y_share"})
     et = e[e["y_share_target"].notna()].rename(columns={"y_share_target": "y_share"})
     carry_share = M.fit_share_model(ec, "carry")
     target_share = M.fit_share_model(et, "target")
-    carry = M.fit_carry_model(car)
-    target = M.fit_target_model(tar)
+    carry = M.fit_carry_model(car, M.CARRY_FEATURES + list(arm.get("carry_extra", [])))
+    target = M.fit_target_model(tar, M.TARGET_FEATURES + list(arm.get("target_extra", [])))
     pf_train = frames["player"]; pf_train = pf_train[pf_train["season"].isin(train) & ~pf_train["phantom"]]
     td = M.fit_td_weights(pf_train)
     o = frames["outside"]; o = o[o["game_id"].str[:4].astype(int).isin(train)]
+    if arm.get("outside_share_repair"):
+        # Research arm R1 (PREREGISTRATION.md stage 2): take the team's volume from the team-game row itself, not
+        # from the "first" eligible row, which is 0 when that row's player has no player-feature row.
+        tv = frames["team"][["game_id", "team", "designed_rush", "targets"]].rename(
+            columns={"designed_rush": "_tdr", "targets": "_tt"})
+        o = o.merge(tv, on=["game_id", "team"], how="left")
+        o["team_designed_rush"] = o["_tdr"].fillna(o["team_designed_rush"]); o["team_targets"] = o["_tt"].fillna(o["team_targets"])
     other_share = {"carry": float(1 - o["elig_carries"].sum() / max(1, o["team_designed_rush"].sum())),
                    "target": float(1 - o["elig_targets"].sum() / max(1, o["team_targets"].sum()))}
     qb_share = M.fit_qb_share(e)
@@ -170,4 +187,6 @@ def fit_bundle(target_season: int, frames: dict | None = None, history_start: in
                  feature_config=cfg.to_dict(), other_share=other_share, qb_share=qb_share)
     b["target_season"] = target_season
     b["priors"] = priors.to_dict()
+    if arm:
+        b["research_arm"] = {k: v for k, v in arm.items()}
     return b
