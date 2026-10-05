@@ -18,8 +18,6 @@ production thresholds, staking, incumbent model probabilities, recommendation au
 Every generated Markdown file is a pure render of its JSON (`scripts/sim/write_game_script_v2.py`), and
 `tests/test_game_script_v2_results_consistency.py` re-renders and compares.
 
-**Wave 2** (S1 / Q1 / M1 / A1 / RISK1, preregistered with a prospective cutoff of 2026-10-05T16:14:02Z): see [`wave2/README.md`](wave2/README.md). Wave 2 changes none of the verdicts below and grants no authority.
-
 ## Verdicts
 
 | item | verdict | basis |
