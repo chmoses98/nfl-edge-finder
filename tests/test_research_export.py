@@ -266,3 +266,94 @@ def test_the_explorer_reaches_neither_the_bridge_nor_preflight_and_stays_stdlib_
     dotted = {rel[:-3].replace("/", ".") for rel in reached}
     assert not (dotted & (FORBIDDEN_MODULES - {"nfl_edge.handicap.store"})), sorted(dotted & FORBIDDEN_MODULES)
     assert reachable_third_party([os.path.join(ROOT, "scripts", "research_export.py")], precise=True) == {}
+
+
+# player_opportunity: the two shapes nfl_edge.handicap.script_block writes, and nothing else
+# The exact block 2026_04_PIT_CLE carried in the 2026-10-05 week-4 packet (handicap-reports 371d3db), which
+# crashed collect_players with "TypeError: 'str' object is not a mapping".
+UNAVAILABLE_OPPORTUNITY = {"state": "UNAVAILABLE", "reason": "20261005T002748Z.sim-1.1.0.scripts.json.gz"}
+
+
+def _fixture_game(gid=GAME):
+    packet = json.load(open(os.path.join(FIX, "report", "packet.json")))
+    return next(g for g in packet["games"] if g["game_id"] == gid)
+
+
+def test_player_opportunity_reads_the_player_lists():
+    g = _fixture_game()
+    rows, unavailable = RE.player_opportunity(g)
+    assert unavailable is None
+    assert rows is g["game_script_inputs"]["player_opportunity"] and set(rows) == {"PIT", "CLE"}
+    assert all(r["player"].startswith("00-") for team in rows.values() for r in team)
+
+
+def test_player_opportunity_reads_the_unavailable_status():
+    g = {"game_id": GAME, "game_script_inputs": {"state": "PARTIAL", "player_opportunity": dict(UNAVAILABLE_OPPORTUNITY)}}
+    assert RE.player_opportunity(g) == ({}, UNAVAILABLE_OPPORTUNITY["reason"])
+    g["game_script_inputs"]["player_opportunity"] = {"state": "UNAVAILABLE"}
+    assert RE.player_opportunity(g) == ({}, "no reason given")
+
+
+@pytest.mark.parametrize("block", [
+    {"state": "OK", "reason": "x"},                       # a status this adapter does not know
+    {"state": "UNAVAILABLE", "reason": "x", "PIT": []},   # a status with player rows mixed in
+    {"state": "UNAVAILABLE", "reason": {"file": "x"}},    # a reason that is not text
+    [],                                                   # a list, not {team: [...]}
+    "UNAVAILABLE",
+    {"PIT": None},                                        # a team without a list
+    {"PIT": {"player": "00-0036355"}},                    # a row where the list should be
+    {"PIT": ["00-0036355"]},                              # a list of ids, not rows
+])
+def test_player_opportunity_refuses_an_unknown_shape(block):
+    with pytest.raises(RE.ResearchExportError, match="unrecognised shape"):
+        RE.player_opportunity({"game_id": GAME, "game_script_inputs": {"player_opportunity": block}})
+
+
+def test_player_opportunity_absent_or_empty_reads_as_no_rows():
+    assert RE.player_opportunity({"game_id": GAME}) == ({}, None)
+    assert RE.player_opportunity({"game_id": GAME, "game_script_inputs": {}}) == ({}, None)
+    assert RE.player_opportunity({"game_id": GAME, "game_script_inputs": {"player_opportunity": None}}) == ({}, None)
+    assert RE.player_opportunity({"game_id": GAME, "game_script_inputs": {"player_opportunity": {}}}) == ({}, None)
+    assert RE.player_opportunity({"game_id": GAME, "game_script_inputs": {"player_opportunity": {"PIT": []}}}) \
+        == ({"PIT": []}, None)
+
+
+def _report_with_opportunity(tmp_path, block) -> str:
+    rep = tmp_path / "report"
+    shutil.copytree(os.path.join(FIX, "report"), rep)
+    packet = json.loads((rep / "packet.json").read_text())
+    g = next(g for g in packet["games"] if g["game_id"] == GAME)
+    g["game_script_inputs"]["player_opportunity"] = block
+    (rep / "packet.json").write_text(json.dumps(packet))
+    return str(rep)
+
+
+def test_an_unavailable_player_opportunity_publishes_and_says_so(tmp_path, app):
+    root = tmp_path / "app"
+    shutil.copytree(app, root, ignore=shutil.ignore_patterns("explorer"))
+    rep = _report_with_opportunity(tmp_path, dict(UNAVAILABLE_OPPORTUNITY))
+    assert RE.main(["--reports-dir", rep, "--market-data-root", os.path.join(FIX, "market-data"), "--out", str(root)]) == 0
+    assert R.verify_explorer(root) == []
+    index, docs = _docs(root)
+    note = next(w for w in index["warnings"] if "player_opportunity UNAVAILABLE" in w)
+    assert GAME in note and UNAVAILABLE_OPPORTUNITY["reason"] in note
+    usage = next(c for c in docs["capabilities.json"]["items"] if c["capability"] == "usage")
+    assert usage["status"] == "RESEARCH" and any(UNAVAILABLE_OPPORTUNITY["reason"] in s for s in usage["limitations"])
+    # the simulation's players are still profiled; no usage share is invented for them
+    players = [d for d in docs.values() if d.get("kind") == "entity_profile" and d["entity_type"] == "PLAYER"]
+    assert players
+    assert not [o for d in players for o in d["metrics"] if o["metric_id"].startswith("met_nfl.proj_")]
+    # the normal publication carries usage shares and no such warning
+    base_index, base_docs = _docs(app)
+    assert not [w for w in base_index["warnings"] if "player_opportunity" in w]
+    assert [o for d in base_docs.values() if d.get("kind") == "entity_profile" and d["entity_type"] == "PLAYER"
+            for o in d["metrics"] if o["metric_id"].startswith("met_nfl.proj_")]
+
+
+def test_an_unknown_player_opportunity_fails_the_export_and_touches_nothing(tmp_path, app):
+    root = tmp_path / "app"
+    shutil.copytree(app, root)
+    before = R.digest_tree(root)
+    rep = _report_with_opportunity(tmp_path, [])
+    assert RE.main(["--reports-dir", rep, "--market-data-root", os.path.join(FIX, "market-data"), "--out", str(root)]) == 1
+    assert R.digest_tree(root) == before
