@@ -254,8 +254,10 @@ def test_dependency_matrix_is_symmetric_and_flags_duplicates(sim):
     for i in range(len(C)):
         for j in range(len(C)):
             assert C[i][j] == C[j][i]
-    top = d["pairs"][0]
-    assert {top["a"], top["b"]} == {"TOT44", "TOT44b"} and abs(top["cash_correlation"] - 1) < 1e-12
+    assert all(abs(d["pairs"][i]["cash_correlation"]) >= abs(d["pairs"][i + 1]["cash_correlation"]) - 1e-12
+               for i in range(len(d["pairs"]) - 1)), "ordered by strength of dependence, either sign"
+    top = next(p for p in d["pairs"] if {p["a"], p["b"]} == {"TOT44", "TOT44b"})
+    assert abs(top["cash_correlation"] - 1) < 1e-12
     assert abs(top["jaccard_winning_rows"] - 1) < 1e-12 and abs(top["p_a_given_b"] - 1) < 1e-12
     gw = next(p for p in d["pairs"] if {p["a"], p["b"]} == {"GW-A", "GW-H"})
     assert gw["cash_correlation"] < -0.99 and gw["shared_failure_mass"] < 0.01
@@ -277,3 +279,30 @@ def test_weather_never_enters_and_is_labelled(sim):
     assert a["weather"]["weather_model_status"] == "NOT_IN_MODEL" and b["weather"]["state"] == "FORECAST_AT_CUTOFF"
     a.pop("weather"); b.pop("weather")
     assert a == b, "a forecast changes no probability"
+
+
+def test_a_ledger_row_resolves_its_player_exactly_as_the_pricer_does(sim):
+    """A ledger row carries the incumbent's player_id AND the Kalshi id. The pricer resolves through the Kalshi map
+    only; so must the matrix, or it could describe a contract the pricer refused -- or a different player."""
+    gi, res = sim
+    pid = next(p for p in res.player if not p.startswith("OTHER"))
+    row = {"family": "PLAYER_STAT", "stat": "receptions", "player_id": pid, "player_kalshi_id": "unresolved",
+           "operator": ">=", "threshold": 2}
+    v, state, _ = V.contract_cash(row, res, gi, {})
+    assert v is None and state == "UNSUPPORTED_IDENTITY"
+    other = next(p for p in res.player if not p.startswith("OTHER") and p != pid)
+    v, state, _ = V.contract_cash(row, res, gi, {"unresolved": other})
+    assert state == "SIMULATED"
+    assert np.array_equal(v, (np.clip(np.round(res.player[other]["receptions"]), 0, 25) >= 2).astype(float))
+
+
+def test_negative_dependence_is_not_dropped_by_the_listing_cap(sim, monkeypatch):
+    gi, res = sim
+    monkeypatch.setattr(V, "MAX_PAIRS", 1)
+    cs = [{"ticker": "GW-H", "family": "GAME_WINNER", "team": gi.home.team},
+          {"ticker": "SP-A", "family": "SPREAD", "team": gi.away.team, "floor_strike": 3.5},
+          {"ticker": "TOT44", "family": "TOTAL", "threshold": 44}]
+    d = V.game_document(res, gi, S.coherence_report(res), cs, {})
+    top = d["dependency"]["pairs"][0]
+    assert top["cash_correlation"] < -0.5, "the strongest link here is a hedge, and it must survive the cap"
+    assert d["dependency"]["n_pairs_above_threshold"] >= 1

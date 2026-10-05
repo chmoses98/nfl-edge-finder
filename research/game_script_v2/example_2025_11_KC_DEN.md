@@ -36,9 +36,9 @@ _Weather (NOT_IN_MODEL): no point-in-time forecast attached._
 | underdog controls / high scoring | 4.5% | 100.0% |
 | underdog controls / normal scoring | 8.5% | 100.0% |
 | underdog controls / low scoring | 1.3% | 100.0% |
-- THESIS DEPENDENCY with `TT-DEN-20.5`: cash correlation 0.504 · joint cash 29.9% · Jaccard of winning rows 0.533 · shared failure 43.8%
-- THESIS DEPENDENCY with `TT-KC-24.0`: cash correlation -0.415 · joint cash 8.3% · Jaccard of winning rows 0.105 · shared failure 21.4%
+- THESIS DEPENDENCY with `WIN-KC`: cash correlation -1.000 · joint cash 0.0% · Jaccard of winning rows 0.000 · shared failure 0.0%
 - THESIS DEPENDENCY with `SPREAD-KC-3.5`: cash correlation -0.737 · joint cash 0.0% · Jaccard of winning rows 0.000 · shared failure 14.8%
+- THESIS DEPENDENCY with `TT-DEN-20.5`: cash correlation 0.504 · joint cash 29.9% · Jaccard of winning rows 0.533 · shared failure 43.8%
 
 **`WIN-KC`** GAME_WINNER  
 - MODEL / MARKET: football 64.8% · market --% · reconciled not validated for this family (deployed weight 0) -- not shown
@@ -55,8 +55,8 @@ _Weather (NOT_IN_MODEL): no point-in-time forecast attached._
 | underdog controls / high scoring | 4.5% | 0.0% |
 | underdog controls / normal scoring | 8.5% | 0.0% |
 | underdog controls / low scoring | 1.3% | 0.0% |
+- THESIS DEPENDENCY with `WIN-DEN`: cash correlation -1.000 · joint cash 0.0% · Jaccard of winning rows 0.000 · shared failure 0.0%
 - THESIS DEPENDENCY with `SPREAD-KC-3.5`: cash correlation 0.737 · joint cash 50.0% · Jaccard of winning rows 0.771 · shared failure 35.2%
-- THESIS DEPENDENCY with `TT-KC-24.0`: cash correlation 0.415 · joint cash 43.4% · Jaccard of winning rows 0.594 · shared failure 26.9%
 - THESIS DEPENDENCY with `TT-DEN-20.5`: cash correlation -0.504 · joint cash 21.0% · Jaccard of winning rows 0.222 · shared failure 5.2%
 
 **`SPREAD-KC-3.5`** SPREAD  3.5
@@ -74,8 +74,8 @@ _Weather (NOT_IN_MODEL): no point-in-time forecast attached._
 | underdog controls / high scoring | 4.5% | 0.0% |
 | underdog controls / normal scoring | 8.5% | 0.0% |
 | underdog controls / low scoring | 1.3% | 0.0% |
+- THESIS DEPENDENCY with `WIN-DEN`: cash correlation -0.737 · joint cash 0.0% · Jaccard of winning rows 0.000 · shared failure 14.8%
 - THESIS DEPENDENCY with `WIN-KC`: cash correlation 0.737 · joint cash 50.0% · Jaccard of winning rows 0.771 · shared failure 35.2%
-- THESIS DEPENDENCY with `TT-KC-24.0`: cash correlation 0.439 · joint cash 36.8% · Jaccard of winning rows 0.567 · shared failure 35.1%
 - THESIS DEPENDENCY with `TT-DEN-20.5`: cash correlation -0.493 · joint cash 13.2% · Jaccard of winning rows 0.150 · shared failure 12.2%
 
 **`TOTAL-44.5`** TOTAL  44.5
@@ -113,7 +113,7 @@ _Weather (NOT_IN_MODEL): no point-in-time forecast attached._
 | underdog controls / low scoring | 1.3% | 64.6% |
 - THESIS DEPENDENCY with `TOTAL-44.5`: cash correlation 0.601 · joint cash 40.8% · Jaccard of winning rows 0.671 · shared failure 39.2%
 - THESIS DEPENDENCY with `WIN-DEN`: cash correlation 0.504 · joint cash 29.9% · Jaccard of winning rows 0.533 · shared failure 43.8%
-- THESIS DEPENDENCY with `SPREAD-KC-3.5`: cash correlation -0.493 · joint cash 13.2% · Jaccard of winning rows 0.150 · shared failure 12.2%
+- THESIS DEPENDENCY with `WIN-KC`: cash correlation -0.504 · joint cash 21.0% · Jaccard of winning rows 0.222 · shared failure 5.2%
 
 **`TT-KC-24.0`** TEAM_TOTAL  24.0
 - MODEL / MARKET: football 51.6% · market --% · reconciled not validated for this family (deployed weight 0) -- not shown
@@ -132,7 +132,7 @@ _Weather (NOT_IN_MODEL): no point-in-time forecast attached._
 | underdog controls / low scoring | 1.3% | 0.0% |
 - THESIS DEPENDENCY with `TOTAL-44.5`: cash correlation 0.468 · joint cash 37.8% · Jaccard of winning rows 0.587 · shared failure 35.6%
 - THESIS DEPENDENCY with `SPREAD-KC-3.5`: cash correlation 0.439 · joint cash 36.8% · Jaccard of winning rows 0.567 · shared failure 35.1%
-- THESIS DEPENDENCY with `WIN-KC`: cash correlation 0.415 · joint cash 43.4% · Jaccard of winning rows 0.594 · shared failure 26.9%
+- THESIS DEPENDENCY with `WIN-DEN`: cash correlation -0.415 · joint cash 8.3% · Jaccard of winning rows 0.105 · shared failure 21.4%
 
 **`DEN-pass_yards-00-0039732-216+`** Bo Nix passing_yards 216.0
 - MODEL / MARKET: football 50.1% · market --% · reconciled not validated for this family (deployed weight 0) -- not shown

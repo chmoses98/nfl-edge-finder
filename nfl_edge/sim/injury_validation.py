@@ -121,5 +121,6 @@ def run(out_dir: str, seasons) -> dict:
                 b["ci"] = ci
             res["pooled"][st][c] = b
     res["note"] = ("historical designations are the final pregame report (the only historical artifact); a player can sit in "
-                   "several populations at once; populations are descriptive and select on pregame information only")
+                   "several populations at once; populations are descriptive; all select on pregame information except QB_STARTER_ERROR, which is defined "
+                   "after the fact from who threw the most passes")
     return res

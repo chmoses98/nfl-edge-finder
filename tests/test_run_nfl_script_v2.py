@@ -133,3 +133,9 @@ def test_pricing_is_identical_with_and_without_v2(monkeypatch):
     d = docs[gi.game_id]
     assert d["state"] == "OK", d
     assert d["summary"]["weather"]["wind_speed_10m"] == 25.0, "the forecast retrieved AFTER the cutoff never enters"
+    # a replay: generated now, cutoff in the past -- the vintage is chosen at the CUTOFF, not at generation time
+    replay = {}
+    kw2 = dict(kw, generated_at=datetime(2026, 1, 5, tzinfo=timezone.utc))
+    P.price_slate(copy.deepcopy(slate), ledger, b, None, scripts_v2=replay, weather_vintages=wx,
+                  weather_cutoff=datetime(2026, 1, 1, tzinfo=timezone.utc), **kw2)
+    assert replay[gi.game_id]["summary"]["weather"]["wind_speed_10m"] == 25.0

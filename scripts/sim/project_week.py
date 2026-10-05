@@ -67,7 +67,7 @@ def main():
         print(f"weather vintages unavailable: {type(exc).__name__}: {exc}"); wx = None
     rows = P.price_slate(slate, ledger_rows, bundle, weights, n_sims=a.n_sims, run_id=run_id, observed_at=observed_at,
                          generated_at=generated_at, player_map=player_map, scripts=scripts, scripts_v2=scripts_v2,
-                         weather_vintages=wx)
+                         weather_vintages=wx, weather_cutoff=cutoff)
     from collections import Counter
     c = Counter((r["family"], r["support_state"]) for r in rows)
     print(json.dumps({f"{k[0]}|{k[1]}": v for k, v in c.most_common()}, indent=0))

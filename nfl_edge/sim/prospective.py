@@ -281,14 +281,17 @@ def distribution_fields(prefix: str, d: LatticeDistribution | None) -> dict:
 
 def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dict | None, *, n_sims: int = 20000,
                 run_id: str, observed_at: str, generated_at: datetime, player_map: dict, verbose=print,
-                scripts: dict | None = None, scripts_v2: dict | None = None, weather_vintages: list | None = None) -> list[dict]:
+                scripts: dict | None = None, scripts_v2: dict | None = None, weather_vintages: list | None = None,
+                weather_cutoff: datetime | None = None) -> list[dict]:
     """Price every FULL-period contract of the priced families on the slate's games.
 
     `scripts`, when a dict is passed, receives one game-script summary per game (`nfl_edge/sim/script.py`): read
     from the same simulated rows, drawing no random number, so the projections are identical with or without it.
     `scripts_v2`, likewise, receives GAME SCRIPT V2 (`nfl_edge/sim/script_v2.py`, RESEARCH_ONLY): the nine-cell
     lattice, every contract's script matrix and thesis dependency, computed AFTER the game is priced from the same
-    rows; `weather_vintages` only supplies the point-in-time forecast it displays (weather never enters a number)."""
+    rows; `weather_vintages` only supplies the point-in-time forecast it displays (weather never enters a number),
+    selected at `weather_cutoff` -- the projection cutoff, so a replay of a past cutoff never sees a later vintage
+    (defaults to `generated_at`, which IS the cutoff for a live run)."""
     bank = I.historical_bank(int(next(iter(slate["games"].values()))["input"].season))
     out = []
     w_by_stat = {k: v["weight"] for k, v in (weights or {}).get("fitted", {}).items()}
@@ -411,7 +414,7 @@ def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dic
                 wx = None
                 if weather_vintages:
                     from nfl_edge.sim.weather_research import pit_forecast
-                    wx = pit_forecast(weather_vintages, gid, generated_at.isoformat())
+                    wx = pit_forecast(weather_vintages, gid, (weather_cutoff or generated_at).isoformat())
                 scripts_v2[gid] = {**game_document(res, gi, coh, rows, player_map, weather=wx), "run_id": run_id,
                                    "generated_at": generated_at.isoformat(), "market_observed_at": observed_at}
             except Exception as exc:  # noqa: BLE001

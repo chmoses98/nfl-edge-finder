@@ -291,4 +291,5 @@ def game_script_v2_view(game: dict, doc: dict | None, *, source: str) -> dict:
             "marginal_events": s.get("marginal_events"), "not_simulated": s.get("not_simulated"),
             "weather": s.get("weather"), "orientation": s.get("orientation"), "centre": s.get("centre"),
             "candidates": cand, "n_contracts_with_matrix": sum(1 for c in contracts.values() if c.get("p_cash") is not None),
-            "n_dependency_pairs": len(pairs)}
+            "n_dependency_pairs": (doc.get("dependency") or {}).get("n_pairs_above_threshold", len(pairs)),
+            "n_dependency_pairs_listed": len(pairs)}

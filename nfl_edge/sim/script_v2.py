@@ -328,7 +328,14 @@ def contract_cash(contract: dict, res, gi, player_map: dict | None = None) -> tu
         st = STAT_MAP.get(contract.get("stat"))
         if st is None:
             return None, "UNSUPPORTED_STAT", f"no simulated statistic for {contract.get('stat')}"
-        gs = contract.get("player_id") or (player_map or {}).get(contract.get("player_kalshi_id"))
+        # Resolve the player EXACTLY as price_slate does: a ledger-shaped row (it carries the player_kalshi_id key,
+        # even as None) is resolved through the Kalshi map only. A ledger row's own player_id is the incumbent's
+        # identity and may name a different player than the map; using it would describe a contract the pricer
+        # refused, or a different player. Only a research caller with no Kalshi key may name the GSIS id directly.
+        if "player_kalshi_id" in contract:
+            gs = (player_map or {}).get(contract.get("player_kalshi_id"))
+        else:
+            gs = contract.get("player_id")
         if not gs:
             return None, "UNSUPPORTED_IDENTITY", "player not resolved to a GSIS id"
         if gs not in res.player:
@@ -423,7 +430,8 @@ def dependency_matrix(cash: dict) -> dict:
             d = pair_dependency(cash[keys[i]], cash[keys[j]])
             corr[i][j] = corr[j][i] = d["cash_correlation"]
             pairs.append({"a": keys[i], "b": keys[j], **d})
-    pairs.sort(key=lambda r: -(r["cash_correlation"] if r["cash_correlation"] is not None else -2.0))
+    # strongest dependence first, either sign: a hedge (strongly negative) is as much a thesis link as a duplicate
+    pairs.sort(key=lambda r: -(abs(r["cash_correlation"]) if r["cash_correlation"] is not None else -1.0))
     return {"markets": keys, "cash_correlation": corr, "pairs": pairs, "authority": AUTHORITY}
 
 
@@ -470,10 +478,11 @@ def game_document(res, gi, coherence: dict, contracts: list, player_map: dict | 
                 by_ladder[k] = (key, p)
     head = {key: cash[key] for key, _ in by_ladder.values()}
     dep = dependency_matrix(head)
-    pairs = [{k: (round(v, 4) if isinstance(v, float) else v) for k, v in p.items()} for p in dep["pairs"]
-             if p["cash_correlation"] is not None and abs(p["cash_correlation"]) >= MIN_ABS_CORR][:MAX_PAIRS]
+    strong = [p for p in dep["pairs"] if p["cash_correlation"] is not None and abs(p["cash_correlation"]) >= MIN_ABS_CORR]
+    pairs = [{k: (round(v, 4) if isinstance(v, float) else v) for k, v in p.items()} for p in strong[:MAX_PAIRS]]
     return {"script_v2_version": SCRIPT_V2_VERSION, "game_id": res.game_id, "state": "OK", "authority": AUTHORITY,
             "betting_authorized": False, "provenance": PROVENANCE, "summary": summary, "cells": list(CELLS),
             "p_script": [c["probability"] for c in summary["cells"]], "contracts": compact,
             "dependency": {"headline_markets": sorted(head), "pairs": pairs, "min_abs_corr": MIN_ABS_CORR,
+                           "n_pairs_above_threshold": len(strong), "max_pairs_listed": MAX_PAIRS,
                            "note": "pairs among each ladder's headline rung, |cash correlation| >= 0.30; descriptive, no staking consequence"}}

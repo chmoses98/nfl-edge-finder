@@ -6,7 +6,7 @@ Reproduce: `python scripts/sim/game_script_v2_report.py validation`.
 
 ## Injury / availability redistribution (preregistration section 9)
 
-historical designations are the final pregame report (the only historical artifact); a player can sit in several populations at once; populations are descriptive and select on pregame information only.
+historical designations are the final pregame report (the only historical artifact); a player can sit in several populations at once; populations are descriptive; all select on pregame information except QB_STARTER_ERROR, which is defined after the fact from who threw the most passes.
 
 `TEAMMATE_OF_OUT_STARTER` is the registered population (depth-chart-1 RB/WR/TE designated Out/Doubtful). `TEAMMATE_OF_UNAVAILABLE_STARTER` is a POST-HOC broadening to any absence, added because the historical eligible set is the game-day active list and most absences carry no designation.
 
