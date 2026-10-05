@@ -253,3 +253,11 @@ script probability describes the market-centred distribution, never a football e
 RESEARCH_ONLY section (`handicap/script_block.game_script_v2_view`) read by no decision path. Design, preregistration,
 the five-season walk-forward, the calibration study, the opponent-adjustment ablation and the limitations are in
 `research/game_script_v2/`.
+
+**Five-season evidence (2021-2025, research only; `research/game_script_v2/README.md`).** The frozen layer reproduces
+with no skipped game and no coherence failure; the preregistered GAME SCRIPT V2 verdict is NEEDS MORE WORK; every
+opponent-adjustment arm, the score-path arm and the outside-share repair were REJECTED under the registered rule, and
+nothing was deployed. Findings recorded there and in `LIMITATIONS.md`: the historical eligible set is the game-day
+active list (a T-0 information set); `fit_game_env` trains on the team's own `def_*` columns while the simulator serves
+the opponent's (immaterial, 0.18%); the residual bank under-weights the key margin of 3 by about half; targets and
+receptions are over-dispersed and quarterback volume is left-tail heavy.

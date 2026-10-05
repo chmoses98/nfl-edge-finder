@@ -57,7 +57,8 @@ nflverse rebuilds releases in place. Today's `snap_counts_2020` carries 616 comp
 that the file used for the committed 2023-2025 run evidently did not; together with a latent `fillna(0)` →
 `groupby.first` aggregation in `training.assemble`, that flips the sign of the outside-the-eligible-set share
 (`reproduction_2023_2025.json`). The frozen baseline was run on today's vintage unchanged, so it carries that negative
-share; R1 is the registered repair (`OPPONENT_ADJUSTMENT_ABLATION.md`). Player metrics moved by at most 0.32% (MAE) and
+share; R1, the registered repair, made the distributions slightly WORSE (+0.04% relative CRPS, interval excluding zero)
+and was rejected (`OPPONENT_ADJUSTMENT_ABLATION.md`) -- a correct aggregation is not automatically a better forecast. Player metrics moved by at most 0.32% (MAE) and
 0.62% (CRPS) relative against the committed run; team volume, points and touchdowns reproduced exactly.
 
 ## 7. Coverage on integer outcomes
@@ -92,3 +93,19 @@ were run, so they are a challenge set, not out-of-sample evidence in the prospec
 Bootstraps resample games. Games within a week share league-wide conditions (officiating emphasis, weather fronts,
 injuries spreading through a roster), so game-level intervals are somewhat optimistic; season-by-season tables are
 always shown beside pooled numbers for that reason.
+
+## 12. The train/serve skew in the volume model is real but immaterial
+
+`models.fit_game_env` trains the plays / pass-rate / TD-split models on the team's OWN `def_*` columns and the simulator
+serves the OPPONENT's. Arm A4 corrects it; it improves every season and all eight statistics, by 0.18% relative CRPS
+pooled -- below the registered 0.5% bar -- and fails the calibration criterion, so the incumbent keeps the skew. It is
+documented here so it is not rediscovered as new.
+
+## 13. Known calibration problems that this study did NOT fix (and why)
+
+The randomized PIT shows targets, receptions and receiving yards OVER-DISPERSED (forecast too wide) and quarterback
+attempts / completions / passing yards LEFT-TAIL HEAVY (too few worlds where the starter leaves, is benched or was the
+wrong starter). Both were discovered on 2021-2025; evaluating a fix on the same seasons would be fitting to the test.
+They are the recommended next preregistrations: a share-dependent Dirichlet concentration and a heavier starter-exit
+tail, designed on seasons <= 2020 only and judged prospectively on 2026. The same applies to a key-number-aware margin
+model (item 2).
