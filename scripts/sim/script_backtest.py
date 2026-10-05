@@ -22,6 +22,10 @@ def main():
     seasons = [int(s) for s in a.seasons.split(",")]
     games = {y: json.load(open(os.path.join(a.in_dir, f"scripts_{y}.json"))) for y in seasons}
     res = SB.run(games)
+    import numpy as np
+    rows = {y: np.load(os.path.join(a.in_dir, f"rows_{y}.npz")) for y in seasons if os.path.exists(os.path.join(a.in_dir, f"rows_{y}.npz"))}
+    if len(rows) == len(seasons):
+        res["margin_shape"] = SB.margin_shape(rows, seasons)
     res["meta"] = {"script_v2_version": V.SCRIPT_V2_VERSION, "seasons": seasons,
                    "evidence_class": {str(y): FY.EVIDENCE_CLASS.get(y) for y in seasons},
                    "bootstrap": {"resamples": SB.B, "seed": SB.SEED, "unit": "game"},

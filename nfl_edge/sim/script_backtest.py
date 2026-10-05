@@ -218,3 +218,39 @@ def run(script_games_by_season: dict) -> dict:
     out["verdict"] = verdict(out["pooled"], out["by_season"])
     out["cells"] = list(V.CELLS)
     return out
+
+
+# ----------------------------------------------------------------- POST-HOC descriptive: margin shape
+MARGIN_BANDS = ((0, 3), (4, 8), (9, 16), (17, 999))
+KEY_MARGINS = (3, 7, 10, 14)
+
+
+def margin_shape(rows_by_season: dict, seasons) -> dict:
+    """POST_HOC_DESCRIPTIVE (not preregistered; reported because the one-score event missed in every season):
+    predicted vs realized share of |final margin| in bands and on key numbers, per season, with the binomial SE
+    of the realized share. Reads the same simulated rows; draws nothing."""
+    g = D.schedule().to_pandas().set_index("game_id")
+    out = {"status": "POST_HOC_DESCRIPTIVE", "bands": [list(b) for b in MARGIN_BANDS], "key_margins": list(KEY_MARGINS), "by_season": {}}
+    allp, ally = [], []
+    for y in seasons:
+        R = rows_by_season[y]
+        P, Y = [], []
+        for gid in R.files:
+            if gid not in g.index or not np.isfinite(g.loc[gid, "result"]):
+                continue
+            m = np.abs(R[gid][0].astype(float)); a = abs(float(g.loc[gid, "result"]))
+            P.append([np.mean((m >= lo) & (m <= hi)) for lo, hi in MARGIN_BANDS] + [np.mean(m == k) for k in KEY_MARGINS])
+            Y.append([float(lo <= a <= hi) for lo, hi in MARGIN_BANDS] + [float(a == k) for k in KEY_MARGINS])
+        P, Y = np.array(P), np.array(Y)
+        allp.append(P); ally.append(Y)
+        out["by_season"][str(y)] = _shape_block(P, Y)
+    out["pooled"] = _shape_block(np.vstack(allp), np.vstack(ally))
+    return out
+
+
+def _shape_block(P, Y):
+    n = len(Y)
+    names = [f"|m| {lo}-{hi if hi < 999 else '+'}" for lo, hi in MARGIN_BANDS] + [f"|m| = {k}" for k in KEY_MARGINS]
+    return {"n_games": int(n), "rows": [{"band": nm, "predicted": float(P[:, j].mean()), "realized": float(Y[:, j].mean()),
+                                         "realized_se": float(np.sqrt(max(Y[:, j].mean() * (1 - Y[:, j].mean()), 1e-12) / n))}
+                                        for j, nm in enumerate(names)]}

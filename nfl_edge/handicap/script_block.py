@@ -212,3 +212,83 @@ def game_script_inputs(game: dict, script: dict | None, *, script_source: str, h
                 tags[k]["examples"].append(m.get("ticker"))
     out["historical_research_tags"] = sorted(tags.values(), key=lambda t: (t["tag"], t["hypothesis"], t["side"]))
     return out
+
+
+# ------------------------------------------------------------------------------------- GAME SCRIPT V2
+V2_AUTHORITY = ("RESEARCH_ONLY (GAME SCRIPT V2): script probabilities, robustness and dependency describe the market-centred "
+                "simulation; they create no BET state and change no edge, threshold, stake or probability")
+V2_PROVENANCE_NOTE = ("MARKET_CENTRED_GAME: every script probability is the market centre plus the historical residual bank; a "
+                      "favourite-control share is not a football edge on the side")
+V2_MAX_CANDIDATES = 12
+
+
+def load_scripts_v2(roots, sim_manifest: dict | None) -> tuple[dict | None, str]:
+    """GAME SCRIPT V2 documents written by the SAME simulation run the packet attached (never another run's)."""
+    if not sim_manifest or not sim_manifest.get("run_id"):
+        return None, "no simulation run attached to this packet"
+    run_id = sim_manifest["run_id"]
+    for root in roots:
+        for path in sorted(glob.glob(os.path.join(root, DIRNAME, "*", f"{run_id}.*.scripts_v2.json.gz"))):
+            try:
+                with gzip.open(path, "rt") as f:
+                    doc = json.load(f)
+            except (OSError, ValueError) as e:
+                return None, f"GAME SCRIPT V2 file unreadable: {e}"
+            return doc.get("games") or {}, os.path.basename(path)
+    return None, f"simulation run {run_id} wrote no GAME SCRIPT V2 file (runs before it existed did not)"
+
+
+def _v2_candidates(game: dict, doc: dict) -> list:
+    """The markets the view details: the game's ranked reconciled disagreements, then each game line's headline rung."""
+    have = {c["ticker"]: c for c in doc.get("contracts") or [] if c.get("p_cash") is not None}
+    out = []
+    for d in ((game.get("simulation") or {}).get("largest_reconciled_disagreements") or []):
+        if d.get("ticker") in have and d["ticker"] not in out:
+            out.append(d["ticker"])
+    for t in (doc.get("dependency") or {}).get("headline_markets") or []:
+        if t in have and have[t].get("family") in ("GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL") and t not in out:
+            out.append(t)
+    return out[:V2_MAX_CANDIDATES]
+
+
+def game_script_v2_view(game: dict, doc: dict | None, *, source: str) -> dict:
+    """PRIMARY PLAUSIBLE SCRIPTS, per-candidate MODEL / MARKET, SCRIPT ROBUSTNESS, SCRIPT MATRIX and THESIS
+    DEPENDENCY for one game. Numbers only -- no adjective grades a market. Always returns a dict."""
+    out = {"authority": V2_AUTHORITY, "provenance": V2_PROVENANCE_NOTE, "source": source}
+    if not doc:
+        return {**out, "state": "UNAVAILABLE", "reason": source}
+    if doc.get("state") != "OK":
+        return {**out, "state": doc.get("state") or "UNAVAILABLE", "reason": doc.get("reason") or doc.get("state")}
+    s = doc.get("summary") or {}
+    cells = s.get("cells") or []
+    ranked = sorted(cells, key=lambda c: -(c.get("probability") or 0))
+    primary = [{"cell": c["cell"], "label": (c.get("labels") or {}).get("short"), "detail": (c.get("labels") or {}).get("long"),
+                "probability": c.get("probability")} for c in ranked[:5]]
+    other = 1.0 - sum(p["probability"] or 0 for p in primary)
+    labels = {c["cell"]: (c.get("labels") or {}).get("short") for c in cells}
+    by_ticker = {m.get("ticker"): m for m in game.get("markets") or []}
+    contracts = {c["ticker"]: c for c in doc.get("contracts") or []}
+    pairs = (doc.get("dependency") or {}).get("pairs") or []
+    cand = []
+    for t in _v2_candidates(game, doc):
+        c = contracts[t]; m = by_ticker.get(t) or {}; sim = m.get("simulation") or {}
+        w = _f(sim.get("reconcile_weight"))
+        matrix = [{"cell": cell, "label": labels.get(cell), "p_script": p, "p_cash_given_script": pc}
+                  for cell, p, pc in zip(doc.get("cells") or [], doc.get("p_script") or [], c.get("p_cash_given_script") or [])]
+        dep = [p for p in pairs if t in (p.get("a"), p.get("b"))][:3]
+        cand.append({"ticker": t, "family": c.get("family"), "player_name": c.get("player_name"), "stat": c.get("stat"),
+                     "threshold": c.get("threshold") if c.get("threshold") is not None else c.get("floor_strike"),
+                     "football_probability": c.get("p_cash"), "market_probability": _f(m.get("mid")),
+                     "reconciled_probability": _f(sim.get("p_reconciled")) if (w or 0) > 0 else None,
+                     "reconciled_note": None if (w or 0) > 0 else "not validated for this family (deployed weight 0) -- not shown",
+                     "script_robustness": c.get("script_robustness"), "major_script_floor": c.get("major_script_floor"),
+                     "failure_script_mass": c.get("failure_script_mass"), "win_contribution_hhi": c.get("win_contribution_hhi"),
+                     "matrix": matrix,
+                     "dependency": [{"with": p["b"] if p["a"] == t else p["a"], "cash_correlation": p.get("cash_correlation"),
+                                     "joint_cash": p.get("joint_cash"), "jaccard_winning_rows": p.get("jaccard_winning_rows"),
+                                     "shared_failure_mass": p.get("shared_failure_mass")} for p in dep]})
+    return {**out, "state": "OK", "primary_scripts": primary, "other_probability": round(other, 4),
+            "marginal_events": s.get("marginal_events"), "not_simulated": s.get("not_simulated"),
+            "weather": s.get("weather"), "orientation": s.get("orientation"), "centre": s.get("centre"),
+            "candidates": cand, "n_contracts_with_matrix": sum(1 for c in contracts.values() if c.get("p_cash") is not None),
+            "n_dependency_pairs": len(pairs)}

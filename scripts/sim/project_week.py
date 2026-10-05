@@ -59,9 +59,15 @@ def main():
     player_map = dict(zip(pmap["kalshi_player_id"].to_list(), pmap["gsis_id"].to_list()))
     slate = P.slate_inputs(a.season, a.week, cutoff, a.market_data, ledger_rows=ledger_rows, priors=priors)
     print("sources", json.dumps(slate["sources"], default=str))
-    scripts = {}
+    scripts, scripts_v2 = {}, {}
+    try:  # point-in-time forecasts for GAME SCRIPT V2's display only; weather never enters a probability
+        from nfl_edge.context.weather_vintages import load_vintages
+        wx = load_vintages(os.path.join(a.market_data, "data", "context"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"weather vintages unavailable: {type(exc).__name__}: {exc}"); wx = None
     rows = P.price_slate(slate, ledger_rows, bundle, weights, n_sims=a.n_sims, run_id=run_id, observed_at=observed_at,
-                         generated_at=generated_at, player_map=player_map, scripts=scripts)
+                         generated_at=generated_at, player_map=player_map, scripts=scripts, scripts_v2=scripts_v2,
+                         weather_vintages=wx)
     from collections import Counter
     c = Counter((r["family"], r["support_state"]) for r in rows)
     print(json.dumps({f"{k[0]}|{k[1]}": v for k, v in c.most_common()}, indent=0))
@@ -84,6 +90,8 @@ def main():
     # game-script summaries (environment, team volume, player opportunity, efficiency): research context only
     spath = P.write_scripts(a.out, run_id, scripts)
     print("wrote", spath)
+    # GAME SCRIPT V2 (research only): lattice, script x market matrix, thesis dependency
+    print("wrote", P.write_scripts_v2(a.out, run_id, scripts_v2))
 
 
 if __name__ == "__main__":

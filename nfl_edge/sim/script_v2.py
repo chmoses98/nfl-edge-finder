@@ -425,3 +425,55 @@ def dependency_matrix(cash: dict) -> dict:
             pairs.append({"a": keys[i], "b": keys[j], **d})
     pairs.sort(key=lambda r: -(r["cash_correlation"] if r["cash_correlation"] is not None else -2.0))
     return {"markets": keys, "cash_correlation": corr, "pairs": pairs, "authority": AUTHORITY}
+
+
+# ------------------------------------------------------------------------------- the per-game document
+MIN_ABS_CORR = 0.30           # dependency pairs reported (descriptive filter, no authority)
+MAX_PAIRS = 50
+
+
+def _ladder_key(c: dict) -> tuple:
+    return (c.get("family"), c.get("team"), c.get("stat"), c.get("player_kalshi_id") or c.get("player_id"))
+
+
+def game_document(res, gi, coherence: dict, contracts: list, player_map: dict | None = None, *, weather: dict | None = None) -> dict:
+    """GAME SCRIPT V2 for one simulated game: the lattice, every contract's script matrix, and thesis dependency
+    among the headline rung of each ladder (the rung whose simulated probability is nearest 0.50). A game that
+    failed coherence gets no script numbers at all -- the preregistered gate is zero coherence failures."""
+    if not (coherence or {}).get("ok"):
+        return {"script_v2_version": SCRIPT_V2_VERSION, "game_id": res.game_id, "state": "UNSUPPORTED_COHERENCE",
+                "authority": AUTHORITY, "betting_authorized": False}
+    summary = script_v2_summary(res, gi, coherence, weather=weather)
+    mx = script_market_matrix(res, gi, contracts, player_map)
+    cash = mx.pop("_cash")
+    compact = []
+    for c in mx["contracts"]:
+        rec = {k: c.get(k) for k in ("ticker", "family", "team", "stat", "player_name", "threshold", "floor_strike",
+                                     "support_state", "support_reason")}
+        if "p_cash" in c:
+            rec.update({"p_cash": round(c["p_cash"], 5),
+                        "p_cash_given_script": [None if r["p_cash_given_script"] is None else round(r["p_cash_given_script"], 4)
+                                                for r in c["by_script"]],
+                        "major_script_floor": None if c["major_script_floor"] is None else round(c["major_script_floor"], 4),
+                        "script_robustness": {k: round(v, 4) for k, v in c["script_robustness"].items()},
+                        "failure_script_mass": round(c["failure_script_mass"], 4),
+                        "win_contribution_hhi": None if c["win_contribution_hhi"] is None else round(c["win_contribution_hhi"], 4),
+                        "reconciliation_error": c["reconciliation_error"]})
+        compact.append(rec)
+    by_ladder = {}
+    for c in contracts:
+        key = c.get("ticker") or c.get("id")
+        if key in cash:
+            p = float(cash[key].mean())
+            k = _ladder_key(c)
+            if k not in by_ladder or abs(p - 0.5) < abs(by_ladder[k][1] - 0.5):
+                by_ladder[k] = (key, p)
+    head = {key: cash[key] for key, _ in by_ladder.values()}
+    dep = dependency_matrix(head)
+    pairs = [{k: (round(v, 4) if isinstance(v, float) else v) for k, v in p.items()} for p in dep["pairs"]
+             if p["cash_correlation"] is not None and abs(p["cash_correlation"]) >= MIN_ABS_CORR][:MAX_PAIRS]
+    return {"script_v2_version": SCRIPT_V2_VERSION, "game_id": res.game_id, "state": "OK", "authority": AUTHORITY,
+            "betting_authorized": False, "provenance": PROVENANCE, "summary": summary, "cells": list(CELLS),
+            "p_script": [c["probability"] for c in summary["cells"]], "contracts": compact,
+            "dependency": {"headline_markets": sorted(head), "pairs": pairs, "min_abs_corr": MIN_ABS_CORR,
+                           "note": "pairs among each ladder's headline rung, |cash correlation| >= 0.30; descriptive, no staking consequence"}}

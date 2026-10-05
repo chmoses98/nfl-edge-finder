@@ -954,7 +954,8 @@ def _health_flags(game_rows: list, weather: dict, injuries: dict, now, kickoff) 
 
 def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, now, implied, sim_rows=None,
                sim_manifest=None, v2_rows=None, v2_manifest=None, v2_provenance=None, v2_eligibility=None,
-               script=None, script_source=None, research_hyps=None, research_note=None):
+               script=None, script_source=None, research_hyps=None, research_note=None, script_v2=None,
+               script_v2_source=None):
     home = next((r.get("home_team") for r in rows if r.get("home_team")), None)
     away = next((r.get("away_team") for r in rows if r.get("away_team")), None)
     kickoff = _iso(next((r.get("kickoff_utc") for r in rows if r.get("kickoff_utc")), None))
@@ -1126,6 +1127,11 @@ def build_game(game_id, rows, *, profiles, qb_profiles, context_runs, movement, 
                                                            hypotheses_note=research_note or "not supplied")
     except Exception as exc:  # noqa: BLE001 -- optional research context fails open
         game["game_script_inputs"] = {"state": "UNAVAILABLE", "reason": f"{type(exc).__name__}: {exc}", "authority": SB.AUTHORITY}
+    # GAME SCRIPT V2 (research only): also built last and read by nothing on any decision path.
+    try:
+        game["game_script_v2"] = SB.game_script_v2_view(game, script_v2, source=script_v2_source or "not supplied")
+    except Exception as exc:  # noqa: BLE001 -- optional research context fails open
+        game["game_script_v2"] = {"state": "UNAVAILABLE", "reason": f"{type(exc).__name__}: {exc}", "authority": SB.V2_AUTHORITY}
     return game
 
 
@@ -1229,6 +1235,10 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
     except Exception as exc:  # noqa: BLE001
         scripts, script_src = None, f"script summaries unavailable: {type(exc).__name__}"
     try:
+        scripts_v2, script_v2_src = SB.load_scripts_v2((md_root, root), sim_manifest)
+    except Exception as exc:  # noqa: BLE001
+        scripts_v2, script_v2_src = None, f"GAME SCRIPT V2 unavailable: {type(exc).__name__}"
+    try:
         research_hyps, research_note = SB.load_research_hypotheses(root)
     except Exception as exc:  # noqa: BLE001
         research_hyps, research_note = [], f"registry unavailable: {type(exc).__name__}"
@@ -1241,7 +1251,8 @@ def build_packet(md_root: str, root: str, season: int, week: int, *, movement_fi
                                 sim_rows=sim_rows, sim_manifest=sim_manifest,
                                 v2_rows=v2_rows, v2_manifest=v2_manifest, v2_provenance=v2_provenance,
                                 v2_eligibility=v2_eligibility, script=(scripts or {}).get(gid), script_source=script_src,
-                                research_hyps=research_hyps, research_note=research_note))
+                                research_hyps=research_hyps, research_note=research_note,
+                                script_v2=(scripts_v2 or {}).get(gid), script_v2_source=script_v2_src))
 
     # Every surface that shows a simulation number carries its freshness, so a stale run can never read as
     # current support on a game file or a market row.

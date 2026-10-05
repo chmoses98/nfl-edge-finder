@@ -17,6 +17,7 @@ Free-data NFL analytics, projection, and Kalshi market-pricing research platform
 | Pricing primitives (ladder semantics, monotonicity checks) | `nfl_edge/pricing/ladder.py` | tested |
 | RUN NFL full-board coverage: every listed contract in exactly one accounting state, the Shadow v2 research view joined by ticker, and a machine-readable operator artifact | `nfl_edge/handicap/{coverage,shadow_v2_block,analysis}.py`, `docs/RUN_NFL.md` | silently omitted = 0, enforced by tests |
 | Coherent game-simulation projection layer (shadow): script-conditional volume, opportunity over the point-in-time eligible set, opponent-adjusted efficiency, one distribution per ladder, out-of-sample reconciliation weights | `nfl_edge/sim/`, `scripts/sim/`, `docs/SIMULATION_ENGINE.md`, `research/simulation_engine/` | walk-forward 2023–2025; prospective from Week 2 2026 |
+| GAME SCRIPT V2 (research only): nine-cell script lattice on the simulated rows, script x market matrix, thesis dependency; five-season (2021-2025) walk-forward, script calibration, opponent-adjustment ablation | `nfl_edge/sim/script_v2.py`, `scripts/sim/baseline_5y.py`, `research/game_script_v2/` | RESEARCH_ONLY; no authority |
 
 ## Run
 ```

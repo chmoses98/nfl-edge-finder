@@ -67,7 +67,7 @@ def _frames(seed=5, seasons=(2019, 2020, 2021, 2022), factor=1.0):
         r = np.random.default_rng(seed + 1)
         rows = []
         for x in pf.itertuples():
-            for _ in range(2):
+            for _ in range(3):
                 if kind == "c":
                     rows.append(dict(game_id=x.game_id, player_id=x.player_id, yards=float(r.normal(4, 5)), qb_scramble=0, qb_kneel=0))
                 else:
