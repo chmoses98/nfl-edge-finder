@@ -58,3 +58,12 @@ prospective record. Parameters refit on 2018-2025 as section 1 allows (forms unc
 target 37.27 (log-alpha intercepts 2.271 / 3.618, nine standardised coefficients each, ridge 1.0); Q1-0 regime
 probabilities FULL 0.868 / PARTIAL 0.075 / LOW 0.058 (captured for description only). M1-K uses history 2016..2025
 with the section-4 parameters (h 2.0 / 4.0, half-life 3, effective n >= 200). A1 has no fitted component.
+
+## A.5 Note appended after A.1-A.4 (still before any prospective record or outcome)
+
+The Q1 conditional model was fitted with scikit-learn, which CI does not install. It is now fitted by
+`qb_regimes._multinomial_ridge` (the same objective: summed multinomial log loss + ridge/2 * ||coef||^2, intercepts
+unpenalised, L-BFGS). Re-running the section-3 selection gives conditional − unconditional log loss
+−0.0146 [−0.0372, +0.0083] (A.1 recorded −0.0147 [−0.0373, +0.0082] from the scikit-learn fit; coefficients differ by
+< 0.001). The selection (Q1-0), the unconditional model, the frozen components and every status are unchanged.
+`Q1_QB_EXIT_TAIL.json` is rebuilt from the scipy fit.

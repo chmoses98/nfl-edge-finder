@@ -140,19 +140,36 @@ def fit(q: pd.DataFrame, conditional: bool = True) -> dict:
     out = {"version": Q1_VERSION, "form": "Q1" if conditional else "Q1-0", "regime_quantiles": regq,
            "unconditional": freq.tolist(), "n": int(len(y)), "features": list(FEATURES) if conditional else []}
     if conditional:
-        from sklearn.linear_model import LogisticRegression
         X = q[list(FEATURES)].to_numpy(float)
         mu = np.nanmean(X, axis=0); sd = np.nanstd(X, axis=0); sd[sd == 0] = 1.0
         Z = (np.where(np.isfinite(X), X, mu) - mu) / sd
-        lr = LogisticRegression(C=1.0 / RIDGE, max_iter=2000).fit(Z, y)
-        coef = np.zeros((3, Z.shape[1])); icpt = np.zeros(3)
-        for i, c in enumerate(lr.classes_):
-            coef[c] = lr.coef_[i]; icpt[c] = lr.intercept_[i]
-        if len(lr.classes_) < 3:        # a class never seen: fall back to unconditional for it
-            missing = [c for c in range(3) if c not in lr.classes_]
-            icpt[missing] = -20.0
+        coef, icpt = _multinomial_ridge(Z, np.asarray(y, int), RIDGE)
+        for c in range(3):
+            if not np.any(np.asarray(y) == c):    # a class never seen: fall back to unconditional for it
+                coef[c] = 0.0; icpt[c] = -20.0
         out.update({"coef": coef.tolist(), "intercept": icpt.tolist(), "mu": mu.tolist(), "sd": sd.tolist()})
     return out
+
+
+def _multinomial_ridge(Z: np.ndarray, y: np.ndarray, ridge: float, k: int = 3):
+    """Multinomial logistic regression, sum of log losses + ridge/2 * ||coef||^2 (intercepts unpenalised) -- the
+    objective of scikit-learn's LogisticRegression(C=1/ridge) with the lbfgs solver, without the dependency."""
+    from scipy.optimize import minimize
+    n, p = Z.shape
+    Y = np.zeros((n, k)); Y[np.arange(n), y] = 1.0
+
+    def f(theta):
+        W = theta[:k * p].reshape(k, p); b = theta[k * p:]
+        eta = Z @ W.T + b
+        eta -= eta.max(axis=1, keepdims=True)
+        lse = np.log(np.exp(eta).sum(axis=1))
+        P = np.exp(eta - lse[:, None])
+        loss = float((lse - (eta * Y).sum(axis=1)).sum() + 0.5 * ridge * (W ** 2).sum())
+        G = P - Y
+        return loss, np.concatenate([(G.T @ Z + ridge * W).ravel(), G.sum(axis=0)])
+
+    r = minimize(f, np.zeros(k * p + k), jac=True, method="L-BFGS-B", options={"maxiter": 5000, "gtol": 1e-8})
+    return r.x[:k * p].reshape(k, p).copy(), r.x[k * p:].copy()
 
 
 def probabilities(model: dict, X: np.ndarray) -> np.ndarray:

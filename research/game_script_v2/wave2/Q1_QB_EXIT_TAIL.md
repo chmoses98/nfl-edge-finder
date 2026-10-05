@@ -21,7 +21,7 @@ Failed development criteria: `section7_regime_frequencies_inside_90pct_predictiv
 
 | quantity | value |
 |---|---|
-| conditional − unconditional log loss | -0.0147 [-0.0373, +0.0082] |
+| conditional − unconditional log loss | -0.0146 [-0.0372, +0.0083] |
 | unconditional − incumbent-implied log loss | -0.0118 [-0.0387, +0.0128] |
 | selected form | Q1-0 |
 | regime counts train (FULL, PARTIAL, LOW) | [944, 57, 67] |
