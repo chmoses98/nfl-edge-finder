@@ -33,7 +33,7 @@ from nfl_edge.sim import (SIM_VERSION, availability_horizons as AH, data as D, f
                           prospective as P, script_v2 as V, simulate as S)
 from nfl_edge.sim.risk1 import PROSPECTIVE_CUTOFF
 
-WAVE2_VERSION = "wave2-prospective-1.0.0"
+WAVE2_VERSION = "wave2-prospective-1.1.0"
 COMPONENTS = os.path.join(ROOT, "research", "game_script_v2", "wave2", "components_2026.json")
 WINDOWS = {"EARLY": (90, 240), "LATE": (30, 90)}
 ARMS = ("A0", "S1", "Q1", "A1", "M1")
@@ -192,10 +192,15 @@ def capture_game(slate, gid, wname, cutoff, roster, hist, bundles, season) -> di
     draws = {"M0": K.m0_draws(hist, gi.spread_home, gi.total_line, season, N_SIMS, seed=11),
              "M1": K.m1k_draws(hist, gi.spread_home, gi.total_line, season, N_SIMS, seed=11)}
     rec = {"window": wname, "state": "OK", "kickoff_utc": ko.isoformat(), "cutoff": cutoff.isoformat(),
+           "home_team": gi.home.team, "away_team": gi.away.team,
            "minutes_to_kickoff": (ko - cutoff).total_seconds() / 60.0, "horizon": horizon,
            "horizon_by_team": {t: {"horizon": h[0], "why": h[1]} for t, h in hz.items()},
            "centre": {"spread_home": gi.spread_home, "total": gi.total_line, "source": gi.center_source},
-           "arms": {}, "coherence": {}, "a1_identical_to_a0": horizon != "T0_INACTIVES"}
+           "arms": {}, "coherence": {}, "a1_identical_to_a0": horizon != "T0_INACTIVES",
+           # pregame participation state of every eligible row (before any horizon change): the scorer's QUESTIONABLE population
+           "avail_state": {str(pid): str(st) for ti in (gi.home, gi.away) for pid, st in zip(ti.players["player_id"], ti.players["avail_state"])},
+           # M1-K's exact margin pmf (the development log score used it; the draws pmf is kept alongside)
+           "m1k_exact_margin_pmf": {str(k): float(v) for k, v in K.m1k_pmf(hist, gi.spread_home, gi.total_line, season)["margin"].items()}}
     for arm in ARMS:
         gin = with_horizon(gi, horizon) if arm == "A1" else gi
         gd = draws["M1" if arm == "M1" else "M0"]
@@ -204,6 +209,7 @@ def capture_game(slate, gid, wname, cutoff, roster, hist, bundles, season) -> di
         rec["arms"][arm] = summarize(res)
         if arm in ("A0", "M1"):
             rec["arms"][arm]["margin_pmf"] = _pmf(np.asarray(res.margin) + 80, 160)
+            rec["arms"][arm]["total_pmf"] = _pmf(np.asarray(res.total), 160)
             rec["arms"][arm]["v2_cells"] = V.cell_probabilities(V.cell_index(res.margin, res.total, gi.spread_home, gi.total_line)).tolist()
     return rec
 

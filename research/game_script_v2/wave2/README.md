@@ -14,6 +14,7 @@ pre-kickoff record are PROSPECTIVE evidence.
 | `PREREGISTRATION.md` | designs, development-only selection procedures, gates, sample-size procedure; byte-frozen (tested) | hand-written, committed first |
 | `PREREGISTRATION_ADDENDUM.md` | the OUTPUTS of the preregistered procedures: selected forms, frozen components, statuses, minimum samples | hand-written, committed before any prospective record exists |
 | `PROSPECTIVE_PROTOCOL.md` | how prospective records are captured, selected and scored | hand-written |
+| `prospective/score_<UTC>.json` | prospective scoring runs (one new file per run; none yet) | `scripts/sim/wave2_score.py`, frozen before the first capture |
 | `S1_SHARE_DISPERSION.md` | S1 selection, 2020 mechanism check, 2021-2025 diagnostic, subgroups | `S1_SHARE_DISPERSION.json` |
 | `Q1_QB_EXIT_TAIL.md` | Q1 regimes, identification error vs exit, lower-tail check, regime bands | `Q1_QB_EXIT_TAIL.json` |
 | `M1_KEY_NUMBERS.md` | M1-K / M1-S vs the incumbent residual bank, emergent key numbers, bank audit | `M1_KEY_NUMBERS.json` |

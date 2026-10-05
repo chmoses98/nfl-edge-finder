@@ -36,7 +36,11 @@ same seed (11) and 10,000 simulations. S1 and Q1 differ from A0 ONLY in the graf
 Each record carries: wave2 / sim / engine / model versions, run id, generation time, the cutoff, minutes to kickoff,
 the prospective cutoff, the market centre read (spread, total, source), each arm's per-player distributions (pmfs for
 count statistics, 50 quantiles for yardage) and team distributions, M0 and M1 exact-margin pmfs and GAME SCRIPT V2 cell
-probabilities, a coherence flag per arm, and `research_only: true`, `betting_authority: "NONE"`.
+probabilities, a coherence flag per arm, and `research_only: true`, `betting_authority: "NONE"`. From record version
+`wave2-prospective-1.1.0` (the first version that can ever be captured) each record also carries the home / away teams,
+every eligible player's pregame participation state (`avail_state`, before any horizon change: the A1 QUESTIONABLE
+population), the M0 and M1 total pmfs (total-ladder Brier) and M1-K's exact margin pmf (the development log score
+used it).
 
 Records are write-once: the writer refuses to overwrite, the runner skips a (game, window) that already has a record,
 and publication appends to market-data. A record is never edited, deleted or regenerated. A failed capture is a
@@ -68,9 +72,20 @@ contract is excluded with a count, never guessed.
 * Gates and minimum samples: PREREGISTRATION section 7 and the addendum. An arm is not scored for promotion before its
   minimum sample is reached; interim looks, if any are reported, are labelled INTERIM, carry no status change and do
   not alter the minimum.
-* The scorer for prospective records (`scripts/sim/wave2_score.py`) is committed, with tests on synthetic records,
-  BEFORE the first record is scored; once a record has been scored the scorer's metric code is frozen (fixes to I/O
-  are allowed and logged, a change to a metric is a DEVIATION).
+* The scorer (`nfl_edge/sim/wave2_score.py`, `scripts/sim/wave2_score.py`, version `wave2-score-1.0.0`) was
+  committed, with 29 tests on synthetic records (`tests/test_wave2_score.py`), BEFORE any Wave-2 prospective record
+  existed and before any prospective outcome was available; its metric code is frozen from the first scored record
+  (fixes to I/O are allowed and logged, a change to a metric is a DEVIATION). Each run writes a NEW file
+  `research/game_script_v2/wave2/prospective/score_<UTC>.json` and never overwrites one.
+* Implementation choices made in the scorer while no observation existed (stated so they cannot be chosen later):
+  an arm's gate is applied ONCE, on its first N_min eligible games in (kickoff, game_id) order, and later games are
+  DESCRIPTIVE (no optional stopping); "interval excluding zero" is the 95% percentile interval of the 2,000
+  game-clustered resamples; the non-inferiority "+0.5% relative bound" is that interval's upper bound of
+  (sum candidate / sum incumbent - 1) <= 0.005; a mechanism statistic whose randomized PIT the record does not define
+  (yardage has quantiles, not a pmf) counts as NOT passing; a candidate row missing for an A0-population row, or a false
+  coherence flag, is an integrity failure that keeps the game in N and fails the "zero coherence failures" gate; below
+  an arm's minimum the run reports COLLECTING (metrics only on request, labelled INTERIM); RISK1's registered test
+  raises below 397 eligible games; Q1 is scored descriptively only.
 
 Never: dropping a bad observation; redefining a subgroup; changing a gate, a metric, a window or a minimum after any
 prospective outcome is known; citing 2021-2025 or pre-cutoff 2026 as validation.
