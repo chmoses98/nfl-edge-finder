@@ -1,0 +1,3167 @@
+{
+ "outcomes_version": "workflow-outcomes-1.0.0",
+ "as_of": "2026-10-05T07:30:14.165212+00:00",
+ "hours": 48.0,
+ "repo": "chmoses98/nfl-edge-finder",
+ "counts": {
+  "Owner actual wagers (ledger check + postmortem)": {
+   "QUEUED": 1,
+   "IN_PROGRESS": 1,
+   "SUCCESS": 34
+  },
+  "Workflow health (run outcomes)": {
+   "IN_PROGRESS": 1,
+   "SUCCESS": 15
+  },
+  "Postgame Settlement & Evaluation": {
+   "FAILED_BY_CODE": 1,
+   "SUCCESS": 37
+  },
+  "Horizon conductor (RUN NFL + three-arm)": {
+   "IN_PROGRESS": 1,
+   "CANCELLED_BY_CONCURRENCY": 11,
+   "SUCCESS": 8
+  },
+  "Shadow v2 decision horizons": {
+   "SUCCESS": 28
+  },
+  "Three-arm decision horizons": {
+   "SUCCESS": 29
+  },
+  "Shadow v2 settlement & scorecard": {
+   "IN_PROGRESS": 1,
+   "FAILED_BY_CODE": 5,
+   "SUCCESS": 8,
+   "TIMED_OUT": 1
+  },
+  "Shadow Pricing (full universe)": {
+   "SUCCESS": 9
+  },
+  "Sync handicap runs from Airtable": {
+   "SUCCESS": 3,
+   "TIMED_OUT": 1
+  },
+  "Context Capture (weather, availability, injuries)": {
+   "SUCCESS": 7,
+   "TIMED_OUT": 1
+  },
+  "Shadow v2 projections (full board)": {
+   "SUCCESS": 9
+  },
+  "Pre-trade preflight": {
+   "SUCCESS": 12
+  },
+  "RUN NFL decision horizons": {
+   "SUCCESS": 14,
+   "FAILED_BY_CODE": 14
+  },
+  "Kalshi NFL Capture Conductor": {
+   "QUEUED": 1,
+   "IN_PROGRESS": 1,
+   "CANCELLED_BY_CONCURRENCY": 9,
+   "SUCCESS": 7
+  },
+  "Shadow v2 horizon conductor": {
+   "QUEUED": 1,
+   "IN_PROGRESS": 1,
+   "CANCELLED_BY_CONCURRENCY": 10,
+   "SUCCESS": 6
+  },
+  "Shadow v2 order-book depth": {
+   "SUCCESS": 5,
+   "TIMED_OUT": 6
+  },
+  "RUN NFL": {
+   "SUCCESS": 1,
+   "FAILED_BY_CODE": 1
+  },
+  "Tests": {
+   "SUCCESS": 5
+  },
+  "Kalshi NFL Discovery": {
+   "SUCCESS": 2
+  }
+ },
+ "runs": [
+  {
+   "run_id": 37278079698,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T07:30:05Z",
+   "updated_at": "2026-10-05T07:30:08Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "QUEUED",
+   "detail": "pending"
+  },
+  {
+   "run_id": 37278076394,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T07:30:03Z",
+   "updated_at": "2026-10-05T07:30:10Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "IN_PROGRESS",
+   "detail": "running"
+  },
+  {
+   "run_id": 37277706870,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T07:26:00Z",
+   "updated_at": "2026-10-05T07:26:06Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "IN_PROGRESS",
+   "detail": "running"
+  },
+  {
+   "run_id": 37277698890,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T07:25:55Z",
+   "updated_at": "2026-10-05T07:28:15Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fetch the published ledger, capture and evaluation corpus"
+  },
+  {
+   "run_id": 37276970140,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T07:18:02Z",
+   "updated_at": "2026-10-05T07:29:57Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "IN_PROGRESS",
+   "detail": "running"
+  },
+  {
+   "run_id": 37276420163,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-05T07:12:15Z",
+   "updated_at": "2026-10-05T07:18:04Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37275187026,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-05T06:58:47Z",
+   "updated_at": "2026-10-05T06:58:57Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37274465419,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-05T06:50:26Z",
+   "updated_at": "2026-10-05T07:20:07Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37272379568,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T06:25:55Z",
+   "updated_at": "2026-10-05T06:47:23Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37272120198,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-05T06:22:53Z",
+   "updated_at": "2026-10-05T06:23:04Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37272047470,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T06:21:59Z",
+   "updated_at": "2026-10-05T06:33:28Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37271559821,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "schedule",
+   "created_at": "2026-10-05T06:16:05Z",
+   "updated_at": "2026-10-05T06:20:46Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "IN_PROGRESS",
+   "detail": "running"
+  },
+  {
+   "run_id": 37271037121,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T06:09:55Z",
+   "updated_at": "2026-10-05T06:24:10Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37271034145,
+   "workflow": "Shadow Pricing (full universe)",
+   "event": "schedule",
+   "created_at": "2026-10-05T06:09:53Z",
+   "updated_at": "2026-10-05T06:50:24Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37270972984,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "schedule",
+   "created_at": "2026-10-05T06:09:08Z",
+   "updated_at": "2026-10-05T06:20:32Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37270415148,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T06:01:59Z",
+   "updated_at": "2026-10-05T06:14:01Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37269951002,
+   "workflow": "Sync handicap runs from Airtable",
+   "event": "schedule",
+   "created_at": "2026-10-05T05:55:48Z",
+   "updated_at": "2026-10-05T06:09:52Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37269691627,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "schedule",
+   "created_at": "2026-10-05T05:52:20Z",
+   "updated_at": "2026-10-05T06:06:31Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37269514365,
+   "workflow": "Context Capture (weather, availability, injuries)",
+   "event": "schedule",
+   "created_at": "2026-10-05T05:49:55Z",
+   "updated_at": "2026-10-05T05:59:37Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37268770087,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "schedule",
+   "created_at": "2026-10-05T05:39:43Z",
+   "updated_at": "2026-10-05T05:51:08Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37267765982,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T05:26:00Z",
+   "updated_at": "2026-10-05T05:38:01Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37267759341,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T05:25:55Z",
+   "updated_at": "2026-10-05T05:40:02Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37267687823,
+   "workflow": "Shadow v2 projections (full board)",
+   "event": "schedule",
+   "created_at": "2026-10-05T05:25:00Z",
+   "updated_at": "2026-10-05T06:08:13Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37267302937,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-05T05:19:59Z",
+   "updated_at": "2026-10-05T05:20:12Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37266279642,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T05:06:02Z",
+   "updated_at": "2026-10-05T06:20:43Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failure"
+  },
+  {
+   "run_id": 37264933034,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T04:45:55Z",
+   "updated_at": "2026-10-05T05:00:33Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37264364158,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T04:37:58Z",
+   "updated_at": "2026-10-05T04:51:05Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37263197044,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T04:22:00Z",
+   "updated_at": "2026-10-05T04:34:33Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37263190543,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T04:21:55Z",
+   "updated_at": "2026-10-05T04:43:41Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37261779241,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T04:02:00Z",
+   "updated_at": "2026-10-05T04:13:45Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37261773873,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T04:01:55Z",
+   "updated_at": "2026-10-05T04:16:22Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37260263688,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-05T03:38:48Z",
+   "updated_at": "2026-10-05T03:39:04Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37259841925,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T03:32:27Z",
+   "updated_at": "2026-10-05T03:32:29Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "QUEUED",
+   "detail": "pending"
+  },
+  {
+   "run_id": 37259509354,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T03:27:22Z",
+   "updated_at": "2026-10-05T03:27:23Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "QUEUED",
+   "detail": "pending"
+  },
+  {
+   "run_id": 37259157407,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T03:22:02Z",
+   "updated_at": "2026-10-05T05:02:53Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37256411785,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T02:41:55Z",
+   "updated_at": "2026-10-05T02:56:00Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37256161607,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T02:37:58Z",
+   "updated_at": "2026-10-05T02:49:48Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37255381341,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T02:26:00Z",
+   "updated_at": "2026-10-05T02:37:54Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37255375895,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T02:25:55Z",
+   "updated_at": "2026-10-05T02:39:53Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37255112048,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T02:22:02Z",
+   "updated_at": "2026-10-05T03:18:02Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failure"
+  },
+  {
+   "run_id": 37254103261,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-05T02:07:10Z",
+   "updated_at": "2026-10-05T02:41:48Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37254020768,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T02:06:00Z",
+   "updated_at": "2026-10-05T02:17:58Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37254014817,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T02:05:55Z",
+   "updated_at": "2026-10-05T02:20:31Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37253295700,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-05T01:55:01Z",
+   "updated_at": "2026-10-05T03:32:22Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "IN_PROGRESS",
+   "detail": "running"
+  },
+  {
+   "run_id": 37252973312,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T01:49:59Z",
+   "updated_at": "2026-10-05T02:03:53Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37252962553,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T01:49:49Z",
+   "updated_at": "2026-10-05T02:04:38Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37252960805,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T01:49:48Z",
+   "updated_at": "2026-10-05T02:00:33Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37252170944,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T01:37:48Z",
+   "updated_at": "2026-10-05T07:29:54Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37251612877,
+   "workflow": "RUN NFL",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T01:29:16Z",
+   "updated_at": "2026-10-05T01:53:28Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37251607004,
+   "workflow": "Tests",
+   "event": "push",
+   "created_at": "2026-10-05T01:29:09Z",
+   "updated_at": "2026-10-05T01:31:26Z",
+   "head_sha": "d5c7f8dfa014",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37251415936,
+   "workflow": "Tests",
+   "event": "pull_request",
+   "created_at": "2026-10-05T01:26:10Z",
+   "updated_at": "2026-10-05T01:28:27Z",
+   "head_sha": "4cb9d49caa98",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37250591508,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-05T01:13:32Z",
+   "updated_at": "2026-10-05T03:27:17Z",
+   "head_sha": "303c430bafef",
+   "outcome": "IN_PROGRESS",
+   "detail": "running"
+  },
+  {
+   "run_id": 37250036723,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T01:05:41Z",
+   "updated_at": "2026-10-05T01:22:04Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37249987315,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-05T01:04:59Z",
+   "updated_at": "2026-10-05T01:37:51Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37249920288,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-05T01:04:01Z",
+   "updated_at": "2026-10-05T01:18:57Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37249770356,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T01:01:45Z",
+   "updated_at": "2026-10-05T01:13:25Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37249192369,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-05T00:52:38Z",
+   "updated_at": "2026-10-05T00:52:51Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37249007749,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T00:49:41Z",
+   "updated_at": "2026-10-05T01:03:16Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37248533105,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T00:42:13Z",
+   "updated_at": "2026-10-05T01:18:46Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37248263163,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T00:37:51Z",
+   "updated_at": "2026-10-05T00:49:53Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37247492747,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T00:25:51Z",
+   "updated_at": "2026-10-05T00:37:04Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37247227745,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T00:21:46Z",
+   "updated_at": "2026-10-05T00:43:44Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37247222664,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T00:21:41Z",
+   "updated_at": "2026-10-05T00:42:02Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37246798292,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-05T00:15:30Z",
+   "updated_at": "2026-10-05T00:48:13Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37246684004,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-05T00:13:53Z",
+   "updated_at": "2026-10-05T02:19:07Z",
+   "head_sha": "303c430bafef",
+   "outcome": "TIMED_OUT",
+   "detail": "job ran 125.0 min against timeout-minutes 120"
+  },
+  {
+   "run_id": 37245747196,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-04T23:59:59Z",
+   "updated_at": "2026-10-05T00:00:24Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37245701142,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "schedule",
+   "created_at": "2026-10-04T23:59:09Z",
+   "updated_at": "2026-10-05T00:20:00Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37245659360,
+   "workflow": "Context Capture (weather, availability, injuries)",
+   "event": "schedule",
+   "created_at": "2026-10-04T23:58:22Z",
+   "updated_at": "2026-10-05T00:08:46Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37245394230,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T23:53:45Z",
+   "updated_at": "2026-10-05T00:19:17Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37245390195,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T23:53:40Z",
+   "updated_at": "2026-10-05T00:20:56Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37245305546,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T23:52:13Z",
+   "updated_at": "2026-10-05T00:39:45Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37244967972,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T23:46:30Z",
+   "updated_at": "2026-10-04T23:46:41Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37244232729,
+   "workflow": "Shadow Pricing (full universe)",
+   "event": "schedule",
+   "created_at": "2026-10-04T23:34:14Z",
+   "updated_at": "2026-10-05T00:15:28Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37243212339,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-04T23:17:21Z",
+   "updated_at": "2026-10-04T23:57:44Z",
+   "head_sha": "303c430bafef",
+   "outcome": "TIMED_OUT",
+   "detail": "job ran 40.3 min against timeout-minutes 40"
+  },
+  {
+   "run_id": 37242239332,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T23:01:52Z",
+   "updated_at": "2026-10-04T23:18:48Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37242233407,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T23:01:47Z",
+   "updated_at": "2026-10-04T23:15:18Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37242157680,
+   "workflow": "Shadow v2 projections (full board)",
+   "event": "schedule",
+   "created_at": "2026-10-04T23:00:38Z",
+   "updated_at": "2026-10-04T23:46:29Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37241741446,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T22:53:46Z",
+   "updated_at": "2026-10-04T23:19:15Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37241736246,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T22:53:40Z",
+   "updated_at": "2026-10-04T23:15:51Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37241647119,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T22:52:13Z",
+   "updated_at": "2026-10-04T23:36:19Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37240488343,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T22:33:46Z",
+   "updated_at": "2026-10-04T22:50:11Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37240483002,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T22:33:41Z",
+   "updated_at": "2026-10-04T22:52:12Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37240224040,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T22:29:44Z",
+   "updated_at": "2026-10-05T01:13:33Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37239760031,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-04T22:22:17Z",
+   "updated_at": "2026-10-05T01:05:00Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37239618606,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T22:20:07Z",
+   "updated_at": "2026-10-04T22:20:18Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37239526679,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T22:18:40Z",
+   "updated_at": "2026-10-05T01:55:02Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37238521073,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T22:03:15Z",
+   "updated_at": "2026-10-04T22:03:29Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37238232074,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "schedule",
+   "created_at": "2026-10-04T21:58:55Z",
+   "updated_at": "2026-10-05T00:12:56Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37237985025,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T21:54:58Z",
+   "updated_at": "2026-10-04T22:18:41Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37237832290,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "schedule",
+   "created_at": "2026-10-04T21:52:36Z",
+   "updated_at": "2026-10-04T22:06:08Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37237157708,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T21:42:10Z",
+   "updated_at": "2026-10-04T22:29:46Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37237127509,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T21:41:44Z",
+   "updated_at": "2026-10-04T21:59:02Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37236591760,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T21:33:41Z",
+   "updated_at": "2026-10-04T21:52:13Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37235975890,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "schedule",
+   "created_at": "2026-10-04T21:24:38Z",
+   "updated_at": "2026-10-04T21:40:13Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37235745772,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-04T21:21:11Z",
+   "updated_at": "2026-10-04T21:21:26Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37234688318,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T21:05:48Z",
+   "updated_at": "2026-10-04T22:39:00Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failure"
+  },
+  {
+   "run_id": 37234399200,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T21:01:47Z",
+   "updated_at": "2026-10-04T21:20:16Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37234393891,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T21:01:41Z",
+   "updated_at": "2026-10-04T21:28:36Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37233405148,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T20:46:44Z",
+   "updated_at": "2026-10-04T20:47:02Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37232715771,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-04T20:35:59Z",
+   "updated_at": "2026-10-04T21:00:56Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37232715771,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-04T20:35:59Z",
+   "updated_at": "2026-10-04T21:00:56Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37232051643,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T20:25:45Z",
+   "updated_at": "2026-10-04T20:40:58Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37231293512,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-04T20:13:48Z",
+   "updated_at": "2026-10-04T20:48:52Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37231040209,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T20:09:48Z",
+   "updated_at": "2026-10-04T20:26:37Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37231027595,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T20:09:35Z",
+   "updated_at": "2026-10-04T20:24:38Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37231025961,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T20:09:33Z",
+   "updated_at": "2026-10-04T20:23:16Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37230243873,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T19:57:37Z",
+   "updated_at": "2026-10-05T01:49:39Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37229591333,
+   "workflow": "Shadow Pricing (full universe)",
+   "event": "schedule",
+   "created_at": "2026-10-04T19:47:07Z",
+   "updated_at": "2026-10-04T20:35:57Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37228985180,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T19:37:30Z",
+   "updated_at": "2026-10-04T20:02:53Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37228980702,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T19:37:25Z",
+   "updated_at": "2026-10-04T19:59:46Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37228730105,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T19:33:31Z",
+   "updated_at": "2026-10-04T19:49:41Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37228725236,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T19:33:26Z",
+   "updated_at": "2026-10-04T19:51:44Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37228625400,
+   "workflow": "Shadow v2 projections (full board)",
+   "event": "schedule",
+   "created_at": "2026-10-04T19:31:53Z",
+   "updated_at": "2026-10-04T20:17:21Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37227492448,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T19:14:12Z",
+   "updated_at": "2026-10-04T20:33:43Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37227031979,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T19:07:02Z",
+   "updated_at": "2026-10-04T19:50:00Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37226078889,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T18:52:08Z",
+   "updated_at": "2026-10-04T19:11:52Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37225910009,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T18:49:29Z",
+   "updated_at": "2026-10-04T19:11:39Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37225905880,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T18:49:25Z",
+   "updated_at": "2026-10-04T19:15:51Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37225821609,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "schedule",
+   "created_at": "2026-10-04T18:48:04Z",
+   "updated_at": "2026-10-04T21:04:18Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failure"
+  },
+  {
+   "run_id": 37225678588,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T18:45:47Z",
+   "updated_at": "2026-10-05T03:27:13Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37225392599,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-04T18:41:19Z",
+   "updated_at": "2026-10-04T19:57:40Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37225300587,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "schedule",
+   "created_at": "2026-10-04T18:39:55Z",
+   "updated_at": "2026-10-04T19:01:29Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37225273393,
+   "workflow": "Context Capture (weather, availability, injuries)",
+   "event": "schedule",
+   "created_at": "2026-10-04T18:39:28Z",
+   "updated_at": "2026-10-04T19:04:48Z",
+   "head_sha": "303c430bafef",
+   "outcome": "TIMED_OUT",
+   "detail": "job ran 25.2 min against timeout-minutes 25"
+  },
+  {
+   "run_id": 37224162204,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T18:22:02Z",
+   "updated_at": "2026-10-04T19:04:41Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37224127064,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T18:21:29Z",
+   "updated_at": "2026-10-04T18:45:43Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37224122226,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T18:21:25Z",
+   "updated_at": "2026-10-04T18:47:41Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37223258960,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-04T18:08:45Z",
+   "updated_at": "2026-10-04T18:09:16Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37223147575,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T18:07:08Z",
+   "updated_at": "2026-10-05T03:32:18Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37221760616,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T17:46:00Z",
+   "updated_at": "2026-10-04T17:46:20Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37220969546,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T17:33:35Z",
+   "updated_at": "2026-10-04T19:32:29Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failure"
+  },
+  {
+   "run_id": 37220964367,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T17:33:31Z",
+   "updated_at": "2026-10-04T17:46:26Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37220959442,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T17:33:26Z",
+   "updated_at": "2026-10-04T18:02:33Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37218919911,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-04T17:01:12Z",
+   "updated_at": "2026-10-04T17:41:33Z",
+   "head_sha": "303c430bafef",
+   "outcome": "TIMED_OUT",
+   "detail": "job ran 40.3 min against timeout-minutes 40"
+  },
+  {
+   "run_id": 37218472779,
+   "workflow": "Sync handicap runs from Airtable",
+   "event": "schedule",
+   "created_at": "2026-10-04T16:54:08Z",
+   "updated_at": "2026-10-04T17:09:17Z",
+   "head_sha": "303c430bafef",
+   "outcome": "TIMED_OUT",
+   "detail": "job ran 15.1 min against timeout-minutes 15"
+  },
+  {
+   "run_id": 37217204562,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T16:33:29Z",
+   "updated_at": "2026-10-04T16:57:04Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37217200245,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T16:33:25Z",
+   "updated_at": "2026-10-04T17:00:00Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37217116861,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T16:32:02Z",
+   "updated_at": "2026-10-04T17:13:24Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37216185675,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-04T16:16:55Z",
+   "updated_at": "2026-10-04T16:28:46Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37215964109,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T16:13:22Z",
+   "updated_at": "2026-10-04T18:07:10Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37215026131,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T15:58:35Z",
+   "updated_at": "2026-10-04T16:13:08Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37214922483,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T15:57:00Z",
+   "updated_at": "2026-10-04T18:45:49Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37214715031,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T15:53:40Z",
+   "updated_at": "2026-10-04T15:56:45Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37214033718,
+   "workflow": "RUN NFL",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T15:42:47Z",
+   "updated_at": "2026-10-04T16:27:11Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37213452133,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T15:33:30Z",
+   "updated_at": "2026-10-04T15:56:36Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37213447056,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T15:33:26Z",
+   "updated_at": "2026-10-04T15:59:32Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37213348713,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T15:31:51Z",
+   "updated_at": "2026-10-04T16:12:56Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37213177914,
+   "workflow": "Shadow Pricing (full universe)",
+   "event": "schedule",
+   "created_at": "2026-10-04T15:29:12Z",
+   "updated_at": "2026-10-04T16:16:53Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37213160605,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T15:28:55Z",
+   "updated_at": "2026-10-04T21:42:03Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37212410714,
+   "workflow": "Shadow v2 projections (full board)",
+   "event": "schedule",
+   "created_at": "2026-10-04T15:17:00Z",
+   "updated_at": "2026-10-04T16:00:24Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37210930970,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-04T14:53:24Z",
+   "updated_at": "2026-10-04T18:41:20Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37210626822,
+   "workflow": "Kalshi NFL Discovery",
+   "event": "schedule",
+   "created_at": "2026-10-04T14:48:34Z",
+   "updated_at": "2026-10-04T15:13:04Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37209436730,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T14:29:21Z",
+   "updated_at": "2026-10-04T14:41:29Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37209435175,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T14:29:19Z",
+   "updated_at": "2026-10-04T14:42:04Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37208697354,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T14:17:15Z",
+   "updated_at": "2026-10-04T20:09:25Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37208336595,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-04T14:11:24Z",
+   "updated_at": "2026-10-04T14:11:59Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37208058342,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T14:06:51Z",
+   "updated_at": "2026-10-04T14:48:04Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37207967615,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T14:05:17Z",
+   "updated_at": "2026-10-04T14:27:32Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37207963119,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T14:05:13Z",
+   "updated_at": "2026-10-04T14:34:43Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37205724307,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T13:28:13Z",
+   "updated_at": "2026-10-04T13:28:32Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37204617897,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T13:09:34Z",
+   "updated_at": "2026-10-04T21:54:51Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37204171024,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T13:01:51Z",
+   "updated_at": "2026-10-04T13:37:10Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37204135211,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T13:01:17Z",
+   "updated_at": "2026-10-04T13:21:35Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37204130247,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T13:01:13Z",
+   "updated_at": "2026-10-04T13:27:10Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37203597621,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "schedule",
+   "created_at": "2026-10-04T12:52:09Z",
+   "updated_at": "2026-10-04T14:29:27Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37203408735,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "schedule",
+   "created_at": "2026-10-04T12:48:57Z",
+   "updated_at": "2026-10-04T13:00:54Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37202628441,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-04T12:35:21Z",
+   "updated_at": "2026-10-04T13:15:41Z",
+   "head_sha": "303c430bafef",
+   "outcome": "TIMED_OUT",
+   "detail": "job ran 40.2 min against timeout-minutes 40"
+  },
+  {
+   "run_id": 37202391921,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "schedule",
+   "created_at": "2026-10-04T12:31:16Z",
+   "updated_at": "2026-10-04T12:40:36Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37202250768,
+   "workflow": "Context Capture (weather, availability, injuries)",
+   "event": "schedule",
+   "created_at": "2026-10-04T12:28:58Z",
+   "updated_at": "2026-10-04T12:42:11Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37201818223,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "schedule",
+   "created_at": "2026-10-04T12:21:25Z",
+   "updated_at": "2026-10-04T12:32:40Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37200713140,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T12:01:51Z",
+   "updated_at": "2026-10-04T12:45:06Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37200680108,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T12:01:17Z",
+   "updated_at": "2026-10-04T12:24:01Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37200676317,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T12:01:13Z",
+   "updated_at": "2026-10-04T12:26:50Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37199013860,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T11:31:11Z",
+   "updated_at": "2026-10-04T11:39:20Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37198769478,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T11:26:51Z",
+   "updated_at": "2026-10-04T11:27:04Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37197325724,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T11:01:51Z",
+   "updated_at": "2026-10-04T11:39:09Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37197293913,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T11:01:16Z",
+   "updated_at": "2026-10-04T11:25:56Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37197290345,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T11:01:12Z",
+   "updated_at": "2026-10-04T11:31:25Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37195582181,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T10:30:27Z",
+   "updated_at": "2026-10-04T13:09:35Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37194578591,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T10:11:47Z",
+   "updated_at": "2026-10-04T15:28:56Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37194141711,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T10:03:46Z",
+   "updated_at": "2026-10-04T15:56:52Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37192881861,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-04T09:40:04Z",
+   "updated_at": "2026-10-04T09:48:20Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37190146316,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T08:49:07Z",
+   "updated_at": "2026-10-04T09:00:27Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37190144789,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T08:49:06Z",
+   "updated_at": "2026-10-04T09:01:04Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37189872172,
+   "workflow": "Shadow Pricing (full universe)",
+   "event": "schedule",
+   "created_at": "2026-10-04T08:44:01Z",
+   "updated_at": "2026-10-04T09:40:02Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37189495816,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T08:36:56Z",
+   "updated_at": "2026-10-04T14:29:11Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37189256677,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-04T08:32:29Z",
+   "updated_at": "2026-10-04T08:36:58Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37188848763,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-04T08:25:04Z",
+   "updated_at": "2026-10-04T08:25:19Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37188551224,
+   "workflow": "Shadow v2 projections (full board)",
+   "event": "schedule",
+   "created_at": "2026-10-04T08:19:39Z",
+   "updated_at": "2026-10-04T08:56:05Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37186507653,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T07:40:34Z",
+   "updated_at": "2026-10-04T07:54:49Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37186125505,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T07:33:03Z",
+   "updated_at": "2026-10-04T07:55:23Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37186121567,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T07:32:59Z",
+   "updated_at": "2026-10-04T07:54:31Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37186051526,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T07:31:35Z",
+   "updated_at": "2026-10-04T08:15:06Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37183857817,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T06:47:58Z",
+   "updated_at": "2026-10-04T16:13:13Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37182690381,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "schedule",
+   "created_at": "2026-10-04T06:24:00Z",
+   "updated_at": "2026-10-04T07:56:49Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37182466566,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-04T06:19:27Z",
+   "updated_at": "2026-10-04T06:59:16Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37182353700,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "schedule",
+   "created_at": "2026-10-04T06:17:08Z",
+   "updated_at": "2026-10-04T06:28:40Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37181684224,
+   "workflow": "Sync handicap runs from Airtable",
+   "event": "schedule",
+   "created_at": "2026-10-04T06:03:34Z",
+   "updated_at": "2026-10-04T06:17:44Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37181604129,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "schedule",
+   "created_at": "2026-10-04T06:02:00Z",
+   "updated_at": "2026-10-04T06:09:57Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37181564888,
+   "workflow": "Context Capture (weather, availability, injuries)",
+   "event": "schedule",
+   "created_at": "2026-10-04T06:01:18Z",
+   "updated_at": "2026-10-04T06:13:20Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37181205199,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T05:54:11Z",
+   "updated_at": "2026-10-04T05:54:22Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37181111669,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "schedule",
+   "created_at": "2026-10-04T05:52:05Z",
+   "updated_at": "2026-10-04T06:02:45Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37180940505,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T05:48:28Z",
+   "updated_at": "2026-10-04T05:48:39Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37178149960,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T04:50:18Z",
+   "updated_at": "2026-10-04T06:47:59Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37177002422,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T04:26:32Z",
+   "updated_at": "2026-10-04T10:03:47Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37173216359,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T03:08:54Z",
+   "updated_at": "2026-10-04T03:19:52Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37173215183,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T03:08:52Z",
+   "updated_at": "2026-10-04T03:19:57Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37172583549,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T02:56:43Z",
+   "updated_at": "2026-10-04T08:48:58Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37172271085,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T02:50:22Z",
+   "updated_at": "2026-10-04T10:11:35Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37171876252,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-04T02:42:26Z",
+   "updated_at": "2026-10-04T02:50:08Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37170146382,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-04T02:08:40Z",
+   "updated_at": "2026-10-04T02:08:57Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37169574657,
+   "workflow": "Shadow Pricing (full universe)",
+   "event": "schedule",
+   "created_at": "2026-10-04T01:57:41Z",
+   "updated_at": "2026-10-04T02:42:24Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37169003318,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T01:46:00Z",
+   "updated_at": "2026-10-04T01:46:19Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37168151789,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-04T01:29:10Z",
+   "updated_at": "2026-10-04T02:56:45Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37165297516,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-04T00:33:09Z",
+   "updated_at": "2026-10-04T10:30:17Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37165145412,
+   "workflow": "Shadow v2 projections (full board)",
+   "event": "schedule",
+   "created_at": "2026-10-04T00:30:14Z",
+   "updated_at": "2026-10-04T01:00:51Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37164812087,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-04T00:23:43Z",
+   "updated_at": "2026-10-04T01:04:09Z",
+   "head_sha": "303c430bafef",
+   "outcome": "TIMED_OUT",
+   "detail": "job ran 40.4 min against timeout-minutes 40"
+  },
+  {
+   "run_id": 37164695245,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T00:21:24Z",
+   "updated_at": "2026-10-04T01:00:19Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37164665703,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T00:20:49Z",
+   "updated_at": "2026-10-04T00:43:45Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37164662167,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-04T00:20:45Z",
+   "updated_at": "2026-10-04T00:45:15Z",
+   "head_sha": "303c430bafef",
+   "outcome": "FAILED_BY_CODE",
+   "detail": "failed step: Fail the job if the research explorer export failed"
+  },
+  {
+   "run_id": 37164311118,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T00:14:04Z",
+   "updated_at": "2026-10-04T00:14:19Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37164192374,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-04T00:11:51Z",
+   "updated_at": "2026-10-04T00:12:05Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37163941821,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "schedule",
+   "created_at": "2026-10-04T00:07:16Z",
+   "updated_at": "2026-10-04T01:38:06Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37161321726,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-03T23:18:01Z",
+   "updated_at": "2026-10-04T02:50:23Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37160909700,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T23:10:37Z",
+   "updated_at": "2026-10-04T00:33:11Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37159681457,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-03T22:48:33Z",
+   "updated_at": "2026-10-03T22:48:48Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37159283809,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T22:41:21Z",
+   "updated_at": "2026-10-03T23:18:02Z",
+   "head_sha": "303c430bafef",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37158477380,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-03T22:26:57Z",
+   "updated_at": "2026-10-03T22:34:14Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37158118353,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T22:20:45Z",
+   "updated_at": "2026-10-03T22:21:06Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37156838022,
+   "workflow": "Tests",
+   "event": "push",
+   "created_at": "2026-10-03T21:58:02Z",
+   "updated_at": "2026-10-03T22:01:08Z",
+   "head_sha": "303c430bafef",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37156299782,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:47:47Z",
+   "updated_at": "2026-10-03T23:20:59Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37156297824,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:47:44Z",
+   "updated_at": "2026-10-03T21:47:55Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37156280829,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:47:16Z",
+   "updated_at": "2026-10-03T21:47:28Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37156148652,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:44:15Z",
+   "updated_at": "2026-10-03T22:24:43Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "TIMED_OUT",
+   "detail": "job ran 40.4 min against timeout-minutes 40"
+  },
+  {
+   "run_id": 37156096825,
+   "workflow": "Shadow Pricing (full universe)",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:43:18Z",
+   "updated_at": "2026-10-03T22:26:55Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37156059225,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:42:40Z",
+   "updated_at": "2026-10-03T21:54:50Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37155832117,
+   "workflow": "Tests",
+   "event": "pull_request",
+   "created_at": "2026-10-03T21:38:51Z",
+   "updated_at": "2026-10-03T21:40:36Z",
+   "head_sha": "2c5be87ee513",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37155233466,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T21:28:40Z",
+   "updated_at": "2026-10-03T21:38:19Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37155231956,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T21:28:39Z",
+   "updated_at": "2026-10-03T21:38:37Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37155205648,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:28:10Z",
+   "updated_at": "2026-10-04T03:08:44Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37155171029,
+   "workflow": "Tests",
+   "event": "pull_request",
+   "created_at": "2026-10-03T21:27:34Z",
+   "updated_at": "2026-10-03T21:29:15Z",
+   "head_sha": "0e24bcd6140f",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37155088665,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:26:07Z",
+   "updated_at": "2026-10-03T21:33:00Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37154948984,
+   "workflow": "Context Capture (weather, availability, injuries)",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:23:43Z",
+   "updated_at": "2026-10-03T21:35:22Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37154523959,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T21:16:27Z",
+   "updated_at": "2026-10-03T21:28:12Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37154375323,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:13:56Z",
+   "updated_at": "2026-10-03T21:24:32Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37154121867,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:09:41Z",
+   "updated_at": "2026-10-04T04:50:10Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37153982460,
+   "workflow": "Shadow v2 projections (full board)",
+   "event": "schedule",
+   "created_at": "2026-10-03T21:07:17Z",
+   "updated_at": "2026-10-03T21:46:01Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37150592022,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-03T20:10:33Z",
+   "updated_at": "2026-10-04T04:26:24Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37150466501,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T20:08:34Z",
+   "updated_at": "2026-10-03T20:29:17Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37150462030,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T20:08:30Z",
+   "updated_at": "2026-10-03T20:29:13Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37150322159,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T20:06:11Z",
+   "updated_at": "2026-10-03T20:44:29Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37149918903,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-03T19:59:55Z",
+   "updated_at": "2026-10-03T20:00:06Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37147991666,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T19:28:05Z",
+   "updated_at": "2026-10-03T19:28:18Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37145358769,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T18:44:50Z",
+   "updated_at": "2026-10-03T18:45:02Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37145349237,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T18:44:41Z",
+   "updated_at": "2026-10-03T18:44:55Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37144711259,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-03T18:34:33Z",
+   "updated_at": "2026-10-03T19:15:01Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "TIMED_OUT",
+   "detail": "job ran 40.4 min against timeout-minutes 40"
+  },
+  {
+   "run_id": 37142662747,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-03T18:01:28Z",
+   "updated_at": "2026-10-03T21:16:30Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37142323371,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-03T17:56:04Z",
+   "updated_at": "2026-10-03T21:09:42Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37141022157,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T17:34:43Z",
+   "updated_at": "2026-10-03T17:56:05Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37141007695,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-03T17:34:29Z",
+   "updated_at": "2026-10-03T20:10:34Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37140527964,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-03T17:26:48Z",
+   "updated_at": "2026-10-03T17:36:11Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37140012335,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-03T17:18:12Z",
+   "updated_at": "2026-10-03T17:18:23Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37138979206,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T17:01:11Z",
+   "updated_at": "2026-10-03T17:32:34Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37138939474,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T17:00:35Z",
+   "updated_at": "2026-10-03T17:20:25Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37138933632,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T17:00:30Z",
+   "updated_at": "2026-10-03T17:24:59Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37138669428,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T16:56:07Z",
+   "updated_at": "2026-10-03T17:34:30Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37138000291,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "schedule",
+   "created_at": "2026-10-03T16:45:05Z",
+   "updated_at": "2026-10-03T18:13:27Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37137868142,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T16:42:54Z",
+   "updated_at": "2026-10-03T16:43:07Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37137747857,
+   "workflow": "Shadow Pricing (full universe)",
+   "event": "schedule",
+   "created_at": "2026-10-03T16:41:00Z",
+   "updated_at": "2026-10-03T17:26:46Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37137670962,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "schedule",
+   "created_at": "2026-10-03T16:39:45Z",
+   "updated_at": "2026-10-03T16:50:20Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37137197772,
+   "workflow": "Sync handicap runs from Airtable",
+   "event": "schedule",
+   "created_at": "2026-10-03T16:32:00Z",
+   "updated_at": "2026-10-03T16:45:41Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37137062785,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "schedule",
+   "created_at": "2026-10-03T16:29:52Z",
+   "updated_at": "2026-10-03T16:37:31Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37136910903,
+   "workflow": "Context Capture (weather, availability, injuries)",
+   "event": "schedule",
+   "created_at": "2026-10-03T16:27:22Z",
+   "updated_at": "2026-10-03T16:41:12Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37136315542,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "schedule",
+   "created_at": "2026-10-03T16:17:38Z",
+   "updated_at": "2026-10-03T16:28:34Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37135782547,
+   "workflow": "Shadow v2 projections (full board)",
+   "event": "schedule",
+   "created_at": "2026-10-03T16:09:02Z",
+   "updated_at": "2026-10-03T16:50:47Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37134537331,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T15:48:24Z",
+   "updated_at": "2026-10-03T16:03:21Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37134535599,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T15:48:22Z",
+   "updated_at": "2026-10-03T16:00:54Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37133822524,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T15:36:10Z",
+   "updated_at": "2026-10-03T21:28:30Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37133171732,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T15:25:11Z",
+   "updated_at": "2026-10-03T15:25:25Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37132874315,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T15:20:05Z",
+   "updated_at": "2026-10-03T15:20:15Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37130744187,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-03T14:45:16Z",
+   "updated_at": "2026-10-03T15:22:49Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37129207329,
+   "workflow": "Kalshi NFL Discovery",
+   "event": "schedule",
+   "created_at": "2026-10-03T14:19:40Z",
+   "updated_at": "2026-10-03T14:43:05Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37126528209,
+   "workflow": "Three-arm decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T13:32:22Z",
+   "updated_at": "2026-10-03T13:55:03Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37126523647,
+   "workflow": "RUN NFL decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T13:32:17Z",
+   "updated_at": "2026-10-03T13:57:13Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37126462087,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-03T13:31:13Z",
+   "updated_at": "2026-10-03T15:36:12Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37126446611,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T13:30:58Z",
+   "updated_at": "2026-10-03T14:03:23Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37125776663,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-03T13:19:23Z",
+   "updated_at": "2026-10-03T23:10:29Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37125640099,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-03T13:16:55Z",
+   "updated_at": "2026-10-03T13:17:05Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37123852255,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "workflow_run",
+   "created_at": "2026-10-03T12:44:35Z",
+   "updated_at": "2026-10-03T12:54:48Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37123710142,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "schedule",
+   "created_at": "2026-10-03T12:41:55Z",
+   "updated_at": "2026-10-03T22:41:12Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37123138951,
+   "workflow": "RUN NFL decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T12:31:12Z",
+   "updated_at": "2026-10-03T12:31:28Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37121647589,
+   "workflow": "Shadow v2 settlement & scorecard",
+   "event": "schedule",
+   "created_at": "2026-10-03T12:03:38Z",
+   "updated_at": "2026-10-03T13:31:19Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37121363029,
+   "workflow": "Shadow Pricing (full universe)",
+   "event": "schedule",
+   "created_at": "2026-10-03T11:58:43Z",
+   "updated_at": "2026-10-03T12:44:33Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37121323858,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "schedule",
+   "created_at": "2026-10-03T11:57:57Z",
+   "updated_at": "2026-10-03T12:09:19Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37121075936,
+   "workflow": "Shadow v2 decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T11:53:11Z",
+   "updated_at": "2026-10-03T11:53:22Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37121023109,
+   "workflow": "Three-arm decision horizons",
+   "event": "schedule",
+   "created_at": "2026-10-03T11:52:11Z",
+   "updated_at": "2026-10-03T11:52:22Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37120972726,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T11:51:14Z",
+   "updated_at": "2026-10-03T13:19:24Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37120821512,
+   "workflow": "Postgame Settlement & Evaluation",
+   "event": "schedule",
+   "created_at": "2026-10-03T11:48:21Z",
+   "updated_at": "2026-10-03T11:56:02Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37120720075,
+   "workflow": "Context Capture (weather, availability, injuries)",
+   "event": "schedule",
+   "created_at": "2026-10-03T11:46:24Z",
+   "updated_at": "2026-10-03T12:01:16Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37120340018,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "schedule",
+   "created_at": "2026-10-03T11:39:14Z",
+   "updated_at": "2026-10-03T11:49:59Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37120008374,
+   "workflow": "Shadow v2 projections (full board)",
+   "event": "schedule",
+   "created_at": "2026-10-03T11:32:56Z",
+   "updated_at": "2026-10-03T12:07:02Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37118837304,
+   "workflow": "Shadow v2 horizon conductor",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T11:10:56Z",
+   "updated_at": "2026-10-03T12:41:56Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37115387793,
+   "workflow": "Owner actual wagers (ledger check + postmortem)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T10:08:07Z",
+   "updated_at": "2026-10-03T10:19:11Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37115385674,
+   "workflow": "Workflow health (run outcomes)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T10:08:05Z",
+   "updated_at": "2026-10-03T10:20:58Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37115066784,
+   "workflow": "Shadow v2 order-book depth",
+   "event": "schedule",
+   "created_at": "2026-10-03T10:02:30Z",
+   "updated_at": "2026-10-03T10:31:43Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37114694167,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "workflow_dispatch",
+   "created_at": "2026-10-03T09:55:53Z",
+   "updated_at": "2026-10-03T15:48:13Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37109234750,
+   "workflow": "Horizon conductor (RUN NFL + three-arm)",
+   "event": "schedule",
+   "created_at": "2026-10-03T08:18:02Z",
+   "updated_at": "2026-10-03T09:55:55Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "CANCELLED_BY_CONCURRENCY",
+   "detail": "cancelled before any job started (superseded while pending)"
+  },
+  {
+   "run_id": 37108263651,
+   "workflow": "Kalshi NFL Capture Conductor",
+   "event": "schedule",
+   "created_at": "2026-10-03T08:00:54Z",
+   "updated_at": "2026-10-03T17:34:33Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  },
+  {
+   "run_id": 37108202200,
+   "workflow": "Pre-trade preflight",
+   "event": "schedule",
+   "created_at": "2026-10-03T07:59:57Z",
+   "updated_at": "2026-10-03T08:00:13Z",
+   "head_sha": "35fc65edcbac",
+   "outcome": "SUCCESS",
+   "detail": "success"
+  }
+ ]
+}
