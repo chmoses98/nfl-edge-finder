@@ -95,7 +95,7 @@ def fit_priors_for(target_season: int, history_start: int = 2016) -> F.PriorSet:
 
 
 def assemble(seasons, cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print,
-             priors: F.PriorSet | None = None) -> dict:
+             priors: F.PriorSet | None = None, eligible_override: pd.DataFrame | None = None) -> dict:
     """Frames with features for the seasons: team, player (real + phantom), eligible-with-shares, carries, targets.
 
     ``priors`` are the frozen shrinkage targets and are REQUIRED: every statistic used to build a row must
@@ -105,7 +105,9 @@ def assemble(seasons, cfg: F.FeatureConfig = F.FEATURE_CONFIG, verbose=print,
         raise F.MissingPriors("assemble needs priors= from training.fit_priors_for(target_season)")
     tg = D.load("team_games", seasons).to_pandas()
     pg = D.load("player_games", seasons).to_pandas()
-    elig = eligible_frame(seasons, verbose=verbose)
+    # ``eligible_override`` (research: Wave-2 A1 information horizons) replaces the cached point-in-time eligible
+    # set, e.g. with game-day inactives put back for a T-24h horizon; None is the incumbent.
+    elig = eligible_frame(seasons, verbose=verbose) if eligible_override is None else eligible_override
     elig = elig[elig["avail_state"].isin(["EXPECTED_ACTIVE", "QUESTIONABLE"])]
     tf = F.team_features(tg, cfg, priors)
     pf = F.player_features(pg, tg, cfg, phantom_rows=elig, priors=priors)
@@ -182,7 +184,19 @@ def fit_bundle(target_season: int, frames: dict | None = None, history_start: in
         o["team_designed_rush"] = o["_tdr"].fillna(o["team_designed_rush"]); o["team_targets"] = o["_tt"].fillna(o["team_targets"])
     other_share = {"carry": float(1 - o["elig_carries"].sum() / max(1, o["team_designed_rush"].sum())),
                    "target": float(1 - o["elig_targets"].sum() / max(1, o["team_targets"].sum()))}
+    if arm.get("s1"):
+        # Wave-2 arm S1: likelihood-fitted, concentration-conditioned Dirichlet concentration (share_dispersion)
+        from . import share_dispersion as SD
+        carry_share["alpha_model"] = SD.fit_for_bundle(e, other_share["carry"], "carry", arm.get("s1_form", "S1-1"))
+        target_share["alpha_model"] = SD.fit_for_bundle(e, other_share["target"], "target", arm.get("s1_form", "S1-1"))
     qb_share = M.fit_qb_share(e)
+    if arm.get("q1"):
+        # Wave-2 arm Q1 (qb_regimes): regime mixture of the SIMULATED QB1's share, zero-share starts included; the
+        # development selection chose the unconditional mixture (Q1-0) unless arm["q1_form"] == "Q1"
+        from . import qb_regimes as QR
+        qm = QR.fit(QR.qb1_rows(e), conditional=arm.get("q1_form") == "Q1")
+        qq = QR.mixture_quantiles(qm, np.asarray(qm["unconditional"]))
+        qb_share = {"quantiles": qq, "n": qm["n"], "p_below_half": float(np.mean(np.asarray(qq) < 0.5)), "regime_model": qm}
     b = M.bundle(game_env, carry_share, target_share, carry, target, td, train_seasons=train,
                  feature_config=cfg.to_dict(), other_share=other_share, qb_share=qb_share)
     b["target_season"] = target_season

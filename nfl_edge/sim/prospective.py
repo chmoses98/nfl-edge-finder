@@ -282,7 +282,7 @@ def distribution_fields(prefix: str, d: LatticeDistribution | None) -> dict:
 def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dict | None, *, n_sims: int = 20000,
                 run_id: str, observed_at: str, generated_at: datetime, player_map: dict, verbose=print,
                 scripts: dict | None = None, scripts_v2: dict | None = None, weather_vintages: list | None = None,
-                weather_cutoff: datetime | None = None) -> list[dict]:
+                weather_cutoff: datetime | None = None, fingerprint_window_hours: float | None = 6.0) -> list[dict]:
     """Price every FULL-period contract of the priced families on the slate's games.
 
     `scripts`, when a dict is passed, receives one game-script summary per game (`nfl_edge/sim/script.py`): read
@@ -415,7 +415,13 @@ def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dic
                 if weather_vintages:
                     from nfl_edge.sim.weather_research import pit_forecast
                     wx = pit_forecast(weather_vintages, gid, (weather_cutoff or generated_at).isoformat())
-                scripts_v2[gid] = {**game_document(res, gi, coh, rows, player_map, weather=wx), "run_id": run_id,
+                # world fingerprints (RISK1, Wave 2) only close to kickoff, which bounds the corpus to a few
+                # captures per game; every other capture carries the script matrix without them
+                ko = G.get("kickoff")
+                near = (fingerprint_window_hours is not None and ko is not None
+                        and pd.Timestamp(ko) - pd.Timestamp(generated_at) <= pd.Timedelta(hours=fingerprint_window_hours))
+                scripts_v2[gid] = {**game_document(res, gi, coh, rows, player_map, weather=wx,
+                                                   fingerprint_rows=(None if not near else 1024)), "run_id": run_id,
                                    "generated_at": generated_at.isoformat(), "market_observed_at": observed_at}
             except Exception as exc:  # noqa: BLE001
                 scripts_v2[gid] = {"state": "ERROR", "reason": f"{type(exc).__name__}: {exc}", "run_id": run_id}

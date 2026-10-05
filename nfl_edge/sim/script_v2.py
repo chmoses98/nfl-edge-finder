@@ -444,7 +444,30 @@ def _ladder_key(c: dict) -> tuple:
     return (c.get("family"), c.get("team"), c.get("stat"), c.get("player_kalshi_id") or c.get("player_id"))
 
 
-def game_document(res, gi, coherence: dict, contracts: list, player_map: dict | None = None, *, weather: dict | None = None) -> dict:
+FINGERPRINT_ROWS = 1024
+
+
+def encode_fingerprint(cash: np.ndarray, rows: int = FINGERPRINT_ROWS) -> dict:
+    """A contract's WORLD FINGERPRINT: its cash value on the first `rows` simulated rows (rows are iid, so the first
+    `rows` are a random sample), bit-packed. Ties (a GAME_WINNER tied row pays 0.5) are kept in a second bitmap."""
+    import base64
+    c = np.asarray(cash, float)[:rows]
+    win = base64.b64encode(np.packbits(c >= 1.0).tobytes()).decode()
+    half = c == 0.5
+    return {"rows": int(len(c)), "win": win, "half": base64.b64encode(np.packbits(half).tobytes()).decode() if half.any() else None}
+
+
+def decode_fingerprint(fp: dict) -> np.ndarray:
+    import base64
+    n = fp["rows"]
+    win = np.unpackbits(np.frombuffer(base64.b64decode(fp["win"]), np.uint8))[:n].astype(float)
+    if fp.get("half"):
+        win += 0.5 * np.unpackbits(np.frombuffer(base64.b64decode(fp["half"]), np.uint8))[:n]
+    return win
+
+
+def game_document(res, gi, coherence: dict, contracts: list, player_map: dict | None = None, *, weather: dict | None = None,
+                  fingerprint_rows: int | None = None) -> dict:
     """GAME SCRIPT V2 for one simulated game: the lattice, every contract's script matrix, and thesis dependency
     among the headline rung of each ladder (the rung whose simulated probability is nearest 0.50). A game that
     failed coherence gets no script numbers at all -- the preregistered gate is zero coherence failures."""
@@ -467,6 +490,8 @@ def game_document(res, gi, coherence: dict, contracts: list, player_map: dict | 
                         "failure_script_mass": round(c["failure_script_mass"], 4),
                         "win_contribution_hhi": None if c["win_contribution_hhi"] is None else round(c["win_contribution_hhi"], 4),
                         "reconciliation_error": c["reconciliation_error"]})
+            if fingerprint_rows:
+                rec["fingerprint"] = encode_fingerprint(cash[c["ticker"]], fingerprint_rows)
         compact.append(rec)
     by_ladder = {}
     for c in contracts:

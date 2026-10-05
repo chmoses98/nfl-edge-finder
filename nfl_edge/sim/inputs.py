@@ -48,7 +48,7 @@ def historical_game_input(frames: dict, game_id: str, *, spread_home: float, tot
     for team, is_home in ((home, True), (away, False)):
         other = away if is_home else home
         pl = e[(e["game_id"] == game_id) & (e["team"] == team)].copy()
-        cols = [c for c in PLAYER_COLS_NEEDED if c in pl.columns]
+        cols = [c for c in PLAYER_COLS_NEEDED if c in pl.columns] + [c for c in pl.columns if str(c).startswith("q1_")]
         pl = pl[cols].reset_index(drop=True)
         teams[team] = TeamInput(team=team, home=is_home, features=_team_row(tf, game_id, team),
                                 opp_features=_team_row(tf, game_id, other), players=pl, qb1=_qb1(pl))
