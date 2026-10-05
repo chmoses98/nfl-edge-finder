@@ -26,15 +26,15 @@ Reproduce: `python scripts/sim/script_backtest.py` after the five-season walk-fo
 
 | cell | model | realized | B0 | B1 |
 |---|---|---|---|---|
-| FAVORITE_CONTROL|HIGH_SCORING | 8.9% | 7.9% | 7.3% | 7.1% |
-| FAVORITE_CONTROL|NORMAL_SCORING | 21.3% | 19.5% | 19.6% | 19.1% |
-| FAVORITE_CONTROL|LOW_SCORING | 8.3% | 7.0% | 7.9% | 7.8% |
-| COMPETITIVE|HIGH_SCORING | 10.8% | 12.1% | 12.0% | 12.0% |
-| COMPETITIVE|NORMAL_SCORING | 26.2% | 29.6% | 28.5% | 28.4% |
-| COMPETITIVE|LOW_SCORING | 10.7% | 11.8% | 11.9% | 12.0% |
-| UNDERDOG_CONTROL|HIGH_SCORING | 3.3% | 2.5% | 3.1% | 3.3% |
-| UNDERDOG_CONTROL|NORMAL_SCORING | 7.6% | 7.2% | 6.7% | 6.9% |
-| UNDERDOG_CONTROL|LOW_SCORING | 2.9% | 2.3% | 3.2% | 3.3% |
+| FAVORITE_CONTROL / HIGH_SCORING | 8.9% | 7.9% | 7.3% | 7.1% |
+| FAVORITE_CONTROL / NORMAL_SCORING | 21.3% | 19.5% | 19.6% | 19.1% |
+| FAVORITE_CONTROL / LOW_SCORING | 8.3% | 7.0% | 7.9% | 7.8% |
+| COMPETITIVE / HIGH_SCORING | 10.8% | 12.1% | 12.0% | 12.0% |
+| COMPETITIVE / NORMAL_SCORING | 26.2% | 29.6% | 28.5% | 28.4% |
+| COMPETITIVE / LOW_SCORING | 10.7% | 11.8% | 11.9% | 12.0% |
+| UNDERDOG_CONTROL / HIGH_SCORING | 3.3% | 2.5% | 3.1% | 3.3% |
+| UNDERDOG_CONTROL / NORMAL_SCORING | 7.6% | 7.2% | 6.7% | 6.9% |
+| UNDERDOG_CONTROL / LOW_SCORING | 2.9% | 2.3% | 3.2% | 3.3% |
 
 ## Reliability (pooled, one-vs-rest over all nine cells)
 

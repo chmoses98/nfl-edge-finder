@@ -181,7 +181,7 @@ def render_calibration(c: dict, v: dict | None) -> str:
     L += ["", "## Predicted vs realized frequency by cell (pooled)", "", "| cell | model | realized | B0 | B1 |", "|---|---|---|---|---|"]
     for k in cells:
         r = c["pooled"]["by_cell"][k]
-        L.append(f"| {k} | {pct(r['predicted'])} | {pct(r['realized'])} | {pct(r['B0'])} | {pct(r['B1'])} |")
+        L.append(f"| {k.replace('|', ' / ')} | {pct(r['predicted'])} | {pct(r['realized'])} | {pct(r['B0'])} | {pct(r['B1'])} |")
     L += ["", "## Reliability (pooled, one-vs-rest over all nine cells)", "", "| bin | n | mean p | realized |", "|---|---|---|---|"]
     for b in c["pooled"]["model"]["reliability"]["bins"]:
         if b["n"]:

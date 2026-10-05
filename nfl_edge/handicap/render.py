@@ -749,9 +749,12 @@ def _game_script_v2_section(v: dict | None, *, compact: bool) -> list:
     a("Marginal events (overlapping): " + " · ".join(f"{k} {_pct(x)}%" for k, x in ev.items() if x is not None))
     a(f"_Not simulated: {', '.join(v.get('not_simulated') or [])}._")
     wx = v.get("weather") or {}
-    a(f"_Weather ({wx.get('weather_model_status')}, {wx.get('state')}): wind {_num(wx.get('wind_speed_10m'))} mph, gusts "
-      f"{_num(wx.get('wind_gusts_10m'))}, precip prob {_num(wx.get('precipitation_probability'), 0)}%, temp {_num(wx.get('temperature_2m'), 0)}F, "
-      f"forecast retrieved {wx.get('retrieved_at')} ({_num(wx.get('lead_hours'))} h before cutoff)._")
+    if wx.get("state") == "FORECAST_AT_CUTOFF":
+        a(f"_Weather ({wx.get('weather_model_status')}): wind {_num(wx.get('wind_speed_10m'))} mph, gusts "
+          f"{_num(wx.get('wind_gusts_10m'))}, precip prob {_num(wx.get('precipitation_probability'), 0)}%, temp {_num(wx.get('temperature_2m'), 0)}F, "
+          f"forecast retrieved {wx.get('retrieved_at')} ({_num(wx.get('lead_hours'))} h before kickoff)._")
+    else:
+        a(f"_Weather ({wx.get('weather_model_status') or 'NOT_IN_MODEL'}): no point-in-time forecast attached._")
     a("")
     for c in (v.get("candidates") or [])[: (4 if compact else 12)]:
         rob = c.get("script_robustness") or {}
