@@ -73,9 +73,16 @@ def _rows_for_game(res: S.SimResult, gi: S.GameInput, actual_players: pd.DataFra
 
 
 def run_season(season: int, frames: dict, *, n_sims: int = 10000, limit: int | None = None, verbose=print,
-               bundle: dict | None = None) -> dict:
-    """Simulate every completed game of ``season`` with a bundle fitted on earlier seasons only."""
-    os.makedirs(OUT, exist_ok=True)
+               bundle: dict | None = None, out_dir: str | None = None, on_game=None) -> dict:
+    """Simulate every completed game of ``season`` with a bundle fitted on earlier seasons only.
+
+    ``out_dir`` (default the committed ``research/simulation_engine``) receives the row-level parquets and the
+    bundle.  ``on_game(res, gi)`` is a READ-ONLY hook called on every coherent game with the very rows that
+    were scored (GAME SCRIPT V2 summarises them); it receives no generator, so it cannot draw from the
+    simulation's random streams.  A game whose inputs cannot be built is never dropped silently: it is listed
+    in the returned ``skipped`` with the reason."""
+    out = out_dir or OUT
+    os.makedirs(out, exist_ok=True)
     b = bundle or T.fit_bundle(season, frames, verbose=verbose)
     g = D.schedule().to_pandas()
     g = g[(g["season"] == season) & g["home_score"].notna() & g["spread_line"].notna() & g["total_line"].notna()
@@ -85,26 +92,30 @@ def run_season(season: int, frames: dict, *, n_sims: int = 10000, limit: int | N
     bank = I.historical_bank(season)
     pg = D.load("player_games", [season]).to_pandas(); tg = D.load("team_games", [season]).to_pandas()
     tg["off_td"] = tg["pass_td"] + tg["rush_td"]
-    prow, trow = [], []
+    prow, trow, skipped = [], [], []
     t0 = time.time()
     for i, r in enumerate(g.itertuples()):
         try:
             gi = I.historical_game_input(frames, r.game_id, spread_home=r.spread_line, total_line=r.total_line)
         except KeyError as e:
+            skipped.append({"game_id": r.game_id, "reason": f"KeyError: {e}"})
             verbose(f"skip {r.game_id}: {e}"); continue
         res = S.simulate(gi, b, n=n_sims, bank=bank, seed=11 + i)
         coh = S.coherence_report(res)
         if not coh["ok"]:
             raise RuntimeError(f"coherence failure on {r.game_id}: {coh}")
+        if on_game is not None:
+            on_game(res, gi)
         p, t = _rows_for_game(res, gi, pg[pg["game_id"] == r.game_id], tg[tg["game_id"] == r.game_id])
         prow += p; trow += t
         if (i + 1) % 25 == 0:
             verbose(f"{season}: {i + 1}/{len(g)} games, {time.time() - t0:.0f}s")
     P = pd.DataFrame(prow); Tt = pd.DataFrame(trow)
-    P.to_parquet(os.path.join(OUT, f"player_dists_{season}.parquet")); Tt.to_parquet(os.path.join(OUT, f"team_dists_{season}.parquet"))
-    with open(os.path.join(OUT, f"bundle_{season}.json"), "w") as f:
+    P.to_parquet(os.path.join(out, f"player_dists_{season}.parquet")); Tt.to_parquet(os.path.join(out, f"team_dists_{season}.parquet"))
+    with open(os.path.join(out, f"bundle_{season}.json"), "w") as f:
         json.dump(b, f)
-    return {"season": season, "games": int(len(g)), "player_rows": int(len(P)), "team_rows": int(len(Tt)), "seconds": time.time() - t0}
+    return {"season": season, "games": int(len(g)), "player_rows": int(len(P)), "team_rows": int(len(Tt)), "seconds": time.time() - t0,
+            "games_simulated": int(len(g)) - len(skipped), "skipped": skipped, "coherence_failures": 0}
 
 
 # ----------------------------------------------------------------------------------------- scoring
@@ -132,13 +143,17 @@ def _baseline(frames: dict, season: int) -> pd.DataFrame:
     return pd.concat(rows, ignore_index=True)
 
 
-def evaluate(season: int, frames: dict | None = None, min_mean: dict | None = None) -> dict:
+FLOORS = {"carries": 3.0, "rush_yards": 12.0, "targets": 2.0, "receptions": 1.5, "rec_yards": 12.0,
+          "attempts": 15.0, "completions": 10.0, "pass_yards": 100.0, "pass_td": 0.5, "any_td": 0.1, "rush_td": 0.1, "rec_td": 0.1}
+
+
+def evaluate(season: int, frames: dict | None = None, min_mean: dict | None = None, out_dir: str | None = None) -> dict:
     """Score a simulated season.  Rows are restricted to players whose predictive mean is above a small
     floor per statistic (a fourth-string back with mean 0.3 carries is not a market anyone quotes)."""
-    P = pd.read_parquet(os.path.join(OUT, f"player_dists_{season}.parquet"))
-    Tt = pd.read_parquet(os.path.join(OUT, f"team_dists_{season}.parquet"))
-    floors = min_mean or {"carries": 3.0, "rush_yards": 12.0, "targets": 2.0, "receptions": 1.5, "rec_yards": 12.0,
-                          "attempts": 15.0, "completions": 10.0, "pass_yards": 100.0, "pass_td": 0.5, "any_td": 0.1, "rush_td": 0.1, "rec_td": 0.1}
+    out_dir = out_dir or OUT
+    P = pd.read_parquet(os.path.join(out_dir, f"player_dists_{season}.parquet"))
+    Tt = pd.read_parquet(os.path.join(out_dir, f"team_dists_{season}.parquet"))
+    floors = min_mean or FLOORS
     out = {"season": season, "player": {}, "team": {}}
     if frames is not None:
         base = _baseline(frames, season)

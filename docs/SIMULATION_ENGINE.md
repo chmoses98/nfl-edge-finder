@@ -231,3 +231,33 @@ writes it beside the projections as `<run_id>.sim-1.1.0.scripts.json.gz` (write-
 projections are identical with or without it (`tests/test_sim_script.py`). Not simulated, and therefore absent:
 score-state paths and lead changes, red-zone trips, routes and snaps. Consumers: RUN NFL's GAME SCRIPT INPUTS and
 the weekly script autopsy (`docs/WEEKLY_RESEARCH.md`), which uses it as the team-volume expectation from Week 4.
+
+## GAME SCRIPT V2 (sim-script-2.0.0) — RESEARCH_ONLY
+
+`nfl_edge/sim/script_v2.py` is additive to sim-script-1.0.0 (unchanged). It sorts the SAME simulated rows that priced
+the contracts into a canonical nine-cell lattice — control (`FAVORITE_CONTROL` / `COMPETITIVE` / `UNDERDOG_CONTROL`,
+favourite-oriented final margin beyond one score) × scoring (`HIGH` / `NORMAL` / `LOW`, total 10+ above / below the
+centre), thresholds imported from `research/script_autopsy.py` — and reports each cell's probability and state
+(points, margin, total, each team's volume, the major players' opportunity), labels generated from the cell, and
+overlapping marginal events. It draws no random number and mutates nothing (tested). Final-state cells only: lead
+changes, time leading, scoring sequence, early blowout and late comeback are `not_simulated`.
+
+For every supported FULL-period contract it gives P(cash | script) with the pricer's own settlement semantics
+(pinned equal to `price_slate`), the major-script floor, script robustness at 0.50 / 0.55 / 0.60, failure-script mass
+and the win-contribution HHI, and, on the same rows, thesis dependency between markets (cash correlation, joint and
+conditional cash probability, shared failure mass, Jaccard of winning rows). Provenance is `MARKET_CENTRED_GAME`: a
+script probability describes the market-centred distribution, never a football edge on the side.
+
+`price_slate(..., scripts_v2=...)` builds it after each game is priced and refuses an incoherent game;
+`project_week.py` writes `<run_id>.sim-1.1.0.scripts_v2.json.gz` (write-once); the packet shows it as a numbers-only
+RESEARCH_ONLY section (`handicap/script_block.game_script_v2_view`) read by no decision path. Design, preregistration,
+the five-season walk-forward, the calibration study, the opponent-adjustment ablation and the limitations are in
+`research/game_script_v2/`.
+
+**Five-season evidence (2021-2025, research only; `research/game_script_v2/README.md`).** The frozen layer reproduces
+with no skipped game and no coherence failure; the preregistered GAME SCRIPT V2 verdict is NEEDS MORE WORK; every
+opponent-adjustment arm, the score-path arm and the outside-share repair were REJECTED under the registered rule, and
+nothing was deployed. Findings recorded there and in `LIMITATIONS.md`: the historical eligible set is the game-day
+active list (a T-0 information set); `fit_game_env` trains on the team's own `def_*` columns while the simulator serves
+the opponent's (immaterial, 0.18%); the residual bank under-weights the key margin of 3 by about half; targets and
+receptions are over-dispersed and quarterback volume is left-tail heavy.

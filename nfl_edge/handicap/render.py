@@ -725,6 +725,62 @@ def _game_script_section(gs: dict | None, g: dict, *, compact: bool) -> list:
     return L
 
 
+def _game_script_v2_section(v: dict | None, *, compact: bool) -> list:
+    """GAME SCRIPT V2 (research only): plausible scripts, per-market robustness / matrix / dependency. Numbers only."""
+    L = []
+    a = L.append
+    if not v:
+        return L
+    a("### GAME SCRIPT V2 (RESEARCH_ONLY — authorises nothing)")
+    a("")
+    a(f"_{v.get('authority')}. {v.get('provenance')}._")
+    a("")
+    if v.get("state") != "OK":
+        a(f"GAME SCRIPT V2 — {v.get('state')}: {v.get('reason')}")
+        a("")
+        return L
+    a("**PRIMARY PLAUSIBLE SCRIPTS** (final-state cells of the simulated rows)")
+    a("")
+    for i, p in enumerate(v.get("primary_scripts") or [], 1):
+        a(f"{i}. {p.get('label')} — {_pct(p.get('probability'))}%  _({p.get('detail')})_")
+    a(f"   Other — {_pct(v.get('other_probability'))}%")
+    a("")
+    ev = v.get("marginal_events") or {}
+    a("Marginal events (overlapping): " + " · ".join(f"{k} {_pct(x)}%" for k, x in ev.items() if x is not None))
+    a(f"_Not simulated: {', '.join(v.get('not_simulated') or [])}._")
+    wx = v.get("weather") or {}
+    if wx.get("state") == "FORECAST_AT_CUTOFF":
+        a(f"_Weather ({wx.get('weather_model_status')}): wind {_num(wx.get('wind_speed_10m'))} mph, gusts "
+          f"{_num(wx.get('wind_gusts_10m'))}, precip prob {_num(wx.get('precipitation_probability'), 0)}%, temp {_num(wx.get('temperature_2m'), 0)}F, "
+          f"forecast retrieved {wx.get('retrieved_at')} ({_num(wx.get('lead_hours'))} h before kickoff)._")
+    else:
+        a(f"_Weather ({wx.get('weather_model_status') or 'NOT_IN_MODEL'}): no point-in-time forecast attached._")
+    a("")
+    for c in (v.get("candidates") or [])[: (4 if compact else 12)]:
+        rob = c.get("script_robustness") or {}
+        a(f"**`{c.get('ticker')}`** {c.get('player_name') or c.get('family')} {c.get('stat') or ''} {c.get('threshold') if c.get('threshold') is not None else ''}")
+        a(f"- MODEL / MARKET: football {_pct(c.get('football_probability'))}% · market {_pct(c.get('market_probability'))}% · "
+          f"reconciled {(_pct(c['reconciled_probability']) + '%') if c.get('reconciled_probability') is not None else (c.get('reconciled_note') or '--')}")
+        a(f"- SCRIPT ROBUSTNESS: P50 mass {_pct(rob.get('0.50'))}% · P55 mass {_pct(rob.get('0.55'))}% · P60 mass {_pct(rob.get('0.60'))}% · "
+          f"major-script floor {_pct(c.get('major_script_floor'))}% · failure mass {_pct(c.get('failure_script_mass'))}% · "
+          f"win-contribution HHI {_num(c.get('win_contribution_hhi'), 3)}")
+        if not compact:
+            a("")
+            a("| script | P(script) | P(cash \\| script) |")
+            a("|---|---|---|")
+            for r in c.get("matrix") or []:
+                a(f"| {r.get('label')} | {_pct(r.get('p_script'))}% | {_pct(r.get('p_cash_given_script'))}% |")
+        for d in c.get("dependency") or []:
+            a(f"- THESIS DEPENDENCY with `{d.get('with')}`: cash correlation {_num(d.get('cash_correlation'), 3)} · joint cash "
+              f"{_pct(d.get('joint_cash'))}% · Jaccard of winning rows {_num(d.get('jaccard_winning_rows'), 3)} · shared failure "
+              f"{_pct(d.get('shared_failure_mass'))}%")
+        a("")
+    a(f"_{v.get('n_contracts_with_matrix')} contracts carry a script matrix in the run's GAME SCRIPT V2 file ({v.get('source')}); "
+      f"{v.get('n_dependency_pairs')} headline pairs with |cash correlation| >= 0.30._")
+    a("")
+    return L
+
+
 def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = False) -> list:
     L = []
     a = L.append
@@ -771,6 +827,7 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
             for p, v in g["market_implied_by_period"].items()))
         a("")
     L.extend(_game_script_section(g.get("game_script_inputs"), g, compact=compact))
+    L.extend(_game_script_v2_section(g.get("game_script_v2"), compact=compact))
 
     # injuries
     recs = g["injuries"]["records"]

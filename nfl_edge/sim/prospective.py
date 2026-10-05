@@ -281,11 +281,17 @@ def distribution_fields(prefix: str, d: LatticeDistribution | None) -> dict:
 
 def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dict | None, *, n_sims: int = 20000,
                 run_id: str, observed_at: str, generated_at: datetime, player_map: dict, verbose=print,
-                scripts: dict | None = None) -> list[dict]:
+                scripts: dict | None = None, scripts_v2: dict | None = None, weather_vintages: list | None = None,
+                weather_cutoff: datetime | None = None) -> list[dict]:
     """Price every FULL-period contract of the priced families on the slate's games.
 
     `scripts`, when a dict is passed, receives one game-script summary per game (`nfl_edge/sim/script.py`): read
-    from the same simulated rows, drawing no random number, so the projections are identical with or without it."""
+    from the same simulated rows, drawing no random number, so the projections are identical with or without it.
+    `scripts_v2`, likewise, receives GAME SCRIPT V2 (`nfl_edge/sim/script_v2.py`, RESEARCH_ONLY): the nine-cell
+    lattice, every contract's script matrix and thesis dependency, computed AFTER the game is priced from the same
+    rows; `weather_vintages` only supplies the point-in-time forecast it displays (weather never enters a number),
+    selected at `weather_cutoff` -- the projection cutoff, so a replay of a past cutoff never sees a later vintage
+    (defaults to `generated_at`, which IS the cutoff for a live run)."""
     bank = I.historical_bank(int(next(iter(slate["games"].values()))["input"].season))
     out = []
     w_by_stat = {k: v["weight"] for k, v in (weights or {}).get("fitted", {}).items()}
@@ -401,6 +407,18 @@ def price_slate(slate: dict, ledger_rows: list[dict], bundle: dict, weights: dic
                 rec.update(support_state="UNSUPPORTED_COHERENCE",
                            support_reason=f"simulated game violates an engine identity: {broken}"[:400])
             out.append(rec)
+        if scripts_v2 is not None:
+            # research context, built after this game's rows are final; a failure is recorded, never raised
+            try:
+                from nfl_edge.sim.script_v2 import game_document
+                wx = None
+                if weather_vintages:
+                    from nfl_edge.sim.weather_research import pit_forecast
+                    wx = pit_forecast(weather_vintages, gid, (weather_cutoff or generated_at).isoformat())
+                scripts_v2[gid] = {**game_document(res, gi, coh, rows, player_map, weather=wx), "run_id": run_id,
+                                   "generated_at": generated_at.isoformat(), "market_observed_at": observed_at}
+            except Exception as exc:  # noqa: BLE001
+                scripts_v2[gid] = {"state": "ERROR", "reason": f"{type(exc).__name__}: {exc}", "run_id": run_id}
         verbose(f"{gid}: {len(rows)} contracts, centre {gi.center_source} ({gi.spread_home:+.1f}, {gi.total_line:.1f}), coherence {coh['ok']}")
     return out
 
@@ -434,6 +452,21 @@ def write_scripts(root: str, run_id: str, scripts: dict) -> str | None:
         raise FileExistsError(path)
     with gzip.open(path, "wt") as f:
         json.dump({"run_id": run_id, "sim_version": SIM_VERSION, "games": scripts}, f, default=_json_default)
+    return path
+
+
+def write_scripts_v2(root: str, run_id: str, docs: dict) -> str | None:
+    """Write-once GAME SCRIPT V2 documents beside the projections: <run_id>.<SIM_VERSION>.scripts_v2.json.gz."""
+    if not docs:
+        return None
+    day = f"{run_id[:4]}-{run_id[4:6]}-{run_id[6:8]}"
+    d = os.path.join(root, "data", "shadow", "sim", day)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, f"{run_id}.{SIM_VERSION}.scripts_v2.json.gz")
+    if os.path.exists(path):
+        raise FileExistsError(path)
+    with gzip.open(path, "wt") as f:
+        json.dump({"run_id": run_id, "sim_version": SIM_VERSION, "research_only": True, "games": docs}, f, default=_json_default)
     return path
 
 
