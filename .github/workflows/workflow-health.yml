@@ -25,7 +25,10 @@ jobs:
   outcomes:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 45, not 15: every publish below checks out the whole market-data tree (~70k files; ~11 min the first time,
+    # ~3 min after). Runs 94, 95, 97 and 98 (2026-10-05/06) hit the 15-minute limit inside a publish, so the
+    # conductor-chain alarm and the red Wave-2 / horizon miss steps never ran. Ops plumbing only.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
