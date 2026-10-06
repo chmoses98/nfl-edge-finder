@@ -1,0 +1,36 @@
+{
+ "item": "RISK1",
+ "version": "risk1-1.0.0",
+ "status": "COLLECTING",
+ "prospective_cutoff": "2026-10-05T16:14:02+00:00",
+ "authority": "NONE: RISK1 never changes a probability, a stake or an authority",
+ "capture": {
+  "source": "shadow-price cycle on main (GAME SCRIPT V2 document + projection rows, write-once on market-data)",
+  "captures_seen_at_build": 0,
+  "captures_after_cutoff_at_build": 0,
+  "fingerprints": "frozen within 6 h of kickoff once the Wave-2 branch is on main",
+  "listing_ref": "origin/market-data"
+ },
+ "minimum_prospective_sample": {
+  "n_games": 397,
+  "n_weeks_at_16": 25,
+  "per_game_contrast_sd": 0.14225198745428824,
+  "minimal_effect": 0.02,
+  "source": "DEVELOPMENT (2020 only; synthetic prices = simulated probabilities)",
+  "n_contracts_in_study": 37655,
+  "underpowered_at_one_season": false
+ },
+ "development_contrast_2020": {
+  "per_game_contrast_mean": 0.0031938992325332653,
+  "note": "synthetic prices equal the simulated probability; this sets the sample size and is NOT evidence"
+ },
+ "primary_test": "logistic(outcome ~ logit(mid) + logit(p_model) + z(measure) + family) per measure, game-clustered bootstrap, Holm over 4",
+ "measures": [
+  "p55",
+  "floor",
+  "hhi",
+  "failure_mass"
+ ],
+ "thesis_jaccard_threshold": 0.8,
+ "results": null
+}

@@ -235,8 +235,17 @@ def _simulate_players(rng, ti: TeamInput, T: dict, bundle: dict, res: SimResult,
     pc = np.append(p_carry / max(p_carry.sum(), 1e-9) * (1 - other_c), other_c)
     pt = np.append(p_target / max(p_target.sum(), 1e-9) * (1 - other_t), other_t)
     act = np.column_stack([active, np.ones(n, dtype=bool)])
-    carries = _dirichlet_multinomial(rng, T["designed_rush"], pc, cs["alpha"], act)
-    targets = _dirichlet_multinomial(rng, T["targets"], pt, ts["alpha"], act)
+    alpha_c, alpha_t = cs["alpha"], ts["alpha"]
+    if cs.get("alpha_model") or ts.get("alpha_model"):
+        # research arm S1 (research/game_script_v2/wave2): the concentration depends on the team-game's pregame
+        # expected-share structure; the Dirichlet MEAN (the expected shares) and every draw are unchanged
+        from . import share_dispersion as SD
+        if cs.get("alpha_model"):
+            alpha_c = SD.alpha_of(cs["alpha_model"], SD.team_features(P, SD.expected_shares(p_carry, other_c), "carry"))
+        if ts.get("alpha_model"):
+            alpha_t = SD.alpha_of(ts["alpha_model"], SD.team_features(P, SD.expected_shares(p_target, other_t), "target"))
+    carries = _dirichlet_multinomial(rng, T["designed_rush"], pc, alpha_c, act)
+    targets = _dirichlet_multinomial(rng, T["targets"], pt, alpha_t, act)
     # QB: scrambles and kneels belong to the starter
     qb_idx = None
     if ti.qb1 is not None:
@@ -347,6 +356,11 @@ def _simulate_players(rng, ti: TeamInput, T: dict, bundle: dict, res: SimResult,
     if qb_idx is not None:
         # the starter's share of the team's passing on this row: 1.0 on most rows, a fitted left tail on the rest
         qs = np.asarray(bundle.get("qb_share", {}).get("quantiles", [1.0] * 201), float)
+        rm = bundle.get("qb_share", {}).get("regime_model")
+        if rm and rm.get("features"):
+            # Wave-2 arm Q1, conditional form: this game's regime mixture from the starter's pregame features
+            from . import qb_regimes as QR
+            qs = np.asarray(QR.game_quantiles(rm, P.loc[qb_idx]), float)
         share = _interp_quantiles(qs, rng.random(n))
         qb = res.player[ids[qb_idx]]
         qb["attempts"] = np.round(share * T["pass_att"]).astype(np.int64)
