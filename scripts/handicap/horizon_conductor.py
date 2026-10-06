@@ -8,6 +8,9 @@ Every pass, for each target:
   * RUN_NFL   -- capture state is `handicap-reports:state/horizons.json`; dispatches `run-nfl-horizons.yml`.
   * THREE_ARM -- capture state is the marker file names under `market-data:data/shadow/arms/horizons/`;
                  dispatches `three-arm-horizons.yml`.
+  * WAVE2     -- GAME SCRIPT V2 Wave-2 research capture (RESEARCH_ONLY). Capture state is the record names under
+                 `market-data:data/research/wave2/`; a (game, EARLY | LATE) window is owed while it is open and
+                 has no record (`nfl_edge.sim.wave2_due`); dispatches `wave2-research.yml`, whose own gate decides.
 
 it asks the SAME due rule the workflow's own gate uses (`nfl_edge.handicap.horizons.due_horizons`) and, when a
 horizon is owed and no run of that workflow is already queued or running, dispatches one. Near the end of its
@@ -35,10 +38,12 @@ from nfl_edge.handicap.automation import (                                      
 )
 from nfl_edge.handicap.conductor import decide, handover_end, should_chain           # noqa: E402
 from nfl_edge.handicap.horizons import HORIZONS_MIN, cluster_kickoffs, due_horizons  # noqa: E402
+from nfl_edge.sim import wave2_due                                                    # noqa: E402
 
 TARGETS = {
     "RUN_NFL": {"workflow": "run-nfl-horizons.yml"},
     "THREE_ARM": {"workflow": "three-arm-horizons.yml"},
+    "WAVE2": {"workflow": "wave2-research.yml"},
 }
 
 
@@ -63,7 +68,14 @@ def three_arm_state() -> dict:
     return captured_state([os.path.basename(x) for x in r.stdout.split() if x.strip()])
 
 
-STATE_READERS = {"RUN_NFL": run_nfl_state, "THREE_ARM": three_arm_state}
+def wave2_state() -> set:
+    """{(game_id, window)} already recorded on market-data (names only; no record is opened)."""
+    _git("fetch", "--depth=1", "--filter=blob:none", "origin", "market-data")
+    r = _git("ls-tree", "-r", "--name-only", "origin/market-data", wave2_due.RECORD_PREFIX, timeout=60)
+    return wave2_due.seen_from_names(r.stdout.split())
+
+
+STATE_READERS = {"RUN_NFL": run_nfl_state, "THREE_ARM": three_arm_state, "WAVE2": wave2_state}
 
 
 def active_runs(workflow: str) -> int:
@@ -95,6 +107,21 @@ def one_pass(targets, games, src, now, dispatched, *, dry_run=False, ref="main",
     for name in targets:
         wf = TARGETS[name]["workflow"]
         line = {"at": now.isoformat(), "target": name, "workflow": wf}
+        if name == "WAVE2":
+            # Not tied to the active-week resolver: any post-cutoff game whose EARLY / LATE window is open is owed.
+            # CHEAP FIRST: no window open for any game -> nothing can be owed, so market-data is not even listed.
+            open_ids = wave2_due.due(games, now, set())
+            due_ids = wave2_due.due(games, now, state_readers[name]()) if open_ids else []
+            n_active = active(wf) if due_ids and not dry_run else 0
+            go, why = decide(due_ids, dispatched.setdefault(name, {}), now, n_active)
+            line.update(decision=("dispatch" if go else "wait"), reason=why, due=due_ids, open=open_ids)
+            if go:
+                ok, msg = (True, "dry run") if dry_run else dispatcher(wf, ref)
+                line.update(dispatched=ok, message=msg)
+                if ok:
+                    dispatched[name][frozenset(due_ids)] = now
+            lines.append(line)
+            continue
         if week["status"] != "OK":
             line.update(decision="idle", reason=week.get("reason"))
             lines.append(line)
@@ -180,7 +207,8 @@ def main(argv=None):
     ap.add_argument("--minutes", type=float, default=340.0)
     ap.add_argument("--interval", type=float, default=240.0)
     ap.add_argument("--targets", default="RUN_NFL,THREE_ARM",
-                    help="comma list of RUN_NFL, THREE_ARM, POSTGAME (postgame-settle / actual-wagers / shadow-v2-settle)")
+                    help="comma list of RUN_NFL, THREE_ARM, WAVE2 (wave2-research.yml), POSTGAME "
+                         "(postgame-settle / actual-wagers / shadow-v2-settle)")
     ap.add_argument("--ref", default="main")
     ap.add_argument("--chain-workflow", default=None,
                     help="dispatch this workflow once, near the end, so the next conductor does not depend on cron")
