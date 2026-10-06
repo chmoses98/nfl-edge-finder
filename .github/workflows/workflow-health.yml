@@ -62,6 +62,22 @@ jobs:
       - name: Keep the capture health on market-data
         continue-on-error: true
         run: python3 scripts/ci/publish_market_data.py --src data/ops/capture_health --message "horizon capture health $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      # WAVE-2 COLLECTION HEALTH (GAME SCRIPT V2 research evidence, RESEARCH_ONLY). Every EARLY / LATE window the
+      # schedule owes since wave2-research.yml reached main is CAPTURED, INVALID (malformed, incoherent arm, stale
+      # components hash, post-kickoff, dry-run, wrong schema), WRITE_ONCE_COLLISION or MISSED, and every finished
+      # post-cutoff game has (or lacks) a pre-kickoff GAME SCRIPT V2 capture with world fingerprints for RISK1. Missing
+      # evidence is red here instead of silently absent. Reads predictions only: no outcome, no score, no metric.
+      - name: Wave-2 collection health
+        id: wave2_health
+        continue-on-error: true
+        shell: bash -eo pipefail {0}
+        run: |
+          git fetch --depth=1 --filter=blob:none origin market-data || true
+          python3 scripts/sim/wave2_collection_health.py --market-data-ref origin/market-data --out data/ops/wave2_collection \
+            --fail-on-recent-miss-hours 48 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Keep the Wave-2 collection health on market-data
+        continue-on-error: true
+        run: python3 scripts/ci/publish_market_data.py --src data/ops/wave2_collection --message "wave2 collection health $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       # DEAD-CHAIN ALARM. The conductors keep themselves alive by dispatching their successor, with an hourly cron as
       # a backstop on the same unreliable scheduler. A dead chain is red here (and restarted once) instead of being
       # discovered by a missed horizon or a capture gap. The router's conductor is watched read-only and never red.
@@ -77,6 +93,11 @@ jobs:
         if: steps.chains.outcome == 'failure'
         run: |
           echo "::error::A self-chaining conductor had no link queued or running. It was re-dispatched once; see the table above."
+          exit 1
+      - name: Wave-2 research evidence was missed or invalid
+        if: steps.wave2_health.outcome == 'failure'
+        run: |
+          echo "::error::A Wave-2 capture window owed in the last 48h was MISSED / INVALID, or a RISK1 script capture is missing. See the Wave-2 collection health above."
           exit 1
       - name: A horizon owed under the conductor was missed
         if: steps.capture_health.outcome == 'failure'

@@ -198,7 +198,7 @@ def test_workflow_health_wires_the_alarm_and_the_conductor_starts_the_postgame_t
     assert "exit 1" in red["run"]
     assert wh["permissions"]["actions"] == "write"
     hc = open(os.path.join(ROOT, ".github", "workflows", "horizon-conductor.yml")).read()
-    assert "--targets RUN_NFL,THREE_ARM,POSTGAME" in hc
+    assert "--targets RUN_NFL,THREE_ARM,WAVE2,POSTGAME" in hc   # WAVE2: Wave-2 research capture windows (RESEARCH_ONLY)
     for wf in POSTGAME_WORKFLOWS:
         doc = yaml.safe_load(open(os.path.join(ROOT, ".github", "workflows", wf)))
         on = doc.get(True, doc.get("on"))

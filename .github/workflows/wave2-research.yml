@@ -13,6 +13,14 @@ on:
   schedule:
     - cron: '7,37 * * * *'
   workflow_dispatch:
+    inputs:
+      rehearsal_cutoff:
+        description: >-
+          REHEARSAL ONLY (blank = normal capture). An ISO instant inside some post-cutoff game's EARLY / LATE window:
+          the full download -> simulate -> write path runs at that cutoff into a scratch directory as dry_run records,
+          a second attempt proves the (game, window) is refused, and NOTHING is published.
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -42,12 +50,13 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
       - name: Is any game due? (schedule + record index only)
         id: due
+        if: inputs.rehearsal_cutoff == ''
         run: |
           python3 scripts/data/nflverse_download.py --only schedules --seasons 2026-2026 2>&1 | tail -1
           git fetch --depth=1 --filter=blob:none origin market-data
           python3 scripts/sim/wave2_prospective.py --check-only --existing-from-git origin/market-data --github-output "$GITHUB_OUTPUT"
       - name: Fetch bronze inputs (nflverse) and market-data
-        if: steps.due.outputs.due == 'true'
+        if: steps.due.outputs.due == 'true' || inputs.rehearsal_cutoff != ''
         run: |
           python3 scripts/data/nflverse_download.py --only pbp,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,depth_charts,ff_playerids --seasons 2016-2026 2>&1 | tail -3
           python3 nfl_edge/data/silver.py 2016 2026 2>&1 | tail -2
@@ -67,3 +76,25 @@ jobs:
         continue-on-error: true
         run: |
           python3 scripts/ci/publish_market_data.py --src data/research/wave2 --message "wave2 research capture $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      # REHEARSAL (workflow_dispatch with rehearsal_cutoff): proves the capture path in this exact environment before a
+      # real window, without creating evidence. Records are dry_run (the scorer refuses them), live only in /tmp, and
+      # are uploaded as a run artifact for inspection. The second attempt must find nothing due for the same window.
+      - name: Rehearsal capture (dry run, never published)
+        if: inputs.rehearsal_cutoff != ''
+        env:
+          PYTHONHASHSEED: '0'
+        run: |
+          python3 scripts/sim/wave2_prospective.py --market-data /tmp/md --cutoff "${{ inputs.rehearsal_cutoff }}" \
+            --out /tmp/rehearsal --dry-run 2>&1 | tail -5
+          ls -l /tmp/rehearsal/data/research/wave2/*/ | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 scripts/sim/wave2_prospective.py --market-data /tmp/md --cutoff "${{ inputs.rehearsal_cutoff }}" \
+            --out /tmp/rehearsal --dry-run 2>&1 | tail -2 | tee /tmp/second.txt
+          grep -q "due: none" /tmp/second.txt && echo "write-once: the second attempt found nothing due (refused)" | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 scripts/sim/wave2_collection_health.py --validate-dir /tmp/rehearsal --rehearsal | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Keep the rehearsal records as an artifact
+        if: inputs.rehearsal_cutoff != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: wave2-rehearsal
+          path: /tmp/rehearsal/data/research/wave2
+          retention-days: 7
