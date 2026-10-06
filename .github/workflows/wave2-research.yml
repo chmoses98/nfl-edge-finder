@@ -90,7 +90,7 @@ jobs:
           python3 scripts/sim/wave2_prospective.py --market-data /tmp/md --cutoff "${{ inputs.rehearsal_cutoff }}" \
             --out /tmp/rehearsal --dry-run 2>&1 | tail -2 | tee /tmp/second.txt
           grep -q "due: none" /tmp/second.txt && echo "write-once: the second attempt found nothing due (refused)" | tee -a "$GITHUB_STEP_SUMMARY"
-          python3 scripts/sim/wave2_collection_health.py --validate-dir /tmp/rehearsal --allow-dry-run | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 scripts/sim/wave2_collection_health.py --validate-dir /tmp/rehearsal --rehearsal | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Keep the rehearsal records as an artifact
         if: inputs.rehearsal_cutoff != ''
         uses: actions/upload-artifact@v4

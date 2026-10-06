@@ -187,3 +187,14 @@ def test_workflow_wiring_keeps_the_frozen_design():
     assert "RUN_NFL,THREE_ARM,WAVE2,POSTGAME" in hc
     wh = open(os.path.join(ROOT, ".github", "workflows", "workflow-health.yml")).read()
     assert "wave2_collection_health.py" in wh and "--fail-on-recent-miss-hours 48" in wh
+
+
+def test_rehearsal_validation_waives_only_the_replay_timing(tmp_path):
+    import gzip
+    p = T.write(tmp_path, GID, "LATE", KO - timedelta(minutes=60), KO, dry=True)
+    d = json.loads(gzip.decompress(open(p, "rb").read()))
+    d["generated_at"] = (KO + timedelta(days=1)).isoformat()          # a replay runs long after the game
+    assert H.record_problems(d, p) == ["dry-run record", "generated at or after kickoff"]
+    assert H.record_problems(d, p, rehearsal=True) == []
+    d["games"][GID]["cutoff"] = (KO + timedelta(minutes=5)).isoformat()   # the FEATURE cutoff is still enforced
+    assert "feature cutoff at or after kickoff" in H.record_problems(d, p, rehearsal=True)

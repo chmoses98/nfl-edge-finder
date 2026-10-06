@@ -54,8 +54,11 @@ def _ts(x) -> datetime:
 
 
 # ------------------------------------------------------------------------------------------ record checks
-def record_problems(doc: dict, name: str, *, allow_dry_run: bool = False) -> list:
-    """Integrity problems of one record file (empty list = valid). Prediction content only."""
+def record_problems(doc: dict, name: str, *, allow_dry_run: bool = False, rehearsal: bool = False) -> list:
+    """Integrity problems of one record file (empty list = valid). Prediction content only. `rehearsal` (a replay of
+    a past cutoff into /tmp, never published) accepts dry_run records and skips ONLY the generated-before-kickoff
+    check, which a replay can never pass; the feature cutoff must still precede kickoff."""
+    allow_dry_run = allow_dry_run or rehearsal
     p = []
     nm = WD.parse_record_name(name)
     games = doc.get("games") or {}
@@ -83,7 +86,7 @@ def record_problems(doc: dict, name: str, *, allow_dry_run: bool = False) -> lis
         ko = _ts(g["kickoff_utc"])
         if ko <= _ts(WD.PROSPECTIVE_CUTOFF):
             p.append("kickoff before the prospective cutoff")
-        if not doc.get("generated_at") or _ts(doc["generated_at"]) >= ko:
+        if not doc.get("generated_at") or (_ts(doc["generated_at"]) >= ko and not rehearsal):
             p.append("generated at or after kickoff")
         if not g.get("cutoff") or _ts(g["cutoff"]) >= ko:
             p.append("feature cutoff at or after kickoff")
@@ -286,6 +289,7 @@ def main(argv=None) -> int:
     ap.add_argument("--records-root", default=None, help="a market-data checkout instead of a git ref")
     ap.add_argument("--validate-dir", default=None, help="validate every record under DIR/data/research/wave2 and exit")
     ap.add_argument("--allow-dry-run", action="store_true")
+    ap.add_argument("--rehearsal", action="store_true", help="validate replayed dry-run records (see record_problems)")
     ap.add_argument("--out", default=None)
     ap.add_argument("--now", default=None)
     ap.add_argument("--fail-on-recent-miss-hours", type=float, default=None)
@@ -296,7 +300,7 @@ def main(argv=None) -> int:
         for n in src.names(WD.RECORD_PREFIX):
             if not WD.parse_record_name(n):
                 continue
-            probs = record_problems(_doc(src, n), n, allow_dry_run=a.allow_dry_run)
+            probs = record_problems(_doc(src, n), n, allow_dry_run=a.allow_dry_run, rehearsal=a.rehearsal)
             print(f"{'VALID' if not probs else 'INVALID'}  {n}" + (f"  {probs}" if probs else ""))
             bad += bool(probs)
         return 1 if bad else 0
