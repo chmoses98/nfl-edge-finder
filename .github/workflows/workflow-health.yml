@@ -62,6 +62,20 @@ jobs:
           python3 scripts/handicap/horizon_capture_health.py --run-nfl-state /tmp/run_nfl_state.json \
             --three-arm-markers-dir /tmp/ta --out data/ops/capture_health --fail-on-recent-miss-hours 48 \
             | tee -a "$GITHUB_STEP_SUMMARY"
+      # APP PUBLICATION ALARM (scripts/ops/app_publication_health.py). Incident 2026-10-06/07: the app board stopped at
+      # the week-4 MNF pregame build and kept ATL@NO SCHEDULED for a day while every horizon run failed on a removed
+      # nflverse asset; nothing here noticed. Red on a board that still calls a game live 8h after kickoff, an overdue
+      # slate rollover, a 72h-old board while a slate is active, or Sift's live-quote feed declaring the source stale.
+      - name: App publication health
+        id: app_publication
+        continue-on-error: true
+        run: |
+          git fetch --depth=1 origin handicap-reports || true
+          git show origin/handicap-reports:app/latest/board.json > /tmp/app_board.json 2>/dev/null || echo '{}' > /tmp/app_board.json
+          git show origin/handicap-reports:latest/manifest.json > /tmp/app_manifest.json 2>/dev/null || echo '{}' > /tmp/app_manifest.json
+          curl -fsS --max-time 30 https://raw.githubusercontent.com/chmoses98/sift-sports-intelligence/live-quotes/index.json > /tmp/live_quotes_index.json || echo 'not readable' > /tmp/live_quotes_index.json
+          python3 scripts/ops/app_publication_health.py --board /tmp/app_board.json --manifest /tmp/app_manifest.json \
+            --feed-index /tmp/live_quotes_index.json --allow-download --summary "$GITHUB_STEP_SUMMARY"
       - name: Keep the capture health on market-data
         continue-on-error: true
         run: python3 scripts/ci/publish_market_data.py --src data/ops/capture_health --message "horizon capture health $(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -101,6 +115,11 @@ jobs:
         if: steps.wave2_health.outcome == 'failure'
         run: |
           echo "::error::A Wave-2 capture window owed in the last 48h was MISSED / INVALID, or a RISK1 script capture is missing. See the Wave-2 collection health above."
+          exit 1
+      - name: The app publication stopped describing the present
+        if: steps.app_publication.outcome == 'failure'
+        run: |
+          echo "::error::The canonical app board (handicap-reports:app/latest) is stale. See App publication health above."
           exit 1
       - name: A horizon owed under the conductor was missed
         if: steps.capture_health.outcome == 'failure'
