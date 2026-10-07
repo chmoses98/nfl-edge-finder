@@ -32,7 +32,8 @@ def _season_of(filename: str):
 def catalog(seasons):
     return {
         "pbp": [f"play_by_play_{s}.parquet" for s in seasons],
-        "schedules": ["games.csv", "games.rds"],  # games.csv is the canonical one
+        # gzip since 2026-10-06 (games.csv and games.rds now 404); games.csv is derived from it below.
+        "schedules": ["games.csv.gz"],
         "stats_player": [f"stats_player_week_{s}.parquet" for s in seasons],
         "stats_team": [f"stats_team_week_{s}.parquet" for s in seasons],
         "weekly_rosters": [f"roster_weekly_{s}.parquet" for s in seasons],
@@ -87,6 +88,30 @@ def fetch(url, dest, retries=3):
             time.sleep(2 ** attempt)
     return {"status": "failed"}
 
+def derive_schedule_csv(d: str) -> dict:
+    """Write schedules/games.csv, the path every reader (silver, calendar, settlement, shadow v2) opens.
+
+    It is the release's games.csv.gz decompressed byte for byte -- the same table the uncompressed asset carried
+    until nflverse dropped it. If the gzip asset is ever missing, the legacy uncompressed asset is fetched instead.
+    """
+    import gzip
+    src, dest = os.path.join(d, "games.csv.gz"), os.path.join(d, "games.csv")
+    rel = os.path.relpath(dest, ROOT)
+    if os.path.exists(src):
+        with gzip.open(src, "rb") as fin, open(dest + ".part", "wb") as fout:
+            fout.write(fin.read())
+        os.replace(dest + ".part", dest)
+        row = {"path": rel, "derived_from": os.path.relpath(src, ROOT), "status": "derived",
+               "retrieved_at": datetime.now(timezone.utc).isoformat()}
+    else:
+        url = f"{BASE}/schedules/games.csv"
+        row = {"path": rel, "url": url, "retrieved_at": datetime.now(timezone.utc).isoformat(), **fetch(url, dest)}
+    if os.path.exists(dest):
+        row["bytes"] = os.path.getsize(dest)
+        row["sha256"] = sha256(dest)
+    return row
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
@@ -137,6 +162,11 @@ def main():
                     row["vintage_snapshot"] = (v or {}).get("snapshot_path")
                 except BaseException as exc:                               # noqa: BLE001
                     row["vintage_snapshot_error"] = f"{type(exc).__name__}: {exc}"
+            print(json.dumps(row), flush=True)
+            with open(manifest_path, "a") as f:
+                f.write(json.dumps(row) + "\n")
+        if release == "schedules":
+            row = derive_schedule_csv(d)
             print(json.dumps(row), flush=True)
             with open(manifest_path, "a") as f:
                 f.write(json.dumps(row) + "\n")

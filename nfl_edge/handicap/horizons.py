@@ -226,3 +226,33 @@ def prune(state: dict, now: datetime, keep_days: int = 45) -> dict:
     out["captured"] = {k: v for k, v in (out.get("captured") or {}).items()
                        if (_dt(v.get("kickoff_utc")) or now) >= cutoff}
     return out
+
+
+def rollover_due(week: dict, published: dict | None) -> dict | None:
+    """ROLLOVER: the canonical report still describes an EARLIER slate than the active one, so a build is owed now.
+
+    The four horizons only open T-24h before a cluster. Between the last game of one week and T-24h of the next
+    (Tuesday-Wednesday, ~48h), the published board kept the finished week's last kickoff as PREGAME/SCHEDULED, so
+    the app and the live-quote feed saw no current game for two days. The documented bridge -- the 2-hourly
+    shadow-price refresh -- has not built a report since 2026-09-30: its capture is 50-60 minutes old by the
+    time it builds and its 45-minute capture gate (deliberately) refuses it. A RUN NFL build captures fresh, so
+    the rollover is owed to RUN NFL.
+
+    Idempotent without state: once a build for the active slate is published, `published` names that slate and
+    nothing is owed. Never owed off-season (no active slate) and never for a slate the published report is
+    already at or past (a pinned manual build of a later week is left alone).
+    """
+    if (week or {}).get("status") != "OK":
+        return None
+    pub = published or {}
+    try:
+        pub_key = (int(pub["season"]), int(pub["week"]))
+    except (KeyError, TypeError, ValueError):
+        pub_key = None
+    active_key = (int(week["season"]), int(week["week"]))
+    if pub_key is not None and pub_key >= active_key:
+        return None
+    return {"rollover_id": f"{week['slate_id']}|ROLLOVER", "active_slate_id": week["slate_id"],
+            "published_slate_id": pub.get("slate_id"),
+            "reason": (f"rollover: the published report is {pub.get('slate_id') or 'missing/unreadable'}, "
+                       f"the active slate is {week['slate_id']}; building it now")}

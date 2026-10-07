@@ -15,9 +15,10 @@ from datetime import datetime, timezone, timedelta
 
 WEATHER_LOOKAHEAD_DAYS = 10
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, ROOT)
+from nfl_edge.data.nfl_calendar import SCHEDULE_URLS, decode_schedule_bytes  # noqa: E402  (stdlib-only)
 UA = "nfl-edge-finder/0.1 (research; github.com/chmoses98/nfl-edge-finder)"
 OUT = os.path.join(ROOT, "data", "context")
-SCHEDULE_URL = "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
 
 
 def get(url, timeout=60):
@@ -75,10 +76,15 @@ def main(argv=None):
     state = json.load(open(state_path)) if os.path.exists(state_path) else {}
     stadiums = json.load(open(os.path.join(ROOT, "config", "stadiums.json")))
     # schedule
-    raw, meta = try_get(SCHEDULE_URL); man["sources"]["schedule"] = meta
+    # The release asset is gzip now (nfl_calendar.SCHEDULE_URLS); the legacy name is asked only when it is gone.
+    for url in SCHEDULE_URLS:
+        raw, meta = try_get(url)
+        if raw or meta.get("status") != 404:
+            break
+    man["sources"]["schedule"] = dict(meta, url=url)
     games = []
     if raw:
-        for row in csv.DictReader(io.StringIO(raw.decode())):
+        for row in csv.DictReader(io.StringIO(decode_schedule_bytes(raw))):
             if not row.get("gametime") or row.get("result"):
                 continue
             try:

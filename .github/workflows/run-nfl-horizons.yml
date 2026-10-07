@@ -48,6 +48,7 @@ jobs:
       week: ${{ steps.gate.outputs.week }}
       horizon_ids: ${{ steps.gate.outputs.horizon_ids }}
       reason: ${{ steps.gate.outputs.reason }}
+      rollover: ${{ steps.gate.outputs.rollover }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -60,11 +61,15 @@ jobs:
           mkdir -p /tmp/hz
           git fetch --depth=1 origin handicap-reports || true
           git show origin/handicap-reports:state/horizons.json > /tmp/hz/state.json 2>/dev/null || echo '{}' > /tmp/hz/state.json
+          git show origin/handicap-reports:latest/manifest.json > /tmp/hz/published.json 2>/dev/null || echo '{}' > /tmp/hz/published.json
+      # ROLLOVER (nfl_edge.handicap.horizons.rollover_due): a published report of an EARLIER slate than the active
+      # one is a build owed now, not at the next week's T-24h. Without it the finished week's last kickoff stayed
+      # "SCHEDULED" on the board for ~48h after every Monday game (2026-10-06).
       - name: Which horizons are due?
         id: gate
         run: |
           python3 scripts/handicap/horizon_gate.py \
-            --state /tmp/hz/state.json --allow-download \
+            --state /tmp/hz/state.json --published-manifest /tmp/hz/published.json --allow-download \
             --github-output "$GITHUB_OUTPUT"
       - name: Summary
         run: |
@@ -83,5 +88,5 @@ jobs:
       season: ${{ needs.gate.outputs.season }}
       week: ${{ needs.gate.outputs.week }}
       force_fresh: true
-      trigger: horizon
+      trigger: ${{ needs.gate.outputs.rollover == 'true' && needs.gate.outputs.horizon_ids == '' && 'rollover' || 'horizon' }}
       horizon_ids: ${{ needs.gate.outputs.horizon_ids }}

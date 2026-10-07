@@ -39,7 +39,14 @@ POSTSEASON_TYPES = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Conference C
                     "SB": "Super Bowl", "PRO": "Pro Bowl"}
 PRESEASON_TYPES = {"PRE"}
 
-SCHEDULE_URL = "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
+# nflverse publishes the schedule as `games.csv.gz` (also .parquet/.qs). The uncompressed `games.csv` asset this
+# repository read for two seasons was dropped from the release on 2026-10-06 (404 from ~19:47Z, when the release
+# was rebuilt); every reader that downloaded it failed closed and the canonical publication stopped at the week-4
+# MNF pregame build. One ordered list, read by every downloader through `fetch_schedule_text`: the gzip asset
+# first, the legacy name second, so the next rename of either is a fallback rather than an outage.
+SCHEDULE_URL = "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv.gz"
+LEGACY_SCHEDULE_URL = "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
+SCHEDULE_URLS = (SCHEDULE_URL, LEGACY_SCHEDULE_URL)
 
 
 # ======================================================================================================
@@ -106,6 +113,34 @@ def parse_schedule(text: str) -> list:
     return games
 
 
+def decode_schedule_bytes(raw: bytes) -> str:
+    """Schedule bytes as text: gunzipped when gzip (the release asset), as-is otherwise (a local games.csv)."""
+    if raw[:2] == b"\x1f\x8b":
+        import gzip
+        raw = gzip.decompress(raw)
+    return raw.decode()
+
+
+def fetch_schedule_text(*, timeout: int = 60, user_agent: str = "nfl-edge-finder calendar",
+                        _urlopen=None) -> tuple[str, str]:
+    """Download the nflverse schedule as games.csv TEXT. Returns `(text, url)`.
+
+    Tries `SCHEDULE_URLS` in order and moves on ONLY when an asset answers 404 (renamed or removed). Any other
+    failure is raised at once, so callers keep their own retry bound and a real outage still fails closed.
+    """
+    import urllib.error
+    import urllib.request
+    opener = _urlopen or urllib.request.urlopen
+    for i, url in enumerate(SCHEDULE_URLS):
+        req = urllib.request.Request(url, headers={"User-Agent": user_agent})
+        try:
+            with opener(req, timeout=timeout) as r:
+                return decode_schedule_bytes(r.read()), url
+        except urllib.error.HTTPError as e:
+            if e.code != 404 or i == len(SCHEDULE_URLS) - 1:
+                raise
+
+
 def load_schedule(root: str, *, market_data: str | None = None, path: str | None = None,
                   allow_download: bool = False, timeout: int = 60, download_attempts: int = 1,
                   retry_wait_s: float = 10.0, _urlopen=None, _sleep=None):
@@ -128,15 +163,11 @@ def load_schedule(root: str, *, market_data: str | None = None, path: str | None
         tried.append(p)
     if allow_download:
         import time
-        import urllib.request
-        opener = _urlopen or urllib.request.urlopen
         sleep = _sleep or time.sleep
         attempts = max(1, int(download_attempts))
         for attempt in range(1, attempts + 1):
-            req = urllib.request.Request(SCHEDULE_URL, headers={"User-Agent": "nfl-edge-finder calendar"})
             try:
-                with opener(req, timeout=timeout) as r:
-                    raw = r.read().decode()
+                raw, url = fetch_schedule_text(timeout=timeout, _urlopen=_urlopen)
             except Exception as e:  # noqa: BLE001 -- retried a bounded number of times, then re-raised
                 if attempt >= attempts:
                     raise
@@ -144,7 +175,7 @@ def load_schedule(root: str, *, market_data: str | None = None, path: str | None
                       f"{retry_wait_s * attempt:.0f}s", file=sys.stderr)
                 sleep(retry_wait_s * attempt)
                 continue
-            return parse_schedule(raw), SCHEDULE_URL
+            return parse_schedule(raw), url
     raise FileNotFoundError(
         "no NFL schedule available; looked at " + ", ".join(str(t) for t in tried) +
         " (pass --schedule, or allow a download)")

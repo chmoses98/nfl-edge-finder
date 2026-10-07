@@ -58,7 +58,7 @@ SHADOW v2 additions -- ALL BEHIND `--v2-capture` / NFL_EDGE_V2_CAPTURE, DEFAULT 
     series fetch half-failed (absence proves nothing). Writing it is non-fatal by construction.
 """
 from __future__ import annotations
-import argparse, csv, hashlib, io, json, os, sys, time, urllib.request
+import argparse, csv, hashlib, io, json, os, sys, time
 from datetime import datetime, timezone, timedelta
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -68,10 +68,10 @@ from nfl_edge.kalshi.classifier import classify, KALSHI_TO_NFLVERSE  # noqa
 from nfl_edge.board.provisional import PROVISIONAL_FILE, capturable_provisional, load_provisional  # noqa
 from nfl_edge.evaluation import openset as OS  # noqa
 from nfl_edge.semantics.questions import contract_question  # noqa
+from nfl_edge.data.nfl_calendar import fetch_schedule_text  # noqa
 
 REG_PATH = os.path.join(ROOT, "config", "kalshi_nfl_series.json")
 OUT_ROOT = os.path.join(ROOT, "data", "kalshi", "capture")
-SCHEDULE_URL = "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
 BOOK_WINDOW_HOURS = 72.0
 QUOTE_FIELDS = ["yes_bid_dollars", "yes_ask_dollars", "no_bid_dollars", "no_ask_dollars", "last_price_dollars", "volume_fp",
                 "open_interest_fp", "liquidity_dollars", "yes_bid_size_fp", "yes_ask_size_fp", "status", "result", "close_time"]
@@ -86,9 +86,7 @@ def load_schedule(cache_path):
     """Kickoff times (UTC) keyed by (date, away_nflverse, home_nflverse). Falls back to cache if download fails."""
     txt = None
     try:
-        req = urllib.request.Request(SCHEDULE_URL, headers={"User-Agent": "nfl-edge-finder capture"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            txt = r.read().decode()
+        txt, _ = fetch_schedule_text(timeout=60, user_agent="nfl-edge-finder capture")
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         open(cache_path, "w").write(txt)
         src = "download"

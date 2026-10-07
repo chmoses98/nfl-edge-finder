@@ -61,7 +61,7 @@ import math
 import os
 from dataclasses import dataclass, field
 
-from nfl_edge.data.nfl_calendar import SCHEDULE_URL, kickoff_utc, schedule_candidates, season_type_of
+from nfl_edge.data.nfl_calendar import fetch_schedule_text, kickoff_utc, schedule_candidates, season_type_of
 
 FINAL = "FINAL"
 NOT_FINAL = "NOT_FINAL"
@@ -487,8 +487,5 @@ def load_schedule_text(root: str, *, market_data: str | None = None, path: str |
                 return f.read(), p
         tried.append(p)
     if allow_download:
-        import urllib.request
-        req = urllib.request.Request(SCHEDULE_URL, headers={"User-Agent": "nfl-edge-finder settlement"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.read().decode(), SCHEDULE_URL
+        return fetch_schedule_text(timeout=timeout, user_agent="nfl-edge-finder settlement")
     raise FileNotFoundError("no NFL schedule available; looked at " + ", ".join(str(t) for t in tried))
