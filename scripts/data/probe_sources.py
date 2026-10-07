@@ -22,7 +22,7 @@ PROBES = {
     "espn_depth_kc": "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/teams/12/depthcharts",
     "nfl_static_schedule": "https://static.www.nfl.com/",
     "polymarket_gamma": "https://gamma-api.polymarket.com/markets?limit=5&tag=nfl",
-    "nflverse_release": "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv",
+    "nflverse_release": "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv.gz",
 }
 
 

@@ -169,6 +169,21 @@ exactly that reason.
 * **Idempotent.** The identity is `<slate_id>|<cluster kickoff>|T-<n>m`, derived from the schedule and
   recorded in `handicap-reports:state/horizons.json` **only after a build succeeded**. A failed build leaves
   the horizon due for the next wake.
+* **Rollover.** When the published `latest/manifest.json` describes an *earlier* slate than the active one
+  (`nfl_edge.handicap.horizons.rollover_due`), a build is owed now, with no horizon to mark: the gate (fed
+  `--published-manifest`) and the horizon conductor both start it, and it records `trigger: rollover`. It is
+  idempotent without state — once the active slate is published nothing is owed — and is never owed
+  off-season or over a later pinned build. Without it, the finished week's last kickoff stayed `SCHEDULED` on
+  the app board for ~48 hours after every Monday game, because the shadow-price refresh this design relied on
+  has not built a report since 2026-09-30 (its capture is 50–60 minutes old at build time, over its 45-minute
+  gate).
+
+**Incident 2026-10-06/07.** The board stopped at the week-4 MNF pregame build (2026-10-06T00:14Z). Three
+breaks: (1) nflverse removed the `schedules/games.csv` release asset (now `games.csv.gz`; every schedule reader
+404'd from ~19:47Z) — all downloads now go through `nfl_calendar.fetch_schedule_text` / `SCHEDULE_URLS`;
+(2) jobs that check out the ~52 GB market-data worktree died with "No space left on device" from 06:09Z —
+`run-nfl.yml` and `shadow-price.yml` now run `scripts/ci/free_runner_disk.sh` first; (3) no rollover owner
+(above).
 
 ### Which week is it? (`nfl_edge/data/nfl_calendar.py`)
 

@@ -94,6 +94,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+      # ~52 GB market-data worktree: room first, or the runner dies mid-job (scripts/ci/free_runner_disk.sh).
+      - name: Free runner disk for the market-data worktree
+        run: bash scripts/ci/free_runner_disk.sh
       - name: Confirm this is canonical main
         run: |
           echo "building RUN NFL from main @ $(git rev-parse HEAD)"

@@ -16,18 +16,18 @@ runs never touch the same output file. Each shard appends to horizons/<shard>.js
 so a killed runner loses at most the current chunk.
 """
 from __future__ import annotations
-import argparse, csv, hashlib, io, json, os, sys, time, urllib.request
+import argparse, csv, hashlib, io, json, os, sys, time
 from datetime import datetime, timezone, timedelta
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.kalshi.client import KalshiClient  # noqa
+from nfl_edge.data.nfl_calendar import fetch_schedule_text  # noqa
 from nfl_edge.kalshi.classifier import classify  # noqa
 
 OUT = os.path.join(ROOT, "data", "kalshi", "backfill")
 HORIZ_DIR = os.path.join(OUT, "horizons")
 REG_PATH = os.path.join(ROOT, "config", "kalshi_nfl_series.json")
-SCHEDULE_URL = "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
 # minutes before the anchor
 QUOTE_YIELD_CHECK_AT = 200
 HORIZONS = [("T-168h", 168 * 60), ("T-72h", 72 * 60), ("T-48h", 48 * 60), ("T-24h", 24 * 60), ("T-12h", 12 * 60),
@@ -45,9 +45,7 @@ def load_kickoffs():
     cache = os.path.join(OUT, "schedule_cache.csv")
     txt = None
     try:
-        req = urllib.request.Request(SCHEDULE_URL, headers={"User-Agent": "nfl-edge-finder backfill"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            txt = r.read().decode()
+        txt, _ = fetch_schedule_text(timeout=60, user_agent="nfl-edge-finder backfill")
         os.makedirs(OUT, exist_ok=True); open(cache, "w").write(txt)
     except Exception:
         if os.path.exists(cache):

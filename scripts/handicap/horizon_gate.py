@@ -26,7 +26,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 from nfl_edge.data.nfl_calendar import load_schedule, resolve_active_week  # noqa: E402
-from nfl_edge.handicap.horizons import HORIZONS_MIN, due_horizons  # noqa: E402
+from nfl_edge.handicap.horizons import HORIZONS_MIN, due_horizons, rollover_due  # noqa: E402
 
 
 def main():
@@ -35,6 +35,9 @@ def main():
     ap.add_argument("--schedule", default=None)
     ap.add_argument("--allow-download", action="store_true")
     ap.add_argument("--state", default=None, help="horizon capture state JSON (missing = nothing captured)")
+    ap.add_argument("--published-manifest", default=None,
+                    help="the published latest/manifest.json; a report of an earlier slate makes a ROLLOVER build "
+                         "owed (nfl_edge.handicap.horizons.rollover_due). Omitted = horizons only")
     ap.add_argument("--now", default=None)
     ap.add_argument("--horizons", default=",".join(str(h) for h in HORIZONS_MIN),
                     help="comma-separated minutes before kickoff")
@@ -65,6 +68,17 @@ def main():
         out = due_horizons(week["slate_id"], week["games"], now, state, horizons_min=horizons)
         out["slate_status"] = "OK"
         out["slate"] = week
+        if a.published_manifest is not None:
+            published = {}
+            try:
+                published = json.load(open(a.published_manifest))
+            except (OSError, ValueError):
+                print(f"::warning::published manifest at {a.published_manifest} is unreadable; treating as none")
+            roll = rollover_due(week, published)
+            out["rollover"] = roll
+            if roll and not out["should_run"]:
+                out["should_run"] = True
+                out["reason"] = roll["reason"]
 
     print(json.dumps({k: v for k, v in out.items() if k != "slate"}, indent=1))
     print(f"\nreason: {out['reason']}")
@@ -85,6 +99,7 @@ def main():
             f.write(f"horizon_ids={','.join(r['horizon_id'] for r in due)}\n")
             f.write(f"tightest_horizon_min={due[0]['horizon_min'] if due else ''}\n")
             f.write(f"missed={len(out.get('missed') or [])}\n")
+            f.write(f"rollover={'true' if out.get('rollover') else 'false'}\n")
     return 0
 
 

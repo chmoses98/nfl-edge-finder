@@ -25,13 +25,12 @@ import io
 import json
 import os
 import sys
-import urllib.request
 from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
-from nfl_edge.data.nfl_calendar import SCHEDULE_URL, kickoff_utc                           # noqa: E402
+from nfl_edge.data.nfl_calendar import fetch_schedule_text, kickoff_utc                    # noqa: E402
 from nfl_edge.shadow_v2 import inactives as IN                                             # noqa: E402
 
 
@@ -43,9 +42,7 @@ def schedule_rows(path: str | None):
     if path and os.path.exists(path):
         text = open(path).read()
     else:
-        req = urllib.request.Request(SCHEDULE_URL, headers={"User-Agent": IN.UA})
-        with urllib.request.urlopen(req, timeout=90) as r:
-            text = r.read().decode()
+        text, _ = fetch_schedule_text(timeout=90, user_agent=IN.UA)
     return list(csv.DictReader(io.StringIO(text)))
 
 

@@ -37,7 +37,7 @@ from nfl_edge.handicap.automation import (                                      
     POSTGAME_WORKFLOWS, decide_postgame, postgame_ticks, record_dispatch,
 )
 from nfl_edge.handicap.conductor import decide, handover_end, should_chain           # noqa: E402
-from nfl_edge.handicap.horizons import HORIZONS_MIN, cluster_kickoffs, due_horizons  # noqa: E402
+from nfl_edge.handicap.horizons import HORIZONS_MIN, cluster_kickoffs, due_horizons, rollover_due  # noqa: E402
 from nfl_edge.sim import wave2_due                                                    # noqa: E402
 
 TARGETS = {
@@ -56,6 +56,19 @@ def run_nfl_state() -> dict:
     workflow's own gate, reading the same file, is what finally decides)."""
     _git("fetch", "--depth=1", "origin", "handicap-reports")
     r = _git("show", "origin/handicap-reports:state/horizons.json", timeout=60)
+    try:
+        return json.loads(r.stdout) if r.returncode == 0 and r.stdout.strip() else {}
+    except ValueError:
+        return {}
+
+
+def run_nfl_published() -> dict:
+    """The published `latest/manifest.json` on handicap-reports (one small API read, not a branch fetch).
+    Unreadable -> {} (a rollover is then owed and run-nfl-horizons' own gate, reading the branch, decides)."""
+    repo = os.environ.get("GITHUB_REPOSITORY", "chmoses98/nfl-edge-finder")
+    r = subprocess.run(["gh", "api", "-H", "Accept: application/vnd.github.raw",
+                        f"repos/{repo}/contents/latest/manifest.json?ref=handicap-reports"],
+                       cwd=ROOT, capture_output=True, text=True, timeout=60)
     try:
         return json.loads(r.stdout) if r.returncode == 0 and r.stdout.strip() else {}
     except ValueError:
@@ -97,7 +110,7 @@ def dispatch(workflow: str, ref: str) -> tuple[bool, str]:
 
 
 def one_pass(targets, games, src, now, dispatched, *, dry_run=False, ref="main",
-             state_readers=None, active=None, dispatcher=None) -> list:
+             state_readers=None, active=None, dispatcher=None, published_reader=None) -> list:
     """Evaluate every target once. Returns one log line per target. Injection points exist for tests."""
     state_readers = state_readers or STATE_READERS
     active = active or active_runs
@@ -133,6 +146,12 @@ def one_pass(targets, games, src, now, dispatched, *, dry_run=False, ref="main",
         else:
             d = due_horizons(week["slate_id"], week["games"], now, state_readers[name](), horizons_min=HORIZONS_MIN)
         due_ids = [r["horizon_id"] for r in (d.get("due") or [])]
+        # RUN NFL only: a published report of an earlier slate is a build owed now (horizons.rollover_due).
+        roll = (rollover_due(week, published_reader())
+                if name == "RUN_NFL" and not due_ids and published_reader is not None else None)
+        if roll:
+            due_ids = [roll["rollover_id"]]
+            line.update(rollover=roll)
         n_active = active(wf) if due_ids and not dry_run else 0
         go, why = decide(due_ids, dispatched.setdefault(name, {}), now, n_active)
         line.update(decision=("dispatch" if go else "wait"), reason=why, due=due_ids,
@@ -229,7 +248,8 @@ def main(argv=None):
             if games is None or t0 - loaded > 3600:
                 games, src = load_schedule(ROOT, allow_download=True)
                 loaded = t0
-            for line in one_pass(targets, games, src, now, dispatched, dry_run=a.dry_run, ref=a.ref):
+            for line in one_pass(targets, games, src, now, dispatched, dry_run=a.dry_run, ref=a.ref,
+                                 published_reader=run_nfl_published):
                 print(json.dumps(line, default=str), flush=True)
             if postgame:
                 for line in postgame_pass(games, now, pg_attempts, dry_run=a.dry_run, ref=a.ref):

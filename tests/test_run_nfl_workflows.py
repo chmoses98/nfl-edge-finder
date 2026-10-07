@@ -175,7 +175,9 @@ def test_the_expensive_path_runs_only_when_a_horizon_is_due():
     assert "needs.gate.outputs.should_run == 'true'" in report["if"]
     assert report["uses"].endswith("run-nfl.yml"), "the conductor must reuse the RUN NFL workflow"
     assert report["with"]["force_fresh"] is True, "a horizon snapshot that rerenders an old ledger is not one"
-    assert report["with"]["trigger"] == "horizon"
+    # "horizon", except a pure ROLLOVER build (no horizon due) records itself as "rollover" in the manifest
+    assert report["with"]["trigger"] == ("${{ needs.gate.outputs.rollover == 'true' && "
+                                         "needs.gate.outputs.horizon_ids == '' && 'rollover' || 'horizon' }}")
 
 
 def test_horizons_are_marked_captured_only_after_a_successful_build():
