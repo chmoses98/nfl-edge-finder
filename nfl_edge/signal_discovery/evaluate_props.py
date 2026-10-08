@@ -216,8 +216,11 @@ def market_tests(R: pd.DataFrame, fam: dict, ladders: pd.DataFrame, pf: pd.DataF
     lad = ladders[(ladders["stat"] == kstat)].copy()
     stat = fam["stat"]
     m = R.merge(lad, left_on=["game_id", "player_id"], right_on=["game_id", "gsis_id"], how="inner", suffixes=("", "_m"))
-    if "minutes_to_kickoff" in m.columns:
-        pass
+    # the pregame signal features of each row (DEVIATION FIX: the first run joined no feature columns, so the
+    # pre-registered signal-vs-residual tests were silently empty; see RESULTS "Deviations")
+    lead = sorted({f for feats in spec["groups"].values() for f in feats[:1]})
+    feat = pf[["game_id", "player_id"] + [c for c in lead if c in pf.columns]].drop_duplicates(["game_id", "player_id"])
+    m = m.merge(feat, on=["game_id", "player_id"], how="left", suffixes=("", "_f"))
     m = m[m["market_median"].notna()].copy()
     out: dict[str, Any] = {"ladders_matched": int(len(m)), "by_season": m["season"].value_counts().sort_index().to_dict()}
     if len(m) < 30:
@@ -284,6 +287,27 @@ def market_tests(R: pd.DataFrame, fam: dict, ladders: pd.DataFrame, pf: pd.DataF
                             "top_team_share": float(B["team"].value_counts().iloc[0] / len(B))}
     else:
         out["economics"] = {"n": 0}
+    # POST-HOC DESCRIPTIVE comparator (not pre-registered): buy the same side on EVERY natural rung, ignoring the model.
+    # If this earns as much as the model rule, the model is not the source of any return -- a market-wide bias is.
+    for side in ("YES", "NO"):
+        bb = []
+        for row in m.itertuples(index=False):
+            nat = row.natural
+            if not isinstance(nat, dict) or nat.get("threshold") is None:
+                continue
+            price = nat.get("yes_ask") if side == "YES" else nat.get("no_ask")
+            if price is None or not (0 < price < 1):
+                continue
+            t = float(nat["threshold"])
+            actual = getattr(row, stat)
+            win = (actual >= t) if side == "YES" else (actual < t)
+            fee = kalshi_fee(float(price))
+            bb.append(((1.0 if win else 0.0) - price - fee, price + fee, row.season))
+        if bb:
+            pl_, ou = [b[0] for b in bb], [b[1] for b in bb]
+            out[f"always_{side}_natural_rung_posthoc"] = {
+                "n": len(bb), "roi": sum(pl_) / sum(ou), "roi_ci_boot": list(stats.bootstrap_ratio_ci(pl_, ou)),
+                "by_season": {str(s_): sum(b[0] for b in bb if b[2] == s_) / sum(b[1] for b in bb if b[2] == s_) for s_ in sorted({b[2] for b in bb})}}
     out["status"] = "EVALUATED"
     out["contamination"] = "2025 rungs: archive already mined by prior studies (efficiency_map, model_vs_market); 2026 wks 1-3 used for board discovery"
     return out
