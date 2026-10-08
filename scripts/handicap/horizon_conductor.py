@@ -8,6 +8,9 @@ Every pass, for each target:
   * RUN_NFL   -- capture state is `handicap-reports:state/horizons.json`; dispatches `run-nfl-horizons.yml`.
   * THREE_ARM -- capture state is the marker file names under `market-data:data/shadow/arms/horizons/`;
                  dispatches `three-arm-horizons.yml`.
+  * SIGNAL_LAB -- Football Signal Discovery Lab Wave 2 (RESEARCH_ONLY). State is the record names under
+                 `market-data:data/research/signal_lab_wave2/`; an observe / enter / settle stage owed by
+                 `nfl_edge.signal_discovery.wave2_due` dispatches `signal-lab-wave2.yml`, whose own gate decides.
   * WAVE2     -- GAME SCRIPT V2 Wave-2 research capture (RESEARCH_ONLY). Capture state is the record names under
                  `market-data:data/research/wave2/`; a (game, EARLY | LATE) window is owed while it is open and
                  has no record (`nfl_edge.sim.wave2_due`); dispatches `wave2-research.yml`, whose own gate decides.
@@ -38,12 +41,14 @@ from nfl_edge.handicap.automation import (                                      
 )
 from nfl_edge.handicap.conductor import decide, handover_end, should_chain           # noqa: E402
 from nfl_edge.handicap.horizons import HORIZONS_MIN, cluster_kickoffs, due_horizons, rollover_due  # noqa: E402
+from nfl_edge.signal_discovery import wave2_due as signal_lab_due                    # noqa: E402
 from nfl_edge.sim import wave2_due                                                    # noqa: E402
 
 TARGETS = {
     "RUN_NFL": {"workflow": "run-nfl-horizons.yml"},
     "THREE_ARM": {"workflow": "three-arm-horizons.yml"},
     "WAVE2": {"workflow": "wave2-research.yml"},
+    "SIGNAL_LAB": {"workflow": "signal-lab-wave2.yml"},
 }
 
 
@@ -88,7 +93,15 @@ def wave2_state() -> set:
     return wave2_due.seen_from_names(r.stdout.split())
 
 
-STATE_READERS = {"RUN_NFL": run_nfl_state, "THREE_ARM": three_arm_state, "WAVE2": wave2_state}
+def signal_lab_state() -> set:
+    """{(KIND, game_id)} already recorded on market-data (names only; no record is opened)."""
+    _git("fetch", "--depth=1", "--filter=blob:none", "origin", "market-data")
+    r = _git("ls-tree", "-r", "--name-only", "origin/market-data", signal_lab_due.RECORD_PREFIX, timeout=60)
+    return signal_lab_due.seen_from_names(r.stdout.split())
+
+
+STATE_READERS = {"RUN_NFL": run_nfl_state, "THREE_ARM": three_arm_state, "WAVE2": wave2_state,
+                 "SIGNAL_LAB": signal_lab_state}
 
 
 def active_runs(workflow: str) -> int:
@@ -120,6 +133,21 @@ def one_pass(targets, games, src, now, dispatched, *, dry_run=False, ref="main",
     for name in targets:
         wf = TARGETS[name]["workflow"]
         line = {"at": now.isoformat(), "target": name, "workflow": wf}
+        if name == "SIGNAL_LAB":
+            # Not tied to the active-week resolver. CHEAP FIRST: with nothing recorded, is anything owed at all?
+            # Only then is market-data listed (a stage already recorded is not owed again).
+            maybe = signal_lab_due.owed_ids(signal_lab_due.due(games, now, set()))
+            due_ids = signal_lab_due.owed_ids(signal_lab_due.due(games, now, state_readers[name]())) if maybe else []
+            n_active = active(wf) if due_ids and not dry_run else 0
+            go, why = decide(due_ids, dispatched.setdefault(name, {}), now, n_active)
+            line.update(decision=("dispatch" if go else "wait"), reason=why, due=due_ids)
+            if go:
+                ok, msg = (True, "dry run") if dry_run else dispatcher(wf, ref)
+                line.update(dispatched=ok, message=msg)
+                if ok:
+                    dispatched[name][frozenset(due_ids)] = now
+            lines.append(line)
+            continue
         if name == "WAVE2":
             # Not tied to the active-week resolver: any post-cutoff game whose EARLY / LATE window is open is owed.
             # CHEAP FIRST: no window open for any game -> nothing can be owed, so market-data is not even listed.
@@ -226,7 +254,8 @@ def main(argv=None):
     ap.add_argument("--minutes", type=float, default=340.0)
     ap.add_argument("--interval", type=float, default=240.0)
     ap.add_argument("--targets", default="RUN_NFL,THREE_ARM",
-                    help="comma list of RUN_NFL, THREE_ARM, WAVE2 (wave2-research.yml), POSTGAME "
+                    help="comma list of RUN_NFL, THREE_ARM, WAVE2 (wave2-research.yml), SIGNAL_LAB "
+                         "(signal-lab-wave2.yml), POSTGAME "
                          "(postgame-settle / actual-wagers / shadow-v2-settle)")
     ap.add_argument("--ref", default="main")
     ap.add_argument("--chain-workflow", default=None,

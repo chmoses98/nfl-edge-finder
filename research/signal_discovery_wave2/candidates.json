@@ -1,0 +1,99 @@
+{
+  "status": "PRE-REGISTERED",
+  "version": "nfl-signal-discovery-wave2/1.0.0",
+  "kind": "PROSPECTIVE CONFIRMATION (research only; no bets, recommendations, SIFT badges, staking or automatic wagers)",
+  "registered_on_main": "4f15a6cd1829676ad106e217ac0e323acba7fb75",
+  "wave1_provenance": {
+    "hypotheses_set1_canonical_sha256": "83861082cc3702875ef0e96b97abcc80cd13b29d7167d384f7068568e285afe1",
+    "hypotheses_set2_canonical_sha256": "5f25764743e19bb7cfa84fbef6103920e8ebdb8ac576f1202019ca0ed08979cf",
+    "game_evaluation_report_file_sha256": "74e03303431c16cf0ad64f033f717ae9238a57b6924b204cd591a27e8e87216c",
+    "prop_oos_predictions_file_sha256": "cfb1069f92b42d9097e66b5f9066cadba04da033a6309034c0b26f78a550082b",
+    "role_stability_classifier_source_sha256": "eeec37774ca4309c018205aa0d4a7a3f3d122f86f197e4e98ac845b05936a981",
+    "rb_receptions_always_no_posthoc": "n 223 (2025 T-90m 140, 2026 LAST_PREGAME 83), ROI +10.6% [-1.0, +22.9]; post-hoc comparator, not pre-registered in Wave 1"
+  },
+  "population": {
+    "season": 2026,
+    "season_type": "REG",
+    "week_on_or_after": 6,
+    "no_backfill": "Only games whose OBSERVATION record was written strictly before kickoff by the research job. A population game with no observation by kickoff is SYSTEM_FAILURE and is never reconstructed later.",
+    "player_identity": "Kalshi player -> GSIS with the Wave-1 resolver (signal_discovery.markets.Resolver) on the season roster, accepted ONLY as RESOLVED_NAME_TEAM or RESOLVED_NAME_TEAM_JERSEY (Kalshi team code normalised by markets.TEAM_FIX). Name-only matches and unresolved players -> IDENTITY_FAILURE. The Kalshi player UUID is recorded."
+  },
+  "pregame_features": {
+    "game_layer": "signal_discovery.game_features.game_rows (sim-oppadj-1.0.0 solver, snapshot at (2026, week) on strictly earlier games) with the FROZEN 2026 per-metric lambdas of research/signal_discovery_wave1/game_features_manifest.json (never re-chosen)",
+    "player_layer": "signal_discovery.player_features.build semantics on the upcoming week: nflverse sim features (decayed shares, last-game shares, rates shrunk to the frozen 2012-2015 priors, team volume EWMAs) computed with PHANTOM rows for the week's eligible players (nfl_edge.sim.features.player_features phantom_rows; the row itself is never read), joined to the team-perspective game context (CONTEXT_MAP) and evaluate_props.add_baselines.",
+    "role_stability": "player_features._role_stability, unchanged (source SHA-256 above). INJURY input = the latest injury-report vintage captured at or before the observation instant (nfl_edge.sim.prospective.injury_vintage), instead of Wave-1's final weekly nflverse file (declared NEAR_PIT there). Thresholds unchanged: n_prior < 3 INSUFFICIENT_ROLE_HISTORY; own Q/D or a higher-share same-position teammate Out/Doubtful INJURY_DEPENDENT; |short - long primary share| >= 0.10 or |snap_share_s - snap_share_l| >= 0.15 ROLE_CHANGE; else STABLE_ROLE.",
+    "observation_window": "the observation is written at the first research run inside [kickoff-300 min, kickoff-20 min]; generated_at < kickoff is enforced"
+  },
+  "prop_checkpoint": {
+    "id": "LAST_VALID_PREKICK_QUOTE_24H",
+    "rule": "Per rung: nfl_edge.evaluation.close CloseIndex.select(ticker) (rule close-2.1.0: the last complete valid pre-kickoff observation of the exact contract on the change-suppressed capture, confirmed by the last complete series fetch while the ticker was open). Accepted when close_status is CLOSE_OK or CLOSE_ONE_SIDED, kickoff-24h < confirmed_at < kickoff, and the price row was observed strictly before kickoff. Status must be open/active. Nothing after kickoff is ever read.",
+    "valid_rung": "0 < yes_bid <= yes_ask < 1 and yes_ask - yes_bid <= 0.10 (Wave-1 markets._valid); mid = (yes_bid + yes_ask)/2",
+    "market_median": "Wave-1 markets.ladder_median over valid (threshold, mid) rungs: interpolated threshold where P(stat >= t) crosses 0.5 at the first consecutive pair p1 >= 0.5 >= p2, p1 != p2; none -> missing",
+    "natural_rung": "the valid rung minimising |mid - 0.5|; TIE-BREAK FROZEN HERE: the lowest threshold (Wave-1 left ties to iteration order)",
+    "asks": "side-specific captured asks; NO is never 1 - YES; an ask that is not a whole cent in [0.01, 0.99] is not executable",
+    "fee": "nfl_edge.execution.fees.load_fee_schedule(repo).taker_fee(price, 1.0, series_ticker, as_of=confirmed_at); a non-KNOWN state -> FEE_UNAVAILABLE, never 0"
+  },
+  "game_checkpoint": {
+    "id": "NFL_PRIMARY_60_180",
+    "declared": "NEW prospective test condition (Wave 1 used the untimestamped nflverse consensus closing total)",
+    "window_minutes_before_kickoff": {"open": 180.0, "close": 60.0, "inclusive": true},
+    "rule": "Per KXNFLTOTAL rung: the last capture run whose complete series fetch observed the ticker open with confirmed instant in [kickoff-180, kickoff-60] (CaptureRuns.confirmation evaluated at the window close), its price being the last written row at or before that instant. No run in the window -> ENTRY_UNAVAILABLE. Nothing outside the window is searched.",
+    "market_implied_total": "markets.ladder_median over the valid (threshold, mid) total rungs at the checkpoint (same validity rule as props); never called fair or true total",
+    "natural_rung": "valid rung minimising |mid - 0.5|, tie -> lowest threshold"
+  },
+  "settlement": {
+    "props": "Contract: the exchange's own result for the exact ticker when published (market-data discovery settled/closed buckets); otherwise the nflverse weekly stat of a player with >= 1 offensive snap (threshold t means stat >= t; no push). No exchange result and no participation proof -> SETTLEMENT_PENDING. Accuracy metrics (ROLE_CHANGE) need the realised stat of a player who played; a player who did not play -> EXCLUDED_PROTOCOL (DID_NOT_PLAY).",
+    "totals": "final home + away score including overtime from the nflverse schedule; YES on threshold t pays iff total >= t; NO iff total < t",
+    "append_only": "write-once record files (OBSERVATION, ENTRY, SETTLEMENT) under market-data data/research/signal_lab_wave2/; a frozen record is never rewritten",
+    "clv": "side-aware, same ticker and side, the canonical close (close-2.1.0) minus the entry ask; missing close stays missing"
+  },
+  "streams": {
+    "NFL-PROP-PROS-001": {
+      "name": "RB_RECEPTIONS_NO_STRUCTURE",
+      "hypothesis_id": "H1-NFL-PROP",
+      "wording": "On eligible running-back receptions ladders, purchasing NO on the natural rung selected by the pre-registered ladder rule at the actual captured NO ask produces positive fee-adjusted ROI prospectively.",
+      "market_structure_note": "market-structure research, not a player edge",
+      "eligible": "KXNFLREC ladder (stat receptions, operator >=) of a GSIS-identified player who is in the pregame RB_receptions family: position RB, sh_target_l >= 0.05, n_prior >= 3, b_season.receptions defined (Wave-1 evaluate_props.family_rows); the ladder has a market median and a natural rung at LAST_VALID_PREKICK_QUOTE_24H",
+      "contract": "NO on the natural rung at its captured no_ask, one research contract, taker fee",
+      "unit": "one natural rung per player-game",
+      "primary_question": "fee-adjusted ROI on outlay > 0 (game-clustered bootstrap 95% CI)",
+      "also_reported": ["hit rate", "mean price", "break-even", "played-only subset (Wave-1 comparable)", "by threshold", "by team", "top-5 player share", "CLV"],
+      "reads": {"50": "EARLY_READ", "100": "INTERIM", "200": "INTERIM", "300": "PRIMARY_REVIEW"},
+      "falsified": "fee-adjusted ROI <= 0 at n >= 300 settled -> REJECTED"
+    },
+    "NFL-PROP-PROS-002": {
+      "name": "ROLE_CHANGE_MODEL_ADVANTAGE",
+      "hypothesis_id": "H2-NFL-PROP",
+      "wording": "On player-prop ladders classified ROLE_CHANGE before kickoff, the frozen Wave-1 player projection is more accurate than the market line median at predicting the realized player statistic.",
+      "families": ["QB_pass_yards", "QB_attempts", "QB_completions", "RB_carries", "RB_rush_yards", "RB_receptions", "RB_rec_yards", "WR_receptions", "WR_rec_yards", "TE_receptions", "TE_rec_yards"],
+      "eligible": "pregame family row (Wave-1 family_rows) with role_stability == ROLE_CHANGE; GSIS-identified Kalshi ladder of the family's Kalshi stat with a market median at LAST_VALID_PREKICK_QUOTE_24H",
+      "model": "the Wave-1 ridge (lambda 1, PROP_MODEL features and interactions) of the 2026 walk-forward fold (train 2016-2025), serialized and hashed before the first population kickoff; model median = pred + median_offset. Never refit in Wave 2.",
+      "primary_metric": "d = |market_median - actual| - |model_median - actual| (positive = the model wins); per player-game, the mean of d over that player-game's eligible families; primary = mean over player-games, game-clustered bootstrap 95% CI",
+      "also_reported": ["MAE", "RMSE", "median absolute error", "signed residual", "family / position / player / team concentration", "natural-rung economics (secondary)"],
+      "no_rule": "no 'bet when the model differs by X' rule is created",
+      "reads": {"50": "EARLY_READ", "100": "INTERIM", "200": "PRIMARY_REVIEW"},
+      "falsified": "mean d <= 0 at n >= 200 settled player-games -> REJECTED"
+    },
+    "NFL-GAME-PROS-001": {
+      "name": "TOTALS_DISAGREEMENT_WF",
+      "wave1_source": "WF-TOTAL (hypotheses_set1 walk_forward): OLS of total_resid on [gap.total, env.plays, env.sec_per_play, def_quality_sum.epa, off_quality_sum.epa] + intercept, train seasons < test",
+      "artifact": "the same procedure's 2026 fold (train 2015-2025, identical Wave-1 corpus), serialized and hashed BEFORE the first population kickoff, with proof that the procedure reproduces the Wave-1 2018-2025 fold coefficients exactly. Never refit in Wave 2.",
+      "market_translation": "m.total := market_implied_total at NFL_PRIMARY_60_180, so gap.total = baseline.total - market_implied_total; prediction p = artifact(features)",
+      "qualifies": "|p| >= 2.0 points (Wave-1 pick_threshold_points, preserved)",
+      "side": "OVER if p > 0, UNDER if p < 0",
+      "contract": "natural total rung; OVER = YES at yes_ask, UNDER = NO at no_ask; taker fee (series KXNFLTOTAL)",
+      "primary_question": "mean side-signed residual s * (actual_total - market_implied_total) > 0",
+      "also_reported": ["ATS-like rate", "contract economics", "CLV"],
+      "reads": {"25": "EARLY_READ", "50": "INTERIM", "100": "INTERIM (MEANINGFUL)", "200": "PRIMARY_REVIEW"},
+      "falsified": "mean side-signed residual <= 0 at n >= 200 -> REJECTED"
+    }
+  },
+  "row_statuses": ["PENDING", "ELIGIBLE", "ENTRY_UNAVAILABLE", "MARKET_NOT_OFFERED", "ORIENTATION_FAILURE", "IDENTITY_FAILURE", "FEE_UNAVAILABLE", "SETTLEMENT_PENDING", "SETTLED", "EXCLUDED_PROTOCOL", "SYSTEM_FAILURE"],
+  "verdict_states": ["PROSPECTIVE_TRACKING", "EARLY_READ", "INTERIM", "PRIMARY_REVIEW", "REJECTED", "REVIEW_REQUIRED"],
+  "verdict_rule": "n settled below the first read -> PROSPECTIVE_TRACKING; at/after a read -> that read's state; at/after PRIMARY_REVIEW n: falsified -> REJECTED, otherwise REVIEW_REQUIRED (a human decides; nothing is promoted by code).",
+  "never_emitted_by_code": ["EDGE_CONFIRMED"],
+  "statistics": {
+    "intervals": "95% game-clustered bootstrap percentile, 4,000 resamples, numpy default_rng(20261015); Wilson 95% for rates",
+    "empty": "NO SETTLED SAMPLE (n 0 is never shown as 0)"
+  }
+}

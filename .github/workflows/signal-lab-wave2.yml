@@ -1,0 +1,132 @@
+name: Signal Lab Wave 2 (RESEARCH_ONLY)
+
+# FOOTBALL SIGNAL DISCOVERY LAB -- WAVE 2, prospective confirmation (docs/research/FOOTBALL_SIGNAL_DISCOVERY_WAVE2_PROTOCOL.md).
+# Three frozen streams (NFL-PROP-PROS-001 RB receptions NO structure, NFL-PROP-PROS-002 ROLE_CHANGE projection vs
+# ladder median, NFL-GAME-PROS-001 WF-TOTAL vs the Kalshi total ladder) for 2026 REG week >= 6:
+#
+#   observe  a game kicking off in [now+20, now+300] min gets its frozen pregame record (market-blind);
+#   enter    a kicked-off game gets its checkpoint quotes from the change-suppressed capture (pre-kickoff rows only);
+#   settle   an entered game >= 5 h after kickoff is settled from the exchange's own results and nflverse;
+#   report   a cumulative status file per run.
+#
+# Every record is WRITE-ONCE on market-data under data/research/signal_lab_wave2/. Zero authority: nothing here is
+# read by RUN NFL, Shadow v2, pricing, the board, gates, settlement, the app export, the router, staking or bankroll.
+# Dispatched by the horizon conductor (target SIGNAL_LAB) when a stage is owed; the cron is the backstop.
+# Cheap first: the schedule and a blob-less listing of market-data decide whether anything is owed.
+
+on:
+  schedule:
+    - cron: '13,43 * * * *'
+  workflow_dispatch:
+    inputs:
+      rehearsal_weeks:
+        description: >-
+          REHEARSAL ONLY (blank = normal run). A non-population week (e.g. 5): observe at rehearsal_observe_at and
+          enter at rehearsal_enter_at into a scratch directory; records are marked rehearsal and NEVER published.
+        required: false
+        default: ''
+      rehearsal_observe_at:
+        description: 'REHEARSAL ONLY: ISO instant before that week''s kickoffs'
+        required: false
+        default: ''
+      rehearsal_enter_at:
+        description: 'REHEARSAL ONLY: ISO instant after that week''s kickoffs'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: signal-lab-wave2
+  cancel-in-progress: false
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -q numpy pandas polars scipy pyarrow
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Is any stage owed? (schedule + record index only)
+        id: due
+        run: |
+          python3 scripts/data/nflverse_download.py --only schedules --seasons 2026-2026 2>&1 | tail -1
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --depth=1 --filter=blob:none origin market-data
+          if [ -n "${{ inputs.rehearsal_weeks }}" ]; then
+            echo "due=true" >> "$GITHUB_OUTPUT"
+            echo "capture_days=$(python3 scripts/research/signal_lab_wave2.py days --weeks '${{ inputs.rehearsal_weeks }}')" >> "$GITHUB_OUTPUT"
+          else
+            python3 scripts/research/signal_lab_wave2.py due --existing-from-git origin/market-data --github-output "$GITHUB_OUTPUT"
+          fi
+      - name: Fetch nflverse inputs, 2012-2026 (Wave-1 priors 2012-2015 and the game metric table)
+        if: steps.due.outputs.due == 'true'
+        run: |
+          python3 scripts/data/nflverse_download.py --only pbp,pbp_participation,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,depth_charts,ff_playerids --seasons 2012-2026 2>&1 | tail -3
+          python3 nfl_edge/data/silver.py 2012 2026 2>&1 | tail -2
+          python3 nfl_edge/data/ids.py 2>&1 | tail -3
+      - name: Sparse market-data checkout (the records, the capture state and the kickoff-window capture days)
+        if: steps.due.outputs.due == 'true'
+        env:
+          DAYS: ${{ steps.due.outputs.capture_days }}
+        run: |
+          rm -rf /tmp/md && git worktree add --no-checkout -f /tmp/md origin/market-data
+          git -C /tmp/md sparse-checkout init --no-cone
+          PATHS=('/data/research/signal_lab_wave2/' '/data/kalshi/capture/state.json')
+          for d in $DAYS; do PATHS+=("/data/kalshi/capture/$d/"); done
+          git -C /tmp/md sparse-checkout set "${PATHS[@]}"
+          git -C /tmp/md checkout -q
+          du -sh /tmp/md | tail -1
+      - name: Run the owed stages
+        id: run
+        if: steps.due.outputs.due == 'true' && inputs.rehearsal_weeks == ''
+        continue-on-error: true
+        env:
+          PYTHONHASHSEED: '0'
+        run: |
+          python3 scripts/research/signal_lab_wave2.py run --market-data /tmp/md --out . \
+            --existing-from-git origin/market-data --run-id "$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_RUN_ID}" 2>&1 | tail -60
+      - name: Publish the write-once records
+        if: steps.due.outputs.due == 'true' && inputs.rehearsal_weeks == '' && steps.run.outcome == 'success' && hashFiles('data/research/signal_lab_wave2/**') != ''
+        run: |
+          git worktree remove --force /tmp/md || rm -rf /tmp/md
+          git worktree prune
+          python3 scripts/ci/publish_market_data.py --src data/research/signal_lab_wave2 --message "signal lab wave2 $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: A failed run is a SYSTEM_FAILURE, never silent
+        if: steps.run.outcome == 'failure'
+        run: |
+          echo "::error::signal lab wave 2 stage run failed; owed records stay owed and the next run retries" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 1
+      # REHEARSAL: proves observe -> enter end to end in this environment on a NON-population week. Records are
+      # marked rehearsal, live only in /tmp, are uploaded as an artifact, and are never published.
+      - name: Rehearsal (never published)
+        if: inputs.rehearsal_weeks != ''
+        env:
+          PYTHONHASHSEED: '0'
+        run: |
+          python3 scripts/research/signal_lab_wave2.py run --market-data /tmp/md --out /tmp/rehearsal \
+            --rehearsal-weeks "${{ inputs.rehearsal_weeks }}" --now "${{ inputs.rehearsal_observe_at }}" --stages observe,report 2>&1 | tail -30
+          python3 scripts/research/signal_lab_wave2.py run --market-data /tmp/md --out /tmp/rehearsal \
+            --rehearsal-weeks "${{ inputs.rehearsal_weeks }}" --now "${{ inputs.rehearsal_enter_at }}" --stages enter,report 2>&1 | tail -30
+          ls -R /tmp/rehearsal/data/research/signal_lab_wave2 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Keep the rehearsal records as an artifact
+        if: inputs.rehearsal_weeks != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: signal-lab-wave2-rehearsal
+          path: /tmp/rehearsal/data/research/signal_lab_wave2
+          retention-days: 7
