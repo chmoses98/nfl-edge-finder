@@ -1,5 +1,5 @@
 {
- "as_of": "2026-10-07T23:53:41.811662+00:00",
+ "as_of": "2026-10-08T05:34:30.412814+00:00",
  "capture_health_report": "horizon-capture-health-1.0.0",
  "conductor_deployed_utc": "2026-09-24T12:00:00+00:00",
  "notes": [
@@ -8,9 +8,9 @@
  "run_nfl_latency": {
   "median": {
    "packet_publish_latency_min": 24.2,
-   "pipeline_processing_min": 17.8,
+   "pipeline_processing_min": 17.7,
    "snapshot_capture_latency_min": 6.8,
-   "time_remaining_to_kickoff_at_publication_min": 70.0
+   "time_remaining_to_kickoff_at_publication_min": 328.9
   },
   "rows": [
    {
@@ -356,6 +356,14 @@
     "snapshot_capture_latency_min": 6.0,
     "status": "CAPTURED",
     "time_remaining_to_kickoff_at_publication_min": 61.5
+   },
+   {
+    "horizon_id": "2026-REG-05|20261009T0015Z|T-1440m",
+    "packet_publish_latency_min": 28.3,
+    "pipeline_processing_min": 15.9,
+    "snapshot_capture_latency_min": 12.4,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 1411.7
    }
   ]
  },
@@ -1618,9 +1626,11 @@
      "horizon_id": "2026-REG-05|20261009T0015Z|T-1440m",
      "horizon_min": 1440,
      "kickoff_utc": "2026-10-09T00:15:00+00:00",
+     "lateness_min": 28.3,
      "n_games": 1,
      "slate_id": "2026-REG-05",
-     "status": "NOT_YET_DUE",
+     "snapshot_id": "2026-10-08T00:43:20.224540+00:00",
+     "status": "DELIVERED_LATE",
      "trigger_utc": "2026-10-08T00:15:00+00:00",
      "week": 5
     },
@@ -1904,11 +1914,11 @@
    "summary": {
     "AFTER_CONDUCTOR": {
      "counts": {
-      "DELIVERED_LATE": 42,
+      "DELIVERED_LATE": 43,
       "MISSED": 1,
-      "NOT_YET_DUE": 24
+      "NOT_YET_DUE": 23
      },
-     "delivered": 42,
+     "delivered": 43,
      "delivered_pct": 97.7,
      "horizons": 67,
      "median_lateness_min": 24.2,
@@ -1917,7 +1927,7 @@
       "2026-REG-04|20261005T0020Z|T-30m"
      ],
      "on_time_pct": 0.0,
-     "owed": 43
+     "owed": 44
     },
     "BEFORE_CONDUCTOR": {
      "counts": {
@@ -3193,7 +3203,7 @@
      "kickoff_utc": "2026-10-09T00:15:00+00:00",
      "n_games": 1,
      "slate_id": "2026-REG-05",
-     "status": "NOT_YET_DUE",
+     "status": "DUE",
      "trigger_utc": "2026-10-08T00:15:00+00:00",
      "week": 5
     },
@@ -3479,7 +3489,8 @@
      "counts": {
       "DELIVERED_LATE": 25,
       "DELIVERED_ON_TIME": 18,
-      "NOT_YET_DUE": 24
+      "DUE": 1,
+      "NOT_YET_DUE": 23
      },
      "delivered": 43,
      "delivered_pct": 100.0,
