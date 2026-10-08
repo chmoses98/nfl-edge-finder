@@ -1,0 +1,908 @@
+{
+  "game_hypotheses": [
+    {
+      "family": "CONTROL",
+      "id": "NFL-GAME-001",
+      "interpretation": "The side whose offence-vs-defence EPA matchup is better should win more (prompt 39.1).",
+      "kind": "SIDE",
+      "markets": [
+        "ML",
+        "ATS"
+      ],
+      "name": "Efficiency CONTROL (|net EPA| >= moderate) -> winner / moneyline",
+      "population": {
+        "rule": "control",
+        "strength": null
+      },
+      "primary_market": "ML",
+      "side": "control"
+    },
+    {
+      "family": "CONTROL",
+      "id": "NFL-GAME-002",
+      "interpretation": "|net EPA/play| in [0.075, 0.115): a smaller, less visible efficiency edge (CFB analogue).",
+      "kind": "SIDE",
+      "markets": [
+        "ATS",
+        "ML"
+      ],
+      "name": "MODERATE efficiency CONTROL -> closing spread",
+      "population": {
+        "rule": "control",
+        "strength": "MODERATE"
+      },
+      "primary_market": "ATS",
+      "side": "control"
+    },
+    {
+      "family": "CONTROL",
+      "id": "NFL-GAME-003",
+      "interpretation": "|net EPA/play| >= 0.115: the most visible edge; expected to be priced.",
+      "kind": "SIDE",
+      "markets": [
+        "ATS",
+        "ML"
+      ],
+      "name": "STRONG efficiency CONTROL -> closing spread",
+      "population": {
+        "rule": "control",
+        "strength": "STRONG"
+      },
+      "primary_market": "ATS",
+      "side": "control"
+    },
+    {
+      "expected_sign": 1,
+      "family": "SUSTAINED_EFFICIENCY",
+      "feature": "net.epa_play",
+      "id": "NFL-GAME-004",
+      "interpretation": "Prompt 39.1/39.2: overall efficiency vs winner and vs spread.",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Opponent-adjusted EPA net (continuous) -> margin / ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    },
+    {
+      "expected_sign": 1,
+      "family": "QB_EFFICIENCY",
+      "feature": "net.dropback_epa",
+      "id": "NFL-GAME-005",
+      "interpretation": "Prompt 39.3: the passing game drives NFL margins.",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "QB / dropback efficiency mismatch -> margin / ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    },
+    {
+      "controls": [
+        "net.epa_play"
+      ],
+      "expected_sign": 1,
+      "family": "PASSING",
+      "feature": "net.dropback_epa",
+      "id": "NFL-GAME-006",
+      "interpretation": "Prompt 39.4. CFB found the market OVER-rates passing edges given efficiency (CFB-SIG-014): a cross-sport test.",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Pass offence x pass defence, beyond overall efficiency -> margin / ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    },
+    {
+      "controls": [
+        "net.epa_play"
+      ],
+      "expected_sign": 1,
+      "family": "RUSHING",
+      "feature": "net.designed_rush_epa",
+      "id": "NFL-GAME-007",
+      "interpretation": "Prompt 39.5. CFB found rushing edges UNDER-priced given efficiency (CFB-SIG-015): a cross-sport replication test.",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Rush offence x rush defence, beyond overall efficiency -> margin / ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    },
+    {
+      "expected_sign": 1,
+      "family": "PRESSURE",
+      "feature": "net.sack_rate",
+      "id": "NFL-GAME-008",
+      "interpretation": "Prompt 39.6: a pass rush meeting weak protection kills drives.",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Pressure x protection (sack-rate matchup net) -> margin / ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    },
+    {
+      "controls": [
+        "net.sack_rate"
+      ],
+      "expected_sign": 1,
+      "family": "PRESSURE",
+      "feature": "net.pressure_rate",
+      "id": "NFL-GAME-009",
+      "interpretation": "Pressure beyond sacks. NOT prospectively reproducible: nflverse publishes no in-season 2026 participation file.",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Pressure-rate matchup (participation, 2016-2025 only) -> ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    },
+    {
+      "expected_sign": 1,
+      "family": "EXPLOSIVENESS",
+      "feature": "net.explosive_rate",
+      "id": "NFL-GAME-010",
+      "interpretation": "Prompt 39.7.",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Explosive offence x explosive prevention -> margin / ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    },
+    {
+      "expected_sign": 1,
+      "family": "PACE",
+      "feature": "env.plays",
+      "id": "NFL-GAME-011",
+      "interpretation": "Prompt 39.8: more snaps, more points.",
+      "kind": "SLOPE_TOTAL",
+      "markets": [
+        "TOTAL"
+      ],
+      "name": "Expected pace (both teams' adjusted plays) -> total residual",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "TOTAL"
+    },
+    {
+      "expected_sign": -1,
+      "family": "PACE",
+      "feature": "env.sec_per_play",
+      "id": "NFL-GAME-012",
+      "interpretation": "Slower teams, fewer possessions.",
+      "kind": "SLOPE_TOTAL",
+      "markets": [
+        "TOTAL"
+      ],
+      "name": "Tempo (adjusted seconds per play) -> total residual",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "TOTAL"
+    },
+    {
+      "direction": -1,
+      "family": "DEFENSIVE_SUPPRESSION",
+      "id": "NFL-GAME-013",
+      "interpretation": "Prompt 39.9.",
+      "kind": "TOTAL",
+      "markets": [
+        "TOTAL"
+      ],
+      "name": "DEFENSIVE SUPPRESSION (both defences >= +0.5 SD on EPA allowed) -> under",
+      "population": {
+        "column": "flag.def_suppression",
+        "rule": "flag"
+      },
+      "primary_market": "TOTAL"
+    },
+    {
+      "expected_sign": -1,
+      "family": "DEFENSIVE_SUPPRESSION",
+      "feature": "def_quality_sum.epa",
+      "id": "NFL-GAME-014",
+      "interpretation": "Prompt 39.9 continuous.",
+      "kind": "SLOPE_TOTAL",
+      "markets": [
+        "TOTAL"
+      ],
+      "name": "Defensive quality sum (continuous) -> total residual",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "TOTAL"
+    },
+    {
+      "direction": -1,
+      "family": "GAME_SCRIPT",
+      "id": "NFL-GAME-015",
+      "interpretation": "Prompt 39.10: a team that owns the matchup and leans on the run should shorten the game.",
+      "kind": "TOTAL",
+      "markets": [
+        "TOTAL",
+        "ATS"
+      ],
+      "name": "CONTROL style: efficiency favourite that is run-leaning -> under",
+      "population": {
+        "column": "flag.control_run_style",
+        "rule": "flag"
+      },
+      "primary_market": "TOTAL"
+    },
+    {
+      "expected_sign": 1,
+      "family": "MARKET_DISAGREEMENT",
+      "feature": "gap.margin",
+      "id": "NFL-GAME-016",
+      "interpretation": "Does the opponent-adjusted football baseline hold information the spread lacks?",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Football scoring-baseline margin vs closing spread disagreement -> ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    },
+    {
+      "expected_sign": 1,
+      "family": "MARKET_DISAGREEMENT",
+      "feature": "gap.total",
+      "id": "NFL-GAME-017",
+      "interpretation": "As 016 for totals.",
+      "kind": "SLOPE_TOTAL",
+      "markets": [
+        "TOTAL"
+      ],
+      "name": "Football scoring-baseline total vs closing total disagreement -> total residual",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "TOTAL"
+    },
+    {
+      "expected_sign": 1,
+      "family": "TEAM_TOTAL",
+      "feature": "gap.home_team_total",
+      "id": "NFL-GAME-018",
+      "interpretation": "No historical team-total line in nflverse; implied = (total - home spread)/2. DERIVED.",
+      "kind": "SLOPE_TEAMPTS",
+      "markets": [
+        "TEAM_TOTAL_DERIVED"
+      ],
+      "name": "Team scoring expectation vs DERIVED implied home team total",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "TEAM_TOTAL_DERIVED"
+    },
+    {
+      "expected_sign": 1,
+      "family": "CONTEXT",
+      "feature": "ctx.rest_diff",
+      "id": "NFL-GAME-019",
+      "interpretation": "Section 13 context: is extra rest priced?",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Rest differential -> home ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    },
+    {
+      "expected_sign": -1,
+      "family": "CONTEXT",
+      "id": "NFL-GAME-020",
+      "interpretation": "Short week hurts preparation and recovery. Expected NEGATIVE.",
+      "kind": "SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Short-week team (rest <= 5 vs opponent >= 6) -> ATS",
+      "population": {
+        "column": "flag.short_week_side",
+        "rule": "flag"
+      },
+      "primary_market": "ATS",
+      "side": "column:flag.short_week_side"
+    },
+    {
+      "family": "CONTEXT",
+      "id": "NFL-GAME-021",
+      "interpretation": "Extra preparation.",
+      "kind": "SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Off-bye team (rest >= 13 vs opponent <= 8) -> ATS",
+      "population": {
+        "column": "flag.bye_side",
+        "rule": "flag"
+      },
+      "primary_market": "ATS",
+      "side": "column:flag.bye_side"
+    },
+    {
+      "family": "CONTEXT",
+      "id": "NFL-GAME-022",
+      "interpretation": "Familiarity compresses margins.",
+      "kind": "SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "Divisional game: market underdog ATS",
+      "population": {
+        "column": "div_game",
+        "rule": "flag"
+      },
+      "primary_market": "ATS",
+      "side": "market_underdog"
+    },
+    {
+      "expected_sign": -1,
+      "family": "CONTEXT",
+      "id": "NFL-GAME-023",
+      "interpretation": "Realised starter ids (announced pregame in practice). Previously REJECTED_AT_CLOSE in H-005.",
+      "kind": "SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "QB change (starter differs from previous game; NEAR_PIT) -> ATS of that team",
+      "population": {
+        "column": "flag.qb_change_side",
+        "rule": "flag"
+      },
+      "primary_market": "ATS",
+      "side": "column:flag.qb_change_side"
+    },
+    {
+      "direction": 1,
+      "family": "CONTEXT",
+      "id": "NFL-GAME-024",
+      "interpretation": "No weather. (Forecast weather vintages exist only from 2026-09; observed game weather is post hoc.)",
+      "kind": "TOTAL",
+      "markets": [
+        "TOTAL"
+      ],
+      "name": "Indoor (dome/closed roof) -> total residual",
+      "population": {
+        "column": "flag.indoor",
+        "rule": "flag"
+      },
+      "primary_market": "TOTAL"
+    },
+    {
+      "family": "CLOSENESS",
+      "football_outcome": "close8",
+      "id": "NFL-GAME-025",
+      "interpretation": "|net EPA/play| <= 0.025: even matchup, the points should be worth more.",
+      "kind": "SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "CLOSENESS (|net EPA| below the closeness threshold) -> market underdog ATS",
+      "population": {
+        "column": "closeness",
+        "rule": "flag"
+      },
+      "primary_market": "ATS",
+      "side": "market_underdog"
+    },
+    {
+      "family": "CONTROL",
+      "football_outcome": "margin_1h",
+      "id": "NFL-GAME-026",
+      "interpretation": "Kalshi 1H lines exist only for 2025-26 and are thin.",
+      "kind": "FOOTBALL_ONLY",
+      "markets": [],
+      "name": "Efficiency CONTROL -> first-half margin (football only)",
+      "population": {
+        "rule": "control",
+        "strength": null
+      },
+      "primary_market": null,
+      "side": "control"
+    },
+    {
+      "family": "CONTEXT",
+      "id": "NFL-GAME-027",
+      "interpretation": "Wind suppresses passing and kicking.",
+      "kind": "UNAVAILABLE",
+      "markets": [],
+      "name": "Weather (forecast vintages)",
+      "primary_market": null,
+      "reason": "Forecast vintages exist only from 2026-09-04; historical temp/wind in the schedule are observed (post hoc). Not tested."
+    },
+    {
+      "family": "CONTEXT",
+      "id": "NFL-GAME-028",
+      "interpretation": "Injuries change true team strength.",
+      "kind": "UNAVAILABLE",
+      "markets": [],
+      "name": "Line / injury shocks (OL, skill, defensive injuries)",
+      "primary_market": null,
+      "reason": "No timestamped historical injury vintages before 2026-09-13; the final weekly report cannot be aligned to the closing line. Not tested at game level."
+    },
+    {
+      "family": "BASELINE",
+      "id": "NFL-BASE-001",
+      "interpretation": "Reference.",
+      "kind": "SIDE",
+      "markets": [
+        "ATS",
+        "ML"
+      ],
+      "name": "BASELINE: home team ATS",
+      "population": {
+        "rule": "not_neutral"
+      },
+      "primary_market": "ATS",
+      "side": "home"
+    },
+    {
+      "family": "BASELINE",
+      "id": "NFL-BASE-002",
+      "interpretation": "Reference.",
+      "kind": "SIDE",
+      "markets": [
+        "ATS",
+        "ML"
+      ],
+      "name": "BASELINE: market favourite ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS",
+      "side": "market_favorite"
+    },
+    {
+      "expected_sign": 1,
+      "family": "BASELINE",
+      "feature": "raw.epa_net",
+      "id": "NFL-BASE-003",
+      "interpretation": "Raw comparator for NFL-GAME-004.",
+      "kind": "SLOPE_SIDE",
+      "markets": [
+        "ATS"
+      ],
+      "name": "BASELINE: RAW (unadjusted) EPA net -> margin / ATS",
+      "population": {
+        "rule": "all"
+      },
+      "primary_market": "ATS"
+    }
+  ],
+  "prop_families": [
+    {
+      "id": "QB_pass_yards",
+      "kalshi_stat": "passing_yards",
+      "min_share": 0.5,
+      "positions": [
+        "QB"
+      ],
+      "share_col": "sh_attempt_l",
+      "stat": "pass_yards"
+    },
+    {
+      "id": "QB_attempts",
+      "kalshi_stat": "attempts",
+      "min_share": 0.5,
+      "positions": [
+        "QB"
+      ],
+      "share_col": "sh_attempt_l",
+      "stat": "attempts"
+    },
+    {
+      "id": "QB_completions",
+      "kalshi_stat": "completions",
+      "min_share": 0.5,
+      "positions": [
+        "QB"
+      ],
+      "share_col": "sh_attempt_l",
+      "stat": "completions"
+    },
+    {
+      "id": "QB_pass_td",
+      "kalshi_stat": "passing_tds",
+      "min_share": 0.5,
+      "positions": [
+        "QB"
+      ],
+      "share_col": "sh_attempt_l",
+      "stat": "pass_td"
+    },
+    {
+      "id": "QB_ints",
+      "kalshi_stat": "interceptions",
+      "min_share": 0.5,
+      "positions": [
+        "QB"
+      ],
+      "share_col": "sh_attempt_l",
+      "stat": "ints"
+    },
+    {
+      "id": "QB_rush_yards",
+      "kalshi_stat": "rushing_yards",
+      "min_share": 0.5,
+      "positions": [
+        "QB"
+      ],
+      "share_col": "sh_attempt_l",
+      "stat": "rush_yards"
+    },
+    {
+      "id": "RB_carries",
+      "kalshi_stat": "carries",
+      "min_share": 0.2,
+      "positions": [
+        "RB"
+      ],
+      "share_col": "sh_carry_l",
+      "stat": "carries"
+    },
+    {
+      "id": "RB_rush_yards",
+      "kalshi_stat": "rushing_yards",
+      "min_share": 0.2,
+      "positions": [
+        "RB"
+      ],
+      "share_col": "sh_carry_l",
+      "stat": "rush_yards"
+    },
+    {
+      "id": "RB_receptions",
+      "kalshi_stat": "receptions",
+      "min_share": 0.05,
+      "positions": [
+        "RB"
+      ],
+      "share_col": "sh_target_l",
+      "stat": "receptions"
+    },
+    {
+      "id": "RB_rec_yards",
+      "kalshi_stat": "receiving_yards",
+      "min_share": 0.05,
+      "positions": [
+        "RB"
+      ],
+      "share_col": "sh_target_l",
+      "stat": "rec_yards"
+    },
+    {
+      "id": "WR_receptions",
+      "kalshi_stat": "receptions",
+      "min_share": 0.1,
+      "positions": [
+        "WR"
+      ],
+      "share_col": "sh_target_l",
+      "stat": "receptions"
+    },
+    {
+      "id": "WR_rec_yards",
+      "kalshi_stat": "receiving_yards",
+      "min_share": 0.1,
+      "positions": [
+        "WR"
+      ],
+      "share_col": "sh_target_l",
+      "stat": "rec_yards"
+    },
+    {
+      "id": "TE_receptions",
+      "kalshi_stat": "receptions",
+      "min_share": 0.08,
+      "positions": [
+        "TE"
+      ],
+      "share_col": "sh_target_l",
+      "stat": "receptions"
+    },
+    {
+      "id": "TE_rec_yards",
+      "kalshi_stat": "receiving_yards",
+      "min_share": 0.08,
+      "positions": [
+        "TE"
+      ],
+      "share_col": "sh_target_l",
+      "stat": "rec_yards"
+    }
+  ],
+  "prop_model": {
+    "economic_rule": {
+      "checkpoints": {
+        "2025": "T-90m",
+        "2026": "LAST_PREGAME (<= 24h before kickoff)"
+      },
+      "relative_margin": 0.1
+    },
+    "groups": {
+      "HOME": [
+        "ctx.is_home"
+      ],
+      "PACE": [
+        "ctx.team_plays",
+        "ctx.env_plays"
+      ],
+      "PASS_DEF": [
+        "ctx.opp_pass_def_q",
+        "ctx.opp_expl_pass_def_q"
+      ],
+      "PASS_TENDENCY": [
+        "ctx.team_neutral_pass_rate",
+        "off_neutral_pass_rate"
+      ],
+      "PRESSURE": [
+        "ctx.team_sack_rate",
+        "ctx.opp_pass_rush_q",
+        "ctx.team_protection_q"
+      ],
+      "QB_EFF": [
+        "ctx.team_qb_q",
+        "ctx.team_dropback_epa"
+      ],
+      "ROLE_RECENCY": [
+        "sh_target_s",
+        "sh_carry_s",
+        "sh_attempt_s",
+        "snap_share_s",
+        "last_sh_target",
+        "last_sh_carry",
+        "last_snap_share"
+      ],
+      "RUSH_DEF": [
+        "ctx.opp_rush_def_q"
+      ],
+      "SCRIPT": [
+        "ctx.expected_script",
+        "ctx.team_points"
+      ]
+    },
+    "interactions": {
+      "QB_attempts": [
+        [
+          "ctx.env_plays",
+          "ctx.expected_script",
+          "IX_PACE_x_SCRIPT"
+        ]
+      ],
+      "QB_pass_yards": [
+        [
+          "ctx.env_plays",
+          "ctx.opp_pass_def_q",
+          "IX_PACE_x_PASSDEF"
+        ],
+        [
+          "ctx.team_sack_rate",
+          "ctx.opp_pass_def_q",
+          "IX_PRESSURE_x_PASSDEF"
+        ]
+      ],
+      "RB_carries": [
+        [
+          "sh_carry_l",
+          "ctx.expected_script",
+          "IX_SHARE_x_SCRIPT"
+        ],
+        [
+          "sh_carry_l",
+          "ctx.opp_rush_def_q",
+          "IX_SHARE_x_RUSHDEF"
+        ]
+      ],
+      "RB_receptions": [
+        [
+          "sh_target_l",
+          "ctx.expected_script",
+          "IX_SHARE_x_SCRIPT"
+        ],
+        [
+          "sh_target_l",
+          "ctx.team_sack_rate",
+          "IX_SHARE_x_PRESSURE"
+        ]
+      ],
+      "RB_rush_yards": [
+        [
+          "sh_carry_l",
+          "ctx.expected_script",
+          "IX_SHARE_x_SCRIPT"
+        ],
+        [
+          "sh_carry_l",
+          "ctx.opp_rush_def_q",
+          "IX_SHARE_x_RUSHDEF"
+        ]
+      ],
+      "TE_rec_yards": [
+        [
+          "sh_target_l",
+          "ctx.opp_pass_def_q",
+          "IX_SHARE_x_PASSDEF"
+        ]
+      ],
+      "TE_receptions": [
+        [
+          "sh_target_l",
+          "ctx.opp_pass_def_q",
+          "IX_SHARE_x_PASSDEF"
+        ]
+      ],
+      "WR_rec_yards": [
+        [
+          "sh_target_l",
+          "ctx.opp_pass_def_q",
+          "IX_SHARE_x_PASSDEF"
+        ],
+        [
+          "sh_target_l",
+          "ctx.team_qb_q",
+          "IX_SHARE_x_QBEFF"
+        ]
+      ],
+      "WR_receptions": [
+        [
+          "sh_target_l",
+          "ctx.opp_pass_def_q",
+          "IX_SHARE_x_PASSDEF"
+        ],
+        [
+          "sh_target_l",
+          "ctx.expected_script",
+          "IX_SHARE_x_SCRIPT"
+        ]
+      ]
+    },
+    "model_features": [
+      "b_ewma.{stat}",
+      "b_usage.{stat}",
+      "sh_target_s",
+      "sh_target_l",
+      "sh_carry_s",
+      "sh_carry_l",
+      "sh_attempt_s",
+      "sh_attempt_l",
+      "snap_share_s",
+      "snap_share_l",
+      "last_sh_target",
+      "last_sh_carry",
+      "last_snap_share",
+      "sh_rz_target_l",
+      "sh_rz_carry_l",
+      "rt_ypt",
+      "rt_catch_rate",
+      "rt_adot",
+      "rt_ypc",
+      "rt_ypa",
+      "rt_comp_rate",
+      "rt_int_rate",
+      "rt_pass_td_rate",
+      "rt_scramble_rate",
+      "off_pass_att",
+      "off_rush_att",
+      "off_plays",
+      "off_neutral_pass_rate",
+      "ctx.team_plays",
+      "ctx.env_plays",
+      "ctx.team_neutral_pass_rate",
+      "ctx.expected_script",
+      "ctx.team_points",
+      "ctx.opp_pass_def_q",
+      "ctx.opp_rush_def_q",
+      "ctx.opp_expl_pass_def_q",
+      "ctx.team_sack_rate",
+      "ctx.opp_pass_rush_q",
+      "ctx.team_protection_q",
+      "ctx.team_qb_q",
+      "ctx.team_dropback_epa",
+      "ctx.team_rush_epa",
+      "ctx.is_home"
+    ]
+  },
+  "set": 1,
+  "status_rule": {
+    "blocks": {
+      "A": [
+        2015,
+        2016,
+        2017,
+        2018,
+        2019
+      ],
+      "B": [
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    "efficient_ci_halfwidth_cover": 0.05,
+    "min_n_market": 100,
+    "min_seasons_same_sign_share": 0.6,
+    "q_football": 0.05,
+    "q_market": 0.05,
+    "q_market_watch": 0.1
+  },
+  "thresholds": {
+    "closeness": 0.025,
+    "control_moderate": 0.075,
+    "control_strong": 0.115,
+    "quantiles_note": "closeness ~P20, moderate ~P60, strong ~P80 of |net EPA/play|; run-leaning = below the median adjusted neutral pass rate; all over 2015-2026 feature rows, no outcome read",
+    "run_leaning_neutral_pass_rate": 0.597
+  },
+  "version": "nfl-signal-discovery-wave1/1.0.0",
+  "walk_forward": {
+    "WF-ATS": {
+      "features": [
+        "net.epa_play",
+        "net.dropback_epa",
+        "net.designed_rush_epa",
+        "net.sack_rate",
+        "net.explosive_rate",
+        "gap.margin",
+        "ctx.rest_diff"
+      ],
+      "first_test_season": 2018,
+      "pick_threshold_points": 2.0,
+      "target": "home_ats_resid"
+    },
+    "WF-ML": {
+      "features": [
+        "net.epa_play",
+        "baseline.home_margin"
+      ],
+      "first_test_season": 2018,
+      "market_feature": "logit.ml_home_novig",
+      "target": "home_win",
+      "train_first_season": 2015
+    },
+    "WF-TOTAL": {
+      "features": [
+        "gap.total",
+        "env.plays",
+        "env.sec_per_play",
+        "def_quality_sum.epa",
+        "off_quality_sum.epa"
+      ],
+      "first_test_season": 2018,
+      "pick_threshold_points": 2.0,
+      "target": "total_resid"
+    }
+  }
+}
