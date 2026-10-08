@@ -155,6 +155,15 @@ def cmd_freeze_set1(args) -> int:
     return 0
 
 
+def cmd_freeze_set2(args) -> int:
+    from nfl_edge.signal_discovery import hypotheses as H
+
+    payload = {"set": 2, "version": SIGNAL_DISCOVERY_VERSION, "hypotheses": H.GAME_SET2, "decisive_block": "B"}
+    SET2_FILE.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    print("set2 sha256", canon_sha(payload))
+    return 0
+
+
 def check_frozen(path: Path) -> dict:
     payload = json.loads(path.read_text())
     sha = canon_sha(payload)
@@ -357,7 +366,7 @@ def cmd_prop_ladders(args) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("game-features", "freeze-set1", "screen", "evaluate-game", "player-features"):
+    for name in ("game-features", "freeze-set1", "freeze-set2", "screen", "evaluate-game", "player-features"):
         sub.add_parser(name)
     pl_ = sub.add_parser("prop-ladders")
     pl_.add_argument("--horizons", required=True)
@@ -365,7 +374,7 @@ def main() -> int:
     pl_.add_argument("--market-data-sha", default=None)
     ep = sub.add_parser("evaluate-props")
     args = ap.parse_args()
-    return {"game-features": cmd_game_features, "freeze-set1": cmd_freeze_set1, "screen": cmd_screen,
+    return {"game-features": cmd_game_features, "freeze-set1": cmd_freeze_set1, "freeze-set2": cmd_freeze_set2, "screen": cmd_screen,
             "evaluate-game": cmd_evaluate_game, "player-features": cmd_player_features,
             "evaluate-props": cmd_evaluate_props, "prop-ladders": cmd_prop_ladders}[args.cmd](args)
 

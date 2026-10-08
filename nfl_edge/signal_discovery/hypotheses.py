@@ -201,3 +201,35 @@ PROP_MODEL = {
     #: pre-registered expected direction of each group's football effect, used only for interpretation
     "economic_rule": {"relative_margin": 0.10, "checkpoints": {"2025": "T-90m", "2026": "LAST_PREGAME (<= 24h before kickoff)"}},
 }
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# GAME SET 2 -- written AFTER the Stage A screen (block A 2015-2019 only) and BEFORE block B judged them.
+# --------------------------------------------------------------------------------------------------------------------
+GAME_SET2: list[dict[str, Any]] = [
+    {"id": "NFL-DSC-001", "name": "Within STRONG CONTROL: control side's neutral pass-rate advantage -> control-side ATS (negative)",
+     "family": "STYLE", "kind": "SLOPE_SIDE", "population": {"rule": "control", "strength": "STRONG"}, "side": "control",
+     "feature": "ctrl.offdiff_neutral_pass_rate", "expected_sign": -1, "primary_market": "ATS", "markets": ["ATS"],
+     "screen_evidence": "block A within STRONG: -2.26 pts/SD, z -2.73, whole-screen q 0.027 (n 245)",
+     "interpretation": "A strong efficiency side that is ALSO the pass-heavier offence may be over-priced (cf. CFB-SIG-014 / CFB-DSC-003)."},
+    {"id": "NFL-DSC-002", "name": "Offensive success-rate quality difference -> home ATS",
+     "family": "SUSTAINED_EFFICIENCY", "kind": "SLOPE_SIDE", "population": {"rule": "all"}, "feature": "offdiff.success_rate",
+     "expected_sign": 1, "primary_market": "ATS", "markets": ["ATS"],
+     "screen_evidence": "block A: +0.81 pts/SD, z +2.27, q 0.091, 5/5 seasons",
+     "interpretation": "Down-to-down success (staying on schedule) is less visible than EPA/points and may be under-priced."},
+    {"id": "NFL-DSC-003", "name": "Defences that slow opponents (adjusted seconds/play allowed, both teams) -> total residual (under)",
+     "family": "PACE", "kind": "SLOPE_TOTAL", "population": {"rule": "all"}, "feature": "defsum.sec_per_play",
+     "expected_sign": -1, "primary_market": "TOTAL", "markets": ["TOTAL"],
+     "screen_evidence": "block A: -0.85 pts/SD, z -2.27, q 0.091, 4/5 seasons",
+     "interpretation": "Possession count depends on both teams' tempo; totals may price offences' tempo but not the defensive side of it."},
+    {"id": "NFL-DSC-004", "name": "Efficiency mismatch size |net EPA| -> total residual (under)",
+     "family": "GAME_SCRIPT", "kind": "SLOPE_TOTAL", "population": {"rule": "all"}, "feature": "abs_net.epa_play",
+     "expected_sign": -1, "primary_market": "TOTAL", "markets": ["TOTAL"],
+     "screen_evidence": "block A: -0.78 pts/SD, z -2.13, q 0.124, 5/5 seasons",
+     "interpretation": "Lopsided matchups produce leading-team clock control in the second half: fewer possessions than a total built from two scoring rates."},
+    {"id": "NFL-DSC-005", "name": "Neutral pass-rate difference (unconditional) -> home ATS (negative) -- cross-sport test of CFB-DSC-003",
+     "family": "STYLE", "kind": "SLOPE_SIDE", "population": {"rule": "all"}, "feature": "offdiff.neutral_pass_rate",
+     "expected_sign": -1, "primary_market": "ATS", "markets": ["ATS"],
+     "screen_evidence": "not selected from the NFL screen; registered to test whether the CFB pass-tendency over-pricing replicates",
+     "interpretation": "The pass-heavier side may be over-rated by a market that anchors on passing production."},
+]

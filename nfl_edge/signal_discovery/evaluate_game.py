@@ -109,6 +109,7 @@ def _derive(r: dict) -> None:
     r["logit.ml_home_novig"] = math.log(p / (1 - p)) if p is not None and 0 < p < 1 else None
     r["early_season"] = (r.get("week") or 0) <= 6
     r["season_type"] = "regular" if r.get("game_type") == "REG" else "postseason"
+    _derive_set2(r)
     # CFB-compatible keys used by the shared machinery
     r["home"], r["away"] = r["home_team"], r["away_team"]
     r["neutral_site"] = bool(r.get("neutral"))
@@ -118,6 +119,25 @@ def _derive(r: dict) -> None:
     r.setdefault("disruption_sides", [])
     r.setdefault("prior_games_home", 3)
     r.setdefault("prior_games_away", 3)
+
+
+def _qd(r: dict, a: str, b: str, op: str = "-") -> float | None:
+    x, y = r.get(a), r.get(b)
+    if x is None or y is None or x != x or y != y:
+        return None
+    return x - y if op == "-" else x + y
+
+
+def _derive_set2(r: dict) -> None:
+    """Derived football features named by NFL hypothesis set 2 (pregame quantities only)."""
+    r["offdiff.success_rate"] = _qd(r, "q_home_off.success_rate", "q_away_off.success_rate")
+    r["offdiff.neutral_pass_rate"] = _qd(r, "q_home_off.neutral_pass_rate", "q_away_off.neutral_pass_rate")
+    r["defsum.sec_per_play"] = _qd(r, "q_home_def.sec_per_play", "q_away_def.sec_per_play", "+")
+    n = r.get("net.epa_play")
+    r["abs_net.epa_play"] = abs(n) if n is not None else None
+    cs = r.get("control_side")
+    v = r["offdiff.neutral_pass_rate"]
+    r["ctrl.offdiff_neutral_pass_rate"] = None if cs is None or v is None else (v if cs == "home" else -v)
 
 
 def season_norms(rows: list[dict]) -> dict[int, dict[str, float]]:

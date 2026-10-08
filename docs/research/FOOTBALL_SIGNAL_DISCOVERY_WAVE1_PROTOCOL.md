@@ -197,7 +197,24 @@ id/version, feature snapshot, contract, executable price, timestamp, settlement,
 
 ## 10. Set 2 registration (appended after the game Stage A screen)
 
-_Pending._
+The Stage A screen (`stage_a_screen.json`, block A 2015–2019 only, code `e8959411`) tested 272 associations. Only one
+market association reached whole-screen BH q < 0.05, and three reached q < 0.10. The NFL closing line is far quieter
+than CFB's. Five candidates were written down:
+
+| Id | Rule | Expected |
+|---|---|---|
+| NFL-DSC-001 | within STRONG CONTROL: slope of control-side ATS residual on control-oriented neutral pass-rate quality difference | − |
+| NFL-DSC-002 | slope of home ATS residual on home − away offensive success-rate quality | + |
+| NFL-DSC-003 | slope of total residual on both defences' adjusted seconds-per-play allowed | − |
+| NFL-DSC-004 | slope of total residual on \|net EPA/play\| | − |
+| NFL-DSC-005 | slope of home ATS residual on home − away neutral pass-rate quality: a cross-sport test of CFB-DSC-003, not selected by the NFL screen | − |
+
+| Item | Value |
+|---|---|
+| **Set 2** | `research/signal_discovery_wave1/hypotheses_set2.json` |
+| **Set 2 canonical SHA-256** | **`5f25764743e19bb7cfa84fbef6103920e8ebdb8ac576f1202019ca0ed08979cf`** |
+| Decisive sample | block B (2020–2025) only |
+| Derived features | `evaluate_game._derive_set2` (pregame only), committed with this registration |
 
 ## 11. Deviations
 
