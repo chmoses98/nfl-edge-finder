@@ -238,6 +238,9 @@ def _capture(root: Path):
         q(r1, t1, "KXNFLTOTAL-26OCT18AAABBB-47", "KXNFLTOTAL", "TOTAL", "total_points", 47, 0.48, 0.52, 0.47, 0.53),
         q(r1, t1, "KXNFLTOTAL-26OCT18AAABBB-50", "KXNFLTOTAL", "TOTAL", "total_points", 50, 0.36, 0.40, 0.59, 0.65),
         q(r1, t1, "KXNFLREC-26OCT18AAABBB-AAAZZ9-3", "KXNFLREC", "PLAYER_STAT", "receptions", 3, 0.5, 0.52, 0.47, 0.5, "Nobody Known", "AAA"),
+        q(r1, t1, "KXNFLREC-26OCT18AAABBB-BBBS2-4", "KXNFLREC", "PLAYER_STAT", "receptions", 4, 0.68, 0.72, 0.27, 0.33, "Sam Two", "BBB"),
+        q(r1, t1, "KXNFLREC-26OCT18AAABBB-BBBS2-5", "KXNFLREC", "PLAYER_STAT", "receptions", 5, 0.53, 0.57, 0.42, 0.48, "Sam Two", "BBB"),
+        q(r1, t1, "KXNFLREC-26OCT18AAABBB-BBBS2-6", "KXNFLREC", "PLAYER_STAT", "receptions", 6, 0.33, 0.37, 0.62, 0.68, "Sam Two", "BBB"),
     ]
     rows2 = [  # later pregame moves: the props take these; the 60-180 total checkpoint must NOT
         q(r2, t2, "KXNFLREC-26OCT18AAABBB-AAAP1-3", "KXNFLREC", "PLAYER_STAT", "receptions", 3, 0.58, 0.62, 0.36, 0.45, "Pat One", "AAA"),
@@ -255,6 +258,17 @@ def _capture(root: Path):
     (root / "data" / "kalshi" / "capture" / "state.json").write_text(json.dumps({"last_seen": {}}))
 
 
+class FakeResolver:
+    IDS = {("Pat One", "AAA"): "00-P1", ("Sam Two", "BBB"): "00-P2"}
+
+    def __init__(self, season):
+        pass
+
+    def resolve(self, name, team, jersey):
+        gid = self.IDS.get((name, team))
+        return (gid, "RESOLVED_NAME_TEAM") if gid else (None, "UNRESOLVED")
+
+
 def _population():
     return pd.DataFrame([{"game_id": GID, "season": 2026, "week": 6, "game_type": "REG", "home_team": "BBB",
                           "away_team": "AAA", "kickoff": pd.Timestamp(KO)}])
@@ -265,6 +279,8 @@ def _observation(runner, out, frozen, have):
     doc = runner.header(W.OBSERVATION, g, KO - timedelta(minutes=200), frozen)
     doc["rows"] = [
         {"signal_id": W.PROP_001, "status": W.PENDING, "player_id": "00-P1", "team": "AAA", "position": "RB", "family": W.RB_FAMILY},
+        {"signal_id": W.PROP_002, "status": W.PENDING, "player_id": "00-P2", "team": "BBB", "position": "WR", "family": "WR_receptions",
+         "stat": "receptions", "kalshi_stat": "receptions", "pred": 4.9, "median_offset": 0.1, "model_median": 5.0},
         {"signal_id": W.GAME_001, "status": W.PENDING, "football": {"baseline.total": 49.0, "env.plays": 126.0, "env.sec_per_play": 27.5,
                                                                     "def_quality_sum.epa": -0.6, "off_quality_sum.epa": 0.9}},
     ]
@@ -274,13 +290,6 @@ def _observation(runner, out, frozen, have):
 def test_enter_stage_reads_only_pre_kickoff_quotes_and_freezes_side_specific_asks(tmp_path, monkeypatch):
     runner = _runner()
     from nfl_edge.signal_discovery import markets
-
-    class FakeResolver:
-        def __init__(self, season):
-            pass
-
-        def resolve(self, name, team, jersey):
-            return ("00-P1", "RESOLVED_NAME_TEAM") if name == "Pat One" and team == "AAA" else (None, "UNRESOLVED")
 
     monkeypatch.setattr(markets, "Resolver", FakeResolver)
     md, out = tmp_path / "md", tmp_path / "out"
@@ -301,6 +310,14 @@ def test_enter_stage_reads_only_pre_kickoff_quotes_and_freezes_side_specific_ask
     assert tot["prediction"] == pytest.approx(p)
     assert tot["status"] == (W.ELIGIBLE if abs(p) >= 2 else W.EXCLUDED_PROTOCOL)
     assert [f["player_name"] for f in ent["identity_failures"]] == ["Nobody Known"]
+    assert len([r for r in ent["rows"] if r["signal_id"] == W.PROP_001 and r["player_id"] == "00-P1"]) == 1  # one rung per player-game
+    assert rb["ticker"].endswith(f"-{int(rb['rung'])}")  # threshold identity: the ticker's own strike
+    assert rb["clv"]["clv"] == 0.0  # the 24 h checkpoint IS the canonical close
+    rc = next(r for r in ent["rows"] if r["signal_id"] == W.PROP_002)
+    assert rc["status"] == W.ELIGIBLE and rc["market_median"] == pytest.approx(5.25) and rc["model_median"] == 5.0
+    if tot["status"] == W.ELIGIBLE:  # side-aware CLV against the canonical close (the 16:50 move on the 47 rung)
+        assert tot["rung"] == 47.0
+        assert tot["clv"]["clv"] == pytest.approx(0.20 if tot["side"] == "OVER" else -0.20)
     # write-once: a second entry for the same game is refused
     again = runner.stage_enter(KO + timedelta(minutes=6), _population(), [GID], str(md), out, have, frozen)
     assert again == {"entered": 0}
@@ -389,13 +406,6 @@ def test_settle_stage_is_append_only_and_uses_the_stat_of_a_player_who_played(tm
     from nfl_edge.signal_discovery import markets
     from nfl_edge.sim import data as D
 
-    class FakeResolver:
-        def __init__(self, season):
-            pass
-
-        def resolve(self, name, team, jersey):
-            return ("00-P1", "RESOLVED_NAME_TEAM") if name == "Pat One" else (None, "UNRESOLVED")
-
     monkeypatch.setattr(markets, "Resolver", FakeResolver)
     md, out = tmp_path / "md", tmp_path / "out"
     _capture(md)
@@ -404,7 +414,8 @@ def test_settle_stage_is_append_only_and_uses_the_stat_of_a_player_who_played(tm
     _observation(runner, out, frozen, have)
     runner.stage_enter(KO + timedelta(minutes=5), _population(), [GID], str(md), out, have, frozen)
     entry_text = (out / runner.record_path(W.ENTRY, GID)).read_text()
-    pg = pl.DataFrame([{"game_id": GID, "player_id": "00-P1", "offense_snaps": 30, "receptions": 2.0}])
+    pg = pl.DataFrame([{"game_id": GID, "player_id": "00-P1", "offense_snaps": 30, "receptions": 2.0},
+                       {"game_id": GID, "player_id": "00-P2", "offense_snaps": 50, "receptions": 7.0}])
     sched = pl.DataFrame([{"game_id": GID, "home_score": 27, "away_score": 24}])
     monkeypatch.setattr(D, "load", lambda name, seasons: pg)
     monkeypatch.setattr(D, "schedule", lambda: sched)
@@ -414,6 +425,8 @@ def test_settle_stage_is_append_only_and_uses_the_stat_of_a_player_who_played(tm
     rb = next(r for r in st["rows"] if r["signal_id"] == W.PROP_001)
     assert rb["status"] == W.SETTLED and rb["played"] and rb["actual"] == 2.0 and rb["settlement_source"] == "NFLVERSE_STAT"
     assert rb["economics"]["settlement_value"] == 1.0 and rb["economics"]["fee_adjusted_pnl"] == pytest.approx(1 - 0.45 - 0.02)
+    rc = next(r for r in st["rows"] if r["signal_id"] == W.PROP_002)
+    assert rc["actual"] == 7.0 and rc["d"] == pytest.approx(abs(5.25 - 7.0) - abs(5.0 - 7.0))  # model loses here
     tot = [r for r in st["rows"] if r["signal_id"] == W.GAME_001]
     for r in tot:
         assert r["actual_total"] == 51.0
@@ -429,8 +442,7 @@ def test_settlement_waits_when_a_result_is_missing(tmp_path, monkeypatch):
     from nfl_edge.signal_discovery import markets
     from nfl_edge.sim import data as D
 
-    monkeypatch.setattr(markets, "Resolver", type("R", (), {"__init__": lambda s, x: None,
-                                                             "resolve": lambda s, n, t, j: ("00-P1", "RESOLVED_NAME_TEAM") if n == "Pat One" else (None, "UNRESOLVED")}))
+    monkeypatch.setattr(markets, "Resolver", FakeResolver)
     md, out = tmp_path / "md", tmp_path / "out"
     _capture(md)
     frozen = W.load_frozen(ROOT)
@@ -441,3 +453,44 @@ def test_settlement_waits_when_a_result_is_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(D, "schedule", lambda: pl.DataFrame([{"game_id": GID, "home_score": None, "away_score": None}]))
     assert runner.stage_settle(KO + timedelta(hours=6), _population(), [GID], str(md), out, have, frozen, fetch_exchange=False) == {"settled": 0}
     assert not (out / runner.record_path(W.SETTLEMENT, GID)).exists()  # nothing invented; retried later
+
+
+def test_clv_missing_close_stays_missing():
+    c = {"status": W.ELIGIBLE, "contract_side": "no", "ask": 0.45}
+    assert W.clv(None, c) == {"clv": None, "close_ask": None, "reason": "CLV_CLOSE_MISSING"}
+    assert W.clv({"close_status": "CLV_CLOSE_MISSING"}, c)["clv"] is None
+    assert W.clv({"close_status": "CLOSE_OK", "no_ask": None, "yes_ask": 0.6}, c)["clv"] is None  # never from YES
+    assert W.clv({"close_status": "CLOSE_OK", "no_ask": 0.41}, c)["clv"] == pytest.approx(-0.04)
+
+
+def test_the_prospective_job_never_refits_a_model():
+    text = (ROOT / "scripts" / "research" / "signal_lab_wave2.py").read_text()
+    for banned in ("fit_wf_total", "fit_prop", "_fit_predict", "walk_forward", "np.linalg.solve", "stats.ols"):
+        assert banned not in text, banned
+    assert "W.load_frozen(ROOT)" in text
+
+
+@pytest.mark.skipif(not (ROOT / "data/raw/nflverse/pbp").exists() or not (ROOT / "research/signal_discovery_wave1/player_features.parquet").exists(),
+                    reason="needs the local nflverse corpus and the Wave-1 player table")
+def test_pregame_features_reproduce_wave1_and_ignore_the_future():
+    """Phantom rows at a cutoff before week-4 kickoffs equal the Wave-1 rows of the players who played; anything at or
+    after the cutoff (the week's own results, later weeks) is excluded by construction."""
+    from nfl_edge.signal_discovery import evaluate_props as EP
+    from nfl_edge.signal_discovery import wave2_pregame as WP
+    from nfl_edge.sim import data as D
+
+    set1 = json.loads((ROOT / "research/signal_discovery_wave1/hypotheses_set1.json").read_text())
+    sched = pd.DataFrame(D.schedule().to_dicts())
+    gids = sched[(sched.season == 2026) & (sched.week == 4)]["game_id"].tolist()
+    gr = WP.game_rows(2026, 4, gids)
+    out, meta = WP.player_rows(2026, 4, gr, datetime(2026, 10, 1, 12, 0, tzinfo=UTC), None, set1["prop_families"])
+    assert meta["latest_history_game"] < "2026_04"  # nothing from week 4 or later entered the history
+    w1 = EP.add_baselines(pd.read_parquet(ROOT / "research/signal_discovery_wave1/player_features.parquet"), set1["prop_families"])
+    w1 = w1[(w1.season == 2026) & (w1.week == 4)]
+    m = out.merge(w1, on=["game_id", "player_id"], suffixes=("", "_w1"))
+    assert len(m) == len(w1)
+    for c in ("sh_target_s", "sh_carry_l", "snap_share_l", "n_prior", "rt_ypc", "ctx.expected_script", "b_ewma.receptions",
+              "b_season.receptions", "b_usage.rec_yards"):
+        a, b = m[c].astype(float), m[f"{c}_w1"].astype(float)
+        assert ((a - b).abs().fillna(0) == 0).all() and (a.isna() == b.isna()).all(), c
+    assert out[["receptions", "rec_yards", "pass_yards"]].isna().all().all()  # a phantom row carries no outcome

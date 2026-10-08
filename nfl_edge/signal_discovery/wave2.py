@@ -193,6 +193,18 @@ def economics(c: dict[str, Any], value: float | None) -> dict[str, Any]:
             "settlement_value": value, "fee_adjusted_pnl": round(value - outlay, 6)}
 
 
+def clv(close: dict[str, Any] | None, c: dict[str, Any]) -> dict[str, Any]:
+    """Side-aware CLV of a contract: the SAME ticker's SAME-side ask at the canonical close (close-2.1.0) minus the
+    entry ask. A missing or non-executable close stays missing (never 0)."""
+    if c.get("status") != ELIGIBLE or not close or close.get("close_status") not in ("CLOSE_OK", "CLOSE_ONE_SIDED"):
+        return {"clv": None, "close_ask": None, "reason": "CLV_CLOSE_MISSING" if c.get("status") == ELIGIBLE else c.get("status")}
+    ask = close.get("yes_ask") if c["contract_side"] == "yes" else close.get("no_ask")
+    if not executable(ask):
+        return {"clv": None, "close_ask": None, "reason": "CLOSE_SIDE_NOT_EXECUTABLE"}
+    return {"clv": round(ask - c["ask"], 6), "close_ask": ask, "close_confirmed_at": close.get("confirmed_at"),
+            "close_quality": close.get("close_quality"), "reason": None}
+
+
 # --------------------------------------------------------------------------- checkpoints
 
 

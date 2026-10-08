@@ -380,8 +380,10 @@ def stage_enter(now, games, ids, market_data, out, have, frozen) -> dict:
                         rows.append({**entry, "status": W.ENTRY_UNAVAILABLE, "reason": "NO_MARKET_MEDIAN"})
                         continue
                     c = W.contract(nat, "no", fee_fn_for(series, nat.get("confirmed_at")))
+                    # the checkpoint IS the canonical close here, so CLV is recorded but is 0 by construction
                     rows.append({**entry, "contract": c, "ticker": c.get("ticker"), "rung": c.get("threshold"),
                                  "side": "no", "ask": c.get("ask"), "fee": c.get("fee"),
+                                 "clv": W.clv(ci.select(c["ticker"], series_ticker=series) if c.get("ticker") else None, c),
                                  "status": c["status"], "reason": c.get("reason")})
                 else:
                     if lad["market_median"] is None:
@@ -393,7 +395,8 @@ def stage_enter(now, games, ids, market_data, out, have, frozen) -> dict:
                         mm = o["model_median"]
                         side = "yes" if mm >= t * (1 + W.WAVE1_ECON_MARGIN) + 1e-9 else "no" if mm <= t * (1 - W.WAVE1_ECON_MARGIN) - 1e-9 else None
                         c = W.contract(nat, side, fee_fn_for(series, nat.get("confirmed_at"))) if side else {"status": "NO_SIDE_UNDER_WAVE1_RULE"}
-                    rows.append({**entry, "contract": c, "status": W.ELIGIBLE, "reason": None})
+                    cl = W.clv(ci.select(c["ticker"], series_ticker=series), c) if c and c.get("ticker") else None
+                    rows.append({**entry, "contract": c, "clv": cl, "status": W.ELIGIBLE, "reason": None})
             elif sid == W.GAME_001:
                 rungs = []
                 for t, m in meta.items():
@@ -423,7 +426,9 @@ def stage_enter(now, games, ids, market_data, out, have, frozen) -> dict:
                 c = W.contract(lad["natural"], "yes" if side == "OVER" else "no",
                                fee_fn_for(W.TOTAL_SERIES, (lad["natural"] or {}).get("confirmed_at")))
                 rows.append({**entry, "side": side, "contract": c, "ticker": c.get("ticker"), "rung": c.get("threshold"),
-                             "ask": c.get("ask"), "fee": c.get("fee"), "status": W.ELIGIBLE, "reason": None})
+                             "ask": c.get("ask"), "fee": c.get("fee"),
+                             "clv": W.clv(ci.select(c["ticker"], series_ticker=W.TOTAL_SERIES) if c.get("ticker") else None, c),
+                             "status": W.ELIGIBLE, "reason": None})
         doc = header(W.ENTRY, g, now, frozen)
         doc.update({"observation_generated_at": obs["generated_at"], "rows": rows,
                     "identity_failures": id_fail, "capture": {"tickers_seen": len(meta), "close_stats": ci.stats}})
@@ -530,7 +535,7 @@ def stage_settle(now, games, ids, market_data, out, have, frozen, *, fetch_excha
 
 def _slim(r: dict) -> dict:
     keep = ("signal_id", "player_id", "team", "position", "family", "stat", "kalshi_stat", "model_median", "market_median",
-            "market_implied_total", "prediction", "side", "contract", "ticker", "rung", "ask", "fee")
+            "market_implied_total", "prediction", "side", "contract", "ticker", "rung", "ask", "fee", "clv")
     return {k: r.get(k) for k in keep if k in r}
 
 

@@ -59,7 +59,7 @@ week 5 had not been played yet, so the real observation a week later will differ
 
 ## Verification
 
-* `tests/test_signal_discovery_wave2_nfl.py` (25 tests) covers:
+* `tests/test_signal_discovery_wave2_nfl.py` (28 tests; one is data-backed and runs where the nflverse corpus exists) covers:
   * pins, and refusal of edited candidates or artifacts;
   * the WF-TOTAL translation;
   * the natural-rung tie-break, validity and missingness;
@@ -70,7 +70,10 @@ week 5 had not been played yet, so the real observation a week later will differ
   * the enter stage on a synthetic capture: post-kickoff rows ignored, the totals checkpoint confined to
     PRIMARY_60_180, identity failures named, write-once;
   * missing observation → SYSTEM_FAILURE;
-  * settlement that is append-only and waits for results;
+  * settlement that is append-only and waits for results, and the ROLE_CHANGE paired error;
+  * side-aware CLV, with a missing close staying missing;
+  * no refit inside the prospective job;
+  * the pregame features reproducing Wave 1 while ignoring the future (data-backed);
   * verdicts and NO SETTLED SAMPLE;
   * isolation from production paths.
-* Full suite: 2,982 passed, 3 skipped.
+* Full suite: 2,985 passed, 3 skipped.
