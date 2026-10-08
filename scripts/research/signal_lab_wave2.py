@@ -310,7 +310,13 @@ def stage_enter(now, games, ids, market_data, out, have, frozen) -> dict:
     led = OS.OpenSetLedger(capture_root)
     led = led if led.runs else None
     fees = load_fee_schedule(str(ROOT))
-    resolver = Resolver(W.SEASON)
+    resolvers: dict[int, Any] = {}
+
+    def resolve(name, team, jersey):
+        if W.SEASON not in resolvers:  # built only when a game actually has an observation to enter
+            resolvers[W.SEASON] = Resolver(W.SEASON)
+        return resolvers[W.SEASON].resolve(name, team, jersey)
+
     written = 0
     for g in games[games["game_id"].isin(ids)].itertuples():
         kickoff = g.kickoff.to_pydatetime()
@@ -331,7 +337,7 @@ def stage_enter(now, games, ids, market_data, out, have, frozen) -> dict:
             if m.get("family") != "PLAYER_STAT" or m.get("period") not in ("FULL", None) or m.get("operator") not in (">=", None):
                 continue
             team = TEAM_FIX.get(m.get("team"), m.get("team"))
-            gsis, how = resolver.resolve(m.get("player_name"), team, _jersey_from_ticker(t))
+            gsis, how = resolve(m.get("player_name"), team, _jersey_from_ticker(t))
             if how not in W.ACCEPTED_IDENTITY:
                 id_fail.append({"ticker": t, "player_name": m.get("player_name"), "player_kalshi_id": m.get("player_kalshi_id"),
                                 "stat": m.get("stat"), "identity": how})

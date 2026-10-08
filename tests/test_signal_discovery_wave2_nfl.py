@@ -325,6 +325,12 @@ def test_enter_stage_reads_only_pre_kickoff_quotes_and_freezes_side_specific_ask
 
 def test_a_population_game_without_an_observation_is_a_system_failure(tmp_path, monkeypatch):
     runner = _runner()
+    from nfl_edge.signal_discovery import markets
+
+    def no_roster(season):
+        raise AssertionError("a game with no observation must not need the roster")
+
+    monkeypatch.setattr(markets, "Resolver", no_roster)
     md, out = tmp_path / "md", tmp_path / "out"
     _capture(md)
     have: set[str] = set()
