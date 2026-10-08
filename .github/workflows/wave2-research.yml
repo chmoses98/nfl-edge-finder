@@ -55,6 +55,11 @@ jobs:
           python3 scripts/data/nflverse_download.py --only schedules --seasons 2026-2026 2>&1 | tail -1
           git fetch --depth=1 --filter=blob:none origin market-data
           python3 scripts/sim/wave2_prospective.py --check-only --existing-from-git origin/market-data --github-output "$GITHUB_OUTPUT"
+      # ~52 GB market-data worktree: room first, or the runner dies mid-job (scripts/ci/free_runner_disk.sh). Runs
+      # 37838539290 and 37841035149 (TB@DAL EARLY, 2026-10-08) died "No space left on device" with nothing published.
+      - name: Free runner disk for the market-data worktree
+        if: steps.due.outputs.due == 'true' || inputs.rehearsal_cutoff != ''
+        run: bash scripts/ci/free_runner_disk.sh
       - name: Fetch bronze inputs (nflverse) and market-data
         if: steps.due.outputs.due == 'true' || inputs.rehearsal_cutoff != ''
         run: |
@@ -75,6 +80,11 @@ jobs:
         if: steps.due.outputs.due == 'true' && steps.capture.outcome == 'success' && hashFiles('data/research/wave2/**') != ''
         continue-on-error: true
         run: |
+          # The capture is done with /tmp/md; publish_market_data.py adds its own market-data worktree, and two copies
+          # do not fit on a hosted runner. Only the scratch checkout goes: the records under data/research/wave2 stay.
+          git worktree remove --force /tmp/md || rm -rf /tmp/md
+          git worktree prune
+          df -h / | tail -1
           python3 scripts/ci/publish_market_data.py --src data/research/wave2 --message "wave2 research capture $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
       # REHEARSAL (workflow_dispatch with rehearsal_cutoff): proves the capture path in this exact environment before a
       # real window, without creating evidence. Records are dry_run (the scorer refuses them), live only in /tmp, and
