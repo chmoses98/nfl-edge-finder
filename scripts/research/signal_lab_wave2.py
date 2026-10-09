@@ -336,6 +336,8 @@ def stage_enter(now, games, ids, market_data, out, have, frozen) -> dict:
         for t, m in meta.items():
             if m.get("family") != "PLAYER_STAT" or m.get("period") not in ("FULL", None) or m.get("operator") not in (">=", None):
                 continue
+            if m.get("stat") not in W.STREAM_KALSHI_STATS:
+                continue  # team field goals, D/ST fantasy points / touchdowns: not a player any stream reads
             team = TEAM_FIX.get(m.get("team"), m.get("team"))
             gsis, how = resolve(m.get("player_name"), team, _jersey_from_ticker(t))
             if how not in W.ACCEPTED_IDENTITY:

@@ -518,3 +518,9 @@ def test_summarize_reports_statuses_and_frozen_prices(tmp_path, monkeypatch):
     assert s["records"]["OBSERVATION"]["NFL-PROP-PROS-001|PENDING|None"] == 1
     rb = next(e for e in s["entries"] if e["signal_id"] == W.PROP_001)
     assert (rb["side"], rb["rung"], rb["ask"], rb["fee"]) == ("no", 3.0, 0.45, 0.02)
+
+
+def test_stream_stats_cover_every_role_family_and_nothing_else():
+    set1 = json.loads((ROOT / "research/signal_discovery_wave1/hypotheses_set1.json").read_text())
+    fams = {f["id"]: f["kalshi_stat"] for f in set1["prop_families"]}
+    assert {fams[f] for f in W.ROLE_FAMILIES} | {"receptions"} == set(W.STREAM_KALSHI_STATS)
