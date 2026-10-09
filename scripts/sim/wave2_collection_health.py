@@ -35,6 +35,7 @@ from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
+from nfl_edge.sim import a1b as AB  # noqa: E402
 from nfl_edge.sim import wave2_due as WD  # noqa: E402
 
 HEALTH_VERSION = "wave2-collection-health-1.0.0"
@@ -283,6 +284,70 @@ def table(res: dict, risk: list, now: datetime | None = None) -> str:
     return "\n".join(rows) + "\n"
 
 
+# ------------------------------------------------------------------------------------------ A1B (addendum B)
+def a1b_health(games: list, src, now: datetime, active_since: str | None, *, lookback_days: float = 200.0) -> list:
+    """Per post-activation A1B game: pregame source snapshots and the A1B record state. PIPELINE failures
+    (MISSED_RECORD, NO_SNAPSHOTS) are distinguished from SOURCE states (SOURCE_OUTAGE, NOT_PUBLISHED_OR_IMPLAUSIBLE),
+    which are genuine non-availability, and from a usable observation (CAPTURED_OK). Records are opened for their
+    state only; no prediction is compared with anything."""
+    if not active_since:
+        return []
+    act, lo = _ts(active_since), now - timedelta(days=lookback_days)
+    names = src.names("data/research/wave2_a1b/")
+    snaps, recs = {}, {}
+    for n in names:
+        p = AB.parse_name(n)
+        if p and p[0] == "SRC":
+            snaps.setdefault(p[1], []).append(n)
+        elif p and p[0] == "REC":
+            recs.setdefault(p[1], []).append(n)
+    out = []
+    for g in games or []:
+        ko = g.get("kickoff_utc")
+        if not ko or not g.get("game_id"):
+            continue
+        ko = _ts(ko)
+        if ko <= max(act, _ts(WD.PROSPECTIVE_CUTOFF)) or ko < lo:
+            continue
+        gid = g["game_id"]
+        snap_window_closed = now >= ko
+        a1b_closes = ko - timedelta(minutes=AB.A1B_WINDOW[0])
+        rs = recs.get(gid, [])
+        if len(rs) > 1:
+            status = "WRITE_ONCE_COLLISION"
+        elif rs:
+            d = _doc(src, rs[0])
+            gd = (d.get("games") or {}).get(gid) or {}
+            st = gd.get("state")
+            status = ("CAPTURED_OK" if st == "OK" else f"{st}:{gd.get('reason') or ''}".rstrip(":")) if "_error" not in d else "MALFORMED"
+            if st == "OK" and not all((gd.get("coherence") or {}).get(a) for a in ("A0", "A1B")):
+                status = "INCOHERENT_ARM"
+        elif now < ko - timedelta(minutes=AB.A1B_WINDOW[1]):
+            status = "NOT_YET_OPEN"
+        elif now < a1b_closes:
+            status = "OPEN"
+        else:
+            status = "MISSED_RECORD"
+        n_snap = len(snaps.get(gid, []))
+        out.append({"game_id": gid, "kickoff_utc": ko.isoformat(), "status": status, "n_snapshots": n_snap,
+                    "snapshot_problem": "NO_SNAPSHOTS" if (snap_window_closed and n_snap == 0) else None,
+                    "a1b_window_closes": a1b_closes.isoformat()})
+    return out
+
+
+def a1b_failures(rows: list, now: datetime, hours: float) -> list:
+    lo = now - timedelta(hours=hours)
+    bad = []
+    for r in rows:
+        if _ts(r["kickoff_utc"]) < lo or _ts(r["kickoff_utc"]) > now + timedelta(days=1):
+            continue
+        if r["status"] in ("MISSED_RECORD", "WRITE_ONCE_COLLISION", "MALFORMED", "INCOHERENT_ARM"):
+            bad.append(f"{r['game_id']} A1B: {r['status']}")
+        if r["snapshot_problem"]:
+            bad.append(f"{r['game_id']} A1B: {r['snapshot_problem']} (collector did not run before kickoff)")
+    return bad
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--market-data-ref", default=None)
@@ -293,6 +358,7 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default=None)
     ap.add_argument("--now", default=None)
     ap.add_argument("--fail-on-recent-miss-hours", type=float, default=None)
+    ap.add_argument("--a1b-active-since", default=None, help="A1B collector activation instant (git: first main commit adding a1b-research.yml)")
     a = ap.parse_args(argv)
     if a.validate_dir:
         src = DirSource(a.validate_dir)
@@ -312,10 +378,14 @@ def main(argv=None) -> int:
     risk = risk1_scripts(games, src, now)
     summ = summarize(res, risk)
     bad = failures(res, risk, now, a.fail_on_recent_miss_hours or 48.0)
+    a1b = a1b_health(games, src, now, a.a1b_active_since)
+    bad += a1b_failures(a1b, now, a.fail_on_recent_miss_hours or 48.0)
+    summ["a1b"] = {"active_since": a.a1b_active_since, **dict(Counter(r["status"].split(":")[0] for r in a1b)),
+                   "games_without_snapshots": sum(1 for r in a1b if r["snapshot_problem"])}
     doc = {"health_version": HEALTH_VERSION, "at": now.isoformat(), "schedule_source": sched_src,
            "prospective_cutoff": WD.PROSPECTIVE_CUTOFF, "active_since": ACTIVE_SINCE, "research_only": True,
            "note": "collection integrity only: no outcome is read and no registered comparison is computed",
-           "summary": summ, "recent_failures": bad, **res, "risk1": risk}
+           "summary": summ, "recent_failures": bad, **res, "risk1": risk, "a1b": a1b}
     if a.out:
         os.makedirs(a.out, exist_ok=True)
         with open(os.path.join(a.out, f"wave2_collection_{now.strftime('%Y%m%dT%H%M%SZ')}.json"), "w") as f:
