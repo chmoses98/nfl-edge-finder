@@ -90,7 +90,10 @@ jobs:
         shell: bash -eo pipefail {0}
         run: |
           git fetch --depth=1 --filter=blob:none origin market-data || true
+          git fetch --filter=blob:none --shallow-since=2026-10-01 origin main || true
+          A1B_SINCE=$(git log --diff-filter=A --format=%cI origin/main -- .github/workflows/a1b-research.yml | tail -1)
           python3 scripts/sim/wave2_collection_health.py --market-data-ref origin/market-data --out data/ops/wave2_collection \
+            ${A1B_SINCE:+--a1b-active-since "$A1B_SINCE"} \
             --fail-on-recent-miss-hours 48 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Keep the Wave-2 collection health on market-data
         continue-on-error: true

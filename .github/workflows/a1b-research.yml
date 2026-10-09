@@ -1,0 +1,80 @@
+name: Wave-2 A1B research capture (RESEARCH_ONLY)
+
+# GAME SCRIPT V2 Wave 2 -- A1B, verified pregame inactives (research/game_script_v2/wave2/PREREGISTRATION_ADDENDUM_B_A1B.md).
+# Zero authority: nothing in pricing, the ledger, the packet's decision fields, gates, preflight, risk or staking
+# reads anything this writes. A1 (the frozen Wave-2 arm) and wave2-research.yml are untouched.
+#
+#   1. SNAPSHOT (cheap, stdlib): for post-cutoff games kicking off within 150 minutes (never after kickoff), at most
+#      once per 10 minutes, freeze the candidate source (ESPN core competition rosters) with THIS repository's
+#      retrieval instants and the raw-bytes sha256 -- the only evidence of pregame availability.
+#   2. CAPTURE (heavy): for games 35-80 minutes from kickoff without an A1B record, A0 and A1B on identical rows from
+#      the latest usable snapshot retrieved in [T-100, cutoff]; at or inside T-45 without one, a NO_USABLE_SOURCE
+#      record (missing, counted, never back-filled).
+# Both are write-once and published to market-data under data/research/wave2_a1b/. The horizon conductor dispatches
+# this when something is owed (target A1B); the cron is only a backstop.
+
+on:
+  schedule:
+    - cron: '3,33 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: a1b-research
+  cancel-in-progress: false
+
+jobs:
+  a1b:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: What is owed? (schedule + A1B index only)
+        id: due
+        run: |
+          git fetch --depth=1 --filter=blob:none origin market-data
+          python3 scripts/sim/a1b_snapshot.py --check-only --existing-from-git origin/market-data --github-output "$GITHUB_OUTPUT"
+      - name: Source snapshots (write-once, pregame only)
+        id: snapshot
+        if: steps.due.outputs.snapshot == 'true'
+        continue-on-error: true
+        run: python3 scripts/sim/a1b_snapshot.py --existing-from-git origin/market-data --out .
+      - name: Free runner disk for the market-data worktree
+        if: steps.due.outputs.capture == 'true'
+        run: bash scripts/ci/free_runner_disk.sh
+      - name: Fetch bronze inputs (nflverse) and market-data
+        if: steps.due.outputs.capture == 'true'
+        run: |
+          pip install -q numpy pandas polars scipy pyarrow
+          python3 scripts/data/nflverse_download.py --only pbp,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,depth_charts,ff_playerids --seasons 2016-2026 2>&1 | tail -3
+          python3 nfl_edge/data/silver.py 2016 2026 2>&1 | tail -2
+          python3 nfl_edge/data/ids.py 2>&1 | tail -3
+          git fetch --depth=1 origin market-data
+          rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+      - name: A1B capture (A0 and A1B, identical rows)
+        id: capture
+        if: steps.due.outputs.capture == 'true'
+        continue-on-error: true
+        env:
+          PYTHONHASHSEED: '0'
+        run: python3 scripts/sim/a1b_capture.py --market-data /tmp/md --existing-from-git origin/market-data --out . 2>&1 | tail -20
+      - name: Publish the write-once snapshots and records
+        if: hashFiles('data/research/wave2_a1b/**') != ''
+        continue-on-error: true
+        run: |
+          git worktree remove --force /tmp/md 2>/dev/null || rm -rf /tmp/md
+          git worktree prune
+          python3 scripts/ci/publish_market_data.py --src data/research/wave2_a1b --message "wave2 a1b research $(date -u +'%Y-%m-%dT%H:%M:%SZ')"

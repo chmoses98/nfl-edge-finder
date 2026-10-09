@@ -11,6 +11,9 @@ Every pass, for each target:
   * SIGNAL_LAB -- Football Signal Discovery Lab Wave 2 (RESEARCH_ONLY). State is the record names under
                  `market-data:data/research/signal_lab_wave2/`; an observe / enter / settle stage owed by
                  `nfl_edge.signal_discovery.wave2_due` dispatches `signal-lab-wave2.yml`, whose own gate decides.
+  * A1B       -- Wave-2 A1B verified-pregame-inactives research (RESEARCH_ONLY, addendum B): source snapshots
+                 (T-150 .. kickoff, every 10 min) and the A1B capture (T-80 .. T-35) per `nfl_edge.sim.a1b.due`;
+                 dispatches `a1b-research.yml`, whose own gate decides.
   * WAVE2     -- GAME SCRIPT V2 Wave-2 research capture (RESEARCH_ONLY). Capture state is the record names under
                  `market-data:data/research/wave2/`; a (game, EARLY | LATE) window is owed while it is open and
                  has no record (`nfl_edge.sim.wave2_due`); dispatches `wave2-research.yml`, whose own gate decides.
@@ -42,6 +45,7 @@ from nfl_edge.handicap.automation import (                                      
 from nfl_edge.handicap.conductor import decide, handover_end, should_chain           # noqa: E402
 from nfl_edge.handicap.horizons import HORIZONS_MIN, cluster_kickoffs, due_horizons, rollover_due  # noqa: E402
 from nfl_edge.signal_discovery import wave2_due as signal_lab_due                    # noqa: E402
+from nfl_edge.sim import a1b as a1b_due                                               # noqa: E402
 from nfl_edge.sim import wave2_due                                                    # noqa: E402
 
 TARGETS = {
@@ -49,6 +53,7 @@ TARGETS = {
     "THREE_ARM": {"workflow": "three-arm-horizons.yml"},
     "WAVE2": {"workflow": "wave2-research.yml"},
     "SIGNAL_LAB": {"workflow": "signal-lab-wave2.yml"},
+    "A1B": {"workflow": "a1b-research.yml"},
 }
 
 
@@ -100,8 +105,15 @@ def signal_lab_state() -> set:
     return signal_lab_due.seen_from_names(r.stdout.split())
 
 
+def a1b_state() -> list:
+    """A1B source-snapshot and record names on market-data (names only; nothing is opened)."""
+    _git("fetch", "--depth=1", "--filter=blob:none", "origin", "market-data")
+    r = _git("ls-tree", "-r", "--name-only", "origin/market-data", "data/research/wave2_a1b/", timeout=60)
+    return r.stdout.split()
+
+
 STATE_READERS = {"RUN_NFL": run_nfl_state, "THREE_ARM": three_arm_state, "WAVE2": wave2_state,
-                 "SIGNAL_LAB": signal_lab_state}
+                 "SIGNAL_LAB": signal_lab_state, "A1B": a1b_state}
 
 
 def active_runs(workflow: str) -> int:
@@ -138,6 +150,27 @@ def one_pass(targets, games, src, now, dispatched, *, dry_run=False, ref="main",
             # Only then is market-data listed (a stage already recorded is not owed again).
             maybe = signal_lab_due.owed_ids(signal_lab_due.due(games, now, set()))
             due_ids = signal_lab_due.owed_ids(signal_lab_due.due(games, now, state_readers[name]())) if maybe else []
+            n_active = active(wf) if due_ids and not dry_run else 0
+            go, why = decide(due_ids, dispatched.setdefault(name, {}), now, n_active)
+            line.update(decision=("dispatch" if go else "wait"), reason=why, due=due_ids)
+            if go:
+                ok, msg = (True, "dry run") if dry_run else dispatcher(wf, ref)
+                line.update(dispatched=ok, message=msg)
+                if ok:
+                    dispatched[name][frozenset(due_ids)] = now
+            lines.append(line)
+            continue
+        if name == "A1B":
+            # A1B (addendum B): a source snapshot every 10 minutes from T-150 to kickoff, and the A1B capture in
+            # (T-80, T-35]. CHEAP FIRST: nothing in either window -> market-data is not listed. Snapshot ids carry a
+            # 10-minute bucket so the same game is re-dispatched each bucket, never faster.
+            maybe = a1b_due.due(games, now, [])
+            if maybe["snapshot"] or maybe["capture"]:
+                d = a1b_due.due(games, now, state_readers[name]())
+                bucket = int(now.timestamp() // (a1b_due.SNAPSHOT_MIN_GAP_MIN * 60))
+                due_ids = [f"SNAP:{g}:{bucket}" for g in d["snapshot"]] + [f"A1B:{g}" for g in d["capture"]]
+            else:
+                due_ids = []
             n_active = active(wf) if due_ids and not dry_run else 0
             go, why = decide(due_ids, dispatched.setdefault(name, {}), now, n_active)
             line.update(decision=("dispatch" if go else "wait"), reason=why, due=due_ids)
