@@ -123,6 +123,7 @@ jobs:
           python3 scripts/research/signal_lab_wave2.py run --market-data /tmp/md --out /tmp/rehearsal \
             --rehearsal-weeks "${{ inputs.rehearsal_weeks }}" --now "${{ inputs.rehearsal_enter_at }}" --stages enter,report 2>&1 | tail -30
           ls -R /tmp/rehearsal/data/research/signal_lab_wave2 | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 scripts/research/signal_lab_wave2.py summarize --dir /tmp/rehearsal | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Keep the rehearsal records as an artifact
         if: inputs.rehearsal_weeks != ''
         uses: actions/upload-artifact@v4

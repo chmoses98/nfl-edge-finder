@@ -48,6 +48,8 @@ ROLE_FAMILIES = (
     "WR_receptions", "WR_rec_yards", "TE_receptions", "TE_rec_yards",
 )
 TOTAL_SERIES = "KXNFLTOTAL"
+#: the Kalshi capture stats any stream reads (RB receptions + the eleven ROLE_CHANGE families' kalshi_stat)
+STREAM_KALSHI_STATS = ("passing_yards", "attempts", "completions", "carries", "rushing_yards", "receptions", "receiving_yards")
 
 OBSERVE_FROM_MIN, OBSERVE_UNTIL_MIN = 300.0, 20.0
 PRIMARY_OPEN_MIN, PRIMARY_CLOSE_MIN = 180.0, 60.0
