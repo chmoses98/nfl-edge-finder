@@ -250,13 +250,20 @@ def test_quotes_are_pre_kickoff():
 
 @need_outputs
 def test_no_future_role_data():
+    from datetime import timedelta
+
+    kickoff = {b["game_id"]: _ts(b["kickoff_utc"]) for b in _gz(WAVE2A / "baseline_ladders_2026.jsonl.gz")}
     for r in _gz(ROWS26):
         if r["pop"] != "P1":
             continue
         assert _ts(r["pre_cutoff"]) < _ts(r["kickoff_utc"])
         last = r.get("pre_latest_history_game")
         if last:
-            assert int(last.split("_")[1]) < int(r["game_id"].split("_")[1])  # history ends in an earlier week
+            # the frozen builder admits a game into history only once it is final (kickoff + 4 h <= cutoff); a same-week
+            # Thursday game can qualify for a Sunday cutoff, a 2025 game always does
+            if last.startswith("2026_"):
+                assert kickoff[last] + timedelta(hours=4) <= _ts(r["pre_cutoff"])
+            assert last != r["game_id"]
         if r.get("pre_injury_vintage"):
             assert _ts(r["pre_injury_vintage"]) <= _ts(r["pre_cutoff"])
 
@@ -295,3 +302,16 @@ def test_report_matches_rows_and_protocol():
     assert rep["settlement"]["yes_no_complement_failures"] == 0
     assert rep["positive_controls"]["threshold_order_failures"] == 0
     assert set(rep["formal_tests"]) >= {"T2", "T3", "T5", "T12_top5_share_of_pnl", "T14", "T27_t-1", "T27_le_t-2"}
+
+
+@need_outputs
+def test_deterministic_rerun_of_the_p1_headline():
+    if not REPORT.exists():
+        pytest.skip("report not built")
+    rep = json.loads(REPORT.read_text())
+    p1 = [r for r in _gz(ROWS26) if r["pop"] == "P1" and r.get("y") is not None]
+    a, b = R.calib_summary(p1), R.calib_summary(p1)
+    assert a == b
+    assert a["no_roi"]["est"] == pytest.approx(rep["headline"]["P1"]["no_roi"]["est"])
+    assert a["no_roi"]["ci95"] == pytest.approx(rep["headline"]["P1"]["no_roi"]["ci95"])
+    assert a["B_yes_mid"]["residual"]["ci95"] == pytest.approx(rep["headline"]["P1"]["B_yes_mid"]["residual"]["ci95"])

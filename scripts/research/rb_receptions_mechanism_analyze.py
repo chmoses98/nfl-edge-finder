@@ -2,8 +2,7 @@
 """Wave 2B (NFL): RB receptions market-mechanism study -- analysis. RESEARCH ONLY. EXPLANATORY ONLY.
 
 Reads only the committed build artifacts in research/rb_receptions_mechanism/ (deterministic; no network, no
-market-data) and writes the versioned artifact `mechanism_report.json` (nfl_rb_receptions_mechanism/1.0.0) and
-`TABLES.md`. Every analysis follows docs/research/RB_RECEPTIONS_MECHANISM_PROTOCOL.md (a5f18324); anything not
+market-data) and writes the versioned artifact `mechanism_report.json` (nfl_rb_receptions_mechanism/1.0.0). Every analysis follows docs/research/RB_RECEPTIONS_MECHANISM_PROTOCOL.md (a5f18324); anything not
 pre-registered is labelled POST_HOC. No rule, filter, stake or recommendation is produced.
 """
 
