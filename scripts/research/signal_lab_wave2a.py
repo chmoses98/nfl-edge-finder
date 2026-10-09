@@ -451,7 +451,7 @@ def cmd_report(a) -> int:
                 "independence": A.INDEPENDENCE[W.PROP_001],
                 "frozen_rule": "RB_receptions family, natural rung (valid 0<bid<=ask<1, width<=0.10, min |mid-0.5|, tie lowest threshold), NO at captured NO ask, LAST_VALID_PREKICK_QUOTE_24H",
                 "economics": econ1,
-                "frozen_summarize": W.summarize(W.PROP_001, [{**r, "game_id": r["game_id"]} for d in recs[W.SETTLEMENT].values() for r in d["rows"]]),
+                "frozen_summarize": _replay_only(W.summarize(W.PROP_001, [{**r, "game_id": gid} for gid, d in recs[W.SETTLEMENT].items() for r in d["rows"]])),
                 "concentration": A.concentration_roi(p1),
                 "by_threshold": A.roi_by(p1, "threshold"),
                 "by_price_bucket": A.roi_by([{**r, "bucket": f"{int(r['price'] * 10) / 10:.1f}"} for r in p1], "bucket"),
@@ -481,6 +481,7 @@ def cmd_report(a) -> int:
                 "independence": A.INDEPENDENCE[W.GAME_001],
                 "qualified": s3,
                 "economics": econ3,
+                "clv": _clv_summary(p3),
                 "all_games_with_centre": A.signed_summary(all_centre),
                 "all_games_rows": sorted(all_centre, key=lambda r: (r["week"], r["game_id"])),
                 "replay_verdict": A.classify_game001(s3) if p3 else "INSUFFICIENT_REPLAY_DATA",
@@ -498,6 +499,18 @@ def cmd_report(a) -> int:
                       "p2": {k: pair.get(k) for k in ("n_player_games", "mean_d", "ci95_game_cluster", "model_mae", "market_mae")},
                       "p3": s3, "p3_econ": {k: econ3.get(k) for k in ("n", "roi")}}, default=_default, indent=1))
     return 0
+
+
+def _replay_only(summary: dict[str, Any]) -> dict[str, Any]:
+    """The frozen summary without the PROSPECTIVE read ladder (EARLY_READ, next read): it counts Wave-2 rows only."""
+    return {k: v for k, v in summary.items() if k not in ("verdict", "next_read")}
+
+
+def _clv_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    vals = [(r.get("clv") or {}).get("clv") for r in rows]
+    have = [v for v in vals if v is not None]
+    return {"with_close": len(have), "missing_close": len(vals) - len(have),
+            "mean_clv": float(np.mean(have)) if have else None, "share_positive": (sum(1 for v in have if v > 0) / len(have)) if have else None}
 
 
 def _role_econ(recs) -> dict[str, Any]:
