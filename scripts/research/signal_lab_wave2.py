@@ -584,6 +584,28 @@ def stage_report(now, market_data, out, run_id: str) -> dict:
     return report
 
 
+def summarize_records(base: Path) -> dict:
+    """Machine-readable health of a record tree: status/reason counts per (record, stream), identity failures,
+    and the frozen entry prices (side, rung, ask, fee). Reads records only; never an outcome source."""
+    out: dict[str, Any] = {"records": {}, "identity_failures": 0, "entries": []}
+    for kind, sub in W.RECORD_DIRS.items():
+        cnt: Counter = Counter()
+        for p in sorted(glob.glob(str(base / W.RECORD_PREFIX / sub / "*" / "*.json")) + glob.glob(str(base / sub / "*" / "*.json"))):
+            d = json.loads(Path(p).read_text())
+            out["identity_failures"] += len(d.get("identity_failures") or []) if kind == W.ENTRY else 0
+            for r in d["rows"]:
+                cnt[f"{r['signal_id']}|{r['status']}|{r.get('reason')}"] += 1
+                if kind == W.ENTRY and r["status"] == W.ELIGIBLE:
+                    c = r.get("contract") or {}
+                    out["entries"].append({"game_id": d["game_id"], "signal_id": r["signal_id"], "player_id": r.get("player_id"),
+                                           "family": r.get("family"), "side": r.get("side") or c.get("contract_side"),
+                                           "rung": c.get("threshold"), "ask": c.get("ask"), "fee": c.get("fee"),
+                                           "contract_status": c.get("status"), "market_center": r.get("market_median", r.get("market_implied_total")),
+                                           "model": r.get("model_median", r.get("prediction")), "clv": (r.get("clv") or {}).get("clv")})
+        out["records"][kind] = dict(sorted(cnt.items()))
+    return out
+
+
 # --------------------------------------------------------------------------- dry run
 
 
@@ -623,6 +645,8 @@ def main(argv=None) -> int:
     r.add_argument("--run-id", default=None)
     r.add_argument("--no-exchange-fetch", action="store_true")
     r.add_argument("--rehearsal-weeks", default=None, help="REHEARSAL ONLY: comma list of weeks; records are marked and never published")
+    sm = sub.add_parser("summarize", help="per-stream status counts and the frozen prices of a record directory")
+    sm.add_argument("--dir", required=True)
     dy = sub.add_parser("days", help="capture days (UTC dates) a rehearsal of these weeks needs")
     dy.add_argument("--weeks", required=True)
     dr = sub.add_parser("dry-run")
@@ -631,6 +655,9 @@ def main(argv=None) -> int:
     dr.add_argument("--market-data", default=None)
     dr.add_argument("--out", default=None)
     a = ap.parse_args(argv)
+    if a.cmd == "summarize":
+        print(json.dumps(summarize_records(Path(a.dir)), indent=1, sort_keys=True, default=_json_default))
+        return 0
     if a.cmd == "days":
         weeks = [int(x) for x in a.weeks.split(",")]
         g = population_games(weeks=weeks)
