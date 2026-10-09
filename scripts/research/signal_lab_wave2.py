@@ -340,7 +340,7 @@ def stage_enter(now, games, ids, market_data, out, have, frozen) -> dict:
             gsis, how = resolve(m.get("player_name"), team, _jersey_from_ticker(t))
             if how not in W.ACCEPTED_IDENTITY:
                 id_fail.append({"ticker": t, "player_name": m.get("player_name"), "player_kalshi_id": m.get("player_kalshi_id"),
-                                "stat": m.get("stat"), "identity": how})
+                                "stat": m.get("stat"), "identity": how, "team": team})
                 continue
             c = ci.select(t, series_ticker=m.get("series_ticker"))
             if not W.prop_checkpoint_ok(c, kickoff.timestamp()):
@@ -587,12 +587,19 @@ def stage_report(now, market_data, out, run_id: str) -> dict:
 def summarize_records(base: Path) -> dict:
     """Machine-readable health of a record tree: status/reason counts per (record, stream), identity failures,
     and the frozen entry prices (side, rung, ask, fee). Reads records only; never an outcome source."""
-    out: dict[str, Any] = {"records": {}, "identity_failures": 0, "entries": []}
+    out: dict[str, Any] = {"records": {}, "identity_failures": 0, "identity_failure_breakdown": {}, "entries": []}
+    idf: Counter = Counter()
+    examples: list[dict] = []
     for kind, sub in W.RECORD_DIRS.items():
         cnt: Counter = Counter()
         for p in sorted(glob.glob(str(base / W.RECORD_PREFIX / sub / "*" / "*.json")) + glob.glob(str(base / sub / "*" / "*.json"))):
             d = json.loads(Path(p).read_text())
-            out["identity_failures"] += len(d.get("identity_failures") or []) if kind == W.ENTRY else 0
+            if kind == W.ENTRY:
+                for f in d.get("identity_failures") or []:
+                    out["identity_failures"] += 1
+                    idf[f"{f.get('identity')}|{f.get('stat')}"] += 1
+                    if len(examples) < 25:
+                        examples.append({k: f.get(k) for k in ("player_name", "team", "stat", "identity", "ticker")})
             for r in d["rows"]:
                 cnt[f"{r['signal_id']}|{r['status']}|{r.get('reason')}"] += 1
                 if kind == W.ENTRY and r["status"] == W.ELIGIBLE:
@@ -603,6 +610,8 @@ def summarize_records(base: Path) -> dict:
                                            "contract_status": c.get("status"), "market_center": r.get("market_median", r.get("market_implied_total")),
                                            "model": r.get("model_median", r.get("prediction")), "clv": (r.get("clv") or {}).get("clv")})
         out["records"][kind] = dict(sorted(cnt.items()))
+    out["identity_failure_breakdown"] = dict(sorted(idf.items()))
+    out["identity_failure_examples"] = examples
     return out
 
 
