@@ -264,6 +264,8 @@ class History:
 
     def __init__(self, pg: pd.DataFrame):
         pg = pg.copy()
+        if "team_targets" not in pg.columns:  # silver player_games carries no team total: sum the team's targets per game
+            pg["team_targets"] = pg.groupby(["game_id", "team"])["targets"].transform("sum")
         pg["date"] = pd.to_datetime(pg["gameday"])
         pg["played"] = (pg["offense_snaps"].fillna(0) >= 1) | (pg["targets"].fillna(0) > 0) | (pg["carries"].fillna(0) > 0)
         self.pg = pg.sort_values(["date", "game_id"])

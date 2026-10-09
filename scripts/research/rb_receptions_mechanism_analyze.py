@@ -45,6 +45,15 @@ def _default(o):
     return str(o)
 
 
+def clean_keys(o):
+    """JSON object keys as strings (a Counter over a field that is sometimes missing has a None key)."""
+    if isinstance(o, dict):
+        return {("None" if k is None else str(k)): clean_keys(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [clean_keys(v) for v in o]
+    return o
+
+
 def mean(v):
     v = [x for x in v if x is not None]
     return float(np.mean(v)) if v else None
@@ -577,6 +586,38 @@ def team_scheme(rows) -> dict[str, Any]:
             "offensive_coordinator": "UNAVAILABLE: no reliable timestamped OC/scheme source in the repository"}
 
 
+def removal_null(rows, top: int = 5, sims: int = 2000) -> dict[str, Any]:
+    """POST_HOC characterisation (not pre-registered): what removing the top-`top` players by realized P/L does when the
+    effect is HOMOGENEOUS. Outcomes are simulated as y ~ Bernoulli(B + s) for every row, with s = 0 (market calibrated)
+    and s = the observed mean residual (a uniform shift); the same top-k-by-P/L removal is then applied."""
+    rs = [r for r in rows if r.get("y") is not None and r.get("no_pnl") is not None and r.get("B_yes_mid") is not None]
+    obs_shift = float(np.mean([r["y"] - r["B_yes_mid"] for r in rs]))
+    rng = np.random.default_rng(R.SEED)
+    out = {}
+    for label, s in (("calibrated_s0", 0.0), ("uniform_shift_observed", obs_shift)):
+        full, removed = [], []
+        for _ in range(sims):
+            sim = []
+            for r in rs:
+                y = int(rng.random() < min(1.0, max(0.0, r["B_yes_mid"] + s)))
+                win = y == 0
+                sim.append({"player_id": r["player_id"], "no_outlay": r["no_outlay"], "no_win": win,
+                            "no_pnl": (1.0 if win else 0.0) - r["no_outlay"]})
+            o = sum(x["no_outlay"] for x in sim)
+            full.append(sum(x["no_pnl"] for x in sim) / o)
+            w = R.roi_without_top(sim, "player_id", top)
+            removed.append(w["roi"])
+        f, m = np.asarray(full), np.asarray(removed)
+        out[label] = {"shift": s, "roi_full_median": float(np.median(f)), "roi_without_top_median": float(np.median(m)),
+                      "roi_without_top_p05_p95": [float(np.quantile(m, 0.05)), float(np.quantile(m, 0.95))],
+                      "mean_drop": float(np.mean(f - m))}
+    actual = R.roi_without_top(rs, "player_id", top)
+    o = sum(r["no_outlay"] for r in rs)
+    out["observed"] = {"roi_full": sum(r["no_pnl"] for r in rs) / o, "roi_without_top": actual["roi"]}
+    out["label"] = "POST_HOC (not pre-registered): removal of top-P/L players is outcome-selected and lowers ROI even for a homogeneous effect"
+    return out
+
+
 def headline(rows) -> dict[str, Any]:
     rs = [r for r in rows if r.get("y") is not None]
     c = R.calib_summary(rs)
@@ -651,6 +692,7 @@ def main() -> int:
         "price_buckets": {"P1": no_table([r for r in p1 if r.get("y") is not None]), "P2": no_table([r for r in p2 if r.get("y") is not None])},
         "thresholds": {"P1": split(p1, lambda r: f"{int(r['threshold'])}+"), "P2": split(p2, lambda r: f"{int(r['threshold'])}+")},
         "concentration": {"P1": conc, "P2": R.concentration(p2, "player_id")},
+        "concentration_removal_null_POST_HOC": {"P1": removal_null(p1), "P2": removal_null(p2)},
         "team_scheme": {"P1": team_scheme(p1), "P2": team_scheme(p2)},
         "public": {"P1": public_proxies(p1), "P2": public_proxies(p2)},
         "environment": {"P1": environment(p1), "P2": environment(p2)},
@@ -664,6 +706,7 @@ def main() -> int:
     st = report["settlement"]
     if pc["threshold_order_failures"] or st["yes_no_complement_failures"]:
         raise R.MechanismIntegrityError(f"positive control failed: {pc} {st['yes_no_complement_failures']}")
+    report = clean_keys(report)
     payload = json.dumps(report, indent=1, sort_keys=True, default=_default) + "\n"
     (OUT / "mechanism_report.json").write_text(payload)
     print("mechanism_report.json sha256", hashlib.sha256(payload.encode()).hexdigest())
