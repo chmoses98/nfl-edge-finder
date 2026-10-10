@@ -1,5 +1,5 @@
 {
- "as_of": "2026-10-10T20:08:23.880338+00:00",
+ "as_of": "2026-10-10T22:06:51.747040+00:00",
  "capture_health_report": "horizon-capture-health-1.0.0",
  "conductor_deployed_utc": "2026-09-24T12:00:00+00:00",
  "notes": [
@@ -7,10 +7,10 @@
  ],
  "run_nfl_latency": {
   "median": {
-   "packet_publish_latency_min": 24.6,
+   "packet_publish_latency_min": 25.0,
    "pipeline_processing_min": 18.5,
    "snapshot_capture_latency_min": 7.4,
-   "time_remaining_to_kickoff_at_publication_min": 326.8
+   "time_remaining_to_kickoff_at_publication_min": 328.9
   },
   "rows": [
    {
@@ -404,6 +404,14 @@
     "snapshot_capture_latency_min": 8.5,
     "status": "CAPTURED",
     "time_remaining_to_kickoff_at_publication_min": 1408.2
+   },
+   {
+    "horizon_id": "2026-REG-05|20261011T2005Z|T-1440m",
+    "packet_publish_latency_min": 35.2,
+    "pipeline_processing_min": 22.2,
+    "snapshot_capture_latency_min": 13.0,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 1404.8
    }
   ]
  },
@@ -1823,9 +1831,11 @@
      "horizon_id": "2026-REG-05|20261011T2005Z|T-1440m",
      "horizon_min": 1440,
      "kickoff_utc": "2026-10-11T20:05:00+00:00",
+     "lateness_min": 35.2,
      "n_games": 3,
      "slate_id": "2026-REG-05",
-     "status": "DUE",
+     "snapshot_id": "2026-10-10T20:40:13.946445+00:00",
+     "status": "DELIVERED_LATE",
      "trigger_utc": "2026-10-10T20:05:00+00:00",
      "week": 5
     },
@@ -1965,13 +1975,12 @@
    "summary": {
     "AFTER_CONDUCTOR": {
      "counts": {
-      "DELIVERED_LATE": 47,
-      "DUE": 1,
+      "DELIVERED_LATE": 48,
       "MISSED": 2,
       "NOT_YET_DUE": 17
      },
-     "delivered": 47,
-     "delivered_pct": 95.9,
+     "delivered": 48,
+     "delivered_pct": 96.0,
      "horizons": 67,
      "median_lateness_min": 24.6,
      "missed": 2,
@@ -1980,7 +1989,7 @@
       "2026-REG-05|20261009T0015Z|T-30m"
      ],
      "on_time_pct": 0.0,
-     "owed": 49
+     "owed": 50
     },
     "BEFORE_CONDUCTOR": {
      "counts": {
