@@ -1,9 +1,13 @@
-"""A1B source qualification (PREREGISTRATION_ADDENDUM_B_A1B.md section B.4) -- mechanical, source behaviour only.
+"""A1B source qualification (PREREGISTRATION_ADDENDUM_B_A1B.md section B.4, as restarted by amendment B1
+PREREGISTRATION_AMENDMENT_B1_A1B_SOURCE.md) -- mechanical, source behaviour only.
 
 Committed with addendum B, before any source snapshot existed. It reads this repository's snapshots of the source
 and, for criterion QT only, nflverse's POSTGAME `INA` list to check that the source named the right players. No
 projection, prediction or game outcome is read. Decision: QUALIFIED only if every criterion passes; BLOCKED
 otherwise; AWAITING_GAMES / AWAITING_TRUTH while the qualification set is incomplete (no partial decision).
+
+Amendment B1 (1.1.0): only snapshots of the current source version count, and QR is evaluable for a team only when
+its early snapshot is a 200 response (an OUTAGE shows nothing about whether a list was already there).
 """
 from __future__ import annotations
 
@@ -11,7 +15,7 @@ from datetime import timedelta
 
 from . import a1b as A
 
-QUALIFY_VERSION = "a1b-qualify-1.0.0"
+QUALIFY_VERSION = "a1b-qualify-1.1.0"
 N_GAMES = 24
 EARLY_BEFORE_MIN = 110.0
 FREEZE_MIN = 35.0
@@ -42,7 +46,7 @@ def evaluate(games: list, snaps_by_game: dict, truth: dict, gsis_of_espn: dict, 
     mapped_ids = total_ids = 0
     for g in games:
         ko = A._ts(g["kickoff_utc"])
-        snaps = sorted(snaps_by_game.get(g["game_id"], []), key=lambda s: s.get("retrieved_at") or "")
+        snaps = sorted(A.current_version(snaps_by_game.get(g["game_id"], [])), key=lambda s: s.get("retrieved_at") or "")
         freeze = ko - timedelta(minutes=FREEZE_MIN)
         game_cut, _ = A.choose_snapshot(snaps, freeze)
         per_game.append({"game_id": g["game_id"], "QA": game_cut is not None, "n_snapshots": len(snaps)})
@@ -56,7 +60,7 @@ def evaluate(games: list, snaps_by_game: dict, truth: dict, gsis_of_espn: dict, 
             early = [s for s in pre if A._ts(s["retrieved_at"]) < ko - timedelta(minutes=EARLY_BEFORE_MIN)]
             row = {"game_id": g["game_id"], "team": team}
             # QR: release, not an echo of a week-long roster status
-            if early:
+            if early and _team_state(early[-1], side).get("state") not in (None, A.OUTAGE):
                 e = _team_state(early[-1], side)
                 row["QR_evaluable"] = True
                 row["QR"] = first is not None and (len(e.get("inactive_espn_ids") or []) == 0 or
