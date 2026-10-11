@@ -1,0 +1,190 @@
+{
+  "certified": true,
+  "checks": {
+    "control_deterministic": true,
+    "control_normal_ok": true,
+    "control_responds_to_every_mutation": true,
+    "market_inputs_restored_unchanged": true,
+    "model_deterministic": true,
+    "model_identical_under_all_mutations": true,
+    "model_normal_ok": true,
+    "randomization_effective": true,
+    "sports_inputs_unchanged": true
+  },
+  "compare": "bytes",
+  "control_command": [
+    "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/venv/bin/python",
+    "/home/user/nfl-edge-finder/scripts/research/pure_player_v1_rerun_cli.py",
+    "--sports-root",
+    "{sports[root]}",
+    "--market-lines",
+    "{market[lines]}",
+    "--season",
+    "2025",
+    "--out",
+    "{out}",
+    "--control"
+  ],
+  "gate": "pure_gate 1.0.0",
+  "market_inputs": {
+    "lines": {
+      "path": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/market/market_lines.csv",
+      "sha256": "6463c72532da1b0f1dc1db4e4cefa6c7f589128cbe7601a986a8cb1d79c690bc"
+    }
+  },
+  "mode": "placeholder",
+  "model_command": [
+    "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/venv/bin/python",
+    "/home/user/nfl-edge-finder/scripts/research/pure_player_v1_rerun_cli.py",
+    "--sports-root",
+    "{sports[root]}",
+    "--market-lines",
+    "{market[lines]}",
+    "--season",
+    "2025",
+    "--out",
+    "{out}"
+  ],
+  "mutation_seed": 20261010,
+  "note": "Each arm ran the actual command at identical seed, sports inputs and command-line paths. Model-owned outputs must be bit-identical with market inputs deleted or randomized; the market-reading negative control must change, proving the mutation reaches readers. This cannot detect market information baked into the sports snapshot itself or into frozen parameters; pair it with the source/dependency audit.",
+  "passed": true,
+  "per_arm": {
+    "control_responded": {
+      "deleted": "failed_or_invalid",
+      "randomized_0": "output_changed"
+    },
+    "model_identical": {
+      "deleted": true,
+      "randomized_0": true
+    }
+  },
+  "random_draws": 1,
+  "randomization_effective_by_input": {
+    "lines@20261010": true
+  },
+  "runs": {
+    "control": {
+      "deleted": {
+        "arm": "deleted",
+        "exit_code": 3,
+        "kept_outputs": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/work/results/control-deleted",
+        "ok": false,
+        "output_problem": null,
+        "outputs_sha256": {},
+        "role": "control",
+        "seconds": 1.828,
+        "stderr_tail": "{\"refused\": \"ColumnNotFoundError: unable to find column \\\"spread_line\\\"; valid columns: [\\\"game_id\\\", \\\"season\\\", \\\"game_type\\\", \\\"week\\\", \\\"gameday\\\", \\\"weekday\\\", \\\"gametime\\\", \\\"away_team\\\", \\\"away_score\\\", \\\"home_team\\\", \\\"home_score\\\", \\\"location\\\", \\\"resu\"}\n",
+        "stdout_tail": ""
+      },
+      "normal": {
+        "arm": "normal",
+        "exit_code": 0,
+        "kept_outputs": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/work/results/control-normal",
+        "ok": true,
+        "output_problem": null,
+        "outputs_sha256": {
+          "pure_forecasts.jsonl": "88f4e7790a0ad03aa4de36eaab0bd21bd92cb1ebd7b7d0112cc0d5791228ca17"
+        },
+        "role": "control",
+        "seconds": 4.362,
+        "stderr_tail": "",
+        "stdout_tail": ""
+      },
+      "normal_repeat": {
+        "arm": "normal_repeat",
+        "exit_code": 0,
+        "kept_outputs": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/work/results/control-normal_repeat",
+        "ok": true,
+        "output_problem": null,
+        "outputs_sha256": {
+          "pure_forecasts.jsonl": "88f4e7790a0ad03aa4de36eaab0bd21bd92cb1ebd7b7d0112cc0d5791228ca17"
+        },
+        "role": "control",
+        "seconds": 5.047,
+        "stderr_tail": "",
+        "stdout_tail": ""
+      },
+      "randomized_0": {
+        "arm": "randomized_0",
+        "exit_code": 0,
+        "kept_outputs": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/work/results/control-randomized_0",
+        "ok": true,
+        "output_problem": null,
+        "outputs_sha256": {
+          "pure_forecasts.jsonl": "44b7270e45f67d10fea7f65adc1105aa9d8ca98a6006b52e1b75ef6dbcc4cb79"
+        },
+        "role": "control",
+        "seconds": 4.913,
+        "stderr_tail": "",
+        "stdout_tail": ""
+      }
+    },
+    "model": {
+      "deleted": {
+        "arm": "deleted",
+        "exit_code": 0,
+        "kept_outputs": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/work/results/model-deleted",
+        "ok": true,
+        "output_problem": null,
+        "outputs_sha256": {
+          "pure_forecasts.jsonl": "545463521dc53e63957783f9e5b00b4eef446a5e360fb6511144452e4ed26684"
+        },
+        "role": "model",
+        "seconds": 31.266,
+        "stderr_tail": "",
+        "stdout_tail": ""
+      },
+      "normal": {
+        "arm": "normal",
+        "exit_code": 0,
+        "kept_outputs": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/work/results/model-normal",
+        "ok": true,
+        "output_problem": null,
+        "outputs_sha256": {
+          "pure_forecasts.jsonl": "545463521dc53e63957783f9e5b00b4eef446a5e360fb6511144452e4ed26684"
+        },
+        "role": "model",
+        "seconds": 32.292,
+        "stderr_tail": "",
+        "stdout_tail": ""
+      },
+      "normal_repeat": {
+        "arm": "normal_repeat",
+        "exit_code": 0,
+        "kept_outputs": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/work/results/model-normal_repeat",
+        "ok": true,
+        "output_problem": null,
+        "outputs_sha256": {
+          "pure_forecasts.jsonl": "545463521dc53e63957783f9e5b00b4eef446a5e360fb6511144452e4ed26684"
+        },
+        "role": "model",
+        "seconds": 31.463,
+        "stderr_tail": "",
+        "stdout_tail": ""
+      },
+      "randomized_0": {
+        "arm": "randomized_0",
+        "exit_code": 0,
+        "kept_outputs": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/work/results/model-randomized_0",
+        "ok": true,
+        "output_problem": null,
+        "outputs_sha256": {
+          "pure_forecasts.jsonl": "545463521dc53e63957783f9e5b00b4eef446a5e360fb6511144452e4ed26684"
+        },
+        "role": "model",
+        "seconds": 31.557,
+        "stderr_tail": "",
+        "stdout_tail": ""
+      }
+    }
+  },
+  "seed": 7,
+  "sports_inputs": {
+    "root": {
+      "path": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/sports_root",
+      "sha256": "e901f9682ecaf877b85efdaebb9680571aea00665c96381957191cc5b3577cb3"
+    }
+  },
+  "verdict": "PASS_RUNTIME_NONLEAKAGE",
+  "workdir": "/tmp/claude-0/-home-user/4128528f-e3c2-5e3a-aa08-a19f8744ad74/scratchpad/nfl/rerun/work"
+}
