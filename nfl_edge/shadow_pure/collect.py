@@ -12,6 +12,9 @@ import sys
 from datetime import datetime, timezone
 
 import pandas as pd
+# The frozen PURE readers convert polars frames with `.to_pandas()`, which needs pyarrow at run time. Importing it
+# here makes that dependency explicit (and visible to tests/test_ci_dependencies.py) instead of failing mid-run.
+import pyarrow  # noqa: F401
 
 from nfl_edge.engines.player.pure_v1 import BASELINE_NAME, BASELINE_VERSION, MODEL_NAME, VERSION
 from nfl_edge.engines.player.pure_v1 import data as D
