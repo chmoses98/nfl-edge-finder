@@ -1,0 +1,132 @@
+name: PURE shadow collection (NFL, research only)
+
+# Phase 2 prospective collection of the FROZEN market-independent arms PURE_PLAYER_V1 and PURE_EWM_BASELINE
+# (docs/research/PURE_SHADOW_NFL.md). Hourly (at :35) the collector decides what is due -- DAY_BEFORE (T-30h..T-18h),
+# MORNING_OF (T-8h..T-2h45m) and FINAL_T90 (T-90m..T-30m, after the inactive list) per game, each at most once --
+# forecasts it, and appends write-once files to data/shadow_pure/nfl on the `market-data` branch. Kalshi listings
+# and the incumbent market-informed V4/V5 records are copied READ-ONLY into separate file families. Matured rows are
+# scored against nflverse box scores. Nothing here selects, recommends, stakes or publishes to production.
+#
+# pull_request: DRY RUN. Fetches live inputs, captures every upcoming game as ADHOC into a scratch store, validates,
+# verifies the store and uploads the result as an artifact. It never publishes.
+
+on:
+  schedule:
+    - cron: '35 * * * *'
+  workflow_dispatch:
+    inputs:
+      adhoc:
+        description: 'blank = capture what is due; ALL or comma-separated game ids = capture now as ADHOC'
+        required: false
+        default: ''
+  pull_request:
+    paths:
+      - '.github/workflows/shadow-pure-nfl.yml'
+      - 'nfl_edge/shadow_pure/**'
+      - 'scripts/shadow_pure/**'
+      - 'tools/pure_gate/**'
+      - 'tests/test_shadow_pure.py'
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: shadow-pure-nfl-${{ github.event_name == 'pull_request' && github.head_ref || 'collect' }}
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OMP_NUM_THREADS: '1'
+      DRY: ${{ github.event_name == 'pull_request' && '1' || '0' }}
+      STORE: ${{ github.event_name == 'pull_request' && '/tmp/dry_store/nfl' || 'data/shadow_pure/nfl' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -q numpy pandas polars scipy pyarrow
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      # Cheap gate: the schedule alone says whether any capture window is open. Off-window scheduled runs stop here
+      # (about 30 s) unless it is a scoring hour (05/11/17/23 UTC), so the hourly cron costs little runner time.
+      - name: Gate (is a capture window open, or is this a scoring hour?)
+        id: gate
+        run: |
+          python3 scripts/data/nflverse_download.py --only schedules --seasons $(date -u +%Y)-$(date -u +%Y) 2>&1 | tail -1
+          python3 scripts/shadow_pure/collect.py --check-windows --github-output "$GITHUB_OUTPUT"
+          H=$(date -u +%H)
+          if [ "${{ github.event_name }}" != "schedule" ] || grep -q '^open=true' "$GITHUB_OUTPUT" || [[ " 05 11 17 23 " == *" $H "* ]]; then
+            echo "work=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "work=false" >> "$GITHUB_OUTPUT"; echo "no capture window open and not a scoring hour: nothing to do"
+          fi
+      # Football inputs, with a manifest row (url, retrieved_at, sha256, last-modified) per file.
+      - name: Fetch nflverse inputs
+        if: steps.gate.outputs.work == 'true'
+        run: |
+          python3 scripts/data/nflverse_download.py --only schedules,stats_player,snap_counts,players,rosters --seasons 2013-$(date -u +%Y) 2>&1 | tail -3
+      # Read-only, sparse: the published store, the newest discovery, the last 3 h of quotes, the newest V4/V5 records.
+      - name: Check out market-data (sparse, read-only)
+        if: steps.gate.outputs.work == 'true'
+        run: |
+          bash scripts/shadow_pure/checkout_market_data.sh /tmp/md 3 3
+          mkdir -p data/silver
+          D=$(ls -d /tmp/md/data/kalshi/discovery/*/ 2>/dev/null | tail -1 || true)
+          if [ -n "$D" ]; then python3 scripts/kalshi/build_player_map.py --discovery-dir "$D" --season $(date -u +%Y) 2>&1 | tail -4; fi
+      - name: Verify the published store (hash chain, every recorded sha256)
+        if: steps.gate.outputs.work == 'true'
+        run: |
+          python3 scripts/shadow_pure/verify_store.py --store /tmp/md/data/shadow_pure/nfl
+          mkdir -p "$(dirname "$STORE")"
+          if [ -d /tmp/md/data/shadow_pure/nfl ]; then cp -a /tmp/md/data/shadow_pure/nfl/. "$STORE"/ ; else mkdir -p "$STORE"; fi
+      - name: Verify the published history (no commit modified, deleted or renamed a record)
+        if: steps.gate.outputs.work == 'true'
+        run: |
+          git fetch --no-tags --shallow-since=2026-10-10 --filter=blob:none origin '+refs/heads/market-data:refs/remotes/origin/market-data' || git fetch --no-tags --filter=blob:none origin '+refs/heads/market-data:refs/remotes/origin/market-data'
+          python3 scripts/shadow_pure/verify_store.py --git-repo . --prefix data/shadow_pure --ref origin/market-data
+      - name: Capture (due windows; ADHOC on pull_request / dispatch input)
+        id: cap
+        if: steps.gate.outputs.work == 'true'
+        env:
+          ADHOC: ${{ github.event_name == 'pull_request' && 'ALL' || github.event.inputs.adhoc }}
+        run: |
+          ARGS=""
+          if [ -n "${ADHOC}" ]; then ARGS="--adhoc ${ADHOC}"; fi
+          if [ "$DRY" = "1" ]; then ARGS="$ARGS --dry-run"; fi
+          python3 scripts/shadow_pure/collect.py --store "$STORE" --market-data /tmp/md \
+            --player-map data/silver/kalshi_player_map.parquet --summary-out /tmp/capture_summary.json \
+            --github-output "$GITHUB_OUTPUT" $ARGS
+      - name: Outcomes, reconciliation and scoring of matured rows
+        if: steps.gate.outputs.work == 'true'
+        run: |
+          python3 scripts/shadow_pure/settle_evaluate.py --store "$STORE" --market-data /tmp/md \
+            --player-map data/silver/kalshi_player_map.parquet --bootstrap 1000
+      - name: Verify the local store and that publishing only adds files
+        if: steps.gate.outputs.work == 'true'
+        run: |
+          python3 scripts/shadow_pure/verify_store.py --store "$STORE" --published /tmp/md/data/shadow_pure/nfl
+      - name: Upload the run as an artifact
+        if: always() && steps.gate.outputs.work == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-pure-nfl-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.STORE }}
+            /tmp/capture_summary.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Publish to market-data (append-only)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.gate.outputs.work == 'true'
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow_pure \
+            --message "pure shadow nfl ${{ steps.cap.outputs.state }} ${{ steps.cap.outputs.run_id }} ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
