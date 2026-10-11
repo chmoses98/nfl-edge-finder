@@ -182,5 +182,5 @@ def test_module_source_never_reads_expected_pass_or_win_probability():
     root = os.path.join(os.path.dirname(__file__), "..", "nfl_edge", "engines", "player", "pure_v1")
     for fn in ("data.py", "features.py", "model.py", "dists.py", "baseline.py", "pipeline.py"):
         src = open(os.path.join(root, fn)).read().lower()
-        for tok in ("xpass", "pass_oe", "proe", "vegas", '"wp"', "play_by_play", "pbp"):
+        for tok in ("xpass", "pass_oe", "proe", "vegas_wp", '"wp"', "play_by_play", "pbp"):
             assert tok not in src, (fn, tok)

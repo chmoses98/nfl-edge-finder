@@ -45,7 +45,7 @@ the spread).
 * Its pass-rate / team-volume environment is built from prior box-score team pass and rush attempts (EWM,
   opponent-adjusted), not from `xpass`.
 * `tests/test_pure_player_v1.py::test_module_source_never_reads_expected_pass_or_win_probability` now fails
-  if any PURE module names `xpass`, `pass_oe`, `proe`, `vegas`, `wp` or play-by-play.
+  if any PURE module names `xpass`, `pass_oe`, `proe`, `vegas_wp`, `"wp"` or play-by-play (`pbp`, `play_by_play`).
 * The runtime mutation tests (`research/pure_player_v1/mutation.json`, `pure_gate_rerun.json`) are unaffected.
 
 `home_qb_id` / `away_qb_id` (the target game's starter) define the *evaluation population* for QB passing
