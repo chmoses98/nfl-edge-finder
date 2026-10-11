@@ -42,6 +42,12 @@ def world():
     return sched, stats, snaps
 
 
+def _pq(df, path):
+    """Write parquet through polars (CI installs no pyarrow)."""
+    import polars as pl
+    pl.DataFrame({c: df[c].tolist() for c in df.columns}).write_parquet(path)
+
+
 def _write_root(root, sched, stats, snaps, *, fetched_at, future_week=(LAST_SEASON, LAST_WEEK)):
     """An nflverse-shaped data root whose last week is unplayed, plus the downloader's provenance manifest."""
     s, w = future_week
@@ -60,13 +66,13 @@ def _write_root(root, sched, stats, snaps, *, fetched_at, future_week=(LAST_SEAS
                       opponent=snaps.opponent_team)
     for season in sorted(sched.season.unique()):
         p = os.path.join(nv, "stats_player", f"stats_player_week_{season}.parquet")
-        stats[stats.season == season].to_parquet(p, index=False); paths.append(p)
+        _pq(stats[stats.season == season], p); paths.append(p)
         p = os.path.join(nv, "snap_counts", f"snap_counts_{season}.parquet")
-        sn[sn.season == season][["pfr_player_id", "player", "position", "season", "week", "game_id", "team", "opponent",
-                                 "offense_snaps", "game_type"]].to_parquet(p, index=False); paths.append(p)
+        _pq(sn[sn.season == season][["pfr_player_id", "player", "position", "season", "week", "game_id", "team", "opponent",
+                                     "offense_snaps", "game_type"]], p); paths.append(p)
     ids = sorted(set(stats.player_id) | set(snaps.player_id))
     p = os.path.join(nv, "players", "players.parquet")
-    pd.DataFrame({"gsis_id": ids, "pfr_id": ["pfr_" + i for i in ids]}).to_parquet(p, index=False); paths.append(p)
+    _pq(pd.DataFrame({"gsis_id": ids, "pfr_id": ["pfr_" + i for i in ids]}), p); paths.append(p)
     with open(os.path.join(nv, "_manifest.jsonl"), "w") as fh:
         for p in paths:
             rel = os.path.relpath(p, root).replace(os.sep, "/")
