@@ -3,9 +3,10 @@
 
     python3 scripts/sim/a1b_qualify.py --market-data-ref origin/market-data [--out research/game_script_v2/wave2/a1b]
 
-The qualification set is the first 24 post-cutoff games kicking off after the ACTIVATION INSTANT -- the committer
-time of the first commit on origin/main that adds .github/workflows/a1b-research.yml (read from git, so it cannot
-be chosen). Writes one new JSON file per run (never overwrites) and NEVER edits SOURCE_STATUS.json: recording a
+The qualification set is the first 24 post-cutoff games kicking off after the QUALIFICATION START -- amendment B1:
+the committer time of the first-parent commit on origin/main that adds the amendment file (the merge that put source
+version 1.1.0 on main; read from git, so it cannot be chosen). Addendum B's original instant (the workflow's first
+commit) began a 1.0.0 set that the amendment closed with no usable observation. Writes one new JSON file per run (never overwrites) and NEVER edits SOURCE_STATUS.json: recording a
 QUALIFIED / BLOCKED decision is addendum C, a separate commit made from this output.
 """
 from __future__ import annotations
@@ -17,11 +18,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import a1b_snapshot as SN                                   # noqa: E402
 from nfl_edge.sim import a1b as A, a1b_qualify as Q         # noqa: E402
 
-WORKFLOW = ".github/workflows/a1b-research.yml"
+AMENDMENT = "research/game_script_v2/wave2/PREREGISTRATION_AMENDMENT_B1_A1B_SOURCE.md"
 
 
 def activation_instant(ref: str = "origin/main"):
-    r = subprocess.run(["git", "log", "--diff-filter=A", "--format=%cI", ref, "--", WORKFLOW], cwd=ROOT,
+    r = subprocess.run(["git", "log", "--first-parent", "--diff-filter=A", "--format=%cI", ref, "--", AMENDMENT], cwd=ROOT,
                        capture_output=True, text=True).stdout.split()
     return A._ts(r[-1]) if r else None
 
@@ -37,7 +38,7 @@ def main(argv=None) -> int:
     import pandas as pd
     act = activation_instant(a.main_ref)
     if act is None:
-        print("not active: the A1B workflow is not on", a.main_ref); return 0
+        print("not started: amendment B1 is not on", a.main_ref); return 0
     now = datetime.now(timezone.utc)
     games = sorted((g for g in SN.schedule_games(a.schedule) if g["kickoff_utc"] > act and g["kickoff_utc"] > A._ts(A.PROSPECTIVE_CUTOFF)),
                    key=lambda g: (g["kickoff_utc"], g["game_id"]))[:Q.N_GAMES]
@@ -64,7 +65,7 @@ def main(argv=None) -> int:
                 x = r[(r["week"] == wk) & (r["team"] == team)]
                 if (x["status"] == "INA").any():                 # published postgame; absent = not yet
                     truth[(g["game_id"], team)] = set(x.loc[x["status"] == "INA", "gsis_id"].dropna().astype(str))
-    res = {"activation_instant": act.isoformat(), "evaluated_at": now.isoformat(), **Q.evaluate(games, snaps, truth, gsis_of, now=now)}
+    res = {"qualification_start": act.isoformat(), "source_version": A.SOURCE_VERSION, "evaluated_at": now.isoformat(), **Q.evaluate(games, snaps, truth, gsis_of, now=now)}
     print(json.dumps({k: res[k] for k in ("decision", "rates", "passed") if k in res}))
     if a.out:
         os.makedirs(a.out, exist_ok=True)
