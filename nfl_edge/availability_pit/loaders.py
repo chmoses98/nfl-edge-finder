@@ -40,6 +40,11 @@ class PITRefusal(RuntimeError):
     pass
 
 
+def _pd(df: pl.DataFrame) -> pd.DataFrame:
+    """polars -> pandas without pyarrow (CI installs none)."""
+    return pd.DataFrame(df.to_dict(as_series=False))
+
+
 def _utc(x):
     return pd.to_datetime(x, utc=True, errors="coerce")
 
@@ -117,7 +122,7 @@ def injuries_certified(root: str, seasons, *, lead: timedelta = timedelta(minute
         if not os.path.exists(p):
             refused["FILE_ABSENT"] += 1
             continue
-        raw = pl.read_parquet(p).to_pandas()
+        raw = _pd(pl.read_parquet(p))
         raw = raw[raw.get("game_type", game_type) == game_type] if "game_type" in raw.columns else raw
         m = _with_cutoff(raw, tg, lead)
         n0 = len(m)
@@ -148,7 +153,7 @@ def injuries_certified(root: str, seasons, *, lead: timedelta = timedelta(minute
                     continue
                 t, path = prior[-1]
                 if path not in frames:
-                    v = pl.read_parquet(path).to_pandas()
+                    v = _pd(pl.read_parquet(path))
                     v["team"] = v["team"].replace(TEAM_FIX)
                     frames[path] = v
                 v = frames[path]
@@ -180,7 +185,7 @@ def depth_chart_certified(root: str, season: int, *, lead: timedelta = timedelta
     """For every team-game of the season: the newest `dt` snapshot of that team strictly before the cutoff."""
     if season < DEPTH_CHART_FIRST_SEASON:
         raise PITRefusal(f"depth charts before {DEPTH_CHART_FIRST_SEASON} carry no snapshot time (weekly file); refused")
-    d = pl.read_parquet(os.path.join(root, NFLVERSE, "depth_charts", f"depth_charts_{season}.parquet")).to_pandas()
+    d = _pd(pl.read_parquet(os.path.join(root, NFLVERSE, "depth_charts", f"depth_charts_{season}.parquet")))
     d["dt"] = _utc(d["dt"])
     d["team"] = d["team"].replace(TEAM_FIX)
     tg = team_games(root)
