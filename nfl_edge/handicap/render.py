@@ -215,6 +215,23 @@ def render_game_markdown(g: dict, max_players: int = 14, max_markets: int = 60) 
     return "\n".join(head + _render_game(g, max_players, None, compact=False)[3:])
 
 
+def _weather_lines(w: dict) -> list:
+    """The WEATHER section body. A note with no forecast (dome, closed roof, another venue) is the whole story;
+    a retractable roof whose state is not announced shows its note AND the outside forecast it qualifies."""
+    if not w.get("available"):
+        return [f"Not available — {w.get('reason')}"]
+    has_forecast = any(w.get(k) is not None for k in ("short_forecast", "temperature_f", "wind"))
+    if w.get("material") is False and w.get("note") and not has_forecast:
+        return [w["note"]]
+    out = [f"- {w['note']}"] if w.get("note") else []
+    out.append(f"- {w.get('short_forecast')} · {w.get('temperature_f')}°F · wind {w.get('wind')} "
+               f"{w.get('wind_direction') or ''} · precip {w.get('precipitation_probability')}%")
+    out.append(f"- forecast vintage {w.get('forecast_vintage')} · material: **{w.get('material')}**")
+    if w.get("changed_since_previous_capture"):
+        out.append(f"- **changed since previous capture** (was {w.get('previous')})")
+    return out
+
+
 def _sim_projection_section(sv: dict, *, compact: bool, max_rows: int) -> list:
     """**COHERENT SIMULATION — PLAYER PROJECTIONS**: the current projection system's own distributions.
 
@@ -873,16 +890,7 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
     w = g["weather"]
     a("### WEATHER")
     a("")
-    if not w.get("available"):
-        a(f"Not available — {w.get('reason')}")
-    elif w.get("material") is False and w.get("note"):
-        a(w["note"])
-    else:
-        a(f"- {w.get('short_forecast')} · {w.get('temperature_f')}°F · wind {w.get('wind')} "
-          f"{w.get('wind_direction') or ''} · precip {w.get('precipitation_probability')}%")
-        a(f"- forecast vintage {w.get('forecast_vintage')} · material: **{w.get('material')}**")
-        if w.get("changed_since_previous_capture"):
-            a(f"- **changed since previous capture** (was {w.get('previous')})")
+    L.extend(_weather_lines(w))
     a("")
 
     if compact:
