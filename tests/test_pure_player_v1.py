@@ -174,3 +174,13 @@ def test_module_source_never_reads_a_market_column():
         for tok in ('"spread_line"', '"total_line"', '"implied_total"', '"spread_team"', '"home_moneyline"', '"away_moneyline"',
                     '"vegas_wp"', "player_kalshi_id", "env_known"):
             assert tok not in src, (fn, tok)
+
+
+def test_module_source_never_reads_expected_pass_or_win_probability():
+    # nflfastR's xpass model takes vegas_wp (closing-spread-conditioned) as an input, so xpass / pass_oe and every PROE
+    # derived from them carry sportsbook information indirectly. See docs/research/PURE_PLAYER_V1_XPASS_VERIFICATION.md.
+    root = os.path.join(os.path.dirname(__file__), "..", "nfl_edge", "engines", "player", "pure_v1")
+    for fn in ("data.py", "features.py", "model.py", "dists.py", "baseline.py", "pipeline.py"):
+        src = open(os.path.join(root, fn)).read().lower()
+        for tok in ("xpass", "pass_oe", "proe", "vegas", '"wp"', "play_by_play", "pbp"):
+            assert tok not in src, (fn, tok)
