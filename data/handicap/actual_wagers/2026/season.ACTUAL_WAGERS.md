@@ -6,13 +6,13 @@
 
 > POSITION LIFECYCLE -- ACCOUNTING ONLY. An order is a transaction, not a bet: orders on one market are replayed on Kalshi's single signed position, and each flat-to-flat EPISODE is one independent position. A cashout is position management, not a second wager. Nothing here is model evidence or a recommendation.
 
-* Independent position episodes: **133** (from 141 transactions/orders)
-* Pregame thesis: 91 · live thesis: 16 · unknown phase: 26 · opened within 10 min after scheduled kickoff: 14
-* Full cashouts: 5 · partial cashouts: 0 · reversals: 0 · held to settlement: 128
-* Total P&L (all executions and fees): -2,756.04 = realized trading -1,134.66 + settlement -1,299.77 - fees 321.62
-* PREGAME ENTRY CLV (one observation per pregame-opened episode; exits and live entries excluded): 91 valid, mean -0.0057/contract, positive 8.8%; states {'CLV_VALID': 91, 'NOT_APPLICABLE_LIVE_ENTRY': 16, 'PHASE_UNKNOWN_NO_PREGAME_CLV': 26}
+* Independent position episodes: **134** (from 142 transactions/orders)
+* Pregame thesis: 91 · live thesis: 16 · unknown phase: 27 · opened within 10 min after scheduled kickoff: 14
+* Full cashouts: 5 · partial cashouts: 0 · reversals: 0 · held to settlement: 129
+* Total P&L (all executions and fees): — = realized trading -1,134.66 + settlement — - fees 322.26
+* PREGAME ENTRY CLV (one observation per pregame-opened episode; exits and live entries excluded): 91 valid, mean -0.0057/contract, positive 8.8%; states {'CLV_VALID': 91, 'NOT_APPLICABLE_LIVE_ENTRY': 16, 'PHASE_UNKNOWN_NO_PREGAME_CLV': 27}
 * Live exit benchmark: {'exits': 5, 'valued': 2, 'states': {'LIVE_EXIT_VALUE': 2, 'NO_VALID_LIVE_EXIT_BENCHMARK': 3}}
-* Lifecycle vs order-settlement reconciliation: {'RECONCILED': 133}
+* Lifecycle vs order-settlement reconciliation: {'ORDER_SETTLEMENTS_INCOMPLETE': 1, 'RECONCILED': 133}
 
 | episode | market | opened | phase | side | opened qty | entry cost | adds | reductions | cashouts | final qty | settlement | fees | realized trading | settlement P&L | total P&L | entry CLV | exit benchmark | class |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -32,6 +32,7 @@
 | ep-0157fbdb5f96adcc063a | KXMVECROSSCATEGORY0-S202616DAD0D6398-401A12F5472 | 2026-10-04T20:04:48Z | UNKNOWN | LONG_YES | 149.64 | 18.75 | 0 | 0 | 0 | 149.64 | SETTLED | 1.09 | 0.00 | -17.66 | -18.75 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-eb275e9750834aefe3c2 | KXMVECROSSCATEGORY0-S20263BEDC5BE39B-8100639FBE4 | 2026-10-04T20:01:12Z | UNKNOWN | LONG_YES | 75.07 | 37.50 | 0 | 0 | 0 | 75.07 | SETTLED | 1.31 | 0.00 | -36.18 | -37.50 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-de9db08962e06476c23c | KXMVECROSSCATEGORY0-S20264928E7E9EA4-652962DE894 | 2026-10-04T20:02:54Z | UNKNOWN | LONG_YES | 50.25 | 18.75 | 0 | 0 | 0 | 50.25 | SETTLED | 0.81 | 0.00 | -17.94 | -18.75 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
+| ep-6b8209f7c0910983fca3 | KXMVECROSSCATEGORY0-S202651C3A8A0798-F6322FBCCFC | 2026-10-11T16:27:47Z | UNKNOWN | LONG_YES | 423.72 | 9.96 | 0 | 0 | 0 | 423.72 | NOT_SETTLED | 0.64 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-8120c67ca228800cf7a1 | KXMVECROSSCATEGORY0-S202651CC134FC08-EE3DC75CEC0 | 2026-10-04T20:00:17Z | UNKNOWN | LONG_YES | 107.65 | 56.25 | 0 | 0 | 0 | 107.65 | SETTLED | 1.88 | 0.00 | -54.36 | -56.25 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-50ca76b0f8a494fc1e7a | KXMVECROSSCATEGORY0-S202665CDEE8DDB4-DC7C79B9AE2 | 2026-10-04T20:05:26Z | UNKNOWN | LONG_YES | 166.37 | 18.74 | 0 | 0 | 0 | 166.37 | SETTLED | 1.10 | 0.00 | -17.64 | -18.74 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-46ec558bd8ad8ddf04e6 | KXMVECROSSCATEGORY0-S2026859BA901696-8E088219788 | 2026-09-27T16:54:04Z | UNKNOWN | LONG_YES | 63.12 | 34.49 | 0 | 0 | 0 | 63.12 | SETTLED | 1.10 | 0.00 | 29.73 | 28.63 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
@@ -186,6 +187,7 @@
 | KXMVECROSSCATEGORY0-S20263BEDC5BE39B-8100639FBE4 | (settlement) | — | — | 75.07 | 0.0 | — | 75.07 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXMVECROSSCATEGORY0-S20264928E7E9EA4-652962DE894 | 2026-10-04T20:02:54Z | BUY | YES | 50.25 | 0.357 | 0.80745 | 0.0 | 50.25 | OPEN | UNKNOWN | NO_KICKOFF |
 | KXMVECROSSCATEGORY0-S20264928E7E9EA4-652962DE894 | (settlement) | — | — | 50.25 | 0.0 | — | 50.25 | 0.0 | SETTLEMENT | POST_FINAL | — |
+| KXMVECROSSCATEGORY0-S202651C3A8A0798-F6322FBCCFC | 2026-10-11T16:27:47Z | BUY | YES | 423.72 | 0.022 | 0.63826 | 0.0 | 423.72 | OPEN | UNKNOWN | NO_KICKOFF |
 | KXMVECROSSCATEGORY0-S202651CC134FC08-EE3DC75CEC0 | 2026-10-04T20:00:17Z | BUY | YES | 107.65 | 0.505 | 1.88375 | 0.0 | 107.65 | OPEN | UNKNOWN | NO_KICKOFF |
 | KXMVECROSSCATEGORY0-S202651CC134FC08-EE3DC75CEC0 | (settlement) | — | — | 107.65 | 0.0 | — | 107.65 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXMVECROSSCATEGORY0-S202665CDEE8DDB4-DC7C79B9AE2 | 2026-10-04T20:05:26Z | BUY | YES | 166.37 | 0.106 | 1.10368 | 0.0 | 166.37 | OPEN | UNKNOWN | NO_KICKOFF |
@@ -490,6 +492,7 @@
 | S20261CC5ACF3B9A | 1 | 1 | 4.97 | 0.00 | 0.00 | 4.97 | 0.00 | 4.97 | 2026-10-05T00:24:00Z | -4.97 |
 | S20263BEDC5BE39B | 1 | 1 | 37.50 | 0.00 | 0.00 | 37.50 | 0.00 | 37.50 | 2026-10-04T20:01:12Z | -37.50 |
 | S20264928E7E9EA4 | 1 | 1 | 18.75 | 0.00 | 0.00 | 18.75 | 0.00 | 18.75 | 2026-10-04T20:02:54Z | -18.75 |
+| S202651C3A8A0798 | 1 | 1 | 9.96 | 0.00 | 0.00 | 9.96 | 0.00 | 9.96 | 2026-10-11T16:27:47Z | — |
 | S202651CC134FC08 | 1 | 1 | 56.25 | 0.00 | 0.00 | 56.25 | 0.00 | 56.25 | 2026-10-04T20:00:17Z | -56.25 |
 | S2026534818F1787 | 1 | 1 | 9.92 | 0.00 | 0.00 | 9.92 | 0.00 | 9.92 | 2026-10-04T20:07:09Z | -9.92 |
 | S202665CDEE8DDB4 | 1 | 1 | 18.74 | 0.00 | 0.00 | 18.74 | 0.00 | 18.74 | 2026-10-04T20:05:26Z | -18.74 |
@@ -548,13 +551,13 @@ Stake is contracts x execution price PLUS the entry fee the exchange charged on 
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| all | 141 | 65 | 76 | 0 | 2 | 11,853.92 | 321.62 | — | — | — | 94 | -0.0057 | 8.5% | 47 |
+| all | 142 | 65 | 76 | 1 | 2 | 11,863.88 | 322.26 | — | — | — | 94 | -0.0057 | 8.5% | 48 |
 
 ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment corrected it (18 amended; versions {'router-settlement-economics.v1': 24, 'router-settlement-economics.v2': 117}). As ORIGINALLY RECORDED, net P&L: —. The exchange evidence and the filed settlements are unchanged; an amendment sits beside the record it supersedes.
 
 FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's own figures prove that equality (22 of 139 established wagers). Not every established wager reconciles, so no fee-reconciled total is stated.
 
-Headline gross/net/ROI withheld: 0 pending and 2 settled with an unestablished figure. ESTABLISHED SUBSET ONLY (139 of 141 wagers, not the period's P&L): stake 11,693.93, gross 9,097.88, net -2,621.51, ROI -22.4%.
+Headline gross/net/ROI withheld: 1 pending and 2 settled with an unestablished figure. ESTABLISHED SUBSET ONLY (139 of 142 wagers, not the period's P&L): stake 11,693.93, gross 9,097.88, net -2,621.51, ROI -22.4%.
 
 ## By week
 
@@ -564,7 +567,7 @@ Headline gross/net/ROI withheld: 0 pending and 2 settled with an unestablished f
 | 2 | 19 | 9 | 10 | 0 | 0 | 4,462.29 | 93.82 | 2,757.22 | -1,705.07 | -38.2% | 14 | -0.0029 | 14.3% | 5 |
 | 3 | 46 | 23 | 23 | 0 | 0 | 2,014.66 | 72.01 | 2,094.07 | 79.41 | 3.9% | 26 | -0.0075 | 0.0% | 20 |
 | 4 | 50 | 18 | 32 | 0 | 0 | 4,342.04 | 119.49 | 3,407.10 | -934.94 | -21.5% | 31 | -0.0048 | 16.1% | 19 |
-| 5 | 2 | 0 | 2 | 0 | 0 | 149.99 | 5.02 | 0.00 | -149.99 | -100.0% | 0 | — | — | 2 |
+| 5 | 3 | 0 | 2 | 1 | 0 | 159.95 | 5.66 | — | — | — | 0 | — | — | 3 |
 
 ## By market family
 
@@ -572,7 +575,7 @@ Headline gross/net/ROI withheld: 0 pending and 2 settled with an unestablished f
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | game_winner | 11 | 4 | 7 | 0 | 2 | 2,015.70 | 48.33 | — | — | — | 7 | -0.0021 | 28.6% | 4 |
 | series:KXMVECROSSCATEGORY | 10 | 0 | 10 | 0 | 0 | 573.71 | 28.54 | 0.00 | -573.71 | -100.0% | 0 | — | — | 10 |
-| series:KXMVECROSSCATEGORY0 | 14 | 6 | 8 | 0 | 0 | 492.17 | 18.88 | 577.68 | 85.51 | 17.4% | 0 | — | — | 14 |
+| series:KXMVECROSSCATEGORY0 | 15 | 6 | 8 | 1 | 0 | 502.13 | 19.52 | — | — | — | 0 | — | — | 15 |
 | series:KXNFL1H | 1 | 1 | 0 | 0 | 0 | 56.00 | 1.60 | 93.79 | 37.79 | 67.5% | 1 | -0.0050 | 0.0% | 0 |
 | series:KXNFL1HTEAMTOTAL | 3 | 1 | 2 | 0 | 0 | 107.50 | 3.65 | 41.26 | -66.24 | -61.6% | 3 | -0.0150 | 0.0% | 0 |
 | series:KXNFL1HTOTAL | 3 | 2 | 1 | 0 | 0 | 373.93 | 8.82 | 399.16 | 25.23 | 6.7% | 2 | -0.0050 | 0.0% | 1 |
@@ -660,6 +663,7 @@ Headline gross/net/ROI withheld: 0 pending and 2 settled with an unestablished f
 | KXMVECROSSCATEGORY0-S202616DAD0D6398 | 1 | 0 | 1 | 0 | 0 | 18.75 | 1.09 | 0.00 | -18.75 | -100.0% | 0 | — | — | 1 |
 | KXMVECROSSCATEGORY0-S20263BEDC5BE39B | 1 | 0 | 1 | 0 | 0 | 37.50 | 1.31 | 0.00 | -37.50 | -100.0% | 0 | — | — | 1 |
 | KXMVECROSSCATEGORY0-S20264928E7E9EA4 | 1 | 0 | 1 | 0 | 0 | 18.75 | 0.81 | 0.00 | -18.75 | -100.0% | 0 | — | — | 1 |
+| KXMVECROSSCATEGORY0-S202651C3A8A0798 | 1 | 0 | 0 | 1 | 0 | 9.96 | 0.64 | — | — | — | 0 | — | — | 1 |
 | KXMVECROSSCATEGORY0-S202651CC134FC08 | 1 | 0 | 1 | 0 | 0 | 56.25 | 1.88 | 0.00 | -56.25 | -100.0% | 0 | — | — | 1 |
 | KXMVECROSSCATEGORY0-S202665CDEE8DDB4 | 1 | 0 | 1 | 0 | 0 | 18.74 | 1.10 | 0.00 | -18.74 | -100.0% | 0 | — | — | 1 |
 | KXMVECROSSCATEGORY0-S2026859BA901696 | 1 | 1 | 0 | 0 | 0 | 34.49 | 1.10 | 63.12 | 28.63 | 83.0% | 0 | — | — | 1 |
@@ -816,6 +820,7 @@ Headline gross/net/ROI withheld: 0 pending and 2 settled with an unestablished f
 | 4 | 2026_04_ATL_NO | team_total | YES | 154.72 | 0.63 | 100.00 | 2.52 | WON | 154.72 | 54.72 | 0.635 | +0.0050 | CLV_VALID | OPEN | PRE_GAME |
 | 5 | KXNFLSPREAD-26OCT08TBDAL | spread | YES | 125.61 | 0.58 | 75.00 | 2.14 | LOST | 0.00 | -75.00 | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
 | 5 | KXNFLTEAMTOTAL-26OCT08TBDAL | team_total | YES | 167.72 | 0.43 | 75.00 | 2.88 | LOST | 0.00 | -75.00 | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
+| 5 | KXMVECROSSCATEGORY0-S202651C3A8A0798 | series:KXMVECROSSCATEGORY0 | YES | 423.72 | 0.022 | 9.96 | 0.64 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
 
 ## RISK & CONCENTRATION
 
@@ -825,9 +830,9 @@ Net basis: **NONE COMPLETE** (preference net_canonical > net_fee_reconciled > ne
 
 | basis | wagers with figure | complete | stake | net P&L | ROI |
 |---|---|---|---|---|---|
-| net_canonical | 117 | NO | 11,853.92 | -2,710.60 | — |
-| net_fee_reconciled | 139 | NO | 11,853.92 | -2,596.05 | — |
-| net_profit_loss | 139 | NO | 11,853.92 | -2,621.51 | — |
+| net_canonical | 117 | NO | 11,863.88 | -2,710.60 | — |
+| net_fee_reconciled | 139 | NO | 11,863.88 | -2,596.05 | — |
+| net_profit_loss | 139 | NO | 11,863.88 | -2,621.51 | — |
 
 Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evidence for the owner's account (the router's bankroll is a secret; nothing is guessed).
 
@@ -835,7 +840,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | code | subject | value | threshold | detail |
 |---|---|---|---|---|
-| CORRELATED_EXPOSURE_HIGH | 2026_02_IND_KC#1 | 23.6% | > 16.7% | 3 linked legs (OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET) carry 23.6% of stake |
+| CORRELATED_EXPOSURE_HIGH | 2026_02_IND_KC#1 | 23.5% | > 16.7% | 3 linked legs (OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET) carry 23.5% of stake |
 | OPPOSING_POSITION_PAIR | KXNFLSPREAD-26SEP20INDKC-KC5 | 23.1% | > 0.0% | YES and NO on one contract; 1794.08 matched contracts at a combined 1.51 per contract fix that part's result at entry |
 | OPPOSING_POSITION_PAIR | KXNFLGAME-26OCT01PITCLE-PIT | 3.3% | > 0.0% | YES and NO on one contract; 247.14 matched contracts at a combined 1.56 per contract fix that part's result at entry |
 | OPPOSING_POSITION_PAIR | KXNFL1HTOTAL-26SEP20CLETB-22 | 2.6% | > 0.0% | YES and NO on one contract; 246.08 matched contracts at a combined 1.21 per contract fix that part's result at entry |
@@ -847,10 +852,10 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 | exposure | which | stake | % of scope stake | % of bankroll |
 |---|---|---|---|---|
 | wager | KXNFLSPREAD-26SEP20INDKC-KC5 | 1,742.47 | 14.7% | NOT_AVAILABLE |
-| game | 2026_02_IND_KC | 2,792.46 | 23.6% | NOT_AVAILABLE |
+| game | 2026_02_IND_KC | 2,792.46 | 23.5% | NOT_AVAILABLE |
 | market | KXNFLSPREAD-26SEP20INDKC-KC5 | 2,742.47 | 23.1% | NOT_AVAILABLE |
 | ladder | KXNFLSPREAD-26SEP20INDKC | 2,742.47 | 23.1% | NOT_AVAILABLE |
-| cluster | 2026_02_IND_KC#1 | 2,792.46 | 23.6% | NOT_AVAILABLE |
+| cluster | 2026_02_IND_KC#1 | 2,792.46 | 23.5% | NOT_AVAILABLE |
 | player | PHIJHURTS1 | 194.98 | 1.6% | NOT_AVAILABLE |
 
 `% of net` is the group's net divided by the scope's net on that basis: when the scope lost, it is the group's share of the total loss (a winning group shows a negative share); shares sum to 100%.
@@ -859,7 +864,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) | links |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 2026_02_IND_KC#1 | 3 | 2,792.46 | 23.6% | -998.38 | 36.8% | -998.38 | 38.5% | -998.38 | 38.1% | OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET |
+| 2026_02_IND_KC#1 | 3 | 2,792.46 | 23.5% | -998.38 | 36.8% | -998.38 | 38.5% | -998.38 | 38.1% | OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET |
 | 2026_04_KC_LV#1 | 3 | 1,206.19 | 10.2% | 279.98 | -10.3% | 279.98 | -10.8% | 279.98 | -10.7% | SAME_GAME_CORRELATED |
 | 2026_04_PIT_CLE#1 | 4 | 515.22 | 4.3% | -33.43 | 1.2% | -33.43 | 1.3% | -33.43 | 1.3% | OPPOSING_POSITION_PAIR, SAME_GAME_CORRELATED, SAME_MARKET |
 | S2026E0D7F2DBAEE#1 | 1 | 445.93 | 3.8% | -445.93 | 16.5% | -445.93 | 17.2% | -445.93 | 17.0% | single wager |
@@ -931,6 +936,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 | 2026_01_GB_MIN#1 | 1 | 15.00 | 0.1% | — (partial) | — | 13.98 | -0.5% | 13.48 | -0.5% | single wager |
 | S2026CBB3D21BD4A#1 | 1 | 14.99 | 0.1% | -14.99 | 0.6% | -14.99 | 0.6% | -14.99 | 0.6% | single wager |
 | S202607558698058#1 | 1 | 10.00 | 0.1% | -10.00 | 0.4% | -10.00 | 0.4% | -10.00 | 0.4% | single wager |
+| S202651C3A8A0798#1 | 1 | 9.96 | 0.1% | — (partial) | — | — (partial) | — | — (partial) | — | single wager |
 | S202672B72C6EE1E#1 | 1 | 9.95 | 0.1% | -9.95 | 0.4% | -9.95 | 0.4% | -9.95 | 0.4% | single wager |
 | S2026534818F1787#1 | 1 | 9.92 | 0.1% | -9.92 | 0.4% | -9.92 | 0.4% | -9.92 | 0.4% | single wager |
 | S20261CC5ACF3B9A#1 | 1 | 4.97 | 0.0% | -4.97 | 0.2% | -4.97 | 0.2% | -4.97 | 0.2% | single wager |
@@ -940,7 +946,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026_02_IND_KC | 3 | 2,792.46 | 23.6% | -998.38 | 36.8% | -998.38 | 38.5% | -998.38 | 38.1% |
+| 2026_02_IND_KC | 3 | 2,792.46 | 23.5% | -998.38 | 36.8% | -998.38 | 38.5% | -998.38 | 38.1% |
 | 2026_04_KC_LV | 3 | 1,206.19 | 10.2% | 279.98 | -10.3% | 279.98 | -10.8% | 279.98 | -10.7% |
 | 2026_04_PIT_CLE | 4 | 515.22 | 4.3% | -33.43 | 1.2% | -33.43 | 1.3% | -33.43 | 1.3% |
 | S2026E0D7F2DBAEE | 1 | 445.93 | 3.8% | -445.93 | 16.5% | -445.93 | 17.2% | -445.93 | 17.0% |
@@ -1012,6 +1018,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 | 2026_01_GB_MIN | 1 | 15.00 | 0.1% | — (partial) | — | 13.98 | -0.5% | 13.48 | -0.5% |
 | S2026CBB3D21BD4A | 1 | 14.99 | 0.1% | -14.99 | 0.6% | -14.99 | 0.6% | -14.99 | 0.6% |
 | S202607558698058 | 1 | 10.00 | 0.1% | -10.00 | 0.4% | -10.00 | 0.4% | -10.00 | 0.4% |
+| S202651C3A8A0798 | 1 | 9.96 | 0.1% | — (partial) | — | — (partial) | — | — (partial) | — |
 | S202672B72C6EE1E | 1 | 9.95 | 0.1% | -9.95 | 0.4% | -9.95 | 0.4% | -9.95 | 0.4% |
 | S2026534818F1787 | 1 | 9.92 | 0.1% | -9.92 | 0.4% | -9.92 | 0.4% | -9.92 | 0.4% |
 | S20261CC5ACF3B9A | 1 | 4.97 | 0.0% | -4.97 | 0.2% | -4.97 | 0.2% | -4.97 | 0.2% |
@@ -1025,12 +1032,12 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 | game_winner | 11 | 2,015.70 | 17.0% | -50.52 (partial) | 1.9% | -50.52 (partial) | 1.9% | -50.52 (partial) | 1.9% |
 | team_total | 18 | 1,160.90 | 9.8% | -95.52 | 3.5% | -95.52 | 3.7% | -95.52 | 3.6% |
 | series:KXMVECROSSCATEGORY | 10 | 573.71 | 4.8% | -573.71 | 21.2% | -573.71 | 22.1% | -573.71 | 21.9% |
-| series:KXMVECROSSCATEGORY0 | 14 | 492.17 | 4.2% | 85.51 | -3.2% | 85.51 | -3.3% | 85.51 | -3.3% |
+| series:KXMVECROSSCATEGORY0 | 15 | 502.13 | 4.2% | 85.51 (partial) | -3.2% | 85.51 (partial) | -3.3% | 85.51 (partial) | -3.3% |
 | series:KXNFLTD | 9 | 387.47 | 3.3% | -33.56 (partial) | 1.2% | -71.99 | 2.8% | -82.98 | 3.2% |
 | series:KXNFLPASSYDS | 6 | 375.89 | 3.2% | 161.78 | -6.0% | 161.78 | -6.2% | 161.78 | -6.2% |
 | series:KXNFL1HTOTAL | 3 | 373.93 | 3.2% | 25.23 | -0.9% | 25.23 | -1.0% | 25.23 | -1.0% |
 | series:KXNFLRSHYDS | 9 | 366.97 | 3.1% | -22.25 (partial) | 0.8% | 71.98 | -2.8% | 68.51 | -2.6% |
-| series:KXNFLRECYDS | 10 | 254.94 | 2.2% | -7.77 | 0.3% | -7.77 | 0.3% | -7.77 | 0.3% |
+| series:KXNFLRECYDS | 10 | 254.94 | 2.1% | -7.77 | 0.3% | -7.77 | 0.3% | -7.77 | 0.3% |
 | total | 6 | 252.98 | 2.1% | -77.60 (partial) | 2.9% | -10.20 | 0.4% | -12.69 | 0.5% |
 | series:KXNFLREC | 4 | 180.99 | 1.5% | -43.94 (partial) | 1.6% | -98.93 | 3.8% | -100.68 | 3.8% |
 | series:KXNFL1HTEAMTOTAL | 3 | 107.50 | 0.9% | -66.24 | 2.4% | -66.24 | 2.6% | -66.24 | 2.5% |
@@ -1163,6 +1170,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 | KXNFLSPREAD-26SEP13NODET | 1 | 10.00 | 0.1% | — (partial) | — | 10.94 | -0.4% | 10.58 | -0.4% |
 | KXMVECROSSCATEGORY0-S202607558698058 | 1 | 10.00 | 0.1% | -10.00 | 0.4% | -10.00 | 0.4% | -10.00 | 0.4% |
 | KXNFLSPREAD-26SEP13BALIND | 1 | 10.00 | 0.1% | — (partial) | — | 11.86 | -0.5% | 11.49 | -0.4% |
+| KXMVECROSSCATEGORY0-S202651C3A8A0798 | 1 | 9.96 | 0.1% | — (partial) | — | — (partial) | — | — (partial) | — |
 | KXMVECROSSCATEGORY-S202672B72C6EE1E | 1 | 9.95 | 0.1% | -9.95 | 0.4% | -9.95 | 0.4% | -9.95 | 0.4% |
 | KXMVECROSSCATEGORY-S2026534818F1787 | 1 | 9.92 | 0.1% | -9.92 | 0.4% | -9.92 | 0.4% | -9.92 | 0.4% |
 | KXMVECROSSCATEGORY-S20261CC5ACF3B9A | 1 | 4.97 | 0.0% | -4.97 | 0.2% | -4.97 | 0.2% | -4.97 | 0.2% |
@@ -1298,6 +1306,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 | KXNFLSPREAD-26SEP13NODET-DET7 | 1 | 10.00 | 0.1% | — (partial) | — | 10.94 | -0.4% | 10.58 | -0.4% |
 | KXMVECROSSCATEGORY0-S202607558698058-99F70B6959A | 1 | 10.00 | 0.1% | -10.00 | 0.4% | -10.00 | 0.4% | -10.00 | 0.4% |
 | KXNFLSPREAD-26SEP13BALIND-BAL4 | 1 | 10.00 | 0.1% | — (partial) | — | 11.86 | -0.5% | 11.49 | -0.4% |
+| KXMVECROSSCATEGORY0-S202651C3A8A0798-F6322FBCCFC | 1 | 9.96 | 0.1% | — (partial) | — | — (partial) | — | — (partial) | — |
 | KXMVECROSSCATEGORY-S202672B72C6EE1E-6A677A6C6AC | 1 | 9.95 | 0.1% | -9.95 | 0.4% | -9.95 | 0.4% | -9.95 | 0.4% |
 | KXMVECROSSCATEGORY-S2026534818F1787-1BDAB44C84D | 1 | 9.92 | 0.1% | -9.92 | 0.4% | -9.92 | 0.4% | -9.92 | 0.4% |
 | KXNFLRECYDS-26SEP27NYJDET-NYJGWILSON5-90 | 1 | 9.20 | 0.1% | 14.61 | -0.5% | 14.61 | -0.6% | 14.61 | -0.6% |
@@ -1358,7 +1367,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | cluster | wagers | % stake | % of net (None) | CLV valid | CLV$ | mean CLV/contract | sign | outcome residual vs close | friction | net (None) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 2026_02_IND_KC#1 | 3 | 23.6% | — | 2 | -9.37 | -0.0050 | NEGATIVE | -48.27 | — | — |
+| 2026_02_IND_KC#1 | 3 | 23.5% | — | 2 | -9.37 | -0.0050 | NEGATIVE | -48.27 | — | — |
 | 2026_04_KC_LV#1 | 3 | 10.2% | — | 3 | -6.11 | -0.0035 | NEGATIVE | 312.61 | — | — |
 | 2026_04_PIT_CLE#1 | 4 | 4.3% | — | 3 | 1.36 | +0.0028 | POSITIVE | 113.59 | — | — |
 | S2026E0D7F2DBAEE#1 | 1 | 3.8% | — | 0 | — | — | — | — | — | — |
@@ -1430,6 +1439,7 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 | 2026_01_GB_MIN#1 | 1 | 0.1% | — | 1 | 0.00 | +0.0000 | ZERO | 14.49 | — | — |
 | S2026CBB3D21BD4A#1 | 1 | 0.1% | — | 0 | — | — | — | — | — | — |
 | S202607558698058#1 | 1 | 0.1% | — | 0 | — | — | — | — | — | — |
+| S202651C3A8A0798#1 | 1 | 0.1% | — | 0 | — | — | — | — | — | — |
 | S202672B72C6EE1E#1 | 1 | 0.1% | — | 0 | — | — | — | — | — | — |
 | S2026534818F1787#1 | 1 | 0.1% | — | 0 | — | — | — | — | — | — |
 | S20261CC5ACF3B9A#1 | 1 | 0.0% | — | 0 | — | — | — | — | — | — |
