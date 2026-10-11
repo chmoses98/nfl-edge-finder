@@ -1,5 +1,5 @@
 {
- "as_of": "2026-10-10T22:06:51.747040+00:00",
+ "as_of": "2026-10-11T01:38:08.587345+00:00",
  "capture_health_report": "horizon-capture-health-1.0.0",
  "conductor_deployed_utc": "2026-09-24T12:00:00+00:00",
  "notes": [
@@ -412,6 +412,14 @@
     "snapshot_capture_latency_min": 13.0,
     "status": "CAPTURED",
     "time_remaining_to_kickoff_at_publication_min": 1404.8
+   },
+   {
+    "horizon_id": "2026-REG-05|20261012T0020Z|T-1440m",
+    "packet_publish_latency_min": 30.6,
+    "pipeline_processing_min": 23.4,
+    "snapshot_capture_latency_min": 7.2,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 1409.4
    }
   ]
  },
@@ -1881,9 +1889,11 @@
      "horizon_id": "2026-REG-05|20261012T0020Z|T-1440m",
      "horizon_min": 1440,
      "kickoff_utc": "2026-10-12T00:20:00+00:00",
+     "lateness_min": 30.6,
      "n_games": 1,
      "slate_id": "2026-REG-05",
-     "status": "NOT_YET_DUE",
+     "snapshot_id": "2026-10-11T00:50:38.995942+00:00",
+     "status": "DELIVERED_LATE",
      "trigger_utc": "2026-10-11T00:20:00+00:00",
      "week": 5
     },
@@ -1975,12 +1985,12 @@
    "summary": {
     "AFTER_CONDUCTOR": {
      "counts": {
-      "DELIVERED_LATE": 48,
+      "DELIVERED_LATE": 49,
       "MISSED": 2,
-      "NOT_YET_DUE": 17
+      "NOT_YET_DUE": 16
      },
-     "delivered": 48,
-     "delivered_pct": 96.0,
+     "delivered": 49,
+     "delivered_pct": 96.1,
      "horizons": 67,
      "median_lateness_min": 24.6,
      "missed": 2,
@@ -1989,7 +1999,7 @@
       "2026-REG-05|20261009T0015Z|T-30m"
      ],
      "on_time_pct": 0.0,
-     "owed": 50
+     "owed": 51
     },
     "BEFORE_CONDUCTOR": {
      "counts": {
@@ -3461,7 +3471,7 @@
      "kickoff_utc": "2026-10-12T00:20:00+00:00",
      "n_games": 1,
      "slate_id": "2026-REG-05",
-     "status": "NOT_YET_DUE",
+     "status": "DUE",
      "trigger_utc": "2026-10-11T00:20:00+00:00",
      "week": 5
     },
@@ -3555,9 +3565,9 @@
      "counts": {
       "DELIVERED_LATE": 25,
       "DELIVERED_ON_TIME": 18,
-      "DUE": 3,
+      "DUE": 4,
       "MISSED": 4,
-      "NOT_YET_DUE": 17
+      "NOT_YET_DUE": 16
      },
      "delivered": 43,
      "delivered_pct": 91.5,
