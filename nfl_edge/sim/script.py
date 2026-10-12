@@ -16,14 +16,27 @@ score-state path, no lead-change count and no time-leading. The nearest valid pr
 team's pass rate and volume CONDITIONAL on the final margin bucket of the row (leading by 14+, within one score,
 trailing by 14+), which is exactly the script dependence the volume model encodes. Red-zone, route and snap
 counts are not simulated and are absent rather than estimated.
+
+WHO WINS THE CLOSE GAME (sim-script-1.1.0). ``within6`` pools every row that finished within six points EITHER
+WAY, so a team's narrow wins and its narrow losses read as one script. ``by_close_result`` partitions exactly
+those rows by the team's own result -- ``win1-6`` (margin 1..6), ``tie`` (0) and ``lose1-6`` (-6..-1) -- with
+the same conditional fields and the same thin-row floor. Their shares are row counts over the same rows, so they
+sum to ``within6`` (pinned by test) and the five ``by_final_margin`` states are unchanged: no probability moves,
+the close-game mass is only attributed to a winner. Simulated margins are integers (the residual bank keeps the
+fractional part of the line), and regulation ties are resolved by the bank's overtime model, so ``tie`` is the
+simulated OT-tie share, not zero.
 """
 from __future__ import annotations
 
 import numpy as np
 
-SCRIPT_VERSION = "sim-script-1.0.0"
+SCRIPT_VERSION = "sim-script-1.1.0"
 QS = (0.05, 0.25, 0.5, 0.75, 0.95)
 MARGIN_STATES = (("lead14+", 14, None), ("lead7-13", 7, 13), ("within6", -6, 6), ("trail7-13", -13, -7), ("trail14+", None, -14))
+# ``within6`` split by the team's own result: (0, 6], exactly 0 and [-6, 0). Exhaustive and mutually exclusive over
+# within6 for any margin; on the integer margins the bank produces these are 1..6, 0 and -6..-1.
+CLOSE_STATES = (("win1-6", 0, 6), ("tie", 0, 0), ("lose1-6", -6, 0))
+MIN_STATE_ROWS = 200
 
 
 def _q(arr) -> dict:
@@ -46,14 +59,36 @@ def _share(num, den):
             "p10": round(float(np.quantile(s, 0.10)), 4), "p90": round(float(np.quantile(s, 0.90)), 4)}
 
 
-def _state_mask(margin_team, lo, hi):
+def _state_mask(margin_team, lo, hi, name=None):
     m = np.asarray(margin_team, float)
+    if name == "win1-6":
+        return (m > 0) & (m <= hi)
+    if name == "lose1-6":
+        return (m < 0) & (m >= lo)
     mask = np.ones(m.shape, bool)
     if lo is not None:
         mask &= m >= lo
     if hi is not None:
         mask &= m <= hi
     return mask
+
+
+def _by_states(T: dict, margin_team, states) -> dict:
+    """Share of rows in each margin state (from the team's side) and the team's conditional volume in it. A state with
+    fewer than MIN_STATE_ROWS rows reports its share and row count only: a conditional mean of a handful of rows
+    would read as a finding."""
+    out = {}
+    for name, lo, hi in states:
+        msk = _state_mask(margin_team, lo, hi, name)
+        if msk.sum() < MIN_STATE_ROWS:
+            out[name] = {"share_of_rows": round(float(msk.mean()), 4), "n_rows": int(msk.sum()), "note": "too few rows"}
+            continue
+        out[name] = {"share_of_rows": round(float(msk.mean()), 4),
+                     "pass_rate_mean": round(float(np.asarray(T["pass_rate"])[msk].mean()), 4),
+                     "pass_att_mean": round(float(np.asarray(T["pass_att"])[msk].mean()), 2),
+                     "rush_att_mean": round(float(np.asarray(T["rush_att"])[msk].mean()), 2),
+                     "plays_mean": round(float(np.asarray(T["plays"])[msk].mean()), 2)}
+    return out
 
 
 def _names(ti) -> dict:
@@ -74,6 +109,7 @@ def script_summary(res, gi, coherence: dict | None = None, *, top_players: int =
     margin, total = np.asarray(res.margin, float), np.asarray(res.total, float)
     env = {"home_margin": _q(margin), "total": _q(total), "home_points": _q(res.home_points), "away_points": _q(res.away_points),
            "p_home_win": round(float(np.mean(margin > 0) + 0.5 * np.mean(margin == 0)), 4),
+           "p_tie": round(float(np.mean(margin == 0)), 4),
            "p_one_score": round(float(np.mean(np.abs(margin) <= 8)), 4),
            "p_within_3": round(float(np.mean(np.abs(margin) <= 3)), 4),
            "p_blowout_17plus": round(float(np.mean(np.abs(margin) >= 17)), 4),
@@ -90,17 +126,8 @@ def script_summary(res, gi, coherence: dict | None = None, *, top_players: int =
         vol = {k: _q(T[k]) for k in ("plays", "dropbacks", "pass_att", "designed_rush", "rush_att", "sacks", "scrambles", "targets", "points")
                if k in T}
         vol["pass_rate"] = _q(T["pass_rate"]) if "pass_rate" in T else None
-        by_state = {}
-        for name, lo, hi in MARGIN_STATES:
-            msk = _state_mask(mt, lo, hi)
-            if msk.sum() < 200:
-                by_state[name] = {"share_of_rows": round(float(msk.mean()), 4), "n_rows": int(msk.sum()), "note": "too few rows"}
-                continue
-            by_state[name] = {"share_of_rows": round(float(msk.mean()), 4),
-                              "pass_rate_mean": round(float(np.asarray(T["pass_rate"])[msk].mean()), 4),
-                              "pass_att_mean": round(float(np.asarray(T["pass_att"])[msk].mean()), 2),
-                              "rush_att_mean": round(float(np.asarray(T["rush_att"])[msk].mean()), 2),
-                              "plays_mean": round(float(np.asarray(T["plays"])[msk].mean()), 2)}
+        by_state = _by_states(T, mt, MARGIN_STATES)
+        by_close = _by_states(T, mt, CLOSE_STATES)
         names = _names(ti)
         pl = []
         for pid, P in res.player.items():
@@ -124,7 +151,7 @@ def script_summary(res, gi, coherence: dict | None = None, *, top_players: int =
             pl.append(rec)
         pl.sort(key=lambda r: -((r["targets"] or {}).get("mean", 0) + (r["carries"] or {}).get("mean", 0)))
         shares = [((r.get("target_share") or {}).get("mean") or 0.0) for r in pl]
-        teams[ti.team] = {"home": ti.home, "volume": vol, "by_final_margin": by_state,
+        teams[ti.team] = {"home": ti.home, "volume": vol, "by_final_margin": by_state, "by_close_result": by_close,
                           "target_concentration_hhi": round(float(sum(s * s for s in shares)), 4) if shares else None,
                           "players": pl[:top_players], "n_players_with_opportunity": len(pl)}
     return {"script_version": SCRIPT_VERSION, "game_id": res.game_id, "n_rows": int(res.n), "environment": env, "teams": teams,

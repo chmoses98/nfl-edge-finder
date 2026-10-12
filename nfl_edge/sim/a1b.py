@@ -10,10 +10,13 @@ on 2026-10-08 14:34 GMT; week 4: 199, added after those games), so A1's T0 condi
 prospectively. A1B instead freezes its OWN timestamped copies of a candidate pregame source and may use a copy only
 if this repository retrieved it before the A1B cutoff.
 
-The source (ESPN core per-competition roster, `active` flag) is a CANDIDATE until the preregistered source
-qualification passes (addendum B section 4). Everything here fails closed:
+The source (ESPN core per-competition roster, `didNotPlay` flag -- amendment B1; the `active` flag named in addendum
+B is False for every entry before kickoff and is not a game-day list) is a CANDIDATE until the preregistered source
+qualification passes (addendum B section 4, restarted by amendment B1). Everything here fails closed:
 
   * a snapshot proves availability only by OUR retrieval instant -- never by any timestamp the source asserts;
+  * only snapshots parsed by the current SOURCE_VERSION are usable; an earlier version's snapshots are kept as
+    written and never re-read (no re-derivation of an old observation under a new rule);
   * a team whose response is not HTTP 200 is an OUTAGE; a 200 without a plausible flagged-inactive count (4-12) is
     NOT_PUBLISHED / IMPLAUSIBLE; neither ever produces an inactive (or an active) player;
   * only snapshots retrieved at or after kickoff - RELEASE_FLOOR_MIN and at or before the capture cutoff are usable;
@@ -32,8 +35,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 A1B_VERSION = "wave2-a1b-1.0.0"
-SOURCE_VERSION = "a1b-source-1.0.0"
-SOURCE_NAME = "espn_core_competition_roster_active_flag"
+SOURCE_VERSION = "a1b-source-1.1.0"                 # amendment B1: didNotPlay (1.0.0 read `active`; never usable)
+SOURCE_NAME = "espn_core_competition_roster_didnotplay_flag"
 UA = "nfl-edge-finder wave2-a1b research (read-only; github.com/chmoses98/nfl-edge-finder)"
 CORE = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
 COMPETITION_URL = CORE + "/events/{eid}/competitions/{eid}"
@@ -115,16 +118,17 @@ def _espn_id(entry: dict):
 
 
 def parse_roster(fetched: dict) -> dict:
-    """Per-team reading of the roster `active` flag. Only players explicitly flagged active == False are named."""
+    """Per-team reading of the roster `didNotPlay` flag (amendment B1). Only players explicitly flagged
+    didNotPlay == True are named; the `active` flag is ignored (False for every entry before kickoff)."""
     meta, body = fetched.get("meta") or {}, fetched.get("body")
     if meta.get("status") != 200 or body is None:
         return {"state": OUTAGE, "reason": meta.get("error") or f"HTTP {meta.get('status')}", "inactive_espn_ids": [],
                 "n_entries": 0, "n_flagged": 0, "unidentified_inactive": 0}
     entries = [e for e in (body.get("entries") or body.get("items") or []) if isinstance(e, dict)]
-    flagged = [e for e in entries if isinstance(e.get("active"), bool)]
+    flagged = [e for e in entries if isinstance(e.get("didNotPlay"), bool)]
     ids, unidentified = set(), 0
     for e in flagged:
-        if e["active"] is False:
+        if e["didNotPlay"] is True:
             i = _espn_id(e)
             if i is None:
                 unidentified += 1
@@ -161,9 +165,15 @@ def snapshot_document(game: dict, competition: dict, rosters: dict, *, run_id: s
 
 
 # ------------------------------------------------------------------------------------------ choosing a usable snapshot
+def current_version(snaps: list) -> list:
+    return [s for s in snaps or [] if s.get("a1b_source_version") == SOURCE_VERSION]
+
+
 def snapshot_usable_at(snap: dict, cutoff) -> bool:
-    """Retrieved (by us) at or after kickoff - RELEASE_FLOOR_MIN, at or before the cutoff, before kickoff, and both
-    teams USABLE."""
+    """Parsed by the current SOURCE_VERSION, retrieved (by us) at or after kickoff - RELEASE_FLOOR_MIN, at or before
+    the cutoff, before kickoff, and both teams USABLE."""
+    if snap.get("a1b_source_version") != SOURCE_VERSION:
+        return False
     try:
         r, ko, c = _ts(snap["retrieved_at"]), _ts(snap["kickoff_utc"]), _ts(cutoff)
     except (KeyError, TypeError, ValueError):
@@ -174,7 +184,9 @@ def snapshot_usable_at(snap: dict, cutoff) -> bool:
 
 
 def choose_snapshot(snaps: list, cutoff) -> tuple:
-    """(the latest usable snapshot at the cutoff or None, a diagnosis distinguishing OUTAGE from NOT_PUBLISHED)."""
+    """(the latest usable snapshot at the cutoff or None, a diagnosis distinguishing OUTAGE from NOT_PUBLISHED).
+    Snapshots of an earlier SOURCE_VERSION are not evidence of anything here."""
+    snaps = current_version(snaps)
     usable = [s for s in snaps if snapshot_usable_at(s, cutoff)]
     if usable:
         return max(usable, key=lambda s: (s["retrieved_at"], s.get("run_id", ""))), "USABLE"

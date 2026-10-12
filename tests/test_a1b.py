@@ -29,8 +29,9 @@ SN = _load("scripts/sim/a1b_snapshot.py", "a1b_snapshot_t")
 
 
 def roster(inactive_ids, n_active=46, status=200):
-    entries = [{"playerId": 1000 + i, "active": True} for i in range(n_active)]
-    entries += [{"playerId": int(i), "active": False} for i in inactive_ids]
+    # the live ESPN shape (2026_05_PHI_JAX): `active` is False for EVERY entry before kickoff; `didNotPlay` names inactives
+    entries = [{"playerId": 1000 + i, "active": False, "didNotPlay": False} for i in range(n_active)]
+    entries += [{"playerId": int(i), "active": False, "didNotPlay": True} for i in inactive_ids]
     return {"meta": {"status": status, "retrieved_at": None, "url": "u"}, "body": {"entries": entries} if status == 200 else None}
 
 
@@ -264,6 +265,46 @@ def test_scorer_never_reads_a1_records(tmp_path):
 
 
 # ------------------------------------------------------------------------------------------ integrity of everything else
+def test_amendment_b1_live_schema_the_active_flag_is_ignored_and_didnotplay_names_inactives():
+    live = {"meta": {"status": 200}, "body": {"entries": [{"playerId": 1000 + i, "active": False, "didNotPlay": i < 7,
+                                                           "valid": False, "starter": False} for i in range(56)]}}
+    r = A.parse_roster(live)
+    assert r["state"] == A.USABLE and r["inactive_espn_ids"] == sorted(str(1000 + i) for i in range(7))
+    pre = {"meta": {"status": 200}, "body": {"entries": [{"playerId": 1000 + i, "active": False, "didNotPlay": False} for i in range(55)]}}
+    assert A.parse_roster(pre)["state"] == A.NOT_PUBLISHED, "before the release: no one flagged is not an empty list"
+    no_field = {"meta": {"status": 200}, "body": {"entries": [{"playerId": 1000 + i, "active": False} for i in range(55)]}}
+    assert A.parse_roster(no_field)["state"] == A.NOT_PUBLISHED
+    assert A.SOURCE_VERSION == "a1b-source-1.1.0"
+
+
+def test_amendment_b1_snapshots_of_an_earlier_source_version_are_never_used_or_counted():
+    s = snap(KO - timedelta(minutes=70), H7, A6)
+    assert A.choose_snapshot([s], KO - timedelta(minutes=60))[1] == "USABLE"
+    old = dict(s, a1b_source_version="a1b-source-1.0.0")
+    assert A.snapshot_usable_at(old, KO - timedelta(minutes=60)) is False
+    assert A.choose_snapshot([old], KO - timedelta(minutes=60)) == (None, "NO_SNAPSHOT_IN_WINDOW")
+    g, sn, t, e = _qual_set()
+    sn = {k: [dict(x, a1b_source_version="a1b-source-1.0.0") for x in v] for k, v in sn.items()}
+    res = Q.evaluate(g, sn, t, e, now=KO + timedelta(days=3))
+    assert res["decision"] == "BLOCKED" and res["rates"]["QA"] == 0.0
+
+
+def test_amendment_b1_an_early_outage_does_not_make_qr_evaluable():
+    g, s, t, e = _qual_set()
+    for k, v in s.items():
+        v[0]["teams"]["home"]["reading"] = dict(v[0]["teams"]["home"]["reading"], state=A.OUTAGE)
+        v[0]["teams"]["away"]["reading"] = dict(v[0]["teams"]["away"]["reading"], state=A.OUTAGE)
+    res = Q.evaluate(g, s, t, e, now=KO + timedelta(days=3))
+    assert res["qr_evaluable"] == 0 and res["passed"]["QR"] is False and res["decision"] == "BLOCKED"
+    assert Q.QUALIFY_VERSION == "a1b-qualify-1.1.0"
+
+
+def test_amendment_b1_qualification_starts_at_the_amendment_merge():
+    src = open(os.path.join(ROOT, "scripts", "sim", "a1b_qualify.py")).read()
+    assert "PREREGISTRATION_AMENDMENT_B1_A1B_SOURCE.md" in src and '"--first-parent", "--diff-filter=A"' in src
+    assert os.path.exists(os.path.join(ROOT, "research", "game_script_v2", "wave2", "PREREGISTRATION_AMENDMENT_B1_A1B_SOURCE.md"))
+
+
 def test_frozen_wave2_artifacts_are_unchanged():
     def sha(p):
         return hashlib.sha256(open(os.path.join(ROOT, p), "rb").read()).hexdigest()
@@ -271,6 +312,7 @@ def test_frozen_wave2_artifacts_are_unchanged():
     assert sha("research/game_script_v2/wave2/PREREGISTRATION_ADDENDUM.md").startswith("52d2100a")
     assert sha("research/game_script_v2/wave2/components_2026.json") == W.FROZEN_COMPONENTS_SHA256
     assert sha("nfl_edge/sim/wave2_score.py").startswith("f7a0596d")
+    assert sha("research/game_script_v2/wave2/PREREGISTRATION_ADDENDUM_B_A1B.md").startswith("b1f153cd")
     assert sha("research/game_script_v2/README.md") and os.popen(
         f"git -C {ROOT} hash-object research/game_script_v2/README.md").read().strip() == "0e1f863ca8a32c3ab4d23da7fb02ff133944db60"
 

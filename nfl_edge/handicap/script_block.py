@@ -5,7 +5,7 @@ Stdlib-only and read-only, like `sim_block`: the packet path must never import n
 What it adds to each game, beside everything the packet already shows:
 
     MARKET BASELINE          the packet's own market-implied spread / total / score, and the game-line moves
-    GAME ENVIRONMENT         the simulation's script summary (sim-script-1.0.0) for the run the packet attached:
+    GAME ENVIRONMENT         the simulation's script summary (sim-script-1.x; 1.1.0 adds by_close_result) for the run the packet attached:
                              margin / total quantiles, one-score and blowout probabilities, the centre it used
     TEAM VOLUME              plays, pass attempts, designed rushes, dropbacks per team, and pass rate CONDITIONAL
                              on the final-margin bucket (the simulator's nearest valid proxy for score state)
@@ -177,7 +177,7 @@ def game_script_inputs(game: dict, script: dict | None, *, script_source: str, h
         env = script.get("environment") or {}
         out["game_environment"] = {"home_margin": _rng(env.get("home_margin")), "total": _rng(env.get("total")),
                                    "home_points": _rng(env.get("home_points")), "away_points": _rng(env.get("away_points")),
-                                   "p_home_win": env.get("p_home_win"), "p_one_score": env.get("p_one_score"),
+                                   "p_home_win": env.get("p_home_win"), "p_tie": env.get("p_tie"), "p_one_score": env.get("p_one_score"),
                                    "p_blowout_17plus": env.get("p_blowout_17plus"),
                                    "p_total_10_over_centre": env.get("p_total_10_over_centre"),
                                    "p_total_10_under_centre": env.get("p_total_10_under_centre"),
@@ -188,6 +188,7 @@ def game_script_inputs(game: dict, script: dict | None, *, script_source: str, h
             tv[team] = {"plays": _rng(v.get("plays")), "pass_att": _rng(v.get("pass_att")), "designed_rush": _rng(v.get("designed_rush")),
                         "dropbacks": _rng(v.get("dropbacks")), "scrambles": _rng(v.get("scrambles")),
                         "pass_rate": _rng(v.get("pass_rate"), nd=3), "by_final_margin": t.get("by_final_margin"),
+                        "by_close_result": t.get("by_close_result"),
                         "target_concentration_hhi": t.get("target_concentration_hhi")}
             po[team] = [{"player": p.get("name") or p.get("player_id"), "position": p.get("position"), "p_active": p.get("p_active"),
                          "targets": _rng(p.get("targets")), "carries": _rng(p.get("carries")),
