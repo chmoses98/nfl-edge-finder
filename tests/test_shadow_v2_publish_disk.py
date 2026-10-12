@@ -1,8 +1,8 @@
-"""shadow-v2-project.yml must be able to publish what it projected (incident 2026-10-06 .. 2026-10-11).
+"""The shadow-v2 projection jobs must be able to publish what they projected (incident 2026-10-06 .. 2026-10-12).
 
-From 2026-10-06 06:09Z every scheduled run of `Shadow v2 projections (full board)` projected the whole board,
-verified it (run 38165258720: 350,482 records, 0 problems) and then died in its LAST step, "Publish the immutable
-projection records and the run summary":
+shadow-v2-project.yml: from 2026-10-06 06:09Z every scheduled run of `Shadow v2 projections (full board)`
+projected the whole board, verified it (run 38165258720: 350,482 records, 0 problems) and then died in its LAST
+step, "Publish the immutable projection records and the run summary":
 
     + git worktree add -f /home/runner/work/nfl-edge-finder/_market_data_wt origin/market-data
     fatal: cannot create directory at 'data/shadow/evaluations/2026_01_NE_SEA': No space left on device
@@ -11,27 +11,32 @@ projection records and the run summary":
 the full /tmp/md checkout from its fetch step. Two full copies of the ~52 GB branch plus the nflverse inputs no
 longer fit on a hosted runner (86 GB free, 116 GB after scripts/ci/free_runner_disk.sh). Some runs lost the runner
 outright and kept no log (38095061154). The last run that reached market-data was 37383124815 (2026-10-05 22:32Z),
-so no DATA_PLAYER_V4 / V5 projection record is newer than that.
+so no DATA_PLAYER_V4 / V5 projection record is newer than that. Fixed in #151.
 
-These tests walk the workflow's steps in order and track the full market-data checkouts on disk, the same way the
-runner fills up, so they fail on the pre-fix workflow and pass on the fixed one.
+shadow-v2-horizons.yml has the same job shape and died the same way ("Publish the projections and the horizon
+markers", e.g. 38183144920: `No space left on device` writing data/kalshi/discovery/... into ../_market_data_wt).
+Its last marker on market-data is 2026-REG-04|20261006T0015Z; every 2026-REG-05 horizon from the TNF T-1440m
+(trigger 2026-10-08T00:15Z) on was lost.
+
+These tests walk each workflow's steps in order and track the full market-data checkouts on disk, the same way the
+runner fills up, so they fail on the pre-fix workflows and pass on the fixed ones.
 """
 import os
 import re
 
+import pytest
 import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WORKFLOW = os.path.join(ROOT, ".github", "workflows", "shadow-v2-project.yml")
+WORKFLOWS = ("shadow-v2-project.yml", "shadow-v2-horizons.yml")      # both: job `project`, publish --src data/shadow/v2
 PUBLISHER_WT = "_market_data_wt"          # publish_market_data.py: os.path.join(dirname(repo), "_market_data_wt")
 # Commands that run scripts/ci/publish_market_data.py, which first replaces its own checkout and then adds one.
 PUBLISH_CALLS = ("scripts/ci/publish_market_data.py", "scripts/shadow_v2/publish_vintages.py")
 
 
-def _steps():
-    with open(WORKFLOW) as f:
-        doc = yaml.safe_load(f)
-    return doc["jobs"]["project"]["steps"]
+def _job(wf):
+    with open(os.path.join(ROOT, ".github", "workflows", wf)) as f:
+        return yaml.safe_load(f)["jobs"]["project"]
 
 
 def _commands(step):
@@ -61,12 +66,12 @@ def _removed_path(cmd):
     return None
 
 
-def simulate():
+def simulate(wf):
     """Walk the job's steps in order. For every publisher call: how many full market-data checkouts are on disk
     while it runs. Also fails if a step reads a checkout after it was removed."""
     live, removed, peaks = set(), set(), []
     freed_before_fetch, fetched = None, False
-    for step in _steps():
+    for step in _job(wf)["steps"]:
         for cmd in _commands(step):
             if "free_runner_disk.sh" in cmd and freed_before_fetch is None:
                 freed_before_fetch = not fetched
@@ -96,37 +101,45 @@ def _final_publish(peaks):
     return finals[0]
 
 
-def test_the_projection_publish_never_needs_two_full_market_data_checkouts():
-    name, cmd, during, _ = _final_publish(simulate()[0])
+@pytest.mark.parametrize("wf", WORKFLOWS)
+def test_the_projection_publish_never_needs_two_full_market_data_checkouts(wf):
+    name, cmd, during, _ = _final_publish(simulate(wf)[0])
     assert during == 1, (
-        f"{name!r} runs with {during} full market-data checkouts on the runner at once; two no longer fit "
-        "(No space left on device, runs 37422242678 .. 38165258720). Remove /tmp/md before publishing.")
+        f"{wf}: {name!r} runs with {during} full market-data checkouts on the runner at once; two no longer fit "
+        "(No space left on device). Remove /tmp/md before publishing.")
 
 
-def test_the_projection_publish_still_fails_loudly():
+@pytest.mark.parametrize("wf", WORKFLOWS)
+def test_the_projection_publish_still_fails_loudly(wf):
     """The fix makes the publish fit; it must not make a failed publish look green."""
-    _, _, _, soft = _final_publish(simulate()[0])
+    _, _, _, soft = _final_publish(simulate(wf)[0])
     assert soft is False
 
 
-def test_the_job_frees_runner_disk_before_the_market_data_worktree():
-    _, freed_before_fetch = simulate()
+@pytest.mark.parametrize("wf", WORKFLOWS)
+def test_the_job_frees_runner_disk_before_the_market_data_worktree(wf):
+    _, freed_before_fetch = simulate(wf)
     assert freed_before_fetch is True
 
 
-def test_the_vintages_are_published_while_tmp_md_still_exists():
+@pytest.mark.parametrize("wf", WORKFLOWS)
+def test_the_vintages_are_published_while_tmp_md_still_exists(wf):
     """publish_vintages.py reads /tmp/md to recognise content already published (a vintage is never re-dated), so
     the scratch checkout may only go after it."""
-    peaks, _ = simulate()
+    peaks, _ = simulate(wf)
     vint = [p for p in peaks if "publish_vintages.py --market-data /tmp/md" in p[1]]
     assert len(vint) == 1 and peaks.index(vint[0]) < peaks.index(_final_publish(peaks))
 
 
-def test_the_job_timeout_leaves_room_for_the_publish():
+def test_the_project_job_timeout_leaves_room_for_the_publish():
     """Runs reach the final publish ~46 min in (38165258720: 45.3 min) and the last green run took 49.5 min
     (37383124815). The fix adds the disk step, the /tmp/md removal and a vintage publish that now succeeds, so the
     old 60-minute limit would turn the disk failure into a timeout (38075890276, 38028268249 already read as
     TIMED_OUT: a runner out of disk hangs in the publish step until the limit)."""
-    with open(WORKFLOW) as f:
-        job = yaml.safe_load(f)["jobs"]["project"]
-    assert job["timeout-minutes"] >= 75
+    assert _job("shadow-v2-project.yml")["timeout-minutes"] >= 75
+
+
+def test_the_horizon_job_timeout_leaves_room_for_the_publish():
+    """A horizon run reached its final publish 29 min in (38183144920: 23:50:22 -> 00:19:31). The fix adds ~1.5 min
+    (disk), the /tmp/md removal, and a vintage publish that now succeeds (~3-5 min): still well inside 60."""
+    assert _job("shadow-v2-horizons.yml")["timeout-minutes"] >= 50
