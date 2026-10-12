@@ -102,7 +102,8 @@ def _gate():
 # ------------------------------------------------------------------------------------------------ vendoring / freezing
 def test_vendored_gate_matches_its_pinned_hashes():
     vf = open(os.path.join(ROOT, "tools", "pure_gate", "VENDORED_FROM")).read()
-    for rel in ("pure_gate.py", "schema/pure_forecast.v1.schema.json"):
+    for rel in ("pure_gate.py", "schema/pure_forecast.v1.schema.json", "accuracy_scorecard.py", "value_scorecard.py",
+                "SCORECARDS.md"):
         got = hashlib.sha256(open(os.path.join(ROOT, "tools", "pure_gate", rel), "rb").read()).hexdigest()
         assert f"{got}  {rel}" in vf, f"vendored {rel} was edited (sha256 {got})"
 
@@ -296,7 +297,8 @@ def test_settle_and_evaluate_scores_full_population_and_listed_cohort(root, tmp_
     _write_root(r2, world[0], stats, snaps, fetched_at=later - timedelta(hours=1), future_week=(0, 0))
     s = E.settle_and_evaluate(r2, st, _gate(), now=later, bootstrap=50)
     assert s["new_outcomes"] > 50
-    ev = json.load(open(next(os.path.join(dp, f) for dp, _d, fs in os.walk(os.path.join(st, "evaluations")) for f in fs)))
+    ev = json.load(open(next(os.path.join(dp, f) for dp, _d, fs in os.walk(os.path.join(st, "evaluations")) for f in fs
+                             if f.endswith(".evaluation.json"))))
     full = ev["scorecards"]["FINAL_T90/full_eligible_population"]
     assert full["coverage"]["settled_with_both_forecasts"] > 50
     assert "FINAL_T90/pregame_market_listed_cohort" in ev["scorecards"]

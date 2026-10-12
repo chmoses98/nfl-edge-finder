@@ -49,6 +49,7 @@ scratch store, validates and verifies the store, uploads it as an artifact, and 
 | outcomes | `outcomes/<day>/<run>.outcomes.jsonl.gz` | nflverse box-score outcome per player-game-statistic, with source and `observed_at` (fetched_at). Only new or corrected values are written. |
 | reconciliation | `reconciliation/<day>/<run>.reconciliation.jsonl.gz` | projection to outcome join, the listed flag, and market-settlement vs sports-outcome mismatch tickers. |
 | evaluations | `evaluations/<day>/<run>.evaluation.json` | `pure_gate compare` per capture kind on the full eligible population and on the pregame listed cohort. These are descriptive only. |
+| evaluations (scorecards) | `evaluations/<day>/<run>.accuracy_scorecard.json`, `.value_scorecard.json` | Written alongside the compare file in the same sealed run (see *Scorecards* below). |
 | runs, manifests | `runs/<day>/<run>.summary.json`, `manifests/<run>.manifest.json` | run summary. The manifest holds every file written with its sha256 and `prev_manifest_sha256`, which forms the hash chain. |
 
 ## Population, conditioning, and what each row carries
@@ -106,6 +107,37 @@ walk-forward pipeline. Results are in `research/pure_shadow_nfl/equivalence_2026
 capture with market-data present, removed, and randomised. The PURE projection files must be byte-identical
 across all three runs. The separate market family is the negative control, and it must change. The model's own
 mutation proof is `research/pure_player_v1/pure_gate_rerun.json` (PASS_RUNTIME_NONLEAKAGE).
+
+## Scorecards (accuracy, and a dry-run betting-value diagnostic)
+
+`nfl_edge/shadow_pure/scorecards.py` runs the vendored, unmodified `tools/pure_gate/accuracy_scorecard.py` and
+`value_scorecard.py` (see `tools/pure_gate/SCORECARDS.md`) in every settle run that writes, next to the
+`pure_gate compare` file. That file is unchanged.
+
+* **`accuracy_scorecard`** compares the challenger `PURE_PLAYER_V1` with the `statistical_baseline`
+  `PURE_EWM_BASELINE` on matured rows (games past kickoff + 4 h).
+  * It covers two populations. `full_eligible` is every player-game-statistic either PURE arm forecast.
+    `pregame_market_listed` is the identities whose listing opened **and** was observed by our records at or before
+    the forecast's as_of. That second population is computed by the scorecard from the market family, and settlement
+    is never used for it.
+  * It counts what isn't scored: missing forecasts, forecasts without an outcome, conditional DNP exclusions, and
+    missed capture windows (from the manifests).
+  * Breakdowns are by capture kind, position group and hours-to-kickoff.
+  * The incumbent V4/V5 records are the labelled `market_informed_benchmark`. That comparison is a
+    price-of-independence diagnostic only, and it applies only where a record carries mean, p10, p50 and p90.
+    Records published today carry p05/p50/p95 only. They're counted as `NOT_SCOREABLE`, and no p10/p90 is
+    approximated for them.
+  * Fewer than 20 game clusters (zero matured rows included) reads `INSUFFICIENT_SAMPLE`. A settle run with no
+    matured rows still computes both records and prints them, but it writes nothing.
+* **`value_scorecard`** runs in `DRY_RUN_DIAGNOSTIC` mode under
+  [`PURE_SHADOW_NFL_VALUE_PREREG.md`](PURE_SHADOW_NFL_VALUE_PREREG.md), whose JSON copy's sha256 is in every record.
+  * The listings' `threshold` K maps to the `at_least` K rung, prices stay in dollars, and only quotes at or before
+    as_of are used.
+  * Only `PURE_PLAYER_V1` at FINAL_T90 is eligible for an independent-value verdict. V4/V5 run with
+    `market_informed_source=true`, so they always read `NOT_INDEPENDENT_EVIDENCE`.
+  * Nothing reads these records to place, size or route an order.
+* If either scorecard fails, the failure is written as an `ERROR` record. It never blocks the outcomes, the compare
+  file or the publish.
 
 ## Known limits
 
