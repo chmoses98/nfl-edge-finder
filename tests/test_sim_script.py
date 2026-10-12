@@ -73,3 +73,38 @@ def test_shares_sum_to_at_most_one_per_team(sim):
     for team, t in out["teams"].items():
         assert sum((p["target_share"] or {}).get("mean", 0) for p in t["players"]) <= 1.0 + 1e-6
         assert 0.0 <= t["target_concentration_hhi"] <= 1.0
+
+
+def test_the_close_game_is_split_by_winner_and_keeps_its_mass(sim):
+    """within6 pooled close wins and close losses; by_close_result attributes the same rows to a result, exactly."""
+    gi, res = sim
+    out = script_summary(res, gi, S.coherence_report(res))
+    margin = np.asarray(res.margin, float)
+    teams = out["teams"]
+    for team, t in teams.items():
+        bc, bf = t["by_close_result"], t["by_final_margin"]
+        assert set(bc) == {"win1-6", "tie", "lose1-6"}
+        split = sum(bc[k]["share_of_rows"] for k in bc)
+        assert abs(split - bf["within6"]["share_of_rows"]) <= 2e-4, "the split re-attributes within6, nothing more"
+        assert bf["within6"]["share_of_rows"] == round(float(np.mean(np.abs(margin) <= 6)), 4), "within6 is unchanged"
+        sign = 1.0 if t["home"] else -1.0
+        exp_win = float(np.mean((sign * margin > 0) & (sign * margin <= 6)))
+        assert bc["win1-6"]["share_of_rows"] == round(exp_win, 4)
+    home = next(k for k, t in teams.items() if t["home"])
+    away = next(k for k, t in teams.items() if not t["home"])
+    hb, ab = teams[home]["by_close_result"], teams[away]["by_close_result"]
+    assert hb["win1-6"]["share_of_rows"] == ab["lose1-6"]["share_of_rows"], "one team's close win is the other's close loss"
+    assert hb["tie"]["share_of_rows"] == ab["tie"]["share_of_rows"] == out["environment"]["p_tie"]
+    env = out["environment"]
+    hw7 = float(np.mean(margin > 6))   # = lead7-13 + lead14+ on the bank's integer margins (the fixture's OT margins are not)
+    assert abs(env["p_home_win"] - (hw7 + hb["win1-6"]["share_of_rows"] + 0.5 * env["p_tie"])) <= 3e-4, \
+        "consistent with the published win probability (ties counted half)"
+
+
+def test_a_thin_close_state_reports_its_share_but_no_conditional_volume(sim):
+    gi, res = sim
+    out = script_summary(res, gi, S.coherence_report(res))
+    for t in out["teams"].values():
+        tie = t["by_close_result"]["tie"]
+        if tie.get("n_rows", 10 ** 9) < 200:
+            assert tie["note"] == "too few rows" and "pass_rate_mean" not in tie
