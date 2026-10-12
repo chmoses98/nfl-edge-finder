@@ -110,6 +110,14 @@ All candidates listed as "must be probed from the runner" are reachable and free
 ## 6. Other
 
 * Stadium/roof/surface: nflverse schedule fields (verified). Altitude/orientation: to be hand-curated (32 rows).
+  Two known defects (2026-10-11), both handled in `nfl_edge/context/venues.py` + `config/stadiums.json`:
+  (a) `roof` is BLANK for retractable-roof stadiums (ARI, ATL, DAL, HOU, IND) until the open/closed call, so the
+  physical `roof_type` (dome / retractable / open) is hand-curated in config; a blank roof at a retractable stadium
+  is "roof status unknown" -- the packet shows the outside forecast as context and never flags it material, and a
+  dome never gets outdoor weather. (b) `location`/`stadium_id` do not identify every game away from the home
+  stadium (2026_05_PHI_JAX, Tottenham Hotspur Stadium, is `location=Home`, `stadium_id=JAX00`); the venue is
+  checked by stadium NAME (with known aliases, e.g. HOU "Reliant Stadium"), and no home-stadium forecast is
+  fetched or shown for a game played elsewhere. Weather stays NOT_IN_MODEL; this is packet context only.
 * Coaches: schedule `home_coach/away_coach` (verified); coordinators not in nflverse → gap, hand-curated table needed.
 * Kalshi historical bulk mirrors (Hugging Face `TrevorJS/kalshi-trades`, 154M trades 2021–Jan 2026): blocked in sandbox, licence unverified → research-only candidate, not adopted.
 
