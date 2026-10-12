@@ -91,5 +91,6 @@ jobs:
       - name: Publish to market-data (append-only)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
-          python3 scripts/ci/publish_market_data.py --src data/pit_availability \
+          # --sparse: check out only data/pit_availability of market-data (~52 GB in full); the store only adds files.
+          python3 scripts/ci/publish_market_data.py --src data/pit_availability --sparse \
             --message "pit availability nfl $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
