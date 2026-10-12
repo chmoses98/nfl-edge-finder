@@ -39,6 +39,7 @@ import nfl_edge.handicap.shadow_v2_block as SV2   # the report-isolation audit r
                                                   # import to EVERY module in the package, which would make
                                                   # the Airtable bridge reachable from the report path.
 import nfl_edge.evaluation.eligibility as EL      # production eligibility of every model arm (stdlib-only)
+import nfl_edge.context.venues as VEN            # venue + physical roof type (stdlib-only, context only)
 
 # 1.1.0: the per-game `simulation` block gained the coherent simulation's own DISTRIBUTION SUMMARY per
 # player/stat (football p05/p25/p50/p75/p95, the market and reconciled medians), the ledger player name on
@@ -652,8 +653,17 @@ def role_state(context_runs: list, teams: set) -> dict:
     }
 
 
-def weather_state(context_runs: list, game_id: str) -> dict:
-    """Forecast for one game with its vintage, and whether it materially changed since the last capture."""
+def weather_state(context_runs: list, game_id: str, stadiums: dict | None = None) -> dict:
+    """Forecast for one game with its vintage, and whether it materially changed since the last capture.
+
+    Context only (weather is NOT_IN_MODEL). Two facts are not taken from the nflverse row as published:
+
+    * the venue: a game whose scheduled stadium is not the home team's own (2026_05_PHI_JAX in London is listed
+      as a Home game) never shows the forecast captured at the home team's coordinates;
+    * the roof: nflverse leaves `roof` blank for a retractable stadium until the open/closed call, so the
+      physical roof type comes from config/stadiums.json. A dome never gets outdoor weather; a retractable roof
+      whose state is not announced keeps the outside forecast as context but is never flagged material.
+    """
     def find(run):
         for w in (run or {}).get("weather", []):
             if w.get("game_id") == game_id:
@@ -663,21 +673,40 @@ def weather_state(context_runs: list, game_id: str) -> dict:
     prev = find(context_runs[-2]) if len(context_runs) > 1 else None
     if not cur:
         return {"available": False, "reason": "no weather row captured for this game"}
+    stadiums = VEN.load_stadiums() if stadiums is None else stadiums
+    home = cur.get("home_team")
     roof = cur.get("roof")
+    vc = VEN.venue_check(home, cur.get("stadium_schedule"), cur.get("stadium_id_schedule"), stadiums)
+    at_home = {VEN.HOME_STADIUM: True, VEN.OTHER_VENUE: False}.get(vc["venue"])
+    # The physical roof is known only for the home team's own stadium.
+    rtype = VEN.roof_type(home, stadiums) if at_home is not False else None
     out = {
         "available": True,
         "roof": roof,
+        "roof_type": rtype,
         "surface": cur.get("surface"),
         "stadium": cur.get("stadium_schedule") or cur.get("stadium_config"),
-        "neutral_site": cur.get("neutral"),
+        "venue_is_home_stadium": at_home,
+        "neutral_site": (True if at_home is False else cur.get("neutral")),
         "forecast_vintage": (cur.get("nws") or {}).get("generated"),
         "forecast_updated": (cur.get("nws") or {}).get("updated"),
         "capture_run_id": context_runs[-1]["run_id"],
     }
-    if roof in ("dome", "closed", "indoors"):
-        out["material"] = False
-        out["note"] = f"roof is {roof} -- weather is not a factor"
+    if at_home is False:
+        out.update(roof_status=("CLOSED" if roof in ("dome", "closed", "indoors") else
+                                "OPEN" if roof in ("outdoors", "open") else "UNKNOWN"),
+                   forecast_vintage=None, forecast_updated=None, material=False,
+                   note=(f"played at {out['stadium']}, not {home}'s home stadium -- no forecast for this venue "
+                         f"is captured, and the home stadium's forecast is not shown ({vc['reason']})"))
         return out
+    if rtype == "dome" or roof in ("dome", "closed", "indoors"):
+        out["roof_status"] = "CLOSED"
+        out["material"] = False
+        out["note"] = (f"fixed-roof stadium ({out['stadium']}) -- weather is not a factor" if rtype == "dome"
+                       else f"roof is {roof} -- weather is not a factor")
+        return out
+    roof_unknown = rtype == "retractable" and roof not in ("outdoors", "open")
+    out["roof_status"] = "UNKNOWN" if roof_unknown else "OPEN"
     per = _kickoff_period(cur)
     if per:
         out.update({
@@ -698,6 +727,12 @@ def weather_state(context_runs: list, game_id: str) -> dict:
                 or pper.get("temperature") != per.get("temperature")
                 or (pper.get("probabilityOfPrecipitation") or {}).get("value")
                 != (per.get("probabilityOfPrecipitation") or {}).get("value"))
+    if roof_unknown:
+        out["material"] = False
+        out["note"] = (f"retractable roof ({out['stadium']}), open/closed not yet announced (nflverse leaves the "
+                       f"roof blank until it is) -- the outside forecast is context only and is never flagged "
+                       f"material")
+        return out
     out["material"] = _weather_material(out)
     return out
 

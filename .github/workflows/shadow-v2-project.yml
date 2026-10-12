@@ -28,7 +28,10 @@ jobs:
   project:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # The last green run (37383124815) took 49.5 min; recent runs reach the final publish ~46 min in, and freeing
+    # disk, dropping /tmp/md and two full publisher checkouts (vintages, projections) add ~8 more. At 60 the
+    # fixed job would race its own timeout.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -40,6 +43,11 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+      # ~52 GB market-data worktree: room first (scripts/ci/free_runner_disk.sh). From 2026-10-06 06:09Z every run
+      # died "No space left on device" in the final publish (e.g. 38165258720), so no projection run after
+      # 2026-10-05 22:32Z (37383124815) reached market-data.
+      - name: Free runner disk for the market-data worktree
+        run: bash scripts/ci/free_runner_disk.sh
       # The period engine's residual bank is fitted on play-by-play quarter scores 2012-2025 (cached as a silver
       # table after the first build); the player engine on player statistics and snap counts 2013-2025.
       - name: Fetch bronze inputs (nflverse) and market-data
@@ -79,5 +87,11 @@ jobs:
           python3 scripts/shadow_v2/publish_vintages.py --market-data /tmp/md --seasons 2026,2025
       - name: Publish the immutable projection records and the run summary
         run: |
+          # Every step that reads /tmp/md is done; publish_market_data.py adds its own full market-data worktree, and
+          # two full copies no longer fit on a hosted runner. Only the scratch checkout goes: the records to publish
+          # live under data/shadow/v2 in this checkout and are untouched.
+          git worktree remove --force /tmp/md || rm -rf /tmp/md
+          git worktree prune
+          df -h / | tail -1
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
             --message "shadow v2 projections $(ls data/shadow/v2/runs/*.summary.json | tail -1 | xargs -n1 basename | cut -d. -f1)"

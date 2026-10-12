@@ -2,8 +2,9 @@
 """Context capture (runs in GitHub Actions): weather forecasts, availability, injuries — timestamped vintages.
 
 Every run writes append-only files under data/context/<YYYY-MM-DD>/<run_id>.*.jsonl(.json):
-  weather.jsonl   one row per upcoming outdoor/unknown-roof game within 7 days: NWS hourly forecast periods around
-                  kickoff (temperature, wind speed/gust text, precip prob) + Open-Meteo hourly (wind, gusts, precip)
+  weather.jsonl   one row per upcoming game within 10 days: NWS hourly forecast periods around kickoff (temperature,
+                  wind speed/gust text, precip prob) + Open-Meteo hourly (wind, gusts, precip), fetched ONLY when the
+                  game is at the home team's own stadium (config/stadiums.json); otherwise the row says why not
   sleeper.json    full Sleeper players snapshot fields relevant to availability (injury_status, injury_body_part,
                   practice_participation, depth_chart_order/position, status, team), keyed by sleeper_id
   espn_injuries.json  ESPN site injuries endpoint (all teams)
@@ -17,6 +18,7 @@ WEATHER_LOOKAHEAD_DAYS = 10
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.data.nfl_calendar import SCHEDULE_URLS, decode_schedule_bytes  # noqa: E402  (stdlib-only)
+from nfl_edge.context import venues as VEN  # noqa: E402  (stdlib-only)
 UA = "nfl-edge-finder/0.1 (research; github.com/chmoses98/nfl-edge-finder)"
 OUT = os.path.join(ROOT, "data", "context")
 
@@ -74,7 +76,7 @@ def main(argv=None):
     man = {"run_id": run_id, "sources": {}, "failed_closed": []}
     state_path = os.path.join(OUT, "state.json")
     state = json.load(open(state_path)) if os.path.exists(state_path) else {}
-    stadiums = json.load(open(os.path.join(ROOT, "config", "stadiums.json")))
+    stadiums = VEN.load_stadiums(os.path.join(ROOT, "config", "stadiums.json"))
     # schedule
     # The release asset is gzip now (nfl_calendar.SCHEDULE_URLS); the legacy name is asked only when it is gone.
     for url in SCHEDULE_URLS:
@@ -106,11 +108,23 @@ def main(argv=None):
     with open(os.path.join(d, f"{run_id}.weather.jsonl"), "w") as f:
         for g in games:
             st = stadiums.get(g["home_team"])
+            # The venue is decided by the scheduled stadium, NOT by nflverse's Neutral flag: 2026_05_PHI_JAX
+            # (Tottenham Hotspur Stadium) is listed as a Home game with stadium_id JAX00, and the old check sent
+            # the London game's forecast request to Jacksonville. Only HOME_STADIUM/UNVERIFIED use these coordinates.
+            vc = VEN.venue_check(g["home_team"], g.get("stadium"), g.get("stadium_id"), stadiums)
+            neutral = g.get("location") == "Neutral"
             row = {"run_id": run_id, "game_id": g["game_id"], "home_team": g["home_team"], "away_team": g["away_team"], "kickoff_utc": g["kickoff_utc"],
                    "roof": g.get("roof"), "surface": g.get("surface"), "stadium_schedule": g.get("stadium"), "stadium_config": st and st["stadium"],
-                   "neutral": g.get("location") == "Neutral"}
-            if not st or (g.get("location") == "Neutral" and st["stadium"] != g.get("stadium")):
+                   "stadium_id_schedule": g.get("stadium_id"), "roof_type_config": st and st.get("roof_type"),
+                   "neutral": neutral,                                   # nflverse's flag, as published
+                   "venue_check": vc["venue"],
+                   "neutral_site_derived": neutral or vc["venue"] == VEN.OTHER_VENUE}
+            if vc["venue"] == VEN.NO_CONFIG:
                 row["note"] = "no coordinates for this site"; f.write(json.dumps(row) + "\n"); continue
+            if vc["venue"] == VEN.OTHER_VENUE:
+                # config/stadiums.json holds home stadiums only, so there are no coordinates for this venue.
+                row["note"] = f"no forecast fetched: {vc['reason']}; no coordinates for this venue"
+                f.write(json.dumps(row) + "\n"); continue
             lat, lon = st["lat"], st["lon"]
             # NWS: points -> hourly forecast (two calls); keep periods within +/- 6h of kickoff
             pts, m1 = try_get(f"https://api.weather.gov/points/{lat:.4f},{lon:.4f}")
