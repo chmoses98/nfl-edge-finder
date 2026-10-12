@@ -9,6 +9,9 @@ reconciliation  projection <-> outcome per capture row, the pregame listed-cohor
                 sports-outcome mismatch flags where a captured Kalshi result exists.
 evaluation      pure_gate compare (PURE_EWM_BASELINE champion, PURE_PLAYER_V1 challenger) per capture kind on
                 (a) the entire eligible population and (b) the pregame market-listed cohort, game-clustered.
+scorecards      alongside it (scorecards.py): an accuracy_scorecard record (vendored accuracy_scorecard, both
+                populations, PURE_EWM_BASELINE as the statistical baseline, V4/V5 as the labelled market-informed
+                benchmark where scoreable) and a DRY-RUN value_scorecard record under the committed preregistration.
 """
 from __future__ import annotations
 
@@ -26,6 +29,7 @@ from nfl_edge.engines.player.pure_v1 import data as D
 from nfl_edge.engines.player.pure_v1 import features as F
 from nfl_edge.engines.player.pure_v1 import model as M
 from nfl_edge.shadow_pure import SPORT, inputs, store
+from nfl_edge.shadow_pure import scorecards as SC
 
 QB_PASS = ("passing_attempts", "completions", "passing_yards")
 
@@ -195,7 +199,10 @@ def settle_and_evaluate(root: str, store_root: str, gate, *, now=None, md_root=N
     matured = {(r["game_id"], r["player_id"], r["statistic"]) for r in allrows
                if pd.Timestamp(r["kickoff"]) + pd.Timedelta(hours=D.GAME_DURATION_HOURS) < pd.Timestamp(now)}
     if not matured:
-        return {"state": "NO_MATURED_ROWS", "projection_rows": len(allrows)}
+        # zero matured rows: the scorecards still run (INSUFFICIENT_SAMPLE), but nothing new is written
+        acc, val = SC.build_safe(store_root, proj, {}, set(), evaluated_at=now, run_id=now.strftime("%Y%m%dT%H%M%SZ"),
+                                 bootstrap=bootstrap)
+        return {"state": "NO_MATURED_ROWS", "projection_rows": len(allrows), "scorecards_not_written": SC.summary_safe(acc, val)}
     seasons = sorted({int(k[0][:4]) for k in matured})
     fetched = fetched_map(root, seasons, now)
     prior = load_outcomes(store_root)
@@ -212,6 +219,8 @@ def settle_and_evaluate(root: str, store_root: str, gate, *, now=None, md_root=N
     sett = discovery_settlements(md_root, map_path, matured)
     rec = reconcile(proj, outcomes, cohort, sett)
     ev = score(gate, proj, outcomes, cohort, bootstrap=bootstrap)
+    acc, val = SC.build_safe(store_root, proj, outcomes, {k[0] for k in matured}, evaluated_at=now, run_id=run_id,
+                             bootstrap=bootstrap)
     w = store.RunWriter(store_root, run_id, meta={"mode": "settle", "as_of": now.isoformat()})
     if new:
         w.write_jsonl_gz(f"outcomes/{day}/{run_id}.outcomes.jsonl.gz", new)
@@ -222,5 +231,8 @@ def settle_and_evaluate(root: str, store_root: str, gate, *, now=None, md_root=N
                "policy": "DESCRIPTIVE ONLY. No promotion, no authority, no staking, no publication to production.",
                "scorecards": ev}
     w.write_json(f"evaluations/{day}/{run_id}.evaluation.json", summary)
+    w.write_json(f"evaluations/{day}/{run_id}.accuracy_scorecard.json", acc)
+    w.write_json(f"evaluations/{day}/{run_id}.value_scorecard.json", val)
     w.seal()
-    return {k: v for k, v in summary.items() if k != "scorecards"} | {"scorecard_keys": sorted(ev)}
+    return {k: v for k, v in summary.items() if k != "scorecards"} | {"scorecard_keys": sorted(ev),
+                                                                     "scorecards_written": SC.summary_safe(acc, val)}

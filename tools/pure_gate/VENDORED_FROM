@@ -6,5 +6,16 @@ paths:
 sha256:
   36b52d07531c01a5ec70675a8544cbebc540a2d72d7cd7c2e4172796f4a90885  pure_gate.py
   7caea6c382d34b8ecf3cde831d944495110f2eff8c179bd569ae9dfb77f2e630  schema/pure_forecast.v1.schema.json
+
+commit: e9cca49d561464fc152a4a4e1de19f5fc16ca3dd  (Merge PR #77: accuracy and betting-value scorecards)
+paths:
+  pure-contract/accuracy_scorecard.py                 -> tools/pure_gate/accuracy_scorecard.py
+  pure-contract/value_scorecard.py                    -> tools/pure_gate/value_scorecard.py
+  pure-contract/SCORECARDS.md                         -> tools/pure_gate/SCORECARDS.md
+sha256:
+  5558309263a877e96a18f888be8a8212346c9c8a2c8bb6ca14ff4bf2a4770928  accuracy_scorecard.py
+  0988713b1c2b8595750685c335726388a20659bdef2c87feffa2a94bfe97e588  value_scorecard.py
+  1b4adb7ac4e423eb7915d9ad8dac2cde39578d4fb92a88f95a1651e99ba8c572  SCORECARDS.md
+(pure_gate.py and the schema are unchanged at e9cca49; accuracy_scorecard.py loads pure_gate.py from this directory.)
 Do not edit these copies. To update, re-vendor from a newer commit of the canonical repo and update this file;
-tests/test_shadow_pure.py fails if either file's sha256 differs from the value above.
+tests/test_shadow_pure.py fails if any file's sha256 differs from the value above.
