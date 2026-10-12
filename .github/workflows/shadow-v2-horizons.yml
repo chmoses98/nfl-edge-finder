@@ -67,6 +67,12 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+      # ~52 GB market-data worktree: room first (scripts/ci/free_runner_disk.sh). From the 2026-REG-05 TNF horizons
+      # (2026-10-08) every projecting run died "No space left on device" in the final publish (e.g. 38183144920),
+      # so no v2 horizon marker after 2026-REG-04|20261006T0015Z reached market-data. Same failure as
+      # shadow-v2-project.yml (#151).
+      - name: Free runner disk for the market-data worktree
+        run: bash scripts/ci/free_runner_disk.sh
       - name: Fetch bronze inputs (nflverse) and market-data
         run: |
           python3 scripts/data/nflverse_download.py --only pbp,schedules,stats_player,snap_counts,players,rosters,weekly_rosters,injuries,depth_charts,ff_playerids --seasons 2012-2026 2>&1 | tail -3
@@ -108,5 +114,11 @@ jobs:
           python3 scripts/shadow_v2/publish_vintages.py --market-data /tmp/md --seasons 2026,2025
       - name: Publish the projections and the horizon markers
         run: |
+          # Every step that reads /tmp/md is done; publish_market_data.py adds its own full market-data worktree, and
+          # two full copies no longer fit on a hosted runner. Only the scratch checkout goes: the projections and
+          # markers to publish live under data/shadow/v2 in this checkout and are untouched.
+          git worktree remove --force /tmp/md || rm -rf /tmp/md
+          git worktree prune
+          df -h / | tail -1
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
             --message "shadow v2 horizon projections (${{ needs.gate.outputs.horizon_ids }})"
