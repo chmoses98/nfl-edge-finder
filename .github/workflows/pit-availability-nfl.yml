@@ -53,9 +53,17 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: NFL season being captured
+        # The NFL season, not the calendar year: January/February runs (the playoffs) belong to the previous
+        # season. Downloading injuries_<calendar year> in January fetched a file that does not exist yet (404,
+        # silently) while capture.py looked for the previous season's file, so every playoff run recorded ABSENT.
+        run: |
+          SEASON=$(python3 -c 'from datetime import datetime, timezone; n = datetime.now(timezone.utc); print(n.year if n.month >= 3 else n.year - 1)')
+          echo "SEASON=${SEASON}" >> "$GITHUB_ENV"
+          echo "season ${SEASON}"
       - name: Fetch nflverse injuries and depth charts (provenance manifest per file)
         run: |
-          python3 scripts/data/nflverse_download.py --only injuries,depth_charts --seasons $(date -u +%Y)-$(date -u +%Y) 2>&1 | tail -2
+          python3 scripts/data/nflverse_download.py --only injuries,depth_charts --seasons "${SEASON}-${SEASON}" 2>&1 | tail -2
       - name: Check out the published store (sparse, read-only) and verify it
         run: |
           bash scripts/pit_availability/checkout_store.sh /tmp/pit_md
@@ -66,7 +74,7 @@ jobs:
         run: |
           ARGS=""
           if [ "$DRY" = "1" ]; then ARGS="--dry-run"; fi
-          python3 scripts/pit_availability/capture.py --store "$STORE" $ARGS | tee /tmp/pit_capture_summary.json
+          python3 scripts/pit_availability/capture.py --store "$STORE" --season "$SEASON" $ARGS | tee /tmp/pit_capture_summary.json
       - name: Verify the local store and that publishing only adds files
         run: |
           python3 scripts/pit_availability/verify_store.py --store "$STORE" --published /tmp/pit_md/data/pit_availability/nfl

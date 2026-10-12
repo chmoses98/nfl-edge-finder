@@ -160,6 +160,14 @@ Cadence: Wednesday to Saturday at 02/08/14/20 UTC (practice reports, then Friday
 hourly on Sunday from 11 to 23 UTC, and Monday and Thursday at 21–23 UTC (T-90m windows). A pull_request run is a
 dry run.
 
+Coverage limits of this cadence (known, not yet addressed):
+
+* The T-240m..T+30m roster window is only reached on Sunday, Monday and Thursday. Saturday games (late season),
+  and holiday games on other weekdays (Christmas, Black Friday, Wednesday), get the four-a-day runs only, which may
+  miss their window entirely. Their event-roster evidence will be absent, not wrong.
+* The season captured is the NFL season (calendar year from March, previous year in January and February), so
+  playoff runs capture the season's own `injuries_<season>` file.
+
 ## Consequence for modelling
 
 Only the 2010–2024 injury report is certified historically, so only one ablation is possible on a real holdout:
