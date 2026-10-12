@@ -109,8 +109,11 @@ mutation proof is `research/pure_player_v1/pure_gate_rerun.json` (PASS_RUNTIME_N
 
 ## Known limits
 
-* Hourly cron with a 60-minute FINAL_T90 window: a GitHub schedule delay of more than about 55 minutes can miss a
-  FINAL_T90 capture. A missed window is never captured late; it stays missing and is visible in the run summaries.
+* Two gate runs an hour (:05 and :35) against a 60-minute FINAL_T90 window: a GitHub schedule delay of more than
+  about 25 minutes on both runs can still miss a FINAL_T90 capture. A missed window is never captured late or
+  backfilled. Once collection has started (the first non-dry-run capture), every (game, kind) window that closes
+  without a capture is sealed write-once into `missed/<date>/<run_id>.missed_captures.json` (manifest mode
+  `missed`, reason `NO_CAPTURE_IN_WINDOW`), exactly once. A failed run surfaces the same way once its window closes.
 * Quotes: only the last 3 h of capture files are read, so prices for contracts that didn't change in that window
   come from the newest discovery and carry its observation time.
 * The incumbent V4/V5 family is empty while `shadow-v2-project.yml` doesn't publish. Its scheduled runs since

@@ -302,3 +302,19 @@ def test_settle_and_evaluate_scores_full_population_and_listed_cohort(root, tmp_
     assert "FINAL_T90/pregame_market_listed_cohort" in ev["scorecards"]
     assert store.verify_store(st) == []
     assert E.settle_and_evaluate(r2, st, _gate(), now=later + timedelta(hours=1))["state"] == "NOTHING_NEW"
+
+
+def test_closed_windows_without_a_capture_are_recorded_as_missed_once(root, tmp_path):
+    r, sched, k = root
+    games = PD.sports_schedule(sched)
+    st = str(tmp_path / "st")
+    now = (k - pd.Timedelta(hours=5)).to_pydatetime()                 # MORNING_OF of the first games
+    assert C.missed_captures(games, now, st) == []                     # collection not started: nothing is a miss
+    C.run_capture(r, st, now=now, log=lambda *_: None)
+    later = (k - pd.Timedelta(minutes=20)).to_pydatetime()            # their FINAL_T90 closed with no capture
+    miss = C.missed_captures(games, later, st)
+    assert miss and {m["kind"] for m in miss} == {"FINAL_T90"} and all(pd.Timestamp(m["kickoff"]) == k for m in miss)
+    out = C._record_missed(st, miss, later, False)
+    assert out["state"] == "MISSED_RECORDED" and store.verify_store(st) == []
+    assert C.missed_captures(games, later, st) == []                   # recorded once ...
+    assert not ({(m["game_id"], m["kind"]) for m in miss} & C.captured_pairs(st))   # ... and never filled in

@@ -31,18 +31,56 @@ def gate():
     return pure_gate
 
 
+def _manifests(store_root: str):
+    d = os.path.join(store_root, store.MANIFEST_DIR)
+    if not os.path.isdir(d):
+        return
+    for f in sorted(os.listdir(d)):
+        if f.endswith(store.MANIFEST_SUFFIX):
+            yield json.load(open(os.path.join(d, f)))
+
+
 def captured_pairs(store_root: str) -> set[tuple[str, str]]:
     """(game_id, kind) pairs already captured, from the sealed manifests of the store."""
     out = set()
-    d = os.path.join(store_root, store.MANIFEST_DIR)
-    if not os.path.isdir(d):
-        return out
-    for f in os.listdir(d):
-        if f.endswith(store.MANIFEST_SUFFIX):
-            m = json.load(open(os.path.join(d, f)))
-            if m.get("mode") == "capture":
-                for g in m.get("captured", []):
-                    out.add((g["game_id"], g["kind"]))
+    for m in _manifests(store_root):
+        if m.get("mode") == "capture":
+            for g in m.get("captured", []):
+                out.add((g["game_id"], g["kind"]))
+    return out
+
+
+def collection_start(store_root: str) -> datetime | None:
+    """as_of of the first non-dry-run capture in the store: windows that close before it were never collectable."""
+    starts = [pd.Timestamp(m["as_of"]) for m in _manifests(store_root)
+              if m.get("mode") == "capture" and not m.get("dry_run") and m.get("as_of")]
+    return min(starts).to_pydatetime() if starts else None
+
+
+def recorded_missed(store_root: str) -> set[tuple[str, str]]:
+    return {(x["game_id"], x["kind"]) for m in _manifests(store_root) for x in m.get("missed", [])}
+
+
+def missed_captures(sched: pd.DataFrame, now: datetime, store_root: str) -> list[dict]:
+    """(game, kind) windows that CLOSED after collection started without a capture, not yet recorded as missed.
+
+    A miss is recorded once, write-once, and never filled in: the collector does not capture late or backfill. A
+    failed run therefore surfaces here too, once the window it should have captured has closed."""
+    start = collection_start(store_root)
+    if start is None:
+        return []
+    done, already = captured_pairs(store_root), recorded_missed(store_root)
+    t0, t1 = pd.Timestamp(start), pd.Timestamp(now)
+    out = []
+    games = sched[(sched["kickoff"] > t0) & (sched["kickoff"] - pd.Timedelta(minutes=min(l for _, _, l in CAPTURE_WINDOWS)) < t1)]
+    for g in games.sort_values(["kickoff", "game_id"]).itertuples(index=False):
+        ko = pd.Timestamp(g.kickoff)
+        for kind, early, late in CAPTURE_WINDOWS:
+            opens, closes = ko - pd.Timedelta(minutes=early), ko - pd.Timedelta(minutes=late)
+            if t0 < closes < t1 and (g.game_id, kind) not in done and (g.game_id, kind) not in already:
+                out.append({"game_id": g.game_id, "kind": kind, "kickoff": records.iso(ko),
+                            "window_open": records.iso(opens), "window_close": records.iso(closes),
+                            "detected_at": now.isoformat(), "reason": "NO_CAPTURE_IN_WINDOW"})
     return out
 
 
@@ -72,9 +110,10 @@ def run_capture(root: str, store_root: str, *, now: datetime | None = None, md_r
         raise inputs.ProvenanceError("data/silver/player_crosswalk.parquet would be read but has no recorded provenance; "
                                      "the collector reads the nflverse players table only")
     sched = D.sports_schedule(D.read_schedule(root))
+    missed = missed_captures(sched, now, store_root)
     season = int(sched.loc[sched["kickoff"] > pd.Timestamp(now), "season"].min()) if (sched["kickoff"] > pd.Timestamp(now)).any() else None
     if season is None:
-        return {"state": "NO_UPCOMING_GAMES"}
+        return _record_missed(store_root, missed, now, dry_run) or {"state": "NO_UPCOMING_GAMES"}
     upcoming = prospective.upcoming_games(sched, now)
     done = captured_pairs(store_root)
     if adhoc_games is not None:
@@ -83,7 +122,8 @@ def run_capture(root: str, store_root: str, *, now: datetime | None = None, md_r
     else:
         due = due_captures(upcoming, now, done)
     if not due:
-        return {"state": "NOTHING_DUE", "now": now.isoformat(), "upcoming": len(upcoming)}
+        return _record_missed(store_root, missed, now, dry_run) or {"state": "NOTHING_DUE", "now": now.isoformat(),
+                                                                     "upcoming": len(upcoming)}
     as_of = datetime.now(timezone.utc) if now is None else now
     seasons = list(range(DATA_FIRST_SEASON, season + 1))
     prov = inputs.input_provenance(root, seasons, as_of=as_of)
@@ -121,7 +161,10 @@ def run_capture(root: str, store_root: str, *, now: datetime | None = None, md_r
 
     w = store.RunWriter(store_root, run_id, meta={"mode": "capture", "collector_version": COLLECTOR_VERSION,
                                                    "dry_run": dry_run, "as_of": as_of.isoformat(),
-                                                   "captured": [{"game_id": g, "kind": k} for g, k in due]})
+                                                   "captured": [{"game_id": g, "kind": k} for g, k in due],
+                                                   "missed": [{"game_id": m["game_id"], "kind": m["kind"]} for m in missed]})
+    if missed:
+        w.write_json(f"missed/{day}/{run_id}.missed_captures.json", missed)
     for arm, (rows_v1, summ) in out_rows.items():
         w.write_jsonl_gz(f"projections/{day}/{run_id}.{arm}.pure_forecast_v1.jsonl.gz", rows_v1)
     w.write_json(f"inputs/{day}/{run_id}.inputs.json", {"as_of": as_of.isoformat(), "files": prov,
@@ -136,9 +179,22 @@ def run_capture(root: str, store_root: str, *, now: datetime | None = None, md_r
                              "candidate_players": int(pop.get(g, 0))} for g, k in due],
                "rows": {arm: {"n": len(r), "validate": s} for arm, (r, s) in out_rows.items()},
                "by_statistic": {arm: fc["arms"][arm]["statistic"].value_counts().to_dict() for arm in out_rows},
-               "model_info": model.info, "market_status": mk["status"], "incumbent_status": inc["status"],
+               "missed": missed, "model_info": model.info, "market_status": mk["status"], "incumbent_status": inc["status"],
                "inputs_fetched_at_max": max(v["max_observed_at"] for v in srcs.values()).isoformat()}
     w.write_json(f"runs/{day}/{run_id}.summary.json", summary)
     man = w.seal()
     summary["manifest_files"] = len(man["files"])
     return summary
+
+
+def _record_missed(store_root: str, missed: list[dict], now: datetime, dry_run: bool) -> dict | None:
+    """A run with nothing to capture still seals newly detected misses into the store (mode "missed")."""
+    if not missed:
+        return None
+    run_id = now.strftime("%Y%m%dT%H%M%SZ")
+    w = store.RunWriter(store_root, run_id, meta={"mode": "missed", "collector_version": COLLECTOR_VERSION,
+                                                   "dry_run": dry_run, "as_of": now.isoformat(),
+                                                   "missed": [{"game_id": m["game_id"], "kind": m["kind"]} for m in missed]})
+    w.write_json(f"missed/{now.strftime('%Y-%m-%d')}/{run_id}.missed_captures.json", missed)
+    w.seal()
+    return {"state": "MISSED_RECORDED", "run_id": run_id, "now": now.isoformat(), "missed": missed}

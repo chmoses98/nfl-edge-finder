@@ -12,7 +12,10 @@ name: PURE shadow collection (NFL, research only)
 
 on:
   schedule:
+    # Two gate runs an hour: the FINAL_T90 window is 60 minutes, so a single hourly run skips it whenever GitHub
+    # delays the schedule by more than ~55 minutes. Scoring runs only on the :35 run.
     - cron: '35 * * * *'
+    - cron: '5 * * * *'
   workflow_dispatch:
     inputs:
       adhoc:
@@ -58,14 +61,14 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       # Cheap gate: the schedule alone says whether any capture window is open. Off-window scheduled runs stop here
-      # (about 30 s) unless it is a scoring hour (05/11/17/23 UTC), so the hourly cron costs little runner time.
+      # (about 30 s) unless it is a scoring hour (05/11/17/23 UTC, :35 run), so the gate runs cost little runner time.
       - name: Gate (is a capture window open, or is this a scoring hour?)
         id: gate
         run: |
           python3 scripts/data/nflverse_download.py --only schedules --seasons $(date -u +%Y)-$(date -u +%Y) 2>&1 | tail -1
           python3 scripts/shadow_pure/collect.py --check-windows --github-output "$GITHUB_OUTPUT"
           H=$(date -u +%H)
-          if [ "${{ github.event_name }}" != "schedule" ] || grep -q '^open=true' "$GITHUB_OUTPUT" || [[ " 05 11 17 23 " == *" $H "* ]]; then
+          if [ "${{ github.event_name }}" != "schedule" ] || grep -q '^open=true' "$GITHUB_OUTPUT" || { [[ " 05 11 17 23 " == *" $H "* ]] && [ "${{ github.event.schedule }}" = "35 * * * *" ]; }; then
             echo "work=true" >> "$GITHUB_OUTPUT"
           else
             echo "work=false" >> "$GITHUB_OUTPUT"; echo "no capture window open and not a scoring hour: nothing to do"
