@@ -72,6 +72,9 @@ def main():
     ap.add_argument("--branch", default="market-data")
     ap.add_argument("--repo", default=os.getcwd())
     ap.add_argument("--attempts", type=int, default=8)
+    ap.add_argument("--sparse", action="store_true",
+                    help="check out only --src in the publish worktree (blobless fetch): for publishers that only add "
+                         "files under --src, so they never materialise the whole branch (tens of GB)")
     a = ap.parse_args()
     repo = os.path.abspath(a.repo)
     src = os.path.join(repo, a.src)
@@ -82,7 +85,12 @@ def main():
         shutil.rmtree(wt, ignore_errors=True)
         sh(["git", "worktree", "prune"], cwd=repo)
     exists = subprocess.run(["git", "ls-remote", "--exit-code", "--heads", "origin", a.branch], cwd=repo, capture_output=True).returncode == 0
-    if exists:
+    if exists and a.sparse:
+        sh(["git", "fetch", "--depth=1", "--filter=blob:none", "origin", a.branch], cwd=repo)
+        sh(["git", "worktree", "add", "--no-checkout", "-f", wt, f"origin/{a.branch}"], cwd=repo)
+        sh(["git", "sparse-checkout", "set", "--no-cone", "/" + a.src.strip("/") + "/"], cwd=wt)
+        sh(["git", "checkout", "-B", a.branch, f"origin/{a.branch}"], cwd=wt)
+    elif exists:
         sh(["git", "fetch", "--depth=1", "origin", a.branch], cwd=repo)
         sh(["git", "worktree", "add", "-f", wt, f"origin/{a.branch}"], cwd=repo)
         sh(["git", "checkout", "-B", a.branch, f"origin/{a.branch}"], cwd=wt)
