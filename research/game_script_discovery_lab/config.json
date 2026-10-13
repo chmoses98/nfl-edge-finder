@@ -1,0 +1,7 @@
+{"seed": 20261013, "evaluation_seasons": [2021,2022,2023,2024,2025], "selection_seasons": [2021,2022,2023], "confirmation_seasons": [2024,2025],
+ "prospective_2026": "not used, not downloaded", "feature_training_seasons": "2018..Y-1 (REG); 2016-17 warm the EWMAs", "bank_training": "REG games of seasons < Y from 2016 (2010 for D_2010/kernels)",
+ "eval_games": "all REG+postseason games with a closing line, 1424 games", "primary_metrics": {"P1": "margin CRPS (exact on integer lattice)", "P2": "total CRPS", "P3": "six-class script log loss (ties excluded)", "P4": "nine-cell joint log loss (repo lattice)"},
+ "secondary_metrics": ["Brier of six-class and nine-cell", "key-number Brier (|m| in 3,6,7,10,14)", "one-score and blowout Brier", "randomized PIT chi2 and 50/90 coverage"],
+ "materiality": 0.005, "harm_tolerance": 0.0025, "bootstrap": {"resamples": 5000, "unit": "game", "adjustment": "single-step max-t (White reality check) over every candidate x primary metric"},
+ "ridge": "standardised columns, lambda in {30,300,3000} by leave-one-season-out CV inside the training seasons; shift clipped to +-4 points; exponential tilt of the bank keeps integer support",
+ "runner": ["scripts/sim/gsdl_features.py", "scripts/sim/gsdl_tournament.py run", "scripts/sim/gsdl_stats.py"]}

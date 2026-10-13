@@ -1,0 +1,22 @@
+{
+ "as_of": "2026-10-13",
+ "note": "PIT class: PRIOR = built only from games strictly before the target game; T0 = known at the closing-line horizon (about 90 min before kickoff), the same horizon as the market centre; NON_PIT = game-time observation, never eligible for validity claims.",
+ "families": [
+  {"family": "Market spread and total", "status": "AVAILABLE", "pit": "T0", "source": "nflverse games.csv spread_line/total_line (1999+, undocumented near-close vintage)", "tested_as": "B_mkt, anchor of every candidate"},
+  {"family": "Opponent-adjusted offense/defense", "status": "AVAILABLE", "pit": "PRIOR", "source": "nflverse pbp 2016-2025 via nfl_edge.sim.features.team_features (EWMA, shrinkage fitted on earlier seasons)", "tested_as": "B_oadj, B_eff"},
+  {"family": "Coaching-tenure tendencies", "status": "PARTIAL", "pit": "PRIOR", "source": "games.csv head coach only; play-caller identity UNAVAILABLE; tenure proxies", "tested_as": "B_coach, C_coach_opp (also Experiment 1: REJECTED)"},
+  {"family": "Tempo and situational play-calling", "status": "AVAILABLE", "pit": "PRIOR", "source": "pbp neutral-script pass rate, sec/play, plays", "tested_as": "B_tempo, C_pace"},
+  {"family": "Passing and rushing efficiency", "status": "AVAILABLE", "pit": "PRIOR", "source": "pbp EPA/dropback, EPA/rush, ypa, ypc", "tested_as": "B_eff, C_pass, C_rush"},
+  {"family": "Explosive-play rates", "status": "AVAILABLE", "pit": "PRIOR", "source": "derived from pbp (completed pass >=20 yds, rush >=10 yds); definition is ours", "tested_as": "B_expl, C_expl"},
+  {"family": "Pressure and protection", "status": "PARTIAL", "pit": "PRIOR", "source": "pbp sack rate and QB-hit rate only; PFR pressures (2018+) and FTN (2022+) not downloaded / too short", "tested_as": "B_press, C_press_qb (proxies)"},
+  {"family": "Play action, motion, RPO, formation", "status": "PARTIAL", "pit": "PRIOR (prior games)", "source": "FTN charting 2022-2025 only", "tested_as": "NOT TESTED: no walk-forward history for 2021-2023 and 1-3 training seasons for 2024-2025"},
+  {"family": "Participation / personnel by play", "status": "UNAVAILABLE", "pit": "NON_PIT for the current season", "source": "nflverse pbp_participation arrives after the season", "tested_as": "NOT TESTED"},
+  {"family": "Injury information", "status": "UNVERIFIED", "pit": "T0 historically (final report); content-addressed vintages exist only from 2026", "source": "nflverse injuries 2009-2025, no timestamps", "tested_as": "NOT TESTED"},
+  {"family": "QB availability and starter changes", "status": "PARTIAL", "pit": "T0", "source": "games.csv starter id (public about 90 min pre-kickoff) + prior QB EPA from pbp", "tested_as": "B_qb, C_press_qb"},
+  {"family": "Rest, home field, division, roof", "status": "AVAILABLE", "pit": "PRIOR", "source": "games.csv", "tested_as": "B_rest"},
+  {"family": "Weather (observed temperature/wind)", "status": "AVAILABLE as observation only", "pit": "NON_PIT", "source": "games.csv temp/wind; no historical forecast vintage before 2026-09-04 (docs/DATA_SOURCE_AUDIT.md)", "tested_as": "B_wx, descriptive, ineligible for claims"},
+  {"family": "Travel", "status": "UNAVAILABLE", "pit": "n/a", "source": "no stadium coordinates in repo", "tested_as": "NOT TESTED"},
+  {"family": "Historical scoring residuals and key numbers", "status": "AVAILABLE", "pit": "PRIOR", "source": "games.csv outcomes vs lines", "tested_as": "B_resid, all Stage D distributions"},
+  {"family": "Player opportunity (usage, depth chart, snaps)", "status": "PARTIAL", "pit": "PRIOR/T0", "source": "weekly rosters, depth charts, snap counts (not downloaded for this lab)", "tested_as": "NOT RUN (Target F)"}
+ ]
+}
