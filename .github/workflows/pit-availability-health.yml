@@ -1,0 +1,38 @@
+name: NFL PIT availability publication health
+
+# Research-only alarm. A green forecast or GitHub capture job is not evidence of
+# pregame injury/teammate availability if no point-in-time record is published.
+# Read the immutable published store, never modify it, models, bets or SIFT.
+# GitHub schedules are best-effort. Workflow dispatch permits an immediate audit.
+on:
+  schedule:
+    - cron: '13 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  published-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -q polars
+      - name: Check published captures against due slots
+        run: |
+          bash scripts/pit_availability/checkout_store.sh /tmp/pit_md
+          python3 scripts/pit_availability/verify_store.py --store /tmp/pit_md/data/pit_availability/nfl
+          gh run list --workflow pit-availability-nfl.yml --branch main --limit 100 \
+            --json event,conclusion,status,createdAt > /tmp/pit_runs.json
+          python3 scripts/ops/pit_availability_health.py --store /tmp/pit_md/data/pit_availability/nfl \
+            --runs-json /tmp/pit_runs.json --summary "$GITHUB_STEP_SUMMARY"
+        env:
+          GH_TOKEN: ${{ github.token }}
