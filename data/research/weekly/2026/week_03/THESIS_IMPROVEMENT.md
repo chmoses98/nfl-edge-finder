@@ -37,16 +37,16 @@ RUN NFL marks markets that fall under a hypothesis above with its tag (PRICE_BUC
 
 ## 5. Expression autopsy of the actual positions
 
-36 position episodes (orders folded into positions; a cashout is the same position closing) expressing **16 inferred theses**.
+44 position episodes (orders folded into positions; a cashout is the same position closing) expressing **16 inferred theses**.
 
 | classification | positions | P&L |
 |---|---|---|
 | SCRIPT_RIGHT/EXPRESSION_RIGHT | 16 | 710.13 |
+| SCRIPT_UNJUDGEABLE | 9 | -105.72 |
 | SCRIPT_WRONG | 7 | -383.46 |
 | SCRIPT_PARTIAL/EXPRESSION_WRONG | 6 | -316.49 |
 | SCRIPT_PARTIAL/EXPRESSION_RIGHT | 4 | 265.45 |
 | SCRIPT_RIGHT/EXPRESSION_WRONG | 2 | -90.50 |
-| SCRIPT_UNJUDGEABLE | 1 | -50.00 |
 
 Flags: CORRELATED_STACK 20, VARIANCE_ONLY 4, PRICE_ERROR 2, EFFICIENCY_ERROR 1, VOLUME_ERROR 1, ROLE_ERROR 1.
 
