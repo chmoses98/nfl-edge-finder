@@ -1,0 +1,8 @@
+# Historical Game Flow Intelligence Championship: protocol (RESEARCH_ONLY)
+
+Outcome definitions: `scripts/sim/gf_data.py` docstring. Targets are reconstructed from nflverse play-by-play scores (post-play).
+Split: burn-in 2001-2002 | development 2006-2007 (bandwidth tuning) | selection 2008-2009 (advancement rule) | final holdout 2010-2012 | reused evidence 2013-2025.
+Exposure audit: no earlier SIFT or earlier session work scored halftime / Q4 / comeback / drought targets for 2001-2020. SIFT's score-path arm (game_script_v2) scored half / Q3 leaders, early blowouts and late comebacks on 2021-2025, so 2021-2025 is reported separately as exposed. 2010-2012 and 2013-2025 final margins/totals were scored in earlier sessions (HMAC), so no period is untouched in the strictest sense; 2010-2012 is still the least-contaminated block for game-flow targets.
+Pregame only: forecasts use the closing spread and total (T-0, as in earlier championships), prior-game features, and models fitted on seasons < Y. Conditional-on-state forecasts (category 2) and retrospective descriptions (category 3) are NOT evaluated here.
+Primary metrics: halftime-margin CRPS, halftime-total CRPS, Brier of comp4q / lead14 / comeback10. Advancement rule: >=0.5% improvement on at least one primary metric over G0 on the pooled selection seasons, improving in every selection season, with no primary metric >0.5% worse.
+Freeze: commit e93336d (before 2010+ forecasts existed). Post-freeze edit (disclosed): `situational_table` gained an optional `T` override for the perturbation test; no result changes (the frozen code hash no longer matches).

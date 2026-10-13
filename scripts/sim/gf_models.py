@@ -84,12 +84,15 @@ RES_TARGETS = ["ht_m", "ht_t", "comp4q", "lead14", "comeback10", "lc4"]
 CLIP = {"ht_m": 3.0, "ht_t": 3.0, "comp4q": 0.12, "lead14": 0.12, "comeback10": 0.08, "lc4": 0.08}
 
 
-def situational_table() -> pd.DataFrame:
-    """Prior-only EWMA of score-dependent play calling (pass rate when trailing / leading by 7+), per (game_id, team)."""
-    p = os.path.join(GD.CACHE, "situational.parquet")
-    if os.path.exists(p):
+def situational_table(T=None) -> pd.DataFrame:
+    """Prior-only EWMA of score-dependent play calling (pass rate when trailing / leading by 7+), per (game_id, team).
+    ``T`` (tests only) overrides the team-flow table and bypasses the cache."""
+    p = os.path.join(GD.CACHE, "situational.parquet"); override = T is not None
+    if os.path.exists(p) and not override:
         return pd.read_parquet(p)
-    G, T, _ = GD.build(); s = GF.schedule_frame()[["game_id", "week", "gameday"]]
+    if T is None:
+        G, T, _ = GD.build()
+    s = GF.schedule_frame()[["game_id", "week", "gameday"]]
     t = T.merge(s, on="game_id").sort_values(["team", "season", "week", "game_id"]).reset_index(drop=True)
     for k in ("trail7", "lead7"):
         t[f"x_{k}"] = t[f"db_{k}"]; t[f"n_{k}"] = (t[f"db_{k}"] + t[f"dr_{k}"]).astype(float)
@@ -99,7 +102,10 @@ def situational_table() -> pd.DataFrame:
         idx, S, N, n = GF._ewma(t, "team", [f"x_{k}", f"n_{k}"], 8.0)
         t.loc[idx, f"pass_{k[:-1] if False else k}"] = (S[:, 0] + pr[k] * K * pn[k]) / (S[:, 1] + K * pn[k])
     t = t.rename(columns={"pass_trail7": "pass_trail", "pass_lead7": "pass_lead"}); t["pass_slope"] = t["pass_trail"] - t["pass_lead"]
-    out = t[["game_id", "team", "pass_trail", "pass_lead", "pass_slope"]]; out.to_parquet(p); return out
+    out = t[["game_id", "team", "pass_trail", "pass_lead", "pass_slope"]]
+    if not override:
+        out.to_parquet(p)
+    return out
 
 
 def frame_for(Y: int) -> pd.DataFrame:

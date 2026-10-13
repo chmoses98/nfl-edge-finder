@@ -1,0 +1,8 @@
+{"GU": "unconditional historical trajectories (no market information); reference only",
+ "G0_b3": "market-informed baseline: historical trajectories kernel-weighted on closing spread and total (triangular, half-widths 6 and 9 points, season half-life 6, 10% wide-kernel floor); one weighted trajectory set per game gives coherent joint probabilities",
+ "G1_b3": "G0 + ridge-learned exponential tilt of the trajectory weights from team tendency features (pace, neutral pass rate, efficiency, sacks); residual targets from leave-one-game-out G0 means; strong ridge (lambda by leave-one-season-out)",
+ "G2_b3": "G0 + tilt from coaching tenure proxies and score-dependent play calling (pass rate trailing / leading by 7+)",
+ "G3_b3": "G0 + tilt from matchup interactions (pass, rush, pace, explosive)",
+ "G4": "simplified drive-level state-transition Markov chain (time bucket x margin bin x spread bin x total tercile cells, 40-drive backoff), 2000 Monte Carlo paths per game, started from pregame spread and total only",
+ "G5": "hybrid: mixture of G0 and the one advancing component (G1); weight fitted on the previous three seasons' out-of-sample forecasts",
+ "T1/T2/T3": "team-level offensive behaviour: market-conditioned kernel mean + ridge residual from tendency / situational+coaching / interaction features"}
