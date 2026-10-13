@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -25,6 +26,12 @@ GOOD_ESPN = {"CAPTURED"}
 GOOD_ROSTER = {"CAPTURED", "NO_GAMES_IN_WINDOW"}
 LATE_MINUTES = 30        # a run later than this after its slot may have missed the roster window [T-240m, T+30m]
 MAX_MATCH_HOURS = 6      # a run older than this relative to a slot is not evidence for that slot
+# Watchdog: a capture dispatched now is still PROSPECTIVE (stamped with our retrieval time, never backdated), but only
+# worth dispatching while the slot's purpose is alive: ~T-90m rosters (pregame slots) or the report-day injury reports.
+DISPATCH_GRACE_MIN = 12          # give the primary and backup crons this long before declaring a slot dropped
+PREGAME_DISPATCH_MIN = 60
+REPORT_DISPATCH_MIN = 180
+MAX_DISPATCH_PER_SLOT = 3        # bounded retries (publication failures); then the slot stays a visible gap
 
 
 def _utc(value: str) -> datetime:
@@ -162,6 +169,79 @@ def classify_workflow_runs(slot: datetime, runs: list[dict]) -> str:
     return "RAN_SUCCESS_NO_PUBLICATION"
 
 
+def latest_slot(now: datetime, activated: datetime = ACTIVATED) -> datetime | None:
+    slots = scheduled_slots(now, activated)
+    return slots[-1] if slots else None
+
+
+def slot_covered(slot: datetime, summaries: list[dict]) -> datetime | None:
+    """Time of the first PUBLISHED capture at or after `slot`, else None. Only the published store counts."""
+    ts = sorted(t for t in (run_time(x) for x in summaries) if t and t >= slot)
+    return ts[0] if ts else None
+
+
+def gate_decision(now: datetime, summaries: list[dict], *, event: str = "schedule", force: bool = False) -> dict:
+    """Capture-run gate: skip only a REDUNDANT run (the latest slot already has a published capture). A late run is
+    never skipped (late prospective evidence is still evidence; the coverage guard reports it LATE). Writes nothing."""
+    now = now.astimezone(timezone.utc)
+    if event == "pull_request" or force:
+        return {"capture": True, "reason": "dry-run or forced"}
+    slot = latest_slot(now)
+    if slot is None:
+        return {"capture": True, "reason": "no slot due yet"}
+    first = slot_covered(slot, summaries)
+    if first is not None:
+        return {"capture": False, "slot": slot.isoformat(), "reason": f"slot already covered by published capture {first.isoformat()}"}
+    return {"capture": True, "slot": slot.isoformat(), "reason": "latest slot has no published capture"}
+
+
+def watchdog_decision(now: datetime, summaries: list[dict], runs: list[dict]) -> dict:
+    """Dispatch the existing capture workflow iff the latest slot was dropped and its window is still open.
+    Never backfills: a closed window stays a gap (assess_coverage reports it)."""
+    now = now.astimezone(timezone.utc)
+    slot = latest_slot(now - timedelta(minutes=DISPATCH_GRACE_MIN))
+    if slot is None:
+        return {"action": "NONE", "reason": "NOT_DUE"}
+    base = {"slot": slot.isoformat(), "age_min": round((now - slot).total_seconds() / 60.0, 1)}
+    window = PREGAME_DISPATCH_MIN if is_pregame_slot(slot) else REPORT_DISPATCH_MIN
+    first = slot_covered(slot, summaries)
+    if first is not None:
+        return {**base, "action": "NONE", "reason": "COVERED", "covered_by": first.isoformat()}
+    if base["age_min"] > window:
+        return {**base, "action": "NONE", "reason": "WINDOW_CLOSED_GAP_REMAINS"}
+    cap = [r for r in runs or [] if r.get("event") in ("schedule", "workflow_dispatch")]
+    if any(r.get("status") in ("queued", "in_progress", "waiting", "requested", "pending") for r in cap):
+        return {**base, "action": "NONE", "reason": "IN_FLIGHT"}
+    def _after(r):
+        try:
+            return _utc(r["createdAt"]) >= slot
+        except (KeyError, ValueError, TypeError):
+            return False
+    if sum(1 for r in cap if r.get("event") == "workflow_dispatch" and _after(r)) >= MAX_DISPATCH_PER_SLOT:
+        return {**base, "action": "NONE", "reason": "ATTEMPTS_EXHAUSTED"}
+    return {**base, "action": "DISPATCH", "reason": "slot dropped; window open"}
+
+
+def trigger_for(summary: dict, runs: list[dict] | None) -> str:
+    """How the run that produced a published capture was started: schedule | watchdog | manual | unknown."""
+    t = run_time(summary)
+    best = None
+    for r in runs or []:
+        try:
+            c = _utc(r["createdAt"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if r.get("event") in ("schedule", "workflow_dispatch") and t and c - timedelta(minutes=1) <= t <= c + timedelta(minutes=30):
+            if best is None or c > best[0]:
+                best = (c, r)
+    if best is None:
+        return "unknown"
+    r = best[1]
+    if r["event"] == "schedule":
+        return "schedule"
+    return "watchdog" if "watchdog:" in (r.get("displayTitle") or "") else "manual"
+
+
 def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | None = None,
                     lookback_hours: int = 168, grace_minutes: int = 90,
                     activated: datetime = ACTIVATED) -> dict:
@@ -175,6 +255,7 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
     lo = now - timedelta(hours=lookback_hours)
     window = [x for x in due if x >= lo]
     matched = match_runs(due, summaries)
+    trig = {sl: trigger_for(sm, runs) for sl, sm in matched.items()}
     if runs is not None:
         # A workflow run that produced a published capture is accounted for by that slot; it must not also be read
         # as "a run happened" for another slot whose window it merely falls inside.
@@ -202,7 +283,7 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
             verdict = "SOURCE_DEGRADED" if bad else ("LATE" if late > LATE_MINUTES else "COVERED")
         counts[verdict] = counts.get(verdict, 0) + 1
         slots_out.append({"slot_utc": slot.isoformat(), "pregame": pre, "verdict": verdict,
-                          "minutes_late": late, "bad_sources": bad})
+                          "minutes_late": late, "bad_sources": bad, "trigger": trig.get(slot)})
         injury_bad = verdict.startswith("MISSING") or any(b in bad for b in ("nflverse_injuries", "espn_injuries"))
         roster_bad = pre and (verdict.startswith("MISSING") or "espn_event_rosters" in bad or verdict == "LATE")
         if injury_bad:
@@ -211,12 +292,22 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
             gaps["event_roster"].append(slot.isoformat())
     ok = bool(window) and set(counts) <= {"COVERED"}
     status = "NOT_DUE" if not window else ("COVERAGE_OK" if ok else "COVERAGE_GAPS")
+    by_trigger: dict[str, int] = {}
+    for x in slots_out:
+        if x["trigger"]:
+            by_trigger[x["trigger"]] = by_trigger.get(x["trigger"], 0) + 1
+    reliability = {"due_slots": len(window), "covered_on_time": counts.get("COVERED", 0),
+                   "published_any": sum(1 for x in slots_out if x["minutes_late"] is not None),
+                   "published_by_trigger": by_trigger}
     return {"status": status, "lookback_hours": lookback_hours, "slot_counts": counts, "gaps": gaps,
+            "reliability": reliability,
             "slots": slots_out, "availability_certified": False,
             "note": "A missing, late, failed or empty-roster capture is a gap, never evidence a player was available."}
 
 
 def read_summaries_dir(store: str) -> list[dict]:
+    if not Path(store).is_dir():
+        raise OSError(f"store directory not found: {store}")  # never read a missing store as an empty one
     out = []
     base = Path(store) / "runs"
     for p in sorted(base.rglob("*.summary.json")) if base.is_dir() else []:
@@ -230,6 +321,33 @@ def all_summaries(ref: str) -> list[dict]:
     return [json.loads(git_output("show", f"{ref}:{p}")) for p in sorted(paths)]
 
 
+def decide(a, now: datetime) -> int:
+    """gate / watchdog modes: print the decision, export it to $GITHUB_OUTPUT. Always exit 0 (a decision is not an
+    alarm); the gate fails OPEN (capture) if the store cannot be read, the watchdog fails closed (no dispatch)."""
+    try:
+        sums = read_summaries_dir(a.store) if a.store else all_summaries(a.ref)
+        sums = [x for x in sums if (run_time(x) or now) <= now]  # only evidence that existed at `now` (matters for replay)
+        if a.mode == "gate":
+            d = gate_decision(now, sums, event=a.event, force=a.force)
+        else:
+            runs = json.loads(Path(a.runs_json).read_text(encoding="utf8")) if a.runs_json else []
+            d = watchdog_decision(now, sums, runs)
+    except (RuntimeError, ValueError, OSError, json.JSONDecodeError) as exc:
+        d = {"capture": True, "reason": f"GATE_ERROR fail-open: {exc}"} if a.mode == "gate" else \
+            {"action": "NONE", "reason": f"STORE_UNREADABLE: {exc}"}
+    print(json.dumps(d, sort_keys=True))
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a", encoding="utf8") as fh:
+            for k in ("capture", "action", "slot"):
+                if k in d:
+                    fh.write(f"{k}={str(d[k]).lower() if isinstance(d[k], bool) else d[k]}\n")
+    if a.summary:
+        with Path(a.summary).open("a", encoding="utf8") as fh:
+            fh.write(f"\n### PIT capture {a.mode}\n`{json.dumps(d, sort_keys=True)}`\n")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--ref", default="origin/market-data")
@@ -238,11 +356,16 @@ def main(argv=None) -> int:
     ap.add_argument("--store", help="read summaries from a checked-out store dir (data/pit_availability/nfl) instead of --ref")
     ap.add_argument("--runs-json", help="`gh run list --json event,conclusion,status,createdAt` output for the capture workflow")
     ap.add_argument("--lookback-hours", type=int, default=168)
+    ap.add_argument("--mode", choices=("health", "gate", "watchdog"), default="health")
+    ap.add_argument("--event", default="schedule", help="gate mode: triggering event name")
+    ap.add_argument("--force", action="store_true", help="gate mode: bypass the redundancy skip")
     ap.add_argument("--summary", help="append one line to GitHub Actions step summary")
     a = ap.parse_args(argv)
     if a.grace_minutes < 0:
         ap.error("--grace-minutes must be nonnegative")
     now = _utc(a.now) if a.now else datetime.now(timezone.utc)
+    if a.mode != "health":
+        return decide(a, now)
     try:
         sums = read_summaries_dir(a.store) if a.store else all_summaries(a.ref)
         runs = json.loads(Path(a.runs_json).read_text(encoding="utf8")) if a.runs_json else None
