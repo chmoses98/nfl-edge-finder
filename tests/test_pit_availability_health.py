@@ -94,3 +94,11 @@ def test_all_covered_is_ok_but_never_certifies_availability():
     runs = [summary(run_id=r) for r in ("20261012T215000Z", "20261012T225000Z", "20261012T235000Z")]
     cov = assess_coverage(NOW, runs)
     assert cov["status"] == "COVERAGE_OK" and cov["availability_certified"] is False
+
+
+def test_run_that_published_another_slot_does_not_explain_missing_ones():
+    # Real 10-12/13 history: the only run (created 02:43:22Z) published the 23:47 slot; 21:47/22:47 never ran.
+    runs = [{"event": "schedule", "conclusion": "success", "status": "completed", "createdAt": "2026-10-13T02:43:22Z"}]
+    cov = assess_coverage(NOW, [summary(run_id="20261013T024334Z")], runs=runs)
+    v = [s["verdict"] for s in cov["slots"]]
+    assert v == ["MISSING:NEVER_RAN", "MISSING:NEVER_RAN", "LATE"]

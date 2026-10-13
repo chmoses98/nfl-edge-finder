@@ -175,6 +175,17 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
     lo = now - timedelta(hours=lookback_hours)
     window = [x for x in due if x >= lo]
     matched = match_runs(due, summaries)
+    if runs is not None:
+        # A workflow run that produced a published capture is accounted for by that slot; it must not also be read
+        # as "a run happened" for another slot whose window it merely falls inside.
+        pub = [run_time(sm) for sm in matched.values()]
+        def _accounted(r):
+            try:
+                t = _utc(r["createdAt"])
+            except (KeyError, ValueError, TypeError):
+                return False
+            return any(abs((t - p).total_seconds()) <= 600 for p in pub)
+        runs = [r for r in runs if not _accounted(r)]
     allowed = {"nflverse_injuries": GOOD_INJURY, "nflverse_depth_charts": GOOD_DEPTH,
                "espn_injuries": GOOD_ESPN, "espn_event_rosters": GOOD_ROSTER}
     slots_out, gaps = [], {"injury_report": [], "event_roster": []}
