@@ -136,7 +136,7 @@ def perturb():
     out["qb_rows_moved_at_or_before_perturbed_game"] = moved(mm[mm.gd <= gd]); out["qb_rows_moved_after_control"] = moved(mm[mm.gd > gd])
     ps = list(range(2012, 2025)); sn = PF._snaps(ps); inj, _ = L.injuries_certified(PF.ROOT, ps and [s for s in ps if s >= 2010], game_type="REG")
     b, _ = PF.personnel_table(ps, sn=sn.copy(), inj=inj.copy()); sn2 = sn.copy(); mk = sn2.game_id == G
-    sn2.loc[mk, ["offense_pct", "defense_pct"]] = 0.99; p1, _ = PF.personnel_table(ps, sn=sn2, inj=inj.copy())
+    sn2.loc[mk, ["offense_pct", "defense_pct", "pct"]] = 0.99; p1, _ = PF.personnel_table(ps, sn=sn2, inj=inj.copy())
     inj2 = inj.copy(); inj2.loc[inj2.game_id == G, "report_status"] = "Out"; p2, _ = PF.personnel_table(ps, sn=sn.copy(), inj=inj2)
     pc = [c for c in b.columns if c not in ("game_id", "team")]
     def cmp(x):
