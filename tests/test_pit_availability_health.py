@@ -102,3 +102,91 @@ def test_run_that_published_another_slot_does_not_explain_missing_ones():
     cov = assess_coverage(NOW, [summary(run_id="20261013T024334Z")], runs=runs)
     v = [s["verdict"] for s in cov["slots"]]
     assert v == ["MISSING:NEVER_RAN", "MISSING:NEVER_RAN", "LATE"]
+
+
+# --- scheduling reliability: gate + watchdog (Sunday 2026-10-18; pregame slots at :47, 60-min dispatch window) ---
+from scripts.ops.pit_availability_health import (  # noqa: E402
+    MAX_DISPATCH_PER_SLOT, gate_decision, trigger_for, watchdog_decision)
+
+
+def run(event, created, status="completed", conclusion="success", title=""):
+    return {"event": event, "createdAt": created, "status": status, "conclusion": conclusion, "displayTitle": title}
+
+
+def test_dropped_schedule_is_dispatched_inside_window_only():
+    s = [summary(run_id="20261018T144800Z")]                       # 14:47 slot covered
+    assert watchdog_decision(dt("2026-10-18T15:55:00Z"), s, [])["reason"] == "COVERED"      # 15:47 not yet past grace
+    d = watchdog_decision(dt("2026-10-18T16:02:00Z"), s, [])                                # 15:47 dropped, 15 min old
+    assert d["action"] == "DISPATCH" and d["slot"].startswith("2026-10-18T15:47")
+
+
+def test_missed_window_is_a_gap_never_backfilled():
+    s = [summary(run_id="20261018T144800Z")]
+    d = watchdog_decision(dt("2026-10-18T16:50:00Z"), s, [])                                # 63 min after 15:47
+    assert d["action"] == "NONE" and d["reason"] == "WINDOW_CLOSED_GAP_REMAINS"
+    cov = assess_coverage(dt("2026-10-18T17:30:00Z"), s)   # past the guard's 90-min delivery grace
+    assert any(x["slot_utc"].startswith("2026-10-18T15:47") and x["verdict"].startswith("MISSING") for x in cov["slots"])
+    assert cov["availability_certified"] is False
+    # report-day slot (Wed 02:17Z) has the longer 180-minute window
+    assert watchdog_decision(dt("2026-10-14T05:00:00Z"), [], [])["action"] == "DISPATCH"
+    assert watchdog_decision(dt("2026-10-14T05:30:00Z"), [], [])["reason"] == "WINDOW_CLOSED_GAP_REMAINS"
+
+
+def test_overlapping_dispatch_in_flight_then_published_is_idempotent():
+    now = dt("2026-10-18T16:02:00Z")
+    queued = [run("workflow_dispatch", "2026-10-18T16:01:00Z", status="queued", conclusion=None, title="watchdog:x")]
+    assert watchdog_decision(now, [], queued)["reason"] == "IN_FLIGHT"                      # second watchdog does nothing
+    # the queued run executes; a duplicate queued behind it re-checks the store and skips
+    s = [summary(run_id="20261018T160300Z")]
+    g = gate_decision(dt("2026-10-18T16:05:00Z"), s, event="workflow_dispatch")
+    assert g["capture"] is False and "already covered" in g["reason"]
+    assert watchdog_decision(dt("2026-10-18T16:07:00Z"), s, [])["reason"] == "COVERED"
+
+
+def test_backup_cron_captures_only_when_primary_dropped():
+    assert gate_decision(dt("2026-10-18T15:59:30Z"), [summary(run_id="20261018T154800Z")])["capture"] is False   # primary ran
+    assert gate_decision(dt("2026-10-18T15:59:30Z"), [summary(run_id="20261018T144800Z")])["capture"] is True    # primary dropped
+
+
+def test_delayed_run_is_not_skipped_and_stays_visible_as_late():
+    s = [summary(run_id="20261018T154800Z")]
+    assert gate_decision(dt("2026-10-18T17:30:00Z"), s)["capture"] is True                   # 16:47 slot has no capture
+    s.append(summary(run_id="20261018T173000Z"))
+    cov = assess_coverage(dt("2026-10-18T19:00:00Z"), s, lookback_hours=6)
+    late = [x for x in cov["slots"] if x["slot_utc"].startswith("2026-10-18T16:47")][0]
+    assert late["verdict"] == "LATE" and late["minutes_late"] == 43.0
+
+
+def test_publication_failure_retries_then_stops_and_gap_stays():
+    fails = [run("workflow_dispatch", f"2026-10-18T16:0{i}:00Z", conclusion="failure", title="watchdog:x") for i in range(1, 3)]
+    assert watchdog_decision(dt("2026-10-18T16:20:00Z"), [], fails[:1])["action"] == "DISPATCH"
+    many = fails + [run("workflow_dispatch", "2026-10-18T16:09:00Z", conclusion="failure", title="watchdog:x")]
+    assert len(many) == MAX_DISPATCH_PER_SLOT
+    assert watchdog_decision(dt("2026-10-18T16:25:00Z"), [], many)["reason"] == "ATTEMPTS_EXHAUSTED"
+    cov = assess_coverage(dt("2026-10-18T16:25:00Z"), [], runs=many, lookback_hours=2)
+    assert any(x["verdict"] == "MISSING:RAN_FAILED" for x in cov["slots"])
+
+
+def test_gate_fail_open_for_dry_run_and_force_and_trigger_provenance():
+    s = [summary(run_id="20261018T154800Z")]
+    now = dt("2026-10-18T15:59:00Z")
+    assert gate_decision(now, s, event="pull_request")["capture"] is True
+    assert gate_decision(now, s, event="workflow_dispatch", force=True)["capture"] is True
+    sm = summary(run_id="20261018T160300Z")
+    assert trigger_for(sm, [run("schedule", "2026-10-18T16:02:40Z")]) == "schedule"
+    assert trigger_for(sm, [run("workflow_dispatch", "2026-10-18T16:02:40Z", title="x · watchdog:2026")]) == "watchdog"
+    assert trigger_for(sm, [run("workflow_dispatch", "2026-10-18T16:02:40Z", title="manual")]) == "manual"
+    assert trigger_for(sm, []) == "unknown"
+
+
+def test_missing_store_is_unreadable_not_empty(tmp_path):
+    import json as _j
+    import pytest
+    from scripts.ops.pit_availability_health import main, read_summaries_dir
+    with pytest.raises(OSError):
+        read_summaries_dir(str(tmp_path / "nope"))
+    assert main(["--mode", "watchdog", "--store", str(tmp_path / "nope"), "--now", "2026-10-18T16:02:00Z"]) == 0  # no dispatch
+    (tmp_path / "ok" / "runs").mkdir(parents=True)
+    (tmp_path / "ok" / "runs" / "a.summary.json").write_text(_j.dumps(summary(run_id="20261018T170000Z")))
+    # a capture from the "future" relative to --now must not count as evidence at --now
+    assert [x["run_id"] for x in read_summaries_dir(str(tmp_path / "ok"))] == ["20261018T170000Z"]
