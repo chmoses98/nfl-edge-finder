@@ -107,7 +107,7 @@ def test_the_script_block_is_stdlib_only():
     tree = ast.parse(open(os.path.join(ROOT, "nfl_edge", "handicap", "script_block.py")).read())
     mods = {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module} | \
            {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
-    assert mods <= {"__future__", "glob", "gzip", "json", "os"}, mods
+    assert mods <= {"__future__", "glob", "gzip", "hashlib", "json", "os"}, mods
 
 
 def test_scripts_load_only_from_the_attached_simulation_run(tmp_path):

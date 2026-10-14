@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import glob
 import gzip
+import hashlib
 import json
 import os
 
@@ -32,6 +33,52 @@ REGISTRY = os.path.join("research", "hypothesis_registry", "v2", "hypotheses.jso
 UNDER_TEST = ("PREREGISTERED", "TESTING")
 AUTHORITY = ("CONTEXT ONLY: no tag or script input creates a BET state, bypasses preflight, or changes an edge, "
              "a threshold, a stake or a model probability")
+
+# ------------------------------------------------------------------------------------------------ calibration gates
+GATES_VERSION = "calibration-gates-1.0.0"
+CLOSE_SPLIT_ARTIFACT = os.path.join("research", "game_script_v2", "close_split_calibration.json").replace(os.sep, "/")
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_VERDICT_FLAGS = ("show_split", "split_no_worse_than_b1", "close_classes_no_worse_than_b1")
+
+
+def close_split_gate(root: str | None = None) -> dict:
+    """Is the close-game split (`team_volume[TEAM].by_close_result`, who wins a one-score game) cleared for display?
+
+    The authority is `research/game_script_v2/close_split_calibration.json`, written by scripts/sim/close_split_backtest.py.
+    The split is authorised ONLY when that file parses and its `verdict` carries the three boolean flags with
+    `show_split` exactly True (and consistent with the other two). A missing, unreadable, malformed, inconsistent or
+    unknown artifact means SUPPRESS: this gate fails closed. It reads no model probability and changes none."""
+    path = os.path.join(root or _REPO_ROOT, *CLOSE_SPLIT_ARTIFACT.split("/"))
+
+    def out(status: str, reason: str, verdict=None, sha=None) -> dict:
+        return {"status": status, "displayable": status == "SHOW", "reason": reason, "artifact": CLOSE_SPLIT_ARTIFACT,
+                "artifact_sha256": sha, "verdict": verdict}
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError as e:
+        return out("SUPPRESS", f"calibration artifact unavailable: {type(e).__name__}")
+    sha = hashlib.sha256(raw).hexdigest()
+    try:
+        doc = json.loads(raw)
+    except ValueError:
+        return out("SUPPRESS", "calibration artifact malformed: not valid JSON", sha=sha)
+    v = doc.get("verdict") if isinstance(doc, dict) else None
+    if not isinstance(v, dict) or any(type(v.get(k)) is not bool for k in _VERDICT_FLAGS):
+        return out("SUPPRESS", "calibration artifact malformed: verdict flags missing or not boolean", sha=sha)
+    verdict = {k: v[k] for k in _VERDICT_FLAGS}
+    if verdict["show_split"] != (verdict["split_no_worse_than_b1"] and verdict["close_classes_no_worse_than_b1"]):
+        return out("SUPPRESS", "calibration artifact inconsistent: show_split disagrees with its own component flags", verdict, sha)
+    if not verdict["show_split"]:
+        return out("SUPPRESS", "calibration gate failed: DO NOT SHOW SPLIT (the split is not shown to be no worse than the "
+                               "spread-bucket baseline)", verdict, sha)
+    return out("SHOW", "calibration gate passed: SHOW SPLIT", verdict, sha)
+
+
+def calibration_gates(root: str | None = None) -> dict:
+    """The machine-readable gates block published beside the script inputs. Consumers must read `displayable`."""
+    return {"version": GATES_VERSION, "close_win_split": close_split_gate(root)}
+
 
 # tag category by the registered metric (and filter) of a board hypothesis
 TAG_BY_METRIC = {"MID_BIAS": "PRICE_BUCKET_RESEARCH_CANDIDATE", "RETURN_AT_ASK": "PRICE_BUCKET_RESEARCH_CANDIDATE",
@@ -159,8 +206,13 @@ def _rng(d: dict | None, lo="p25", hi="p75", nd=1):
             "range_50": [d.get(lo), d.get(hi)], "range_90": [d.get("p05"), d.get("p95")]}
 
 
-def game_script_inputs(game: dict, script: dict | None, *, script_source: str, hypotheses_note: str) -> dict:
-    """The GAME SCRIPT INPUTS section of one game. Always returns a dict; UNAVAILABLE parts say why."""
+def game_script_inputs(game: dict, script: dict | None, *, script_source: str, hypotheses_note: str,
+                       gates: dict | None = None) -> dict:
+    """The GAME SCRIPT INPUTS section of one game. Always returns a dict; UNAVAILABLE parts say why.
+
+    `by_close_result` is published only when the close-split calibration gate authorises it (see `close_split_gate`)."""
+    gates = gates if gates is not None else calibration_gates()
+    show_split = bool(((gates or {}).get("close_win_split") or {}).get("displayable") is True)
     mi = game.get("market_implied") or {}
     line_moves = [m for m in (game.get("largest_moves") or []) if m.get("family") in ("SPREAD", "TOTAL", "TEAM_TOTAL", "GAME_WINNER")][:6]
     out = {"authority": AUTHORITY,
@@ -168,7 +220,7 @@ def game_script_inputs(game: dict, script: dict | None, *, script_source: str, h
            "market_baseline": {"spread_home": mi.get("implied_spread"), "total": mi.get("implied_total_median"),
                                "score": mi.get("implied_score"), "win_probability": mi.get("win_probability"),
                                "game_line_moves": line_moves},
-           "script_source": script_source, "research_tags_source": hypotheses_note}
+           "script_source": script_source, "research_tags_source": hypotheses_note, "calibration_gates": gates}
     if not script:
         out["state"] = "PARTIAL"
         out["game_environment"] = out["team_volume"] = out["player_opportunity"] = {"state": "UNAVAILABLE", "reason": script_source}
@@ -188,8 +240,9 @@ def game_script_inputs(game: dict, script: dict | None, *, script_source: str, h
             tv[team] = {"plays": _rng(v.get("plays")), "pass_att": _rng(v.get("pass_att")), "designed_rush": _rng(v.get("designed_rush")),
                         "dropbacks": _rng(v.get("dropbacks")), "scrambles": _rng(v.get("scrambles")),
                         "pass_rate": _rng(v.get("pass_rate"), nd=3), "by_final_margin": t.get("by_final_margin"),
-                        "by_close_result": t.get("by_close_result"),
                         "target_concentration_hhi": t.get("target_concentration_hhi")}
+            if show_split:
+                tv[team]["by_close_result"] = t.get("by_close_result")
             po[team] = [{"player": p.get("name") or p.get("player_id"), "position": p.get("position"), "p_active": p.get("p_active"),
                          "targets": _rng(p.get("targets")), "carries": _rng(p.get("carries")),
                          "target_share": (p.get("target_share") or {}).get("mean"), "carry_share": (p.get("carry_share") or {}).get("mean"),

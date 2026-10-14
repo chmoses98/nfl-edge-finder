@@ -357,3 +357,14 @@ def test_an_unknown_player_opportunity_fails_the_export_and_touches_nothing(tmp_
     rep = _report_with_opportunity(tmp_path, [])
     assert RE.main(["--reports-dir", rep, "--market-data-root", os.path.join(FIX, "market-data"), "--out", str(root)]) == 1
     assert R.digest_tree(root) == before
+
+
+def test_published_events_carry_an_explicit_close_split_gate(app):
+    """A legacy packet (no gate) publishes a SUPPRESS gate and no by_close_result; nothing is left to infer."""
+    _, docs = _docs(app)
+    eid = ids.event_id("NFL", "nflverse_game_id", GAME)
+    gsi = docs[f"events/{eid}.json"]["extensions"]["game_script_inputs"]
+    gate = gsi["calibration_gates"]["close_win_split"]
+    assert gate["status"] == "SUPPRESS" and gate["displayable"] is False
+    for team in (gsi.get("team_volume") or {}).values():
+        assert "by_close_result" not in team
