@@ -1,0 +1,6 @@
+# Reproducibility addendum (written 2026-10-14; the original results and frozen.json are untouched)
+
+* `frozen.json` records `code_sha256 = b18d7efa...`. That is exactly the sha256 of `gf_data.py + gf_models.py` as committed in e93336d (the freeze commit). The current files hash to `aa4633dd...`.
+* The only difference is the optional `T=None` override added to `gf_models.situational_table` after the freeze (a hook for the perturbation test, commit 4a53b61). `git diff e93336d HEAD -- scripts/sim/gf_data.py scripts/sim/gf_models.py` shows nothing else.
+* Verified 2026-10-14: (1) the rebuilt situational table with the modified function is identical to the cached table used by the frozen run (12,942 rows); (2) G0_b3, G1_b3, G2_b3 and G4 forecasts for 2011 regenerated with the current code match the stored frozen forecasts with a max absolute difference of 0.0 on every array (pm, pt, pe, mh2); (3) the headline metrics recomputed from the stored forecasts equal results.json to 4 decimals (holdout G0 halftime-margin CRPS 6.0512, 2013-2025 5.8667; G1 vs G0 -0.25% / -0.12%).
+* Conclusion: the post-freeze edit cannot affect any scored prediction. `frozen.json` is deliberately not rewritten; the `final` command's hash assertion would now refuse to run unless the freeze-commit versions are checked out.

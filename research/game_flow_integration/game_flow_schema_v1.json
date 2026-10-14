@@ -1,0 +1,180 @@
+{
+ "$schema": "http://json-schema.org/draft-07/schema#",
+ "title": "game_flow game-flow-1.0.0",
+ "type": "object",
+ "required": [
+  "version",
+  "state",
+  "orientation",
+  "market_centre",
+  "evidence_class",
+  "independent_of_market",
+  "ranking_eligible",
+  "gates"
+ ],
+ "properties": {
+  "version": {
+   "const": "game-flow-1.0.0"
+  },
+  "state": {
+   "enum": [
+    "OK",
+    "UNAVAILABLE",
+    "STALE",
+    "SUPPRESSED"
+   ]
+  },
+  "reason": {
+   "type": "string"
+  },
+  "market_centre": {
+   "type": "object",
+   "required": [
+    "spread_home",
+    "total",
+    "source"
+   ],
+   "properties": {
+    "spread_home": {
+     "type": "number"
+    },
+    "total": {
+     "type": "number"
+    },
+    "source": {
+     "enum": [
+      "kalshi_implied_interpolated",
+      "consensus_line"
+     ]
+    },
+    "observed_at": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "format": "date-time"
+    },
+    "minutes_to_kickoff": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "favorite": {
+     "enum": [
+      "HOME",
+      "AWAY",
+      null
+     ]
+    }
+   }
+  },
+  "evidence_class": {
+   "const": "MARKET_DERIVED_CONDITIONAL"
+  },
+  "independent_of_market": {
+   "const": false
+  },
+  "ranking_eligible": {
+   "const": false
+  },
+  "halftime": {
+   "type": "object",
+   "properties": {
+    "margin_home": {
+     "$ref": "#/definitions/dist"
+    },
+    "total": {
+     "$ref": "#/definitions/dist"
+    },
+    "p_lead_7plus_home": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1
+    },
+    "p_lead_7plus_away": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1
+    }
+   }
+  },
+  "flow": {
+   "type": "object",
+   "properties": {
+    "p_lead_14plus_any_time": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1
+    },
+    "p_within_8_entering_q4": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1
+    }
+   },
+   "additionalProperties": false
+  },
+  "training": {
+   "type": "object",
+   "properties": {
+    "seasons": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "games": {
+     "type": "integer"
+    },
+    "effective_sample": {
+     "type": "number"
+    }
+   }
+  },
+  "gates": {
+   "type": "object",
+   "additionalProperties": {
+    "enum": [
+     "DISPLAY",
+     "DISPLAY_WITH_CAUTION",
+     "RESEARCH_ONLY",
+     "SUPPRESS"
+    ]
+   }
+  }
+ },
+ "definitions": {
+  "dist": {
+   "type": "object",
+   "required": [
+    "mean",
+    "p05",
+    "p25",
+    "p50",
+    "p75",
+    "p95"
+   ],
+   "properties": {
+    "mean": {
+     "type": "number"
+    },
+    "p05": {
+     "type": "number"
+    },
+    "p25": {
+     "type": "number"
+    },
+    "p50": {
+     "type": "number"
+    },
+    "p75": {
+     "type": "number"
+    },
+    "p95": {
+     "type": "number"
+    }
+   }
+  }
+ }
+}

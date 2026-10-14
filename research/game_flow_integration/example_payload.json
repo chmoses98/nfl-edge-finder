@@ -1,0 +1,68 @@
+{
+ "version": "game-flow-1.0.0",
+ "state": "OK",
+ "orientation": "home_minus_away; every *_home / *_away field is from that team's own side",
+ "market_centre": {
+  "spread_home": -6.0,
+  "total": 44.5,
+  "source": "consensus_line",
+  "observed_at": null,
+  "minutes_to_kickoff": 0,
+  "favorite": "AWAY"
+ },
+ "evidence_class": "MARKET_DERIVED_CONDITIONAL",
+ "independent_of_market": false,
+ "ranking_eligible": false,
+ "method": "historical trajectories matched on closing spread and total (2003..season-1 REG), tilted to the published simulation means",
+ "training": {
+  "seasons": [
+   2003,
+   2024
+  ],
+  "games": 5640,
+  "effective_sample": 983.9941358503297
+ },
+ "halftime": {
+  "margin_home": {
+   "mean": -2.769152483688421,
+   "p05": -20.0,
+   "p25": -10.0,
+   "p50": -3.0,
+   "p75": 4.0,
+   "p95": 14.0
+  },
+  "total": {
+   "mean": 22.691183405813,
+   "p05": 9.0,
+   "p25": 16.0,
+   "p50": 23.0,
+   "p75": 28.0,
+   "p95": 38.0
+  },
+  "p_lead_7plus_home": 0.20140730928921874,
+  "p_lead_7plus_away": 0.3877670486225848,
+  "p_tied_or_within_6": 0.4108256420881964
+ },
+ "flow": {
+  "p_lead_14plus_any_time": 0.6159226978479879,
+  "p_within_8_entering_q4": 0.4868596340086225
+ },
+ "implied_final": {
+  "p_home_win_regulation": 0.2901525710674263,
+  "mean_margin": -5.481629592805484,
+  "mean_total": 44.5685934219269
+ },
+ "gates": {
+  "halftime.margin_distribution": "DISPLAY",
+  "halftime.total_distribution": "DISPLAY",
+  "halftime.p_lead_7plus": "DISPLAY_WITH_CAUTION",
+  "flow.p_lead_14plus_any_time": "DISPLAY_WITH_CAUTION",
+  "flow.p_within_8_entering_q4": "RESEARCH_ONLY",
+  "flow.p_comeback_10": "SUPPRESS",
+  "flow.p_q4_lead_change": "SUPPRESS",
+  "flow.scoring_drought": "SUPPRESS",
+  "script.close_win_split": "SUPPRESS",
+  "opportunity.plays_dropbacks_rush_pass_rate": "DISPLAY_WITH_CAUTION",
+  "opportunity.drives": "SUPPRESS"
+ }
+}
