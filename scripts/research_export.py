@@ -446,6 +446,26 @@ def history_request(packet: dict, v1docs: dict) -> tuple[set, str, str]:
     return wanted, start, end
 
 
+def enforce_close_split_gate(gsi: dict) -> dict:
+    """The `game_script_inputs` subset the explorer publishes, with the close-win split (`by_close_result`) kept ONLY when
+    the packet's own `calibration_gates.close_win_split` authorises it (status SHOW and displayable True). A packet without a
+    gate (older code) or with an invalid one is treated as SUPPRESS: the split is stripped and an explicit SUPPRESS gate is
+    published, so a consumer never has to infer authorisation. Independent of any feature flag."""
+    gate = ((gsi.get("calibration_gates") or {}).get("close_win_split")) if isinstance(gsi.get("calibration_gates"), dict) else None
+    ok = isinstance(gate, dict) and gate.get("status") == "SHOW" and gate.get("displayable") is True
+    out = {k: gsi.get(k) for k in ("authority", "state", "script_source", "market_baseline", "game_environment", "team_volume", "not_simulated")}
+    if ok:
+        out["calibration_gates"] = gsi["calibration_gates"]
+        return out
+    reason = "packet carries no calibration gate (legacy packet)" if gate is None else "packet calibration gate does not authorise display"
+    out["calibration_gates"] = {"version": "calibration-gates-1.0.0", "close_win_split": {
+        "status": "SUPPRESS", "displayable": False, "reason": reason, "artifact": None, "artifact_sha256": None, "verdict": None}}
+    tv = out.get("team_volume")
+    if isinstance(tv, dict):
+        out["team_volume"] = {t: ({k: v for k, v in d.items() if k != "by_close_result"} if isinstance(d, dict) else d) for t, d in tv.items()}
+    return out
+
+
 def player_opportunity(game: dict) -> tuple[dict, str | None]:
     """One packet game's `game_script_inputs.player_opportunity` as {team: [player rows]}, and the packet's reason
     when it says the block is UNAVAILABLE (else None).
@@ -1103,8 +1123,7 @@ class _Builder:
             "matchup_pairs": (g.get("matchup") or {}).get("pairs") or [],
             "quarterbacks": g.get("quarterbacks") or {},
             "offensive_line": g.get("offensive_line") or {},
-            "game_script_inputs": {k: gsi.get(k) for k in ("authority", "state", "script_source", "market_baseline",
-                                                            "game_environment", "team_volume", "not_simulated")},
+            "game_script_inputs": enforce_close_split_gate(gsi),
             "model_view": g.get("model_view"),
             "market_implied": {k: (g.get("market_implied") or {}).get(k) for k in
                                ("label", "implied_spread", "implied_total_median", "win_probability", "implied_score")},

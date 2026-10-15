@@ -203,6 +203,16 @@ A game whose packet `game_script_inputs.player_opportunity` is `{"state": "UNAVA
 simulation published no game script for it) contributes no projected usage shares; the index `warnings` and the
 `usage` capability's limitations name those games and the reason. Any other non-list shape fails the export.
 
+### Calibration gates on script outputs
+
+`event_research.extensions.game_script_inputs.calibration_gates` (`calibration-gates-1.0.0`) says which script outputs may be
+shown. `close_win_split` is `SHOW` only when `research/game_script_v2/close_split_calibration.json` carries boolean
+`verdict.show_split == true` consistent with its component flags; a missing, malformed, inconsistent or failing artifact is
+`SUPPRESS` and `team_volume[TEAM].by_close_result` (who wins a one-score game) is not published. The explorer export enforces the
+same rule again: a packet with no gate, or one that does not authorise display, loses `by_close_result` and publishes an explicit
+`SUPPRESS` gate. Consumers must read `displayable`; they must not infer authorisation from the shares summing to the one-score total.
+The pooled `by_final_margin.within6` share is unaffected.
+
 ### Deliberately not published
 
 Per-run incumbent model-probability history (`data/shadow/ledger`, too heavy for the export step), the 2025
