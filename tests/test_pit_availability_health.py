@@ -163,7 +163,7 @@ def test_publication_failure_retries_then_stops_and_gap_stays():
     many = fails + [run("workflow_dispatch", "2026-10-18T16:09:00Z", conclusion="failure", title="watchdog:x")]
     assert len(many) == MAX_DISPATCH_PER_SLOT
     assert watchdog_decision(dt("2026-10-18T16:25:00Z"), [], many)["reason"] == "ATTEMPTS_EXHAUSTED"
-    cov = assess_coverage(dt("2026-10-18T16:25:00Z"), [], runs=many, lookback_hours=2)
+    cov = assess_coverage(dt("2026-10-18T17:30:00Z"), [], runs=many, lookback_hours=2)   # 15:47 slot due; runs fall in its interval
     assert any(x["verdict"] == "MISSING:RAN_FAILED" for x in cov["slots"])
 
 
@@ -190,3 +190,19 @@ def test_missing_store_is_unreadable_not_empty(tmp_path):
     (tmp_path / "ok" / "runs" / "a.summary.json").write_text(_j.dumps(summary(run_id="20261018T170000Z")))
     # a capture from the "future" relative to --now must not count as evidence at --now
     assert [x["run_id"] for x in read_summaries_dir(str(tmp_path / "ok"))] == ["20261018T170000Z"]
+
+
+def test_late_delivered_and_gate_skipped_runs_do_not_explain_earlier_missing_slots():
+    # Real 2026-10-15 history: crons for 20:17 and 21:47 were never delivered; the evening's four scheduled runs
+    # arrived at 23:03 (published, took 11.6 min), 23:08 (gate-skipped), 23:53 (published), 23:58 (gate-skipped).
+    runs = [run("schedule", "2026-10-15T23:03:53Z"), run("schedule", "2026-10-15T23:08:10Z"),
+            run("schedule", "2026-10-15T23:53:36Z"), run("schedule", "2026-10-15T23:58:21Z")]
+    sums = [summary(run_id="20261015T231527Z"), summary(run_id="20261015T235349Z")]
+    cov = assess_coverage(dt("2026-10-16T01:30:00Z"), sums, runs=runs, lookback_hours=6)
+    v = {x["slot_utc"][11:16]: x["verdict"] for x in cov["slots"]}
+    assert v["20:17"] == "MISSING:NEVER_RAN" and v["21:47"] == "MISSING:NEVER_RAN"
+    assert v["22:47"] == "COVERED" and v["23:47"] == "COVERED"
+    # a successful run inside the slot's own interval that published nothing is still a publication problem
+    runs2 = [run("schedule", "2026-10-15T20:20:00Z")]
+    cov2 = assess_coverage(dt("2026-10-16T01:30:00Z"), [], runs=runs2, lookback_hours=6)
+    assert {x["slot_utc"][11:16]: x["verdict"] for x in cov2["slots"]}["20:17"] == "MISSING:RAN_SUCCESS_NO_PUBLICATION"

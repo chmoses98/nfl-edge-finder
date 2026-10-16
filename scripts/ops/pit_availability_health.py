@@ -147,9 +147,10 @@ def match_runs(slots: list[datetime], summaries: list[dict]) -> dict:
     return matched
 
 
-def classify_workflow_runs(slot: datetime, runs: list[dict]) -> str:
+def classify_workflow_runs(slot: datetime, runs: list[dict], until: datetime | None = None) -> str:
     """What GitHub says happened for an unmatched slot. `runs` = [{event, conclusion, status, createdAt}, ...]
-    for the capture workflow on main (schedule / workflow_dispatch only)."""
+    for the capture workflow on main (schedule / workflow_dispatch only). A run created at or after `until` (the next
+    slot) belongs to that later slot (a late-delivered or gate-skipped duplicate), so it cannot explain this one."""
     near = []
     for r in runs or []:
         if r.get("event") not in ("schedule", "workflow_dispatch"):
@@ -158,7 +159,10 @@ def classify_workflow_runs(slot: datetime, runs: list[dict]) -> str:
             t = _utc(r["createdAt"])
         except (KeyError, ValueError, TypeError):
             continue
-        if slot <= t <= slot + timedelta(hours=MAX_MATCH_HOURS):
+        end = slot + timedelta(hours=MAX_MATCH_HOURS)
+        if until is not None:
+            end = min(end, until)
+        if slot <= t < end:
             near.append(r)
     if not near:
         return "NEVER_RAN"
@@ -251,7 +255,8 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
     else UNKNOWN_CAUSE). Nothing here certifies a player's availability: absent, late, failed or empty-roster
     evidence is reported as a gap, never as "available"."""
     now = now.astimezone(timezone.utc)
-    due = [x for x in scheduled_slots(now, activated) if x <= now - timedelta(minutes=grace_minutes)]
+    all_slots = scheduled_slots(now, activated)
+    due = [x for x in all_slots if x <= now - timedelta(minutes=grace_minutes)]
     lo = now - timedelta(hours=lookback_hours)
     window = [x for x in due if x >= lo]
     matched = match_runs(due, summaries)
@@ -265,7 +270,7 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
                 t = _utc(r["createdAt"])
             except (KeyError, ValueError, TypeError):
                 return False
-            return any(abs((t - p).total_seconds()) <= 600 for p in pub)
+            return any(timedelta(minutes=-1) <= (p - t) <= timedelta(minutes=30) for p in pub)
         runs = [r for r in runs if not _accounted(r)]
     allowed = {"nflverse_injuries": GOOD_INJURY, "nflverse_depth_charts": GOOD_DEPTH,
                "espn_injuries": GOOD_ESPN, "espn_event_rosters": GOOD_ROSTER}
@@ -275,7 +280,8 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
         pre = is_pregame_slot(slot)
         sm = matched.get(slot)
         if sm is None:
-            cause = classify_workflow_runs(slot, runs) if runs is not None else "UNKNOWN_CAUSE"
+            nxt = next((x for x in all_slots if x > slot), None)
+            cause = classify_workflow_runs(slot, runs, nxt) if runs is not None else "UNKNOWN_CAUSE"
             verdict, late, bad = f"MISSING:{cause}", None, []
         else:
             late = round((run_time(sm) - slot).total_seconds() / 60.0, 1)
