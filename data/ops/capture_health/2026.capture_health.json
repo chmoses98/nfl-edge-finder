@@ -1,5 +1,5 @@
 {
- "as_of": "2026-10-16T00:47:01.236665+00:00",
+ "as_of": "2026-10-16T05:10:26.485433+00:00",
  "capture_health_report": "horizon-capture-health-1.0.0",
  "conductor_deployed_utc": "2026-09-24T12:00:00+00:00",
  "notes": [
@@ -9,8 +9,8 @@
   "median": {
    "packet_publish_latency_min": 28.3,
    "pipeline_processing_min": 19.5,
-   "snapshot_capture_latency_min": 8.0,
-   "time_remaining_to_kickoff_at_publication_min": 317.6
+   "snapshot_capture_latency_min": 8.1,
+   "time_remaining_to_kickoff_at_publication_min": 70.0
   },
   "rows": [
    {
@@ -556,6 +556,14 @@
     "snapshot_capture_latency_min": 4.4,
     "status": "CAPTURED",
     "time_remaining_to_kickoff_at_publication_min": 1405.1
+   },
+   {
+    "horizon_id": "2026-REG-06|20261016T0015Z|T-30m",
+    "packet_publish_latency_min": 78.5,
+    "pipeline_processing_min": 37.6,
+    "snapshot_capture_latency_min": 40.9,
+    "status": "MISSED",
+    "time_remaining_to_kickoff_at_publication_min": -48.5
    },
    {
     "horizon_id": "2026-REG-06|20261016T0015Z|T-360m",
@@ -2214,14 +2222,16 @@
      "week": 6
     },
     {
-     "cause": "UNATTRIBUTED (no workflow start times supplied)",
+     "cause": "CAPTURED_AT_OR_AFTER_KICKOFF: the marker exists but the capture was not observed before kickoff",
      "cluster_key": "20261016T0015Z",
      "era": "AFTER_CONDUCTOR",
      "horizon_id": "2026-REG-06|20261016T0015Z|T-30m",
      "horizon_min": 30,
      "kickoff_utc": "2026-10-16T00:15:00+00:00",
+     "lateness_min": 78.5,
      "n_games": 1,
      "slate_id": "2026-REG-06",
+     "snapshot_id": "2026-10-16T01:03:29.048079+00:00",
      "status": "MISSED",
      "trigger_utc": "2026-10-15T23:45:00+00:00",
      "week": 6
