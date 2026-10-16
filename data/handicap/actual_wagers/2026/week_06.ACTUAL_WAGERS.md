@@ -9,22 +9,24 @@
 * Independent position episodes: **2** (from 2 transactions/orders)
 * Pregame thesis: 0 · live thesis: 0 · unknown phase: 2 · opened within 10 min after scheduled kickoff: 0
 * Full cashouts: 0 · partial cashouts: 0 · reversals: 0 · held to settlement: 2
-* Total P&L (all executions and fees): — = realized trading 0.00 + settlement — - fees 7.02
+* Total P&L (all executions and fees): 44.11 = realized trading 0.00 + settlement 51.13 - fees 7.02
 * PREGAME ENTRY CLV (one observation per pregame-opened episode; exits and live entries excluded): 0 valid, mean —/contract, positive —; states {'PHASE_UNKNOWN_NO_PREGAME_CLV': 2}
 * Live exit benchmark: {'exits': 0, 'valued': 0, 'states': {}}
-* Lifecycle vs order-settlement reconciliation: {'ORDER_SETTLEMENTS_INCOMPLETE': 2}
+* Lifecycle vs order-settlement reconciliation: {'RECONCILED': 2}
 
 | episode | market | opened | phase | side | opened qty | entry cost | adds | reductions | cashouts | final qty | settlement | fees | realized trading | settlement P&L | total P&L | entry CLV | exit benchmark | class |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ep-d19460bce1974bba5a89 | KXNFLRECYDS-26OCT15SEADEN-SEAJSMITHNJIGBA11-90 | 2026-10-16T00:07:26Z | UNKNOWN | LONG_YES | 269.11 | 150.00 | 0 | 0 | 0 | 269.11 | NOT_SETTLED | 4.68 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
-| ep-1e29a3263a2329598e08 | KXNFLRSHATT-26OCT15SEADEN-SEAEWILSON23-18 | 2026-10-16T00:08:07Z | UNKNOWN | LONG_YES | 134.55 | 75.00 | 0 | 0 | 0 | 134.55 | NOT_SETTLED | 2.34 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
+| ep-d19460bce1974bba5a89 | KXNFLRECYDS-26OCT15SEADEN-SEAJSMITHNJIGBA11-90 | 2026-10-16T00:07:26Z | UNKNOWN | LONG_YES | 269.11 | 150.00 | 0 | 0 | 0 | 269.11 | SETTLED | 4.68 | 0.00 | 123.79 | 119.11 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
+| ep-1e29a3263a2329598e08 | KXNFLRSHATT-26OCT15SEADEN-SEAEWILSON23-18 | 2026-10-16T00:08:07Z | UNKNOWN | LONG_YES | 134.55 | 75.00 | 0 | 0 | 0 | 134.55 | SETTLED | 2.34 | 0.00 | -72.66 | -75.00 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 
 ### Transactions (chronological, per market)
 
 | market | executed | action | side | qty | price | fee | before | after | role | phase | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | KXNFLRECYDS-26OCT15SEADEN-SEAJSMITHNJIGBA11-90 | 2026-10-16T00:07:26Z | BUY | YES | 269.11 | 0.54 | 4.6793 | 0.0 | 269.11 | OPEN | UNKNOWN | NO_KICKOFF |
+| KXNFLRECYDS-26OCT15SEADEN-SEAJSMITHNJIGBA11-90 | (settlement) | — | — | 269.11 | 1.0 | — | 269.11 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLRSHATT-26OCT15SEADEN-SEAEWILSON23-18 | 2026-10-16T00:08:07Z | BUY | YES | 134.55 | 0.54 | 2.3396 | 0.0 | 134.55 | OPEN | UNKNOWN | NO_KICKOFF |
+| KXNFLRSHATT-26OCT15SEADEN-SEAEWILSON23-18 | (settlement) | — | — | 134.55 | 0.0 | — | 134.55 | 0.0 | SETTLEMENT | POST_FINAL | — |
 
 `*` the verb was not delivered (pre-`execution_action` record); the side is replayed as the exposure it states. Position before/after are on Kalshi's signed YES axis (+ long YES, - long NO).
 
@@ -32,7 +34,7 @@
 
 | game | orders | episodes | original cash outlay | added | cashout proceeds | gross transaction volume | recycled in volume | max simultaneous capital at risk | at | total P&L |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 26OCT15SEADEN | 2 | 2 | 225.00 | 0.00 | 0.00 | 225.00 | 0.00 | 225.00 | 2026-10-16T00:08:07Z | — |
+| 26OCT15SEADEN | 2 | 2 | 225.00 | 0.00 | 0.00 | 225.00 | 0.00 | 225.00 | 2026-10-16T00:08:07Z | 44.11 |
 
 Gross transaction volume is the sum of order stakes (turnover). It is NOT capital at risk: an exit bought on the complementary side carries a large stake while returning cash.
 
@@ -52,49 +54,50 @@ Stake is contracts x execution price PLUS the entry fee the exchange charged on 
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| all | 2 | 0 | 0 | 2 | 0 | 225.00 | 7.02 | — | — | — | 0 | — | — | 2 |
+| all | 2 | 1 | 1 | 0 | 0 | 225.00 | 7.02 | 269.11 | 44.11 | 19.6% | 0 | — | — | 2 |
 
-ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment corrected it (0 amended; versions {}). As ORIGINALLY RECORDED, net P&L: —. The exchange evidence and the filed settlements are unchanged; an amendment sits beside the record it supersedes.
+ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment corrected it (0 amended; versions {'router-settlement-economics.v2': 2}). As ORIGINALLY RECORDED, net P&L: 44.11. The exchange evidence and the filed settlements are unchanged; an amendment sits beside the record it supersedes.
 
-FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's own figures prove that equality (0 of 0 established wagers). Not every established wager reconciles, so no fee-reconciled total is stated.
-
-Headline gross/net/ROI withheld: 2 pending and 0 settled with an unestablished figure. ESTABLISHED SUBSET ONLY (0 of 2 wagers, not the period's P&L): stake 0.00, gross 0.00, net 0.00, ROI —.
+FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's own figures prove that equality (0 of 2 established wagers). Not every established wager reconciles, so no fee-reconciled total is stated.
 
 ## By week
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 6 | 2 | 0 | 0 | 2 | 0 | 225.00 | 7.02 | — | — | — | 0 | — | — | 2 |
+| 6 | 2 | 1 | 1 | 0 | 0 | 225.00 | 7.02 | 269.11 | 44.11 | 19.6% | 0 | — | — | 2 |
 
 ## By market family
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| series:KXNFLRECYDS | 1 | 0 | 0 | 1 | 0 | 150.00 | 4.68 | — | — | — | 0 | — | — | 1 |
-| series:KXNFLRSHATT | 1 | 0 | 0 | 1 | 0 | 75.00 | 2.34 | — | — | — | 0 | — | — | 1 |
+| series:KXNFLRECYDS | 1 | 1 | 0 | 0 | 0 | 150.00 | 4.68 | 269.11 | 119.11 | 79.4% | 0 | — | — | 1 |
+| series:KXNFLRSHATT | 1 | 0 | 1 | 0 | 0 | 75.00 | 2.34 | 0.00 | -75.00 | -100.0% | 0 | — | — | 1 |
 
 ## By game
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| KXNFLRECYDS-26OCT15SEADEN | 1 | 0 | 0 | 1 | 0 | 150.00 | 4.68 | — | — | — | 0 | — | — | 1 |
-| KXNFLRSHATT-26OCT15SEADEN | 1 | 0 | 0 | 1 | 0 | 75.00 | 2.34 | — | — | — | 0 | — | — | 1 |
+| KXNFLRECYDS-26OCT15SEADEN | 1 | 1 | 0 | 0 | 0 | 150.00 | 4.68 | 269.11 | 119.11 | 79.4% | 0 | — | — | 1 |
+| KXNFLRSHATT-26OCT15SEADEN | 1 | 0 | 1 | 0 | 0 | 75.00 | 2.34 | 0.00 | -75.00 | -100.0% | 0 | — | — | 1 |
 
 ## Orders
 
 | week | game | family | side | contracts | price | stake | fees | result | gross | net | close | CLV/contract | CLV state | role | phase |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 6 | KXNFLRECYDS-26OCT15SEADEN | series:KXNFLRECYDS | YES | 269.11 | 0.54 | 150.00 | 4.68 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
-| 6 | KXNFLRSHATT-26OCT15SEADEN | series:KXNFLRSHATT | YES | 134.55 | 0.54 | 75.00 | 2.34 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
+| 6 | KXNFLRECYDS-26OCT15SEADEN | series:KXNFLRECYDS | YES | 269.11 | 0.54 | 150.00 | 4.68 | WON | 269.11 | 119.11 | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
+| 6 | KXNFLRSHATT-26OCT15SEADEN | series:KXNFLRSHATT | YES | 134.55 | 0.54 | 75.00 | 2.34 | LOST | 0.00 | -75.00 | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
 
 ## RISK & CONCENTRATION
 
 Governance reporting only: where the placed stake sat and how much of the result each exposure explains. Nothing here changes, recommends or caps a stake. Different tickers are not diversification: wagers are grouped by game, market, ladder (one underlying variable) and correlated cluster.
 
-Net basis: **NONE COMPLETE** (preference net_canonical > net_fee_reconciled > net_profit_loss). No net basis covers every wager in scope; P&L figures are for the wagers that have one and are labelled incomplete.
+Net basis: **net_canonical** (preference net_canonical > net_fee_reconciled > net_profit_loss). P&L below is on the primary basis (the most-preferred one every wager has); other bases are shown beside it, never merged.
 
 | basis | wagers with figure | complete | stake | net P&L | ROI |
 |---|---|---|---|---|---|
+| net_canonical (primary) | 2 | yes | 225.00 | 44.11 | 19.6% |
+| net_fee_reconciled | 2 | yes | 225.00 | 44.11 | 19.6% |
+| net_profit_loss | 2 | yes | 225.00 | 44.11 | 19.6% |
 
 Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evidence for the owner's account (the router's bankroll is a secret; nothing is guessed).
 
@@ -121,43 +124,43 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 ### By correlated cluster
 
-| group | wagers | stake | % stake | links |
-|---|---|---|---|---|
-| 26OCT15SEADEN#1 | 2 | 225.00 | 100.0% | SAME_GAME_CORRELATED |
+| group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) | links |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 26OCT15SEADEN#1 | 2 | 225.00 | 100.0% | 44.11 | 100.0% | 44.11 | 100.0% | 44.11 | 100.0% | SAME_GAME_CORRELATED |
 
 ### By game
 
-| group | wagers | stake | % stake |
-|---|---|---|---|
-| 26OCT15SEADEN | 2 | 225.00 | 100.0% |
+| group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
+|---|---|---|---|---|---|---|---|---|---|
+| 26OCT15SEADEN | 2 | 225.00 | 100.0% | 44.11 | 100.0% | 44.11 | 100.0% | 44.11 | 100.0% |
 
 ### By market family
 
-| group | wagers | stake | % stake |
-|---|---|---|---|
-| series:KXNFLRECYDS | 1 | 150.00 | 66.7% |
-| series:KXNFLRSHATT | 1 | 75.00 | 33.3% |
+| group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
+|---|---|---|---|---|---|---|---|---|---|
+| series:KXNFLRECYDS | 1 | 150.00 | 66.7% | 119.11 | 270.0% | 119.11 | 270.0% | 119.11 | 270.0% |
+| series:KXNFLRSHATT | 1 | 75.00 | 33.3% | -75.00 | -170.0% | -75.00 | -170.0% | -75.00 | -170.0% |
 
 ### By ladder (underlying variable)
 
-| group | wagers | stake | % stake |
-|---|---|---|---|
-| KXNFLRECYDS-26OCT15SEADEN-SEAJSMITHNJIGBA11 | 1 | 150.00 | 66.7% |
-| KXNFLRSHATT-26OCT15SEADEN-SEAEWILSON23 | 1 | 75.00 | 33.3% |
+| group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
+|---|---|---|---|---|---|---|---|---|---|
+| KXNFLRECYDS-26OCT15SEADEN-SEAJSMITHNJIGBA11 | 1 | 150.00 | 66.7% | 119.11 | 270.0% | 119.11 | 270.0% | 119.11 | 270.0% |
+| KXNFLRSHATT-26OCT15SEADEN-SEAEWILSON23 | 1 | 75.00 | 33.3% | -75.00 | -170.0% | -75.00 | -170.0% | -75.00 | -170.0% |
 
 ### By market
 
-| group | wagers | stake | % stake |
-|---|---|---|---|
-| KXNFLRECYDS-26OCT15SEADEN-SEAJSMITHNJIGBA11-90 | 1 | 150.00 | 66.7% |
-| KXNFLRSHATT-26OCT15SEADEN-SEAEWILSON23-18 | 1 | 75.00 | 33.3% |
+| group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
+|---|---|---|---|---|---|---|---|---|---|
+| KXNFLRECYDS-26OCT15SEADEN-SEAJSMITHNJIGBA11-90 | 1 | 150.00 | 66.7% | 119.11 | 270.0% | 119.11 | 270.0% | 119.11 | 270.0% |
+| KXNFLRSHATT-26OCT15SEADEN-SEAEWILSON23-18 | 1 | 75.00 | 33.3% | -75.00 | -170.0% | -75.00 | -170.0% | -75.00 | -170.0% |
 
 ### By player (parsable player props; not a partition of stake)
 
-| group | wagers | stake | % stake |
-|---|---|---|---|
-| SEAJSMITHNJIGBA11 | 1 | 150.00 | 66.7% |
-| SEAEWILSON23 | 1 | 75.00 | 33.3% |
+| group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
+|---|---|---|---|---|---|---|---|---|---|
+| SEAJSMITHNJIGBA11 | 1 | 150.00 | 66.7% | 119.11 | 270.0% | 119.11 | 270.0% | 119.11 | 270.0% |
+| SEAEWILSON23 | 1 | 75.00 | 33.3% | -75.00 | -170.0% | -75.00 | -170.0% | -75.00 | -170.0% |
 
 ### Decomposition: entry quality, outcome variance, sizing
 
@@ -166,9 +169,9 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 * Sizing/concentration is shown as the cluster's share of stake beside its share of net P&L; a large loss share on a large stake share is what concentration does whether or not the entry was good.
 * One or two weeks of wagers is far too few to establish skill or its absence. Nothing here does.
 
-| cluster | wagers | % stake | % of net (None) | CLV valid | CLV$ | mean CLV/contract | sign | outcome residual vs close | friction | net (None) |
+| cluster | wagers | % stake | % of net (net_canonical) | CLV valid | CLV$ | mean CLV/contract | sign | outcome residual vs close | friction | net (net_canonical) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 26OCT15SEADEN#1 | 2 | 100.0% | — | 0 | — | — | — | — | — | — |
+| 26OCT15SEADEN#1 | 2 | 100.0% | 100.0% | 0 | — | — | — | — | — | 44.11 |
 
 ### Rules and thresholds
 
