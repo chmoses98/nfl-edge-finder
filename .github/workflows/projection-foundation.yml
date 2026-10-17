@@ -1,0 +1,81 @@
+name: Projection Foundation (NFL)
+
+# Weekly walk-forward update, scoring and forward projections for the SIFT Projection Foundation (research only).
+# Rebuilds the nflverse inputs, replays the incumbent player models with their own frozen code, re-runs the walk-forward
+# ladder against the FROZEN model selection (research/projection_foundation/results/nfl_frozen_selection.json is never
+# re-selected here), and projects the next unplayed week. Outputs go to the orphan branch `projection-data`
+# (projections/nfl/latest.json + timestamped copy, summary/nfl/latest.json); nothing is written to main.
+#
+# RESEARCH ONLY: projections carry authority "research_only". Nothing here reaches the pricer, the gates, the risk
+# policy, staking, RUN NFL or any betting path. No secrets, no paid services; nflverse release files only.
+
+on:
+  schedule:
+    - cron: '17 14 * 9-12,1-2 2'   # Tuesdays 14:17 UTC in season: after Monday night's box scores reach nflverse
+    - cron: '7 16 * 9-12,1-2 6'    # Saturdays 16:07 UTC in season: after Friday's final injury reports, before Sunday
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: projection-foundation-nfl
+  cancel-in-progress: false
+
+jobs:
+  project:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -q numpy pandas polars scipy scikit-learn statsmodels lightgbm pyarrow pyyaml pytest
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Fetch nflverse inputs (immutable release URLs) and build the id crosswalk
+        run: |
+          Y=$(date -u +%Y); M=$(date -u +%m); if [ "$M" -lt 3 ]; then Y=$((Y-1)); fi
+          python3 scripts/data/nflverse_download.py --only schedules,stats_player,stats_team,snap_counts,injuries,weekly_rosters,rosters,players,ff_playerids --seasons 2012-$Y 2>&1 | tail -3
+          python3 nfl_edge/data/ids.py 2>&1 | tail -3
+      - name: Tests (shared core, NFL foundation, frozen-file pins)
+        run: |
+          python3 -m pytest -q research/projection_foundation/tests
+          python3 -m pytest -q tests/test_incumbent_unchanged.py
+      - name: Replay incumbents walk-forward (their own frozen code, read-only)
+        working-directory: research/projection_foundation
+        run: python3 -m nfl.incumbent
+      - name: Walk-forward update and scoring against the frozen selection
+        working-directory: research/projection_foundation
+        run: |
+          test -f results/nfl_frozen_selection.json   # selection is frozen in git; this workflow never re-selects
+          python3 -m nfl.run_walkforward --stage all --rebuild
+      - name: Forward projections
+        working-directory: research/projection_foundation
+        run: python3 -m nfl.project
+      - name: Validate outputs
+        run: python3 -m pytest -q research/projection_foundation/tests/test_nfl_pf.py
+      - name: Publish to projection-data
+        run: |
+          python3 research/projection_foundation/nfl/publish.py --sport nfl \
+            --projections research/projection_foundation/results/projections_latest.json \
+            --summary research/projection_foundation/results/summary.json
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: projection-foundation-nfl
+          path: |
+            research/projection_foundation/results/*.json
+            research/projection_foundation/RESULTS_NFL.md
+          retention-days: 30
