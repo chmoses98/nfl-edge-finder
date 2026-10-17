@@ -1,0 +1,354 @@
+{
+ "schema": "sift.disagreement_status.v1",
+ "sport": "NFL",
+ "generated_at": "2026-10-17T06:07:27.188913+00:00",
+ "authority": "RESEARCH_ONLY",
+ "source": {},
+ "chronology": {
+  "discovery": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "validation": [
+   5,
+   6,
+   7,
+   8
+  ],
+  "holdout": [
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18
+  ]
+ },
+ "sample_accounting": {
+  "snapshot_rows": "see raw_snapshot_rows_all_families: scoring uses ONE latest pre-kickoff row per contract",
+  "contracts": 20339,
+  "independent_player_stat_games": 4012,
+  "games": 64,
+  "contracts_with_valid_executable_quote": 18897,
+  "independent_units_with_valid_executable_quote": 4012,
+  "quarantine_counts": {
+   "VALID_TWO_SIDED": 18897,
+   "ONE_SIDED": 876,
+   "TOO_WIDE": 564,
+   "PLACEHOLDER_BOOK": 2
+  },
+  "note": "Evidence is counted in independent_units, never contracts or snapshots: rungs of one player-stat-game settle together and repeated snapshots of a contract are one observation.",
+  "raw_snapshot_rows_all_families": 542474,
+  "pre_kickoff_snapshot_rows_all_families": 542474
+ },
+ "projection_accuracy": {
+  "by_stat": {
+   "attempts": {
+    "brier_model_minus_market": 0.01976,
+    "brier_se": 0.00744,
+    "mean_outcome_minus_model_prob": -0.0884,
+    "independent_units": 127
+   },
+   "carries": {
+    "brier_model_minus_market": 0.08245,
+    "brier_se": 0.01527,
+    "mean_outcome_minus_model_prob": 0.2397,
+    "independent_units": 241
+   },
+   "completions": {
+    "brier_model_minus_market": 0.00624,
+    "brier_se": 0.00574,
+    "mean_outcome_minus_model_prob": -0.034,
+    "independent_units": 127
+   },
+   "interceptions": {
+    "brier_model_minus_market": -0.00093,
+    "brier_se": 0.0025,
+    "mean_outcome_minus_model_prob": -0.0315,
+    "independent_units": 127
+   },
+   "passing_tds": {
+    "brier_model_minus_market": 0.0014,
+    "brier_se": 0.00164,
+    "mean_outcome_minus_model_prob": 0.0412,
+    "independent_units": 128
+   },
+   "passing_yards": {
+    "brier_model_minus_market": 0.00248,
+    "brier_se": 0.00408,
+    "mean_outcome_minus_model_prob": -0.0226,
+    "independent_units": 128
+   },
+   "receiving_yards": {
+    "brier_model_minus_market": 0.02022,
+    "brier_se": 0.00354,
+    "mean_outcome_minus_model_prob": 0.0984,
+    "independent_units": 743
+   },
+   "receptions": {
+    "brier_model_minus_market": 0.03588,
+    "brier_se": 0.00475,
+    "mean_outcome_minus_model_prob": 0.1377,
+    "independent_units": 740
+   },
+   "rushing_yards": {
+    "brier_model_minus_market": 0.02084,
+    "brier_se": 0.00532,
+    "mean_outcome_minus_model_prob": 0.0592,
+    "independent_units": 358
+   },
+   "touchdowns": {
+    "brier_model_minus_market": 0.00508,
+    "brier_se": 0.00157,
+    "mean_outcome_minus_model_prob": 0.0373,
+    "independent_units": 1293
+   }
+  },
+  "overall_brier_model_minus_market": {
+   "model": 0.1744961082630702,
+   "market": 0.15198305154257288,
+   "diff": 0.022513056720497304,
+   "se": 0.0019209190913769551,
+   "clusters": 4012,
+   "n": 18897
+  }
+ },
+ "betting_signals": {
+  "validated_segments": [],
+  "model_error_segments": [],
+  "n_segments": 30,
+  "status_counts": {
+   "UNRESOLVED": 30
+  },
+  "segments": {
+   "attempts|model_above_market": {
+    "stat": "attempts",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "attempts|model_below_market": {
+    "stat": "attempts",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in discovery,validation,holdout (< 100)"
+   },
+   "attempts|all": {
+    "stat": "attempts",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "carries|model_above_market": {
+    "stat": "carries",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in discovery,validation,holdout (< 100)"
+   },
+   "carries|model_below_market": {
+    "stat": "carries",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "carries|all": {
+    "stat": "carries",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "completions|model_above_market": {
+    "stat": "completions",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "completions|model_below_market": {
+    "stat": "completions",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in discovery,validation,holdout (< 100)"
+   },
+   "completions|all": {
+    "stat": "completions",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "interceptions|model_above_market": {
+    "stat": "interceptions",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "interceptions|model_below_market": {
+    "stat": "interceptions",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in discovery,validation,holdout (< 100)"
+   },
+   "interceptions|all": {
+    "stat": "interceptions",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "passing_tds|model_above_market": {
+    "stat": "passing_tds",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in discovery,validation,holdout (< 100)"
+   },
+   "passing_tds|model_below_market": {
+    "stat": "passing_tds",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "passing_tds|all": {
+    "stat": "passing_tds",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "passing_yards|model_above_market": {
+    "stat": "passing_yards",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "passing_yards|model_below_market": {
+    "stat": "passing_yards",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in discovery,validation,holdout (< 100)"
+   },
+   "passing_yards|all": {
+    "stat": "passing_yards",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "receiving_yards|model_above_market": {
+    "stat": "receiving_yards",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "receiving_yards|model_below_market": {
+    "stat": "receiving_yards",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "receiving_yards|all": {
+    "stat": "receiving_yards",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "receptions|model_above_market": {
+    "stat": "receptions",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "receptions|model_below_market": {
+    "stat": "receptions",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "receptions|all": {
+    "stat": "receptions",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "rushing_yards|model_above_market": {
+    "stat": "rushing_yards",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "rushing_yards|model_below_market": {
+    "stat": "rushing_yards",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "rushing_yards|all": {
+    "stat": "rushing_yards",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "touchdowns|model_above_market": {
+    "stat": "touchdowns",
+    "side": "model_above_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "touchdowns|model_below_market": {
+    "stat": "touchdowns",
+    "side": "model_below_market",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   },
+   "touchdowns|all": {
+    "stat": "touchdowns",
+    "side": "all",
+    "status": "UNRESOLVED",
+    "reason": "too few independent clusters in validation,holdout (< 100)"
+   }
+  }
+ },
+ "calibration_alerts": [
+  {
+   "stat": "receptions",
+   "bias": 0.1377,
+   "z": 12.4,
+   "direction": "model_low"
+  },
+  {
+   "stat": "carries",
+   "bias": 0.2397,
+   "z": 8.5,
+   "direction": "model_low"
+  },
+  {
+   "stat": "receiving_yards",
+   "bias": 0.0984,
+   "z": 8.2,
+   "direction": "model_low"
+  },
+  {
+   "stat": "touchdowns",
+   "bias": 0.0373,
+   "z": 4.7,
+   "direction": "model_low"
+  },
+  {
+   "stat": "rushing_yards",
+   "bias": 0.0592,
+   "z": 3.6,
+   "direction": "model_low"
+  }
+ ],
+ "challenger": {
+  "status": "INSUFFICIENT_EVIDENCE",
+  "accounting": {
+   "incumbent_contracts": 25704,
+   "challenger_contracts": 0
+  },
+  "by_split": {}
+ },
+ "no_validated_opportunities": true,
+ "message": "No validated opportunities. Projection gaps against the market are research context only: in out-of-sample tests so far, trading the gap has not paid at the executable price after fees."
+}
