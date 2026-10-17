@@ -100,3 +100,21 @@ def test_challenger_install_extends_history_and_restores_nothing_for_the_incumbe
         pricer._challenger_stack.close()
         pdist.load_player_games = orig_load
     assert (pdist._design, pdist.fit_mean_model, pdist.predict_mean) == orig
+
+
+def test_challenger_pricer_script_wires_the_frozen_pricer_without_editing_it():
+    import importlib.util, os, sys
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    spec = importlib.util.spec_from_file_location("price_slate_challenger", os.path.join(root, "scripts", "shadow", "price_slate_challenger.py"))
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    orig = (pdist._design, pdist.fit_mean_model, pdist.predict_mean, pdist.load_player_games)
+    try:
+        import pytest
+        with pytest.raises(SystemExit) as e:
+            mod.main(["--help"])
+        assert e.value.code == 0
+        assert pdist.fit_mean_model is not orig[1]          # patched for the life of the challenger process
+    finally:
+        sys.modules["_frozen_price_slate"]._challenger_stack.close()
+        pdist.load_player_games = orig[3]
+    assert (pdist._design, pdist.fit_mean_model, pdist.predict_mean) == orig[:3]
