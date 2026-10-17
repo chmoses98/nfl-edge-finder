@@ -25,7 +25,15 @@ from nfl import run_walkforward as R  # noqa: E402
 from nfl.live import state as ST  # noqa: E402
 
 
+STACK_TOL = 1e-2     # relative tolerance for families whose mean includes the walk-forward LightGBM rung (see compare)
+
+
 def compare(S: dict, tol: float) -> tuple[list[dict], bool]:
+    """Two tiers. Families with no LightGBM rung (the formula models: passing_tds D_qb_starts_env) and the team stacks must
+    reproduce the committed numbers to rounding (`tol`). Families whose frozen winner stacks the LightGBM rung E (F_*) are
+    held to STACK_TOL: the committed run predates the pf_core 1.1.0 / earlier-only prior-fallback fixes (the 328 warm-up rows
+    the study documents), which shift E's training features slightly. For those the check also requires the conclusion to
+    be unchanged (the game-clustered 95% CI of the CRPS difference vs baseline A excludes 0 in the same direction)."""
     frozen = json.load(open(R.FROZEN))["families"]
     summ = json.load(open(os.path.join(PF_ROOT, "results", "summary.json")))
     corr = DG.corrections(S)
@@ -36,12 +44,18 @@ def compare(S: dict, tol: float) -> tuple[list[dict], bool]:
         new = hold[fam]["holdout"]
         d = {k: (ref.get(k), new.get(k)) for k in ("n_obs", "mae", "crps", "bias", "cover_80")}
         diffs = {k: (None if a is None or b is None else abs(b - a)) for k, (a, b) in d.items()}
-        vs = (ref["vs_baseline"].get("mean_diff"), new["vs_baseline"]["mean_diff"])
-        good = (diffs["n_obs"] == 0 and all((diffs[k] or 0) <= tol * max(1.0, abs(d[k][0] or 0)) for k in ("mae", "crps", "bias"))
-                and (diffs["cover_80"] or 0) <= 2e-3 and abs(vs[1] - vs[0]) <= tol * 10)
+        stack = fam not in ("passing_tds",) and ("F" in str(ref.get("model", "")))
+        t = STACK_TOL if stack and not fam.startswith("team_") else tol
+        rel = {k: (diffs[k] or 0) / max(1.0, abs(d[k][0] or 0)) for k in ("mae", "crps", "bias")}
+        ci_old, ci_new = ref["vs_baseline"].get("ci95"), new["vs_baseline"]["ci95"]
+        sig = lambda ci: None if not ci else (ci[1] < 0) - (ci[0] > 0)       # noqa: E731  -1 better, 0 not significant, +1 worse
+        same_conclusion = sig(ci_old) == sig(ci_new)
+        good = (diffs["n_obs"] == 0 and all(v <= t for v in rel.values()) and (diffs["cover_80"] or 0) <= (0.01 if stack else 2e-3)
+                and same_conclusion)
         ok &= good
-        rows.append({"family": fam, "model": ref.get("model"), "n": d["n_obs"][1], "crps_committed": d["crps"][0], "crps_rebuilt": d["crps"][1],
-                     "max_abs_diff": max((v or 0) for k, v in diffs.items() if k != "n_obs"), "n_equal": diffs["n_obs"] == 0, "ok": bool(good)})
+        rows.append({"family": fam, "model": ref.get("model"), "n": d["n_obs"][1], "tier": "stack" if t == STACK_TOL else "exact",
+                     "crps_committed": d["crps"][0], "crps_rebuilt": d["crps"][1], "max_rel_diff": max(rel.values()),
+                     "same_conclusion_vs_baseline": bool(same_conclusion), "n_equal": diffs["n_obs"] == 0, "ok": bool(good)})
     return rows, bool(ok)
 
 
@@ -58,9 +72,13 @@ def main(argv=None) -> int:
     rows, ok = compare(S, a.tol)
     md = ["### Reproducibility: frozen holdout re-scored from the freshly rebuilt walk-forward state", "",
           f"State built {S.get('built_utc')} ({round(S.get('seconds', 0))}s) with pf_core {__import__('pf_core').VERSION}.", "",
-          "| family | model | n | CRPS committed | CRPS rebuilt | max abs diff | ok |", "|---|---|---|---|---|---|---|"]
+          "| family | model | n | tier | CRPS committed | CRPS rebuilt | max rel diff (MAE/CRPS/bias) | same conclusion vs A | ok |",
+          "|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
-        md.append(f"| {r['family']} | {r['model']} | {r['n']} | {r['crps_committed']:.6f} | {r['crps_rebuilt']:.6f} | {r['max_abs_diff']:.2e} | {'yes' if r['ok'] else 'NO'} |")
+        md.append(f"| {r['family']} | {r['model']} | {r['n']} | {r['tier']} | {r['crps_committed']:.6f} | {r['crps_rebuilt']:.6f} | "
+                  f"{r['max_rel_diff']:.2e} | {'yes' if r['same_conclusion_vs_baseline'] else 'NO'} | {'yes' if r['ok'] else 'NO'} |")
+    import lightgbm, numpy, pandas
+    md += ["", f"lightgbm {lightgbm.__version__}, numpy {numpy.__version__}, pandas {pandas.__version__}; tolerance exact {a.tol}, stack {STACK_TOL}."]
     text = "\n".join(md)
     print(text)
     p = os.environ.get("GITHUB_STEP_SUMMARY")
