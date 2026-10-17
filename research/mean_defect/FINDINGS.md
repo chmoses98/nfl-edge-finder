@@ -72,3 +72,26 @@ Features rebuilt point-in-time (completed games included), model fit on seasons 
   (`scripts/shadow/price_slate_challenger.py`, ledger `data/shadow/ledger_challenger`), wired as a non-blocking step of
   `shadow-price.yml`. Promotion rule: untouched weeks 5+ of 2026, paired cluster Brier vs the incumbent AND no worse vs market; no
   authority change.
+
+---
+
+## Addendum (2026-10-17, later): remaining receptions under-prediction — development data only (2026 weeks 1-4 + 2016-2025)
+
+Weeks 5+ were not used. 737 listed player-games (weeks 1-4), challenger `shadow-0.5.0` mean model:
+
+| component | projected | realised | read |
+|---|---|---|---|
+| targets (opportunity) | 3.87 | 4.46 (-13%) | the whole gap |
+| catch rate | 0.667 | 0.685 | fine |
+| receptions | 2.58 | 3.06 | follows targets |
+
+* **Where:** low/mid usage (EWMA 2-4 targets: projected 1.84 / 3.14 vs realised 2.59 / 3.97); the top bucket is right (8.22 vs 8.12). By position RB -29%, TE -16%, WR -8%.
+* **Why (evidence, not a fit):** listed players realise **1.113x** their own EWMA targets vs 1.036x for veterans with EWMA >= 3 in weeks 1-4 of 2021-25, and the same veteran population ran 1.071x in 2026. So two things, neither a model-code defect: a **listing-selection effect** (the exchange lists players with realised roles the nflverse-only features cannot see: injury-vacated targets, depth chart) of about +7%, and a **2026 league level shift** of about +3.5% (listed targets per team-game 25.7 realised vs 22.3 projected).
+* **Player-level effects:** none (week 1-2 vs 3-4 residual correlation across 175 players = 0.046).
+* **Distribution shape:** with the mean right, historical listed-like ladders are calibrated within -0.3 to -1pp (v2, 2021-24) — no shape defect.
+* **A population floor** (train only on EWMA >= 1.5 / 2.5 / 3.5) was tested market-free: Poisson deviance moves 0.6% at best (1.787 -> 1.777 on 2021-24, 1.712 -> 1.700 on 2025) and the sign of the bias flips with the floor. That is tuning, not a verified defect, so **it was not adopted**.
+
+**Decision:** no further change to the mean model on development evidence. Two pre-registered hypotheses are carried to the validation weeks (5-8) with the rule frozen now, and the holdout (9+) stays untouched:
+1. *H-RECV-1*: the challenger's mean (outcome - model probability) on receptions is smaller in absolute value than the incumbent's in weeks 5-8 (paired, cluster-robust). 
+2. *H-RECV-2*: the 2026 level shift persists: realised/EWMA targets for veterans with EWMA >= 3 stays above 1.04 in weeks 5-8.
+If H-RECV-2 holds and a role/availability feature (depth-chart or injury-vacated targets, point-in-time) explains the listing effect on development data, that is the next structural candidate; nothing is recalibrated toward market prices.
