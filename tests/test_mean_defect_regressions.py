@@ -1,0 +1,104 @@
+"""Regression tests for the two verified structural defects in the player mean projection (research/mean_defect)."""
+import numpy as np
+import pandas as pd
+
+from nfl_edge.research import player_distributions as pdist
+from nfl_edge.shadow import challenger as C
+from nfl_edge.shadow.prospective import pit_history
+
+
+def _games(player="P1", seasons=(2025, 2026), weeks=(1, 2, 3, 4), targets=None):
+    rows = []
+    for s in seasons:
+        for w in weeks:
+            rows.append(dict(player_id=player, position="WR", season=s, week=w, game_id=f"{s}_{w:02d}_A_B", team="A",
+                             opponent_team="B", targets=4.0 if targets is None else targets.get((s, w), 4.0),
+                             receptions=2.0, receiving_yards=30.0, receiving_tds=0.0, completions=0.0, attempts=0.0,
+                             passing_yards=0.0, passing_tds=0.0, passing_interceptions=0.0, carries=0.0, rushing_yards=0.0,
+                             rushing_tds=0.0, any_td=0.0, touches=4.0, offense_snaps=50.0))
+    return pd.DataFrame(rows)
+
+
+def test_season_boundary_inflates_shrink_w_for_veterans_but_not_thinness():
+    """D2: shrink_w is a calendar variable (the EWMA halves at the boundary); sample_thinness reads the player's own sample."""
+    df = _games(seasons=tuple(range(2016, 2027)), weeks=tuple(range(1, 13)))
+    f = pdist.add_ewma_features(df, halflife=6.0, season_carry=0.35, shrink_k=2.0)
+    early = f[(f.season == 2026) & (f.week == 1)].iloc[0]
+    late = f[(f.season == 2025) & (f.week == 12)].iloc[0]
+    assert early.shrink_w > 1.2 * late.shrink_w            # the veteran "looks thin" in week 1
+    th = pdist.sample_thinness(f)
+    assert th[(f.season == 2026) & (f.week == 1)][0] < 0.2  # ... but his own sample is not thin
+    assert abs(th[(f.season == 2026) & (f.week == 1)][0] - th[(f.season == 2025) & (f.week == 12)][0]) < 1e-9
+
+
+def test_default_design_is_the_frozen_one_and_the_tuple_records_it():
+    spec = pdist.STAT_SPECS["receptions"]
+    rng = np.random.default_rng(0)
+    n = 600
+    df = pd.DataFrame(dict(ewma_receptions=rng.uniform(1, 6, n), ewma_targets=rng.uniform(2, 9, n), implied_total=rng.normal(22, 3, n),
+                           home=rng.integers(0, 2, n).astype(bool), shrink_w=rng.uniform(.3, .5, n), n_prior=rng.integers(0, 80, n)))
+    df["receptions"] = rng.poisson(df.ewma_receptions)
+    m1 = pdist.fit_mean_model(df, spec, "receptions", "count")
+    assert m1[5] == "v1"
+    m2 = pdist.fit_mean_model(df, spec, "receptions", "count", design="v2")
+    assert m2[5] == "v2" and not np.allclose(pdist.predict_mean(m1, df, spec, "receptions", .1), pdist.predict_mean(m2, df, spec, "receptions", .1))
+    # a pre-repair 5-tuple model still predicts (archived bundles)
+    assert np.allclose(pdist.predict_mean(m1[:5], df, spec, "receptions", .1), pdist.predict_mean(m1, df, spec, "receptions", .1))
+
+
+def test_v2_only_applies_to_count_specs():
+    spec = pdist.STAT_SPECS["receiving_yards"]  # yards -> unchanged
+    df = pd.DataFrame(dict(ewma_receiving_yards=[20., 40., 60., 30.] * 50, ewma_targets=[3., 5., 7., 4.] * 50, implied_total=[22.] * 200,
+                           home=[True, False] * 100, shrink_w=[.4] * 200, n_prior=[30] * 200, receiving_yards=[25., 44., 58., 33.] * 50))
+    assert pdist.fit_mean_model(df, spec, "receiving_yards", "yards", design="v2")[5] == "v1"
+
+
+def test_pit_history_keeps_completed_games_and_drops_the_slate():
+    """D1: completed games of the target season must reach the features; the slate's own rows must not."""
+    hist = _games(seasons=(2025, 2026), weeks=(1, 2, 3, 4))
+    up = pd.DataFrame([dict(player_id="P1", season=2026, week=3, game_id="2026_03_A_B")])
+    kept = pit_history(hist, up, 2026)
+    assert set(kept[kept.season == 2026].week) == {1, 2}
+    assert len(kept[kept.season == 2025]) == 4
+
+
+def test_current_season_games_move_the_ewma_only_with_the_repair():
+    big = {(2026, 1): 12.0, (2026, 2): 12.0}
+    hist = _games(seasons=(2025, 2026), weeks=(1, 2, 3, 4), targets=big)
+    up = pd.DataFrame([dict(player_id="P1", position="WR", season=2026, week=3, game_id="2026_03_A_B", team="A", opponent_team="B",
+                            spread_line=-3.0, total_line=45.0, home=True, indoor=False, qb_starter=False)])
+    from nfl_edge.shadow.prospective import build_prospective_rows
+    old = build_prospective_rows(hist[hist.season < 2026], up)
+    new = build_prospective_rows(pit_history(hist, up, 2026), up)
+    kw = dict(halflife=6.0, season_carry=0.35, shrink_k=2.0)
+    f_old = pdist.add_ewma_features(old, **kw); f_new = pdist.add_ewma_features(new, **kw)
+    e_old = f_old[f_old.is_prospective == True].ewma_targets.iloc[0]   # noqa: E712
+    e_new = f_new[f_new.is_prospective == True].ewma_targets.iloc[0]   # noqa: E712
+    assert e_new > e_old + 1.5            # two 12-target games now count
+    s_old = f_old[f_old.is_prospective == True].shrink_w.iloc[0]       # noqa: E712
+    s_new = f_new[f_new.is_prospective == True].shrink_w.iloc[0]       # noqa: E712
+    assert s_new < s_old
+
+
+def test_count_design_v2_context_restores_the_incumbent_function():
+    orig = pdist.fit_mean_model
+    with C.count_design_v2():
+        assert pdist.fit_mean_model is not orig
+    assert pdist.fit_mean_model is orig
+
+
+def test_challenger_install_extends_history_and_leaves_the_incumbent_module_pinned():
+    import types
+    calls = {}
+    pricer = types.SimpleNamespace(fit_bundle=lambda *a, **k: calls.setdefault("fit_design", None) or "bundle",
+                                   build_prospective_rows=lambda hist, up: hist)
+    pricer._CHALLENGER_TARGET = 2026
+    seen = {}
+    orig_load = pdist.load_player_games
+    pdist.load_player_games = lambda root, seasons, *a, **k: seen.setdefault("seasons", list(seasons)) or pd.DataFrame()
+    try:
+        C.install(pricer)
+        pdist.load_player_games("root", range(2013, 2026))      # exactly what the incumbent pricer asks for
+        assert seen["seasons"][-1] == 2026                       # ... the challenger also loads the target season
+    finally:
+        pdist.load_player_games = orig_load

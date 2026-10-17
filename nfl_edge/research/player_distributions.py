@@ -262,12 +262,35 @@ def has_defense_features(df: pd.DataFrame) -> bool:
     return all(c in df.columns for c in DEFENSE_FEATURES)
 
 
+THIN_K = 3.0
+THIN_CAP = 16
+
+
+def sample_thinness(df: pd.DataFrame) -> np.ndarray:
+    """k / (min(n_prior, cap) + k): how thin the PLAYER's own game sample is, and nothing else.
+
+    `shrink_w` (the EWMA's shrinkage weight) is the wrong feature for that job. The EWMA halves its weights at every
+    season boundary (season_carry), so shrink_w is ~0.41 in weeks 1-6 for EVERY player, veterans included, and ~0.32 late
+    (research/intelligence, 2026-10-17). Fitted on whole seasons it reads as "low-usage player" and cuts established
+    players' counts by 8-20% early in the season."""
+    return THIN_K / (np.minimum(df.n_prior.to_numpy(dtype=float), THIN_CAP) + THIN_K)
+
+
 def _design(df: pd.DataFrame, spec: StatSpec, col: str, role: bool = False,
-            defense: bool = False) -> np.ndarray:
-    base = [
-        np.ones(len(df)), df[f"ewma_{col}"].to_numpy(), df[f"ewma_{spec.opp}"].to_numpy(),
-        df.implied_total.to_numpy(), df.home.to_numpy(dtype=float), df.shrink_w.to_numpy(),
-    ]
+            defense: bool = False, design: str = "v1") -> np.ndarray:
+    if design == "v2":
+        # Multiplicative (log) usage terms for the Poisson count models, and the calendar-free thinness feature.
+        # With raw EWMA under an exp link, predictions explode for the highest-usage rows (8+ targets projected 15.6,
+        # realised 9.6) and flatten for the lowest.
+        base = [
+            np.ones(len(df)), np.log1p(df[f"ewma_{col}"].to_numpy()), np.log1p(df[f"ewma_{spec.opp}"].to_numpy()),
+            df.implied_total.to_numpy(), df.home.to_numpy(dtype=float), sample_thinness(df),
+        ]
+    else:
+        base = [
+            np.ones(len(df)), df[f"ewma_{col}"].to_numpy(), df[f"ewma_{spec.opp}"].to_numpy(),
+            df.implied_total.to_numpy(), df.home.to_numpy(dtype=float), df.shrink_w.to_numpy(),
+        ]
     if role:
         base += [np.nan_to_num(df[c].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0)
                  for c in ROLE_FEATURES]
@@ -278,13 +301,17 @@ def _design(df: pd.DataFrame, spec: StatSpec, col: str, role: bool = False,
 
 
 def fit_mean_model(train: pd.DataFrame, spec: StatSpec, col: str, kind: str, role: bool = False,
-                   defense: bool = False):
+                   defense: bool = False, design: str = "v1"):
     """Walk-forward point projection mu(x): OLS for yards, Poisson GLM (IRLS) for counts/TDs.
 
     Features: EWMA of the stat, EWMA of opportunity, team implied total, home, shrink weight; plus the
     opportunity-engine role features when ``role`` is set. The flag is carried in the returned model so
     predict_mean cannot be called with a different design than the one that was fitted."""
-    X = _design(train, spec, col, role, defense); y = np.clip(train[col].to_numpy(dtype=float), 0, None)
+    if design not in ("v1", "v2"):
+        raise ValueError(design)
+    if design == "v2" and spec.kind != "count":
+        design = "v1"  # only the count specs were shown to need it (research/intelligence/NFL_MEAN_DEFECT.md)
+    X = _design(train, spec, col, role, defense, design); y = np.clip(train[col].to_numpy(dtype=float), 0, None)
     # Standardise every non-intercept column on the TRAINING rows and carry the scaler in the model. The
     # design mixes shares (~0.1) with team dropbacks (~35) and air yards per target (~10); under the Poisson
     # exp link an unscaled IRLS with a 1e-6 ridge produces coefficients that are numerically fine in sample
@@ -298,7 +325,7 @@ def fit_mean_model(train: pd.DataFrame, spec: StatSpec, col: str, kind: str, rol
     if kind == "yards":
         A = Xs.T @ Xs + RIDGE_LAMBDA * np.eye(Xs.shape[1]); A[0, 0] -= RIDGE_LAMBDA
         beta = np.linalg.solve(A, Xs.T @ y)
-        return ("ols", beta, role, scaler, defense)
+        return ("ols", beta, role, scaler, defense, design)
     beta = np.zeros(Xs.shape[1]); beta[0] = np.log(max(y.mean(), 1e-3))
     pen = RIDGE_LAMBDA * np.eye(Xs.shape[1]); pen[0, 0] = 0.0
     for _ in range(50):
@@ -309,13 +336,14 @@ def fit_mean_model(train: pd.DataFrame, spec: StatSpec, col: str, kind: str, rol
         if np.max(np.abs(new - beta)) < 1e-7:
             beta = new; break
         beta = new
-    return ("poisson", beta, role, scaler, defense)
+    return ("poisson", beta, role, scaler, defense, design)
 
 
 def predict_mean(model, df: pd.DataFrame, spec: StatSpec, col: str, floor: float) -> np.ndarray:
     kind, beta, role, scaler = model[:4]
     defense = model[4] if len(model) > 4 else False
-    X = _design(df, spec, col, role, defense)
+    design = model[5] if len(model) > 5 else "v1"
+    X = _design(df, spec, col, role, defense, design)
     mu_x, sd_x = scaler
     X = np.column_stack([np.ones(len(X)), (X[:, 1:] - mu_x) / sd_x])
     mu = X @ beta if kind == "ols" else np.exp(np.clip(X @ beta, -20, 8))

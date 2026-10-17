@@ -22,6 +22,21 @@ SYNTH_STATS = ["completions", "attempts", "passing_yards", "passing_tds", "passi
                "rushing_yards", "rushing_tds", "receptions", "targets", "receiving_yards", "receiving_tds"]
 
 
+def pit_history(hist: pd.DataFrame, upcoming: pd.DataFrame, target_season: int) -> pd.DataFrame:
+    """Completed games of the TARGET season that are strictly before the earliest upcoming week.
+
+    The live pricer used to load only seasons < target_season, so a player's results from this season never reached his
+    EWMA: each week it just decayed (Travis Kelce, 2026 wk1-4: EWMA targets 4.91 -> 4.58 after games of 5, 11, 2 and 4
+    targets; shrink_w 0.41 -> 0.49). Rows of the upcoming week are dropped so a re-run after kickoff cannot see a result
+    it is pricing. Earlier seasons pass through untouched."""
+    if hist.empty or upcoming.empty:
+        return hist
+    cur = hist.season == target_season
+    first_week = int(upcoming.loc[upcoming.season == target_season, "week"].min()) if (upcoming.season == target_season).any() else 0
+    drop = cur & ((hist.week >= first_week) | hist.game_id.isin(set(upcoming.game_id)))
+    return hist[~drop].copy()
+
+
 def build_prospective_rows(hist: pd.DataFrame, upcoming: pd.DataFrame) -> pd.DataFrame:
     """upcoming: one row per (player_id, game_id) with columns
        player_id, position, season, week, game_id, team, opponent_team, spread_line, total_line, home,
