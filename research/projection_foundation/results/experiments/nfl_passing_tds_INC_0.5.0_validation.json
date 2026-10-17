@@ -1,0 +1,80 @@
+{
+  "code_sha": "aba4cdc2a2873957f7c03342b8d606f702897002",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T06:55:32Z",
+  "data_provenance": [
+    "nflverse stats_player/stats_team/snap_counts/schedules/injuries release files (data/raw/nflverse/_manifest.jsonl)"
+  ],
+  "distribution": {
+    "cover_50": 0.5341959334565619,
+    "cover_80": 0.8465804066543438,
+    "cover_90": 0.9325323475046211,
+    "crps": 0.5570043988105349,
+    "log_score": 1.3998699598252495,
+    "pit_var_ratio": 0.8975864575427002
+  },
+  "eval_period": "2022-2023 regular seasons",
+  "experiment_id": "nfl_passing_tds_INC_0.5.0_validation",
+  "family": "passing_tds",
+  "features": [],
+  "fingerprint": "0c35a34cfbf3e70b",
+  "hyperparameters": {
+    "dist": "incumbent_own"
+  },
+  "hypothesis": "beats the season-average baseline A on validation CRPS",
+  "limitations": [
+    "conditional on participation (DNP rows excluded)",
+    "injury designations untimestamped"
+  ],
+  "model": "challenger_shadow-0.5.0",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1082,
+  "n_obs": 1082,
+  "point": {
+    "bias": 0.047448083431643154,
+    "corr": 0.3059734943946732,
+    "mae": 0.8339156026585158,
+    "rmse": 1.0369957668343768
+  },
+  "python": "3.13.16",
+  "question": "How accurate is challenger_shadow-0.5.0 for passing_tds?",
+  "split": "validation",
+  "sport": "NFL",
+  "train_period": "2012-2021 (features from 2012; tuning 2016-2021; E refit each season on all earlier seasons)",
+  "verdict": "incumbent",
+  "vs_baseline": {
+    "ci95": [
+      -0.016256997798570993,
+      -0.0019641709489444524
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.02055915518705549,
+        0.0018622996115033486
+      ],
+      "mean_diff": -0.009183464707339863,
+      "z": -1.5418706612590087
+    },
+    "mean_diff": -0.008938157640124008,
+    "n_common": 1082,
+    "z": -2.3936387535580086
+  },
+  "vs_incumbent": {
+    "ci95": [
+      0.0,
+      0.0
+    ],
+    "mae_diff": {
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "mean_diff": 0.0,
+      "z": NaN
+    },
+    "mean_diff": 0.0,
+    "n_common": 1082,
+    "z": NaN
+  }
+}

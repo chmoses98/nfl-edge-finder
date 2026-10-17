@@ -1,0 +1,70 @@
+{
+  "code_sha": "aba4cdc2a2873957f7c03342b8d606f702897002",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T06:55:32Z",
+  "data_provenance": [
+    "nflverse release files"
+  ],
+  "distribution": {
+    "cover_80": 0.8165559529892693,
+    "crps": 2.7598892295361774,
+    "log_score": 2.9801721303084303,
+    "pit_var_ratio": 0.9476214974853303
+  },
+  "eval_period": "2024-2025 regular seasons",
+  "experiment_id": "nfl_carries_frozen_holdout",
+  "family": "carries",
+  "features": [],
+  "fingerprint": "36c70367fa8da098",
+  "hyperparameters": {},
+  "hypothesis": "validation advantage over baseline persists on 2024-2025",
+  "limitations": [],
+  "model": "F_plus_availability(vacated+own_questionable)",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 544,
+  "n_independent": 1957,
+  "n_obs": 1957,
+  "point": {
+    "bias": 0.10024220643581928,
+    "mae": 3.974791883354225,
+    "rmse": 5.005010968478303
+  },
+  "python": "3.13.16",
+  "question": "Does the frozen carries winner hold up out of sample?",
+  "split": "holdout",
+  "sport": "NFL",
+  "train_period": "<= previous season (walk-forward)",
+  "verdict": "holdout (frozen)",
+  "vs_baseline": {
+    "ci95": [
+      -0.3323874899992302,
+      -0.22052804024246397
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.40236770146651724,
+        -0.23828700335099676
+      ],
+      "mean_diff": -0.31869255961458826,
+      "z": -7.750786391119007
+    },
+    "mean_diff": -0.27420604431358453,
+    "z": -9.845703398034303
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.28540499631649463,
+      -0.1807884645380149
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.45450236228102525,
+        -0.251698525169984
+      ],
+      "mean_diff": -0.3516754283201461,
+      "z": -6.7394565694411925
+    },
+    "mean_diff": -0.23316567482384906,
+    "z": -8.600722677338265
+  }
+}

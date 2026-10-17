@@ -77,15 +77,19 @@ def readiness(fam, fr, hold, diag):
         if col in ("designation", "spread_bucket", "vacated_targets"):
             continue
         for r in rows:
-            if r["n"] >= 300 and r["mean_actual"] > 0 and abs(r["bias"]) / r["mean_actual"] > 0.25:
+            if r["n"] >= 150 and r["mean_actual"] > 0 and abs(r["bias"]) / r["mean_actual"] > 0.25:
                 bad_seg.append(f"{col}={r['segment']} bias {r['bias']:+.2f} on mean {r['mean_actual']:.2f} (n={r['n']})")
     if worse_inc:
         return "NEEDS IMPROVEMENT", "frozen winner is significantly worse than the incumbent shadow-0.4.0 on holdout"
     if not beats_val:
+        if beats_hold:
+            return "SHADOW VALIDATION", ("validation gain over baseline A not significant (CI crosses 0) although the frozen winner beat A "
+                                         "and the incumbent on the 2024-25 holdout; needs a further untouched season before READY")
         return "NEEDS IMPROVEMENT", "no ladder model beat the season-average baseline on validation"
+    mkt = " Mean is essentially the closing implied team total (stack weight on the market-driven D rung)." if fam == "team_points" else ""
     if beats_val and beats_hold and cal_ok and not bad_seg:
         return "READY", (f"{NAMES.get(best, best)} beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), "
-                         f"holdout PIT variance ratio {h['pit_var_ratio']:.2f}, 80% coverage {h['cover_80']:.2f}, no subgroup with >25% relative bias")
+                         f"holdout PIT variance ratio {h['pit_var_ratio']:.2f}, 80% coverage {h['cover_80']:.2f}, no subgroup with >25% relative bias." + mkt)
     why = []
     if not beats_hold:
         why.append("holdout gain over baseline not significant")

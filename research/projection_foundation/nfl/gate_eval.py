@@ -44,7 +44,7 @@ def opp_factor(S, fam):
     return np.exp(prm["D_beta"][0] * np.log(pf[f0].clip(0.5, 2.0).fillna(1.0).to_numpy()))
 
 
-def run(S, frozen, corr, splits=("validation", "holdout"), max_rows_per_family=None):
+def run(S, frozen, corr, splits=("validation", "holdout"), max_rows_per_family=None, publish_pmf_mean=True):
     pf = S["pf"]
     pf_h = G.add_histories(pf, HIST_COLS)
     og = G.opp_season_games(S["tf"])
@@ -66,12 +66,14 @@ def run(S, frozen, corr, splits=("validation", "holdout"), max_rows_per_family=N
             if max_rows_per_family:
                 idx = idx[:max_rows_per_family]
             dist = EV.make(fz["dist_params"], mu[idx])
+            # published mean = the pmf's own mean (one coherent object); the raw model mean is kept for the 'naive' variant
+            pub = dist.mean if publish_pmf_mean else mu[idx]
             if fam == "anytime_td":
                 opp = (model_mean(S, corr, "targets", frozen["targets"]["model"], split) +
                        model_mean(S, corr, "carries", frozen["carries"]["model"], split))[idx]
             else:
                 opp = model_mean(S, corr, oppfam, frozen[oppfam]["model"], split)[idx]
-            res = G.run(fam, pf_h.iloc[idx], mu[idx], dist, s["y"], opp_mean=opp,
+            res = G.run(fam, pf_h.iloc[idx], pub, dist, s["y"], opp_mean=opp,
                         opp_factor=(of[idx] if of is not None else None),
                         injury=[status_map.get(x, "ACTIVE") for x in des[idx]], rungs=s["rungs"])
             y = pf[s["y"]].to_numpy(float)[idx]
@@ -79,7 +81,7 @@ def run(S, frozen, corr, splits=("validation", "holdout"), max_rows_per_family=N
             st = np.array([r["status"] for r in res])
             fam_mean = crps.mean()
             row = {"n": len(res), "summary": gate.summarize(res)}
-            row["error_by_status"] = {k: {"n": int((st == k).sum()), "mae": float(np.abs(mu[idx] - y)[st == k].mean()),
+            row["error_by_status"] = {k: {"n": int((st == k).sum()), "mae": float(np.abs(pub - y)[st == k].mean()),
                                           "crps": float(crps[st == k].mean()), "rel_crps": float(crps[st == k].mean() / fam_mean),
                                           "cover_80": float(np.mean([(lo <= yy <= hi) for lo, hi, yy in zip(
                                               dist.subset(st == k).interval(0.8)[0], dist.subset(st == k).interval(0.8)[1], y[st == k])]))}
@@ -111,8 +113,16 @@ def reconcile(S, frozen, corr, splits):
     for split in splits:
         m = (pf.split == split).to_numpy() & played
         d = pf.loc[m, ["game_id", "team"]].copy()
-        d["tgt"] = model_mean(S, corr, "targets", frozen["targets"]["model"], split)[m]
-        d["car"] = model_mean(S, corr, "carries", frozen["carries"]["model"], split)[m]
+        # population-aware: the frozen model inside its training population, B (EWMA, shrunk) for everyone else.
+        # The naive version (frozen model for every participant) is kept to document the extrapolation defect.
+        tin = S["pops"]["REC"][m]
+        cin = S["pops"]["RUSH"][m]
+        tf_ = model_mean(S, corr, "targets", frozen["targets"]["model"], split)[m]
+        cf_ = model_mean(S, corr, "carries", frozen["carries"]["model"], split)[m]
+        d["tgt"] = np.where(tin, tf_, S["preds"]["targets"]["B"].to_numpy()[m])
+        d["car"] = np.where(cin, cf_, S["preds"]["carries"]["B"].to_numpy()[m])
+        d["tgt_naive"] = tf_
+        d["car_naive"] = cf_
         d["tgt_act"] = pf.targets.to_numpy()[m]
         d["car_act"] = pf.carries.to_numpy()[m]
         ps = d.groupby(["game_id", "team"]).sum(numeric_only=True).reset_index()
@@ -128,6 +138,10 @@ def reconcile(S, frozen, corr, splits):
                         "mean_ratio_proj": float((j.tgt / j.team_tgt).mean()), "mean_ratio_actual": float((j.tgt_act / j.tm_targets).mean())},
             "carries": {"status": pd.Series([r["status"] for r in res_c]).value_counts().to_dict(),
                         "mean_ratio_proj": float((j.car / j.team_car).mean()), "mean_ratio_actual": float((j.car_act / j.tm_carries).mean())},
+            "naive_frozen_model_for_all_participants": {
+                "targets_ratio": float((j.tgt_naive / j.team_tgt).mean()), "carries_ratio": float((j.car_naive / j.team_car).mean()),
+                "targets_status": pd.Series([r["status"] for r in G.team_recon(j.tgt_naive, j.team_tgt, "t")]).value_counts().to_dict(),
+                "carries_status": pd.Series([r["status"] for r in G.team_recon(j.car_naive, j.team_car, "c")]).value_counts().to_dict()},
             "note": "player sums are over players who PLAYED (conditional projections), so the projected ratio is expected to sit "
                     "near the realised ratio (QB/RB/WR/TE only, fullbacks excluded), not exactly at 1.",
         }

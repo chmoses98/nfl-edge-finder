@@ -58,13 +58,13 @@ def build() -> list[dict]:
     add("depth charts", "depth_charts/depth_charts_*.parquet", "retrospective",
         "2012-2024 weekly NFL depth charts without timestamps (retrospective). 2025+ are ESPN daily snapshots with a 'dt' timestamp (archived). Not used in models (only 2 archived seasons).")
     add("Next Gen Stats (passing/rushing/receiving)", "nextgen_stats/ngs_*.parquet", "reconstructable",
-        "2016+ weekly aggregates (separation, cushion). Downloaded, not used: no NGS feature beat EWMA in prior repo research (research/role_features).")
+        "2016+ weekly aggregates (separation, cushion). Downloaded, not used in these models (not evaluated here).")
     add("players / rosters / crosswalk", "players/players.parquet", "reconstructable",
         "IDs, rookie season, draft round (draft round is pregame). gsis<->pfr crosswalk built by nfl_edge/data/ids.py.")
     inv.append({"dataset": "play-by-play", "seasons": "1999-2026", "rows": 0, "pit_class": "reconstructable",
                 "notes": "Not downloaded for this study (team totals from stats_team suffice); available from the pbp release if drive-level pace is needed."})
     inv.append({"dataset": "pbp participation (routes, personnel)", "seasons": "2016-2025", "rows": 0, "pit_class": "reconstructable",
-                "notes": "Not downloaded. Route participation was tested in research/opportunity (role features help raw-EWMA targets) — candidate for priority work."})
+                "notes": "Not downloaded. research/opportunity found route/role shares improve target and carry projection as extra regressors (7/7 seasons) but not on the Kalshi-listed population (research/listed_validation) — priority candidate."})
     inv.append({"dataset": "archived pregame incumbent projections (shadow ledger)", "seasons": "2026",
                 "rows": len(glob.glob(os.path.join(ROOT, "data", "shadow", "ledger", "*", "*.observations.jsonl.gz"))),
                 "pit_class": "archived",

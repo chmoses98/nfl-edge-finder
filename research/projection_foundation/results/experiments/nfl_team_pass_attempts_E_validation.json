@@ -1,0 +1,64 @@
+{
+  "code_sha": "aba4cdc2a2873957f7c03342b8d606f702897002",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T06:55:31Z",
+  "data_provenance": [
+    "nflverse stats_player/stats_team/snap_counts/schedules/injuries release files (data/raw/nflverse/_manifest.jsonl)"
+  ],
+  "distribution": {
+    "cover_50": 0.511049723756906,
+    "cover_80": 0.8305709023941068,
+    "cover_90": 0.916206261510129,
+    "crps": 4.325957392486662,
+    "log_score": 3.609533566229737,
+    "pit_var_ratio": 0.9593700046540292
+  },
+  "eval_period": "2022-2023 regular seasons",
+  "experiment_id": "nfl_team_pass_attempts_E_validation",
+  "family": "team_pass_attempts",
+  "features": [],
+  "fingerprint": "e816e2cd47a3076b",
+  "hyperparameters": {
+    "dist": "empirical_ratio"
+  },
+  "hypothesis": "beats the season-average baseline A on validation CRPS",
+  "limitations": [
+    "conditional on participation (DNP rows excluded)",
+    "injury designations untimestamped"
+  ],
+  "model": "E_lightgbm_walkforward",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1086,
+  "n_obs": 1086,
+  "point": {
+    "bias": 0.0002636569582577958,
+    "corr": 0.29651760583156866,
+    "mae": 6.20414236801051,
+    "rmse": 7.736852123541526
+  },
+  "python": "3.13.16",
+  "question": "How accurate is E_lightgbm_walkforward for team_pass_attempts?",
+  "split": "validation",
+  "sport": "NFL",
+  "train_period": "2012-2021 (features from 2012; tuning 2016-2021; E refit each season on all earlier seasons)",
+  "verdict": "candidate",
+  "vs_baseline": {
+    "ci95": [
+      -0.049534614906605504,
+      0.06824234921716726
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.10366991600050987,
+        0.12837967884065596
+      ],
+      "mean_diff": 0.010191758518447908,
+      "z": 0.1675332546138313
+    },
+    "mean_diff": 0.010039287676787892,
+    "n_common": 1086,
+    "z": 0.3248946641653195
+  },
+  "vs_incumbent": {}
+}

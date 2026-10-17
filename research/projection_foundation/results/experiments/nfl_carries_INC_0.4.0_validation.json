@@ -1,0 +1,64 @@
+{
+  "code_sha": "aba4cdc2a2873957f7c03342b8d606f702897002",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T06:55:32Z",
+  "data_provenance": [
+    "nflverse stats_player/stats_team/snap_counts/schedules/injuries release files (data/raw/nflverse/_manifest.jsonl)"
+  ],
+  "distribution": {
+    "cover_50": 0.4923625254582485,
+    "cover_80": 0.7937881873727087,
+    "cover_90": 0.8976578411405295,
+    "crps": 3.132637901574929,
+    "log_score": 3.058278478347024,
+    "pit_var_ratio": 0.9991075655835525
+  },
+  "eval_period": "2022-2023 regular seasons",
+  "experiment_id": "nfl_carries_INC_0.4.0_validation",
+  "family": "carries",
+  "features": [],
+  "fingerprint": "71a06ec969cb93e4",
+  "hyperparameters": {
+    "dist": "incumbent_own"
+  },
+  "hypothesis": "beats the season-average baseline A on validation CRPS",
+  "limitations": [
+    "conditional on participation (DNP rows excluded)",
+    "injury designations untimestamped"
+  ],
+  "model": "incumbent_shadow-0.4.0",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1964,
+  "n_obs": 1964,
+  "point": {
+    "bias": -0.6247057801936783,
+    "corr": 0.5472113394012207,
+    "mae": 4.550077984009608,
+    "rmse": 5.970531202013692
+  },
+  "python": "3.13.16",
+  "question": "How accurate is incumbent_shadow-0.4.0 for carries?",
+  "split": "validation",
+  "sport": "NFL",
+  "train_period": "2012-2021 (features from 2012; tuning 2016-2021; E refit each season on all earlier seasons)",
+  "verdict": "incumbent",
+  "vs_baseline": {
+    "ci95": [
+      -0.09243952673628389,
+      0.010055594885879038
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.05829288040490344,
+        0.1387422975593846
+      ],
+      "mean_diff": 0.03930188827497016,
+      "z": 0.7766012712847512
+    },
+    "mean_diff": -0.04472700040258343,
+    "n_common": 1964,
+    "z": -1.741001527624986
+  },
+  "vs_incumbent": {}
+}

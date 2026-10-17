@@ -28,7 +28,7 @@ def _vacated(S):
         return _CACHE["vac"]
     pf = S["pf"]
     inj = D.injuries()
-    v = F.teammate_availability(pf[pf.y_observed], inj)
+    v = F.teammate_availability(pf, inj)   # forward rows included so upcoming games get vacated-opportunity terms
     m = pf[["team", "block"]].merge(v, on=["team", "block"], how="left").fillna(0)
     inj2 = inj.rename(columns={"gsis_id": "player_id"})[["season", "week", "player_id", "report_status"]]
     des = pf[["season", "week", "player_id"]].merge(inj2, on=["season", "week", "player_id"], how="left").report_status

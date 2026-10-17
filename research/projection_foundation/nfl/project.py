@@ -114,10 +114,14 @@ def build(S, frozen: dict, summary: dict | None, corr: dict, out_path: str, now_
     pf_h = G.add_histories(pf, GE.HIST_COLS).merge(G.opp_season_games(tf), on=["game_id", "team"], how="left")
     inj = D.injuries()
     blk = int(pf.loc[fwd, "block"].min()) if fwd.any() else None
-    des = pf.loc[fwd, ["season", "week", "player_id"]].merge(
-        inj.rename(columns={"gsis_id": "player_id"})[["season", "week", "player_id", "report_status"]],
-        on=["season", "week", "player_id"], how="left").report_status.fillna("None").to_numpy()
+    jj = pf.loc[fwd, ["season", "week", "player_id"]].merge(
+        inj.rename(columns={"gsis_id": "player_id"})[["season", "week", "player_id", "report_status", "practice_status"]],
+        on=["season", "week", "player_id"], how="left")
+    # on the week's report but no final game designation yet (practice reports only) -> pending, not healthy
+    des = np.where(jj.report_status.notna(), jj.report_status,
+                   np.where(jj.practice_status.notna(), "Pending (practice: " + jj.practice_status.fillna("").astype(str) + ")", "None"))
     status_map = {"None": "ACTIVE", "Questionable": "QUESTIONABLE", "Doubtful": "DOUBTFUL", "Out": "OUT", "Note": "ACTIVE"}
+    status_map.update({d: "UNKNOWN" for d in set(des) if str(d).startswith("Pending")})
     vac = None
     try:
         from nfl import diagnostics as DG
@@ -156,6 +160,7 @@ def build(S, frozen: dict, summary: dict | None, corr: dict, out_path: str, now_
             continue
         mu = mu_all[idx]
         dist = EV.make(fz["dist_params"], mu)
+        mu = dist.mean            # publish the pmf's own moments (one coherent object; gate distribution check)
         oppfam = {"receptions": "targets", "receiving_yards": "targets", "rushing_yards": "carries", "completions": "passing_attempts",
                   "passing_yards": "passing_attempts", "passing_tds": "passing_attempts"}.get(fam)
         if fam == "anytime_td":
@@ -166,6 +171,8 @@ def build(S, frozen: dict, summary: dict | None, corr: dict, out_path: str, now_
             of_ = oppfam or fam
             opp_mu = GE.model_mean(S, corr, of_, frozen[of_]["model"], "forward")[idx]
             od = EV.make(frozen[of_]["dist_params"], opp_mu) if oppfam else None
+            if od is not None:
+                opp_mu = od.mean
         of = GE.opp_factor(S, fam)
         injs = [status_map.get(des[pos_in_fwd[i]], "ACTIVE") for i in idx]
         res = G.run(fam, pf_h.iloc[idx], mu, dist, s["y"], opp_mean=opp_mu, opp_factor=(of[idx] if of is not None else None),
@@ -174,6 +181,7 @@ def build(S, frozen: dict, summary: dict | None, corr: dict, out_path: str, now_
         thr = {k: dist.prob_ge(k) for k in rungs}
         for j, i in enumerate(idx):
             r = pf.iloc[i]
+            rh = pf_h.iloc[i]
             adj = []
             if fz["model"] in ("D", "F", "D_vac", "F_vac", "E"):
                 adj.append(f"Team volume uses the closing line (spread {r.spread_team:+.1f}, total {r.total_line:.1f}) and the opponent's "
@@ -197,7 +205,7 @@ def build(S, frozen: dict, summary: dict | None, corr: dict, out_path: str, now_
                                  "p90": int(od.quantile(0.9)[j])} if od is not None else
                                 {"family": "touches" if fam == "anytime_td" else fam, "mean": round(float(opp_mu[j]), 2)}),
                 "opponent_adjustment": {"factor": round(float(of[i]), 3) if of is not None else 1.0,
-                                        "sample_games": int(r.opp_games_season) if "opp_games_season" in r and pd.notna(r.opp_games_season) else None},
+                                        "sample_games": int(rh.opp_games_season) if pd.notna(rh.opp_games_season) else None},
                 "adjustments": adj, "injury_designation": des[pos_in_fwd[i]],
                 "readiness": fams_out[fam]["readiness"],
                 "gate": {"status": gate_res["status"], "findings": [

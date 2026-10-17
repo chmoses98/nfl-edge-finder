@@ -1,0 +1,70 @@
+{
+  "code_sha": "aba4cdc2a2873957f7c03342b8d606f702897002",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T06:55:32Z",
+  "data_provenance": [
+    "nflverse release files"
+  ],
+  "distribution": {
+    "cover_80": 0.8057142857142857,
+    "crps": 3.3356917547691727,
+    "log_score": 3.322959047040981,
+    "pit_var_ratio": 0.9765358352610665
+  },
+  "eval_period": "2024-2025 regular seasons",
+  "experiment_id": "nfl_completions_frozen_holdout",
+  "family": "completions",
+  "features": [],
+  "fingerprint": "f0a86c509015ed50",
+  "hyperparameters": {},
+  "hypothesis": "validation advantage over baseline persists on 2024-2025",
+  "limitations": [],
+  "model": "F_qb_starts_env_stack",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1050,
+  "n_obs": 1050,
+  "point": {
+    "bias": 0.5555945402058468,
+    "mae": 4.684539541253951,
+    "rmse": 5.982837255110869
+  },
+  "python": "3.13.16",
+  "question": "Does the frozen completions winner hold up out of sample?",
+  "split": "holdout",
+  "sport": "NFL",
+  "train_period": "<= previous season (walk-forward)",
+  "verdict": "holdout (frozen)",
+  "vs_baseline": {
+    "ci95": [
+      -0.19370513577595272,
+      -0.07797898584475943
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.41032225473107803,
+        -0.16197719478378833
+      ],
+      "mean_diff": -0.28564127520507676,
+      "z": -4.4063482315478515
+    },
+    "mean_diff": -0.136038095968179,
+    "z": -4.517579586157198
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.13656307889806416,
+      -0.04307544048846137
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.20457163938860762,
+        -0.053862961943923746
+      ],
+      "mean_diff": -0.12929221115583217,
+      "z": -3.4076478134626527
+    },
+    "mean_diff": -0.09070422500036043,
+    "z": -3.7308196544435663
+  }
+}

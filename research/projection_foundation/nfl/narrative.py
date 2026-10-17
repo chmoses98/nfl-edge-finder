@@ -193,16 +193,57 @@ def calibration(wf):
 def failed_experiments(wf):
     sel = wf["select"]["families"]
     out = []
-    for f, fr in sel.items():
-        e = _p(fr, "E - D")
-        if e is not None and not _sig_better(e):
-            out.append({"name": f"{f}: LightGBM (E) vs structured D", "what_was_learned": f"E - D CRPS {_ci(e)}: no significant gain from trees on the same PIT information.",
-                        "changes_future_decisions": "Prefer the interpretable structured model unless a new information source is added."})
+    lost = [f for f, fr in sel.items() if _p(fr, "E - D") is not None and not _sig_better(_p(fr, "E - D"))]
+    won = [f for f, fr in sel.items() if _sig_better(_p(fr, "E - D"))]
+    out.append({"name": "LightGBM (E) as a stand-alone projection",
+                "what_was_learned": f"E beats the structured D rung only in {', '.join(won) or 'none'}; it does not in {', '.join(lost)} "
+                                    "(team families and QB families: too few rows per season for trees). On its own it also extrapolates badly "
+                                    "outside its training population (non-RB carries projected 3.4 vs 0.76 realised).",
+                "changes_future_decisions": "Use trees only inside a stack and only for players inside their training population."})
+    out.append({"name": "Vacated targets from teammates listed OUT",
+                "what_was_learned": f"gamma fitted on development is positive but validation CRPS does not improve (targets D_vac - D "
+                                    f"{_ci(_p(sel['targets'], 'D_vac - D'))}); the oracle version using who actually sat is no better "
+                                    f"({_ci(_p(sel['targets'], 'D_oracle_avail - D'))}).",
+                "changes_future_decisions": "Do not spend effort on better absence data for targets; the remaining target error is role "
+                                            "(depth chart / routes), not absences. Carries are different (absences matter)."})
+    out.append({"name": "Opportunity x efficiency decomposition (C) on its own",
+                "what_was_learned": f"For targets C - B {_ci(_p(sel['targets'], 'C - B'))}: decomposing into team volume x share does not beat a "
+                                    "player EWMA (consistent with research/opportunity, which found the same on 2019-2025); its value is structural (it is where game environment and opponent enter).",
+                "changes_future_decisions": "Keep C/D for interpretability and as stack inputs, not as the headline model."})
+    out.append({"name": "QB efficiency from the generic ladder (pre-fix)",
+                "what_was_learned": "Ladder rungs B-D were worse than the season average for QB volume because relief appearances "
+                                    "contaminated histories; a seemingly 'robust' EWMA was the problem, not the baseline.",
+                "changes_future_decisions": "Condition every role-based history on the role (starts for QBs) before smoothing."})
+    out.append({"name": "Discretised normal for yards / NB on yards",
+                "what_was_learned": "The normal misses the right skew and loses to empirical ratios in every yards family; 0-based NB cannot "
+                                    "represent negative yards and is mis-scored by pf_core's out-of-support clipping.",
+                "changes_future_decisions": "Empirical (quantile-mapped) residual ratios by mean bin are the default for yards."})
     return out
 
 
 def priorities(wf):
-    return []
+    return [
+        {"rank": 1, "item": "Adopt the new-team tenure correction (C1) prospectively",
+         "impact": "first 1-4 games with a new team: 14-37% over-projection removed; family-wide CRPS -0.1% to -0.5%",
+         "evidence": "dev-fitted, validated 2022-23 with CIs excluding 0 in 5/6 families (post-freeze, not yet holdout-tested)",
+         "complexity": "low (one tenure feature + 3 multipliers)", "data": "existing nflverse"},
+        {"rank": 2, "item": "Adopt the backup-tier regression correction (C2) prospectively",
+         "impact": "RB2+/TE2+/WR3+ 7-18% over-projection; targets CRPS -0.3%",
+         "evidence": "dev-fitted, validated 2022-23, CIs exclude 0 in 6/6 families", "complexity": "low", "data": "existing"},
+        {"rank": 3, "item": "Pregame role signal for listed players (archived depth-chart vintages 2025+, route participation)",
+         "impact": "the remaining opportunity error is role change; mean_defect's listed-population gap (+7%) is a role-selection effect",
+         "evidence": "vacated-target and oracle-absence tests rejected; tenure/backup segments are the largest residuals",
+         "complexity": "medium", "data": "ESPN depth chart snapshots (dt-stamped) 2025+, pbp participation (2016-2025)"},
+        {"rank": 4, "item": "Passing TDs: add the incumbent's direct implied-total regression as a ladder rung",
+         "impact": "only family where the incumbent wins on holdout (CRPS +0.012)", "evidence": "holdout vs shadow-0.4.0",
+         "complexity": "low", "data": "existing"},
+        {"rank": 5, "item": "Participation model for non-voiding consumers (injury designation + weekly roster status vintages)",
+         "impact": "12% of published role-player projections are voids; 58% of DNPs carry no designation",
+         "evidence": "availability study", "complexity": "medium", "data": "timestamped roster/injury captures (context-capture.yml, 2026+)"},
+        {"rank": 6, "item": "QB passing-yards level drift",
+         "impact": "+6 to +9 yards holdout bias tracks the 2022-25 league passing decline", "evidence": "holdout bias",
+         "complexity": "low (league-level PIT trend term)", "data": "existing"},
+    ]
 
 
 def _tldr(summary):

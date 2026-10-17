@@ -1,0 +1,70 @@
+{
+  "code_sha": "aba4cdc2a2873957f7c03342b8d606f702897002",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T06:55:32Z",
+  "data_provenance": [
+    "nflverse release files"
+  ],
+  "distribution": {
+    "cover_80": 0.8114285714285714,
+    "crps": 41.433803658894156,
+    "log_score": 7.271695518058273,
+    "pit_var_ratio": 0.9875655672523362
+  },
+  "eval_period": "2024-2025 regular seasons",
+  "experiment_id": "nfl_passing_yards_frozen_holdout",
+  "family": "passing_yards",
+  "features": [],
+  "fingerprint": "b242683a44946b10",
+  "hyperparameters": {},
+  "hypothesis": "validation advantage over baseline persists on 2024-2025",
+  "limitations": [],
+  "model": "F_qb_starts_env_stack",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1050,
+  "n_obs": 1050,
+  "point": {
+    "bias": 9.04119611894886,
+    "mae": 58.27936009421794,
+    "rmse": 74.41427365974937
+  },
+  "python": "3.13.16",
+  "question": "Does the frozen passing_yards winner hold up out of sample?",
+  "split": "holdout",
+  "sport": "NFL",
+  "train_period": "<= previous season (walk-forward)",
+  "verdict": "holdout (frozen)",
+  "vs_baseline": {
+    "ci95": [
+      -2.131171877810598,
+      -0.6495425967510738
+    ],
+    "mae_diff": {
+      "ci95": [
+        -4.440128381650143,
+        -1.1725131449659818
+      ],
+      "mean_diff": -2.7590581755756878,
+      "z": -3.3134747680005683
+    },
+    "mean_diff": -1.3678204035926858,
+    "z": -3.634930944212065
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -1.1936431470862578,
+      0.08706288011976222
+    ],
+    "mae_diff": {
+      "ci95": [
+        -1.8444119758754105,
+        0.14111447143285033
+      ],
+      "mean_diff": -0.851492810431396,
+      "z": -1.7151031722123584
+    },
+    "mean_diff": -0.5630720154547194,
+    "z": -1.6359813514698764
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "code_sha": "aba4cdc2a2873957f7c03342b8d606f702897002",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T06:55:31Z",
+  "data_provenance": [
+    "nflverse stats_player/stats_team/snap_counts/schedules/injuries release files (data/raw/nflverse/_manifest.jsonl)"
+  ],
+  "distribution": {
+    "cover_50": 0.48342541436464087,
+    "cover_80": 0.7937384898710865,
+    "cover_90": 0.8996316758747698,
+    "crps": 4.210967641158818,
+    "log_score": 3.4204556795157166,
+    "pit_var_ratio": 1.0265090122652067
+  },
+  "eval_period": "2022-2023 regular seasons",
+  "experiment_id": "nfl_team_rush_attempts_B_validation",
+  "family": "team_rush_attempts",
+  "features": [],
+  "fingerprint": "d24b56326edb1fa7",
+  "hyperparameters": {
+    "dist": "nb_binned"
+  },
+  "hypothesis": "beats the season-average baseline A on validation CRPS",
+  "limitations": [
+    "conditional on participation (DNP rows excluded)",
+    "injury designations untimestamped"
+  ],
+  "model": "B_ewma_shrunk",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1086,
+  "n_obs": 1086,
+  "point": {
+    "bias": -0.21043558459905787,
+    "corr": 0.22978342144128294,
+    "mae": 5.994188649588852,
+    "rmse": 7.437995305755616
+  },
+  "python": "3.13.16",
+  "question": "How accurate is B_ewma_shrunk for team_rush_attempts?",
+  "split": "validation",
+  "sport": "NFL",
+  "train_period": "2012-2021 (features from 2012; tuning 2016-2021; E refit each season on all earlier seasons)",
+  "verdict": "candidate",
+  "vs_baseline": {
+    "ci95": [
+      -0.015547032038972597,
+      0.01670247662617414
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.009346365067799994,
+        0.045887700188467766
+      ],
+      "mean_diff": 0.01832222248939198,
+      "z": 1.2760509728076102
+    },
+    "mean_diff": 0.0007638019884468602,
+    "n_common": 1086,
+    "z": 0.08938525907708691
+  },
+  "vs_incumbent": {}
+}

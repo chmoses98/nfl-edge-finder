@@ -1,0 +1,6676 @@
+{
+ "schema": "sift.projection_foundation.sport_summary.v1",
+ "sport": "NFL",
+ "generated_utc": "2026-10-17T07:27:25Z",
+ "code_sha": "aba4cdc2a2873957f7c03342b8d606f702897002",
+ "pf_core_version": "1.0.0",
+ "splits": {
+  "development": "2016-2021 regular seasons (2012-2015 feature warm-up only)",
+  "validation": "2022-2023 regular seasons",
+  "holdout": "2024-2025 regular seasons (evaluated once, frozen candidates only)",
+  "check_2026": "2026 weeks 1-4, read-only accuracy check (already used in market discovery; never tuned on)",
+  "embargo": "2026 weeks >= 5: untouched market holdout, never scored here"
+ },
+ "inventory": [
+  {
+   "dataset": "nflverse player weekly stats (stats_player)",
+   "seasons": "2012-2026",
+   "rows": 257732,
+   "pit_class": "reconstructable",
+   "notes": "Outcomes and, lagged, the core features. Release available 1999+; 2012-2026 downloaded (2012-2015 warm-up only). 2026 = weeks 1-5 + Thursday week 6."
+  },
+  {
+   "dataset": "nflverse team weekly stats (stats_team)",
+   "seasons": "2012-2026",
+   "rows": 7818,
+   "pit_class": "reconstructable",
+   "notes": "Team pass attempts / carries / yards per game: team-volume outcomes and opponent 'allowed' histories."
+  },
+  {
+   "dataset": "schedules with closing lines (games.csv)",
+   "seasons": "1999-2026",
+   "rows": 7548,
+   "pit_class": "archived",
+   "notes": "spread_line / total_line are the final pregame (closing) lines: pregame by construction, but recorded retrospectively (not our own vintage). QB ids are the ACTUAL starter for past games (retrospective; announced pregame in practice) and the projected starter for upcoming games."
+  },
+  {
+   "dataset": "weather / roof (schedule temp, wind, roof)",
+   "seasons": "1999-2026",
+   "rows": 0,
+   "pit_class": "retrospective",
+   "notes": "temp/wind are game-time observations, not forecasts -> not used as features. Roof is pregame-known and used. Timestamped NWS/Open-Meteo forecasts exist only from the 2026 context capture on the market-data branch."
+  },
+  {
+   "dataset": "snap counts (PFR)",
+   "seasons": "2012-2026",
+   "rows": 332075,
+   "pit_class": "reconstructable",
+   "notes": "2012+. Used for offense-snap share history and to add zero-stat participation rows. Participation itself is post-game."
+  },
+  {
+   "dataset": "injury reports (final designation)",
+   "seasons": "2012-2026",
+   "rows": 78236,
+   "pit_class": "retrospective",
+   "notes": "2009-2026 Out/Doubtful/Questionable + practice status. No per-row timestamp (date_modified in 2024 only), rebuilt in place; treated as NEAR-pregame (Friday report) and flagged."
+  },
+  {
+   "dataset": "weekly rosters (status ACT/INA/RES)",
+   "seasons": "2012-2026",
+   "rows": 609004,
+   "pit_class": "retrospective",
+   "notes": "Snapshot time unknown; INA is the gameday inactive list (90 min pre-kickoff). Used only for the forward candidate set, never as a backtest feature."
+  },
+  {
+   "dataset": "depth charts",
+   "seasons": "2012-2026",
+   "rows": 1689644,
+   "pit_class": "retrospective",
+   "notes": "2012-2024 weekly NFL depth charts without timestamps (retrospective). 2025+ are ESPN daily snapshots with a 'dt' timestamp (archived). Not used in models (only 2 archived seasons)."
+  },
+  {
+   "dataset": "Next Gen Stats (passing/rushing/receiving)",
+   "seasons": "all",
+   "rows": 27613,
+   "pit_class": "reconstructable",
+   "notes": "2016+ weekly aggregates (separation, cushion). Downloaded, not used in these models (not evaluated here)."
+  },
+  {
+   "dataset": "players / rosters / crosswalk",
+   "seasons": "all",
+   "rows": 24854,
+   "pit_class": "reconstructable",
+   "notes": "IDs, rookie season, draft round (draft round is pregame). gsis<->pfr crosswalk built by nfl_edge/data/ids.py."
+  },
+  {
+   "dataset": "play-by-play",
+   "seasons": "1999-2026",
+   "rows": 0,
+   "pit_class": "reconstructable",
+   "notes": "Not downloaded for this study (team totals from stats_team suffice); available from the pbp release if drive-level pace is needed."
+  },
+  {
+   "dataset": "pbp participation (routes, personnel)",
+   "seasons": "2016-2025",
+   "rows": 0,
+   "pit_class": "reconstructable",
+   "notes": "Not downloaded. research/opportunity found route/role shares improve target and carry projection as extra regressors (7/7 seasons) but not on the Kalshi-listed population (research/listed_validation) \u2014 priority candidate."
+  },
+  {
+   "dataset": "archived pregame incumbent projections (shadow ledger)",
+   "seasons": "2026",
+   "rows": 2,
+   "pit_class": "archived",
+   "notes": "Week-1 2026 ledger in this checkout; later weeks on the market-data branch. Not needed: the incumbent was replayed walk-forward with its own code (nfl/incumbent.py)."
+  },
+  {
+   "dataset": "pregame timestamped injury/availability vintages",
+   "seasons": "2026 only",
+   "rows": 0,
+   "pit_class": "archived",
+   "notes": "Sleeper/ESPN captures on the market-data branch (context-capture.yml) start in 2026: too short for a backtest. Historical seasons have no timestamped vintage -> missing."
+  }
+ ],
+ "families": [
+  {
+   "family": "team_pass_attempts",
+   "unit": "team-game",
+   "opportunity_family": null,
+   "population": "every regular-season team-game",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 6.194,
+     "rmse": 7.7071,
+     "bias": 0.7315,
+     "crps": 4.31592,
+     "log_score": 3.5712,
+     "cover_50": 0.5055,
+     "cover_80": 0.8343,
+     "cover_90": 0.9061,
+     "pit_var_ratio": 0.961,
+     "vs_baseline": null,
+     "vs_incumbent": null,
+     "verdict": "baseline",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 6.1843,
+     "rmse": 7.7073,
+     "bias": 0.6291,
+     "crps": 4.31246,
+     "log_score": 3.4533,
+     "cover_50": 0.5074,
+     "cover_80": 0.8241,
+     "cover_90": 0.9088,
+     "pit_var_ratio": 0.9684,
+     "vs_baseline": {
+      "mean_diff": -0.00346,
+      "ci95": [
+       -0.03827,
+       0.03319
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 6.2001,
+     "rmse": 7.7292,
+     "bias": 0.6137,
+     "crps": 4.3248,
+     "log_score": 3.4562,
+     "cover_50": 0.4926,
+     "cover_80": 0.8287,
+     "cover_90": 0.9079,
+     "pit_var_ratio": 0.9674,
+     "vs_baseline": {
+      "mean_diff": 0.00888,
+      "ci95": [
+       -0.03037,
+       0.04846
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb"
+    },
+    {
+     "model": "D_opp_adjusted_only",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 6.1361,
+     "rmse": 7.6771,
+     "bias": 0.6228,
+     "crps": 4.28793,
+     "log_score": 3.4459,
+     "cover_50": 0.5092,
+     "cover_80": 0.8389,
+     "cover_90": 0.9098,
+     "pit_var_ratio": 0.9566,
+     "vs_baseline": {
+      "mean_diff": -0.02799,
+      "ci95": [
+       -0.07228,
+       0.01623
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 6.0855,
+     "rmse": 7.6302,
+     "bias": 0.571,
+     "crps": 4.26485,
+     "log_score": 3.4428,
+     "cover_50": 0.5193,
+     "cover_80": 0.8287,
+     "cover_90": 0.9061,
+     "pit_var_ratio": 0.948,
+     "vs_baseline": {
+      "mean_diff": -0.05107,
+      "ci95": [
+       -0.09741,
+       0.00037
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "competitive",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 6.2041,
+     "rmse": 7.7369,
+     "bias": 0.0003,
+     "crps": 4.32596,
+     "log_score": 3.6095,
+     "cover_50": 0.511,
+     "cover_80": 0.8306,
+     "cover_90": 0.9162,
+     "pit_var_ratio": 0.9594,
+     "vs_baseline": {
+      "mean_diff": 0.01004,
+      "ci95": [
+       -0.04953,
+       0.06824
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 6.0788,
+     "rmse": 7.6106,
+     "bias": 0.4493,
+     "crps": 4.257,
+     "log_score": 3.4409,
+     "cover_50": 0.5147,
+     "cover_80": 0.8287,
+     "cover_90": 0.9061,
+     "pit_var_ratio": 0.9529,
+     "vs_baseline": {
+      "mean_diff": -0.05892,
+      "ci95": [
+       -0.10494,
+       -0.0101
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "best",
+     "distribution": "nb_binned"
+    }
+   ],
+   "best_model": "F_stack",
+   "holdout": {
+    "model": "F_stack",
+    "n_obs": 1088,
+    "mae": 6.1298,
+    "crps": 4.30102,
+    "bias": 1.0905,
+    "cover_80": 0.8051,
+    "vs_baseline": {
+     "mean_diff": -0.06002,
+     "ci95": [
+      -0.10378,
+      -0.0177
+     ]
+    },
+    "vs_incumbent": null
+   },
+   "readiness": "READY",
+   "readiness_reason": "F_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.97, 80% coverage 0.81, no subgroup with >25% relative bias."
+  },
+  {
+   "family": "team_rush_attempts",
+   "unit": "team-game",
+   "opportunity_family": null,
+   "population": "every regular-season team-game",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 5.9759,
+     "rmse": 7.4348,
+     "bias": -0.273,
+     "crps": 4.2102,
+     "log_score": 3.4195,
+     "cover_50": 0.4862,
+     "cover_80": 0.7947,
+     "cover_90": 0.8959,
+     "pit_var_ratio": 1.0237,
+     "vs_baseline": null,
+     "vs_incumbent": null,
+     "verdict": "baseline",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 5.9942,
+     "rmse": 7.438,
+     "bias": -0.2104,
+     "crps": 4.21097,
+     "log_score": 3.4205,
+     "cover_50": 0.4834,
+     "cover_80": 0.7937,
+     "cover_90": 0.8996,
+     "pit_var_ratio": 1.0265,
+     "vs_baseline": {
+      "mean_diff": 0.00076,
+      "ci95": [
+       -0.01555,
+       0.0167
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 5.9949,
+     "rmse": 7.4309,
+     "bias": -0.0955,
+     "crps": 4.20696,
+     "log_score": 3.4197,
+     "cover_50": 0.489,
+     "cover_80": 0.791,
+     "cover_90": 0.895,
+     "pit_var_ratio": 1.0269,
+     "vs_baseline": {
+      "mean_diff": -0.00325,
+      "ci95": [
+       -0.02058,
+       0.01446
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb"
+    },
+    {
+     "model": "D_opp_adjusted_only",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 5.9107,
+     "rmse": 7.363,
+     "bias": -0.2088,
+     "crps": 4.16664,
+     "log_score": 3.41,
+     "cover_50": 0.4779,
+     "cover_80": 0.791,
+     "cover_90": 0.8913,
+     "pit_var_ratio": 1.0294,
+     "vs_baseline": {
+      "mean_diff": -0.04356,
+      "ci95": [
+       -0.09011,
+       0.00362
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 5.8794,
+     "rmse": 7.3315,
+     "bias": -0.1387,
+     "crps": 4.14693,
+     "log_score": 3.4062,
+     "cover_50": 0.4797,
+     "cover_80": 0.7873,
+     "cover_90": 0.8941,
+     "pit_var_ratio": 1.0253,
+     "vs_baseline": {
+      "mean_diff": -0.06328,
+      "ci95": [
+       -0.10828,
+       -0.01123
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 5.9365,
+     "rmse": 7.3578,
+     "bias": -0.1143,
+     "crps": 4.16668,
+     "log_score": 3.4106,
+     "cover_50": 0.4917,
+     "cover_80": 0.7891,
+     "cover_90": 0.9033,
+     "pit_var_ratio": 1.0109,
+     "vs_baseline": {
+      "mean_diff": -0.04352,
+      "ci95": [
+       -0.10247,
+       0.01926
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "competitive",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 5.8674,
+     "rmse": 7.3112,
+     "bias": -0.1347,
+     "crps": 4.13696,
+     "log_score": 3.4043,
+     "cover_50": 0.4816,
+     "cover_80": 0.7845,
+     "cover_90": 0.8969,
+     "pit_var_ratio": 1.0239,
+     "vs_baseline": {
+      "mean_diff": -0.07324,
+      "ci95": [
+       -0.11996,
+       -0.02322
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "best",
+     "distribution": "nb_binned"
+    }
+   ],
+   "best_model": "F_stack",
+   "holdout": {
+    "model": "F_stack",
+    "n_obs": 1088,
+    "mae": 5.7358,
+    "crps": 4.00767,
+    "bias": -0.0387,
+    "cover_80": 0.8042,
+    "vs_baseline": {
+     "mean_diff": -0.10177,
+     "ci95": [
+      -0.14614,
+      -0.06005
+     ]
+    },
+    "vs_incumbent": null
+   },
+   "readiness": "READY",
+   "readiness_reason": "F_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 1.00, 80% coverage 0.80, no subgroup with >25% relative bias."
+  },
+  {
+   "family": "team_points",
+   "unit": "team-game",
+   "opportunity_family": null,
+   "population": "every regular-season team-game",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 7.4512,
+     "rmse": 9.4025,
+     "bias": 0.5912,
+     "crps": 5.26591,
+     "log_score": 3.7058,
+     "cover_50": 0.5203,
+     "cover_80": 0.7772,
+     "cover_90": 0.8904,
+     "pit_var_ratio": 1.0158,
+     "vs_baseline": null,
+     "vs_incumbent": null,
+     "verdict": "baseline",
+     "distribution": "nb"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 7.4681,
+     "rmse": 9.404,
+     "bias": 0.6483,
+     "crps": 5.26217,
+     "log_score": 3.7056,
+     "cover_50": 0.512,
+     "cover_80": 0.7864,
+     "cover_90": 0.8895,
+     "pit_var_ratio": 1.0152,
+     "vs_baseline": {
+      "mean_diff": -0.00374,
+      "ci95": [
+       -0.02934,
+       0.02111
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 7.4065,
+     "rmse": 9.3515,
+     "bias": 0.2207,
+     "crps": 5.23044,
+     "log_score": 3.6572,
+     "cover_50": 0.5249,
+     "cover_80": 0.8048,
+     "cover_90": 0.9153,
+     "pit_var_ratio": 0.965,
+     "vs_baseline": {
+      "mean_diff": -0.03547,
+      "ci95": [
+       -0.10184,
+       0.03329
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "D_opp_adjusted_only",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 7.3775,
+     "rmse": 9.2781,
+     "bias": 0.6508,
+     "crps": 5.19772,
+     "log_score": 3.6958,
+     "cover_50": 0.512,
+     "cover_80": 0.7864,
+     "cover_90": 0.8895,
+     "pit_var_ratio": 1.0199,
+     "vs_baseline": {
+      "mean_diff": -0.06819,
+      "ci95": [
+       -0.12112,
+       -0.0122
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 7.1246,
+     "rmse": 9.0174,
+     "bias": -0.0999,
+     "crps": 5.04923,
+     "log_score": 3.6027,
+     "cover_50": 0.5258,
+     "cover_80": 0.8076,
+     "cover_90": 0.9061,
+     "pit_var_ratio": 0.9625,
+     "vs_baseline": {
+      "mean_diff": -0.21668,
+      "ci95": [
+       -0.30489,
+       -0.13089
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "competitive",
+     "distribution": "normal_binned"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 7.3546,
+     "rmse": 9.2674,
+     "bias": 1.1955,
+     "crps": 5.16615,
+     "log_score": 3.6929,
+     "cover_50": 0.5193,
+     "cover_80": 0.7947,
+     "cover_90": 0.8757,
+     "pit_var_ratio": 0.9933,
+     "vs_baseline": {
+      "mean_diff": -0.09976,
+      "ci95": [
+       -0.19669,
+       -0.00206
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "rejected",
+     "distribution": "nb"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 7.1231,
+     "rmse": 9.0148,
+     "bias": -0.0282,
+     "crps": 5.04857,
+     "log_score": 3.6028,
+     "cover_50": 0.523,
+     "cover_80": 0.8057,
+     "cover_90": 0.9033,
+     "pit_var_ratio": 0.9624,
+     "vs_baseline": {
+      "mean_diff": -0.21734,
+      "ci95": [
+       -0.30534,
+       -0.13057
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "best",
+     "distribution": "normal_binned"
+    },
+    {
+     "model": "MKT_closing_implied_total",
+     "split": "validation",
+     "n_obs": 1086,
+     "n_clusters": 543,
+     "mae": 7.1169,
+     "rmse": 9.007,
+     "bias": -0.0626,
+     "crps": 5.04393,
+     "log_score": 3.6016,
+     "cover_50": 0.5267,
+     "cover_80": 0.8085,
+     "cover_90": 0.9061,
+     "pit_var_ratio": 0.961,
+     "vs_baseline": {
+      "mean_diff": -0.22198,
+      "ci95": [
+       -0.30732,
+       -0.13603
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "competitive",
+     "distribution": "normal_binned"
+    }
+   ],
+   "best_model": "F_stack",
+   "holdout": {
+    "model": "F_stack",
+    "n_obs": 1088,
+    "mae": 7.1675,
+    "crps": 5.06242,
+    "bias": -0.6624,
+    "cover_80": 0.7996,
+    "vs_baseline": {
+     "mean_diff": -0.35155,
+     "ci95": [
+      -0.45311,
+      -0.25897
+     ]
+    },
+    "vs_incumbent": null
+   },
+   "readiness": "READY",
+   "readiness_reason": "F_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.97, 80% coverage 0.80, no subgroup with >25% relative bias. Mean is essentially the closing implied team total (stack weight on the market-driven D rung)."
+  },
+  {
+   "family": "targets",
+   "unit": "player-game",
+   "opportunity_family": null,
+   "population": "RB/WR/TE who played, mean >= 2 targets over their previous 4 games played (PIT)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0936,
+     "rmse": 2.6633,
+     "bias": 0.0173,
+     "crps": 1.45312,
+     "log_score": 2.2938,
+     "cover_50": 0.5037,
+     "cover_80": 0.7973,
+     "cover_90": 0.9024,
+     "pit_var_ratio": 0.9961,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": -0.06044,
+      "ci95": [
+       -0.07619,
+       -0.04585
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0745,
+     "rmse": 2.6372,
+     "bias": 0.099,
+     "crps": 1.43205,
+     "log_score": 2.278,
+     "cover_50": 0.5051,
+     "cover_80": 0.8007,
+     "cover_90": 0.9038,
+     "pit_var_ratio": 0.9962,
+     "vs_baseline": {
+      "mean_diff": -0.02106,
+      "ci95": [
+       -0.02884,
+       -0.01368
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.0815,
+      "ci95": [
+       -0.09624,
+       -0.0679
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0808,
+     "rmse": 2.6403,
+     "bias": 0.1284,
+     "crps": 1.43162,
+     "log_score": 2.2767,
+     "cover_50": 0.5001,
+     "cover_80": 0.8003,
+     "cover_90": 0.9044,
+     "pit_var_ratio": 0.9969,
+     "vs_baseline": {
+      "mean_diff": -0.02149,
+      "ci95": [
+       -0.03059,
+       -0.01314
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.08193,
+      "ci95": [
+       -0.09744,
+       -0.06666
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0805,
+     "rmse": 2.6383,
+     "bias": 0.1239,
+     "crps": 1.43119,
+     "log_score": 2.2768,
+     "cover_50": 0.5012,
+     "cover_80": 0.7995,
+     "cover_90": 0.9033,
+     "pit_var_ratio": 0.9984,
+     "vs_baseline": {
+      "mean_diff": -0.02193,
+      "ci95": [
+       -0.0309,
+       -0.01293
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.08236,
+      "ci95": [
+       -0.09816,
+       -0.06673
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.009,
+     "rmse": 2.569,
+     "bias": 0.08,
+     "crps": 1.38483,
+     "log_score": 2.2395,
+     "cover_50": 0.5007,
+     "cover_80": 0.8059,
+     "cover_90": 0.9041,
+     "pit_var_ratio": 0.9907,
+     "vs_baseline": {
+      "mean_diff": -0.06828,
+      "ci95": [
+       -0.08037,
+       -0.05614
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.12872,
+      "ci95": [
+       -0.14572,
+       -0.11198
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0124,
+     "rmse": 2.5693,
+     "bias": 0.0863,
+     "crps": 1.38569,
+     "log_score": 2.2406,
+     "cover_50": 0.4993,
+     "cover_80": 0.8059,
+     "cover_90": 0.9029,
+     "pit_var_ratio": 0.9922,
+     "vs_baseline": {
+      "mean_diff": -0.06742,
+      "ci95": [
+       -0.07869,
+       -0.05618
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.12786,
+      "ci95": [
+       -0.14432,
+       -0.11141
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "D_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0884,
+     "rmse": 2.6422,
+     "bias": 0.1945,
+     "crps": 1.4323,
+     "log_score": 2.2779,
+     "cover_50": 0.4987,
+     "cover_80": 0.7982,
+     "cover_90": 0.9018,
+     "pit_var_ratio": 0.9996,
+     "vs_baseline": {
+      "mean_diff": -0.02082,
+      "ci95": [
+       -0.03004,
+       -0.01109
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.08125,
+      "ci95": [
+       -0.09744,
+       -0.06518
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "D_oracle_availability(bound)",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0873,
+     "rmse": 2.6416,
+     "bias": 0.1778,
+     "crps": 1.43213,
+     "log_score": 2.2773,
+     "cover_50": 0.4987,
+     "cover_80": 0.7996,
+     "cover_90": 0.9032,
+     "pit_var_ratio": 0.9989,
+     "vs_baseline": {
+      "mean_diff": -0.02098,
+      "ci95": [
+       -0.03019,
+       -0.01189
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.08142,
+      "ci95": [
+       -0.09758,
+       -0.0655
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "F_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0182,
+     "rmse": 2.5702,
+     "bias": 0.1469,
+     "crps": 1.38575,
+     "log_score": 2.2409,
+     "cover_50": 0.4988,
+     "cover_80": 0.8061,
+     "cover_90": 0.9026,
+     "pit_var_ratio": 0.9927,
+     "vs_baseline": {
+      "mean_diff": -0.06737,
+      "ci95": [
+       -0.07864,
+       -0.05589
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.1278,
+      "ci95": [
+       -0.14427,
+       -0.1109
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "F_oracle_availability(bound)",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0199,
+     "rmse": 2.5709,
+     "bias": 0.1532,
+     "crps": 1.38629,
+     "log_score": 2.2412,
+     "cover_50": 0.4998,
+     "cover_80": 0.8059,
+     "cover_90": 0.9021,
+     "pit_var_ratio": 0.9931,
+     "vs_baseline": {
+      "mean_diff": -0.06683,
+      "ci95": [
+       -0.07828,
+       -0.05525
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.12726,
+      "ci95": [
+       -0.1444,
+       -0.11022
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "D_plus_availability",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0822,
+     "rmse": 2.6355,
+     "bias": 0.1595,
+     "crps": 1.42969,
+     "log_score": 2.2757,
+     "cover_50": 0.4996,
+     "cover_80": 0.7999,
+     "cover_90": 0.9022,
+     "pit_var_ratio": 1.0004,
+     "vs_baseline": {
+      "mean_diff": -0.02343,
+      "ci95": [
+       -0.03248,
+       -0.01358
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.08386,
+      "ci95": [
+       -0.09966,
+       -0.06774
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "F_plus_availability",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0144,
+     "rmse": 2.5665,
+     "bias": 0.1214,
+     "crps": 1.38436,
+     "log_score": 2.2395,
+     "cover_50": 0.4998,
+     "cover_80": 0.8056,
+     "cover_90": 0.9026,
+     "pit_var_ratio": 0.9935,
+     "vs_baseline": {
+      "mean_diff": -0.06875,
+      "ci95": [
+       -0.08017,
+       -0.0573
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.12919,
+      "ci95": [
+       -0.14595,
+       -0.11262
+      ]
+     },
+     "verdict": "best",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.2018,
+     "rmse": 2.9486,
+     "bias": -0.194,
+     "crps": 1.51355,
+     "log_score": 2.3271,
+     "cover_50": 0.4943,
+     "cover_80": 0.7918,
+     "cover_90": 0.8972,
+     "pit_var_ratio": 0.9991,
+     "vs_baseline": {
+      "mean_diff": 0.06044,
+      "ci95": [
+       0.04585,
+       0.07619
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 2.0992,
+     "rmse": 2.7043,
+     "bias": -0.041,
+     "crps": 1.46282,
+     "log_score": 2.2966,
+     "cover_50": 0.5029,
+     "cover_80": 0.8032,
+     "cover_90": 0.9048,
+     "pit_var_ratio": 0.9912,
+     "vs_baseline": {
+      "mean_diff": 0.00971,
+      "ci95": [
+       0.00025,
+       0.02072
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.05073,
+      "ci95": [
+       -0.06002,
+       -0.04212
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "F_plus_availability",
+   "holdout": {
+    "model": "F_plus_availability",
+    "n_obs": 6160,
+    "mae": 1.9961,
+    "crps": 1.37302,
+    "bias": 0.1713,
+    "cover_80": 0.8104,
+    "vs_baseline": {
+     "mean_diff": -0.08279,
+     "ci95": [
+      -0.0956,
+      -0.07178
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": -0.12313,
+     "ci95": [
+      -0.14092,
+      -0.10731
+     ]
+    }
+   },
+   "readiness": "READY",
+   "readiness_reason": "F_plus_availability beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.98, 80% coverage 0.81, no subgroup with >25% relative bias."
+  },
+  {
+   "family": "receptions",
+   "unit": "player-game",
+   "opportunity_family": "targets",
+   "population": "RB/WR/TE who played, mean >= 2 targets over their previous 4 games played (PIT)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.622,
+     "rmse": 2.0817,
+     "bias": -0.0524,
+     "crps": 1.12032,
+     "log_score": 2.0137,
+     "cover_50": 0.4935,
+     "cover_80": 0.7885,
+     "cover_90": 0.8982,
+     "pit_var_ratio": 1.0198,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": -0.04256,
+      "ci95": [
+       -0.05493,
+       -0.03102
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.6138,
+     "rmse": 2.0664,
+     "bias": -0.0106,
+     "crps": 1.10967,
+     "log_score": 2.0035,
+     "cover_50": 0.4896,
+     "cover_80": 0.7904,
+     "cover_90": 0.896,
+     "pit_var_ratio": 1.0219,
+     "vs_baseline": {
+      "mean_diff": -0.01065,
+      "ci95": [
+       -0.0161,
+       -0.00535
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.05321,
+      "ci95": [
+       -0.06538,
+       -0.0423
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.6195,
+     "rmse": 2.0676,
+     "bias": 0.0536,
+     "crps": 1.10883,
+     "log_score": 2.0027,
+     "cover_50": 0.4883,
+     "cover_80": 0.7904,
+     "cover_90": 0.898,
+     "pit_var_ratio": 1.0206,
+     "vs_baseline": {
+      "mean_diff": -0.01149,
+      "ci95": [
+       -0.01778,
+       -0.00551
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.05405,
+      "ci95": [
+       -0.06669,
+       -0.04229
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.6166,
+     "rmse": 2.0629,
+     "bias": 0.0514,
+     "crps": 1.10655,
+     "log_score": 2.0007,
+     "cover_50": 0.4878,
+     "cover_80": 0.7907,
+     "cover_90": 0.8972,
+     "pit_var_ratio": 1.0219,
+     "vs_baseline": {
+      "mean_diff": -0.01376,
+      "ci95": [
+       -0.02052,
+       -0.00704
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.05632,
+      "ci95": [
+       -0.06861,
+       -0.0449
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.5751,
+     "rmse": 2.0324,
+     "bias": -0.0024,
+     "crps": 1.08371,
+     "log_score": 1.977,
+     "cover_50": 0.488,
+     "cover_80": 0.7921,
+     "cover_90": 0.9015,
+     "pit_var_ratio": 1.0179,
+     "vs_baseline": {
+      "mean_diff": -0.0366,
+      "ci95": [
+       -0.04522,
+       -0.02849
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.07916,
+      "ci95": [
+       -0.09246,
+       -0.06627
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.5783,
+     "rmse": 2.0311,
+     "bias": 0.0092,
+     "crps": 1.08391,
+     "log_score": 1.9781,
+     "cover_50": 0.4899,
+     "cover_80": 0.7922,
+     "cover_90": 0.9,
+     "pit_var_ratio": 1.0173,
+     "vs_baseline": {
+      "mean_diff": -0.03641,
+      "ci95": [
+       -0.04424,
+       -0.02923
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.07897,
+      "ci95": [
+       -0.0923,
+       -0.06656
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "D_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.6217,
+     "rmse": 2.0646,
+     "bias": 0.0984,
+     "crps": 1.10728,
+     "log_score": 2.0018,
+     "cover_50": 0.4882,
+     "cover_80": 0.788,
+     "cover_90": 0.8979,
+     "pit_var_ratio": 1.022,
+     "vs_baseline": {
+      "mean_diff": -0.01303,
+      "ci95": [
+       -0.02016,
+       -0.00584
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.05559,
+      "ci95": [
+       -0.06847,
+       -0.04391
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "F_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.581,
+     "rmse": 2.0303,
+     "bias": 0.0492,
+     "crps": 1.0834,
+     "log_score": 1.978,
+     "cover_50": 0.4925,
+     "cover_80": 0.7912,
+     "cover_90": 0.9007,
+     "pit_var_ratio": 1.0168,
+     "vs_baseline": {
+      "mean_diff": -0.03691,
+      "ci95": [
+       -0.04502,
+       -0.02949
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.07947,
+      "ci95": [
+       -0.09289,
+       -0.06688
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "D_plus_availability",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.6157,
+     "rmse": 2.0603,
+     "bias": 0.0768,
+     "crps": 1.10536,
+     "log_score": 2.0003,
+     "cover_50": 0.4878,
+     "cover_80": 0.7875,
+     "cover_90": 0.8983,
+     "pit_var_ratio": 1.0219,
+     "vs_baseline": {
+      "mean_diff": -0.01496,
+      "ci95": [
+       -0.02219,
+       -0.00809
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.05752,
+      "ci95": [
+       -0.07007,
+       -0.04556
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "F_plus_availability",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.5778,
+     "rmse": 2.028,
+     "bias": 0.0337,
+     "crps": 1.08224,
+     "log_score": 1.977,
+     "cover_50": 0.4922,
+     "cover_80": 0.7907,
+     "cover_90": 0.901,
+     "pit_var_ratio": 1.0172,
+     "vs_baseline": {
+      "mean_diff": -0.03808,
+      "ci95": [
+       -0.04597,
+       -0.03062
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.08064,
+      "ci95": [
+       -0.09376,
+       -0.06796
+      ]
+     },
+     "verdict": "best",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.7025,
+     "rmse": 2.2887,
+     "bias": -0.1549,
+     "crps": 1.16287,
+     "log_score": 2.0447,
+     "cover_50": 0.4772,
+     "cover_80": 0.7723,
+     "cover_90": 0.8833,
+     "pit_var_ratio": 1.0507,
+     "vs_baseline": {
+      "mean_diff": 0.04256,
+      "ci95": [
+       0.03102,
+       0.05493
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 1.6322,
+     "rmse": 2.117,
+     "bias": -0.0514,
+     "crps": 1.12963,
+     "log_score": 2.0179,
+     "cover_50": 0.4877,
+     "cover_80": 0.7846,
+     "cover_90": 0.8944,
+     "pit_var_ratio": 1.0315,
+     "vs_baseline": {
+      "mean_diff": 0.00931,
+      "ci95": [
+       0.00201,
+       0.01728
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.03324,
+      "ci95": [
+       -0.04,
+       -0.027
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "F_plus_availability",
+   "holdout": {
+    "model": "F_plus_availability",
+    "n_obs": 6160,
+    "mae": 1.5517,
+    "crps": 1.06262,
+    "bias": 0.0731,
+    "cover_80": 0.8057,
+    "vs_baseline": {
+     "mean_diff": -0.0429,
+     "ci95": [
+      -0.05046,
+      -0.0363
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": -0.06901,
+     "ci95": [
+      -0.08175,
+      -0.05756
+     ]
+    }
+   },
+   "readiness": "READY",
+   "readiness_reason": "F_plus_availability beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.98, 80% coverage 0.81, no subgroup with >25% relative bias."
+  },
+  {
+   "family": "receiving_yards",
+   "unit": "player-game",
+   "opportunity_family": "targets",
+   "population": "RB/WR/TE who played, mean >= 2 targets over their previous 4 games played (PIT)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.4459,
+     "rmse": 28.6236,
+     "bias": -0.3049,
+     "crps": 14.73906,
+     "log_score": 4.4665,
+     "cover_50": 0.5034,
+     "cover_80": 0.805,
+     "cover_90": 0.9041,
+     "pit_var_ratio": 0.9907,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": 0.01959,
+      "ci95": [
+       -0.0631,
+       0.09547
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.4737,
+     "rmse": 28.6416,
+     "bias": -0.175,
+     "crps": 14.72583,
+     "log_score": 4.4516,
+     "cover_50": 0.5045,
+     "cover_80": 0.8031,
+     "cover_90": 0.9024,
+     "pit_var_ratio": 0.995,
+     "vs_baseline": {
+      "mean_diff": -0.01324,
+      "ci95": [
+       -0.06124,
+       0.03267
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00636,
+      "ci95": [
+       -0.07953,
+       0.08552
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.6424,
+     "rmse": 28.5688,
+     "bias": 1.2855,
+     "crps": 14.65979,
+     "log_score": 4.4649,
+     "cover_50": 0.499,
+     "cover_80": 0.8028,
+     "cover_90": 0.9033,
+     "pit_var_ratio": 0.9935,
+     "vs_baseline": {
+      "mean_diff": -0.07927,
+      "ci95": [
+       -0.15031,
+       -0.01248
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.05968,
+      "ci95": [
+       -0.13859,
+       0.0179
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.5735,
+     "rmse": 28.4763,
+     "bias": 1.2618,
+     "crps": 14.61153,
+     "log_score": 4.4412,
+     "cover_50": 0.5021,
+     "cover_80": 0.8048,
+     "cover_90": 0.9011,
+     "pit_var_ratio": 0.9949,
+     "vs_baseline": {
+      "mean_diff": -0.12753,
+      "ci95": [
+       -0.20731,
+       -0.05126
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.10794,
+      "ci95": [
+       -0.18998,
+       -0.03316
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 20.9912,
+     "rmse": 28.4059,
+     "bias": -0.422,
+     "crps": 14.47924,
+     "log_score": 4.4346,
+     "cover_50": 0.5007,
+     "cover_80": 0.8065,
+     "cover_90": 0.9051,
+     "pit_var_ratio": 0.9921,
+     "vs_baseline": {
+      "mean_diff": -0.25982,
+      "ci95": [
+       -0.37588,
+       -0.14877
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.24022,
+      "ci95": [
+       -0.3505,
+       -0.12947
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.1067,
+     "rmse": 28.2046,
+     "bias": 0.2768,
+     "crps": 14.42487,
+     "log_score": 4.442,
+     "cover_50": 0.4999,
+     "cover_80": 0.8046,
+     "cover_90": 0.9005,
+     "pit_var_ratio": 0.9974,
+     "vs_baseline": {
+      "mean_diff": -0.31419,
+      "ci95": [
+       -0.39693,
+       -0.23419
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.2946,
+      "ci95": [
+       -0.3813,
+       -0.21668
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.6709,
+     "rmse": 28.4955,
+     "bias": 1.7921,
+     "crps": 14.60938,
+     "log_score": 4.4361,
+     "cover_50": 0.5016,
+     "cover_80": 0.8046,
+     "cover_90": 0.9004,
+     "pit_var_ratio": 0.9959,
+     "vs_baseline": {
+      "mean_diff": -0.12968,
+      "ci95": [
+       -0.21259,
+       -0.05193
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.11009,
+      "ci95": [
+       -0.19653,
+       -0.03279
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.176,
+     "rmse": 28.1925,
+     "bias": 0.7213,
+     "crps": 14.41621,
+     "log_score": 4.476,
+     "cover_50": 0.5005,
+     "cover_80": 0.8053,
+     "cover_90": 0.8988,
+     "pit_var_ratio": 0.9964,
+     "vs_baseline": {
+      "mean_diff": -0.32285,
+      "ci95": [
+       -0.40534,
+       -0.24255
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.30326,
+      "ci95": [
+       -0.3876,
+       -0.22207
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_plus_availability",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.5809,
+     "rmse": 28.4219,
+     "bias": 1.4268,
+     "crps": 14.58545,
+     "log_score": 4.4566,
+     "cover_50": 0.5031,
+     "cover_80": 0.8035,
+     "cover_90": 0.9004,
+     "pit_var_ratio": 0.9958,
+     "vs_baseline": {
+      "mean_diff": -0.15361,
+      "ci95": [
+       -0.23991,
+       -0.07579
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.13401,
+      "ci95": [
+       -0.22604,
+       -0.0509
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_plus_availability",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.1117,
+     "rmse": 28.149,
+     "bias": 0.4363,
+     "crps": 14.39449,
+     "log_score": 4.4486,
+     "cover_50": 0.5001,
+     "cover_80": 0.804,
+     "cover_90": 0.8985,
+     "pit_var_ratio": 0.9973,
+     "vs_baseline": {
+      "mean_diff": -0.34457,
+      "ci95": [
+       -0.42826,
+       -0.26175
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.32498,
+      "ci95": [
+       -0.41389,
+       -0.24166
+      ]
+     },
+     "verdict": "best",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.4283,
+     "rmse": 28.6149,
+     "bias": -0.0019,
+     "crps": 14.71947,
+     "log_score": 4.4495,
+     "cover_50": 0.5086,
+     "cover_80": 0.8056,
+     "cover_90": 0.9029,
+     "pit_var_ratio": 0.983,
+     "vs_baseline": {
+      "mean_diff": -0.01959,
+      "ci95": [
+       -0.09547,
+       0.0631
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 6373,
+     "n_clusters": 543,
+     "mae": 21.4283,
+     "rmse": 28.6149,
+     "bias": -0.0019,
+     "crps": 14.71947,
+     "log_score": 4.4495,
+     "cover_50": 0.5086,
+     "cover_80": 0.8056,
+     "cover_90": 0.9029,
+     "pit_var_ratio": 0.983,
+     "vs_baseline": {
+      "mean_diff": -0.01959,
+      "ci95": [
+       -0.09547,
+       0.0631
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "F_plus_availability",
+   "holdout": {
+    "model": "F_plus_availability",
+    "n_obs": 6160,
+    "mae": 20.9771,
+    "crps": 14.32178,
+    "bias": 0.9652,
+    "cover_80": 0.811,
+    "vs_baseline": {
+     "mean_diff": -0.37679,
+     "ci95": [
+      -0.44915,
+      -0.30612
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": -0.32533,
+     "ci95": [
+      -0.40583,
+      -0.25231
+     ]
+    }
+   },
+   "readiness": "SHADOW VALIDATION",
+   "readiness_reason": "subgroup failure: team_changed=new team (1st game) bias +6.30 on mean 21.52 (n=506)"
+  },
+  {
+   "family": "carries",
+   "unit": "player-game",
+   "opportunity_family": null,
+   "population": "RBs who played, mean >= 4 carries over their previous 4 games played (PIT)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.5108,
+     "rmse": 5.7406,
+     "bias": -0.208,
+     "crps": 3.17736,
+     "log_score": 3.107,
+     "cover_50": 0.5107,
+     "cover_80": 0.7974,
+     "cover_90": 0.8992,
+     "pit_var_ratio": 0.9897,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": 0.04473,
+      "ci95": [
+       -0.01006,
+       0.09244
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.3579,
+     "rmse": 5.4899,
+     "bias": -0.0707,
+     "crps": 3.01501,
+     "log_score": 3.0549,
+     "cover_50": 0.5031,
+     "cover_80": 0.808,
+     "cover_90": 0.9038,
+     "pit_var_ratio": 0.9987,
+     "vs_baseline": {
+      "mean_diff": -0.16236,
+      "ci95": [
+       -0.21693,
+       -0.10338
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.11763,
+      "ci95": [
+       -0.16626,
+       -0.06599
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.299,
+     "rmse": 5.4249,
+     "bias": -0.1453,
+     "crps": 2.98238,
+     "log_score": 3.0668,
+     "cover_50": 0.5092,
+     "cover_80": 0.8035,
+     "cover_90": 0.9068,
+     "pit_var_ratio": 0.9815,
+     "vs_baseline": {
+      "mean_diff": -0.19498,
+      "ci95": [
+       -0.25094,
+       -0.14251
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.15026,
+      "ci95": [
+       -0.19637,
+       -0.09802
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.2598,
+     "rmse": 5.401,
+     "bias": -0.1115,
+     "crps": 2.96926,
+     "log_score": 3.0375,
+     "cover_50": 0.5163,
+     "cover_80": 0.7979,
+     "cover_90": 0.9053,
+     "pit_var_ratio": 0.9816,
+     "vs_baseline": {
+      "mean_diff": -0.20811,
+      "ci95": [
+       -0.26255,
+       -0.15604
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.16338,
+      "ci95": [
+       -0.21144,
+       -0.11273
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.1417,
+     "rmse": 5.244,
+     "bias": 0.1419,
+     "crps": 2.88492,
+     "log_score": 2.9827,
+     "cover_50": 0.4934,
+     "cover_80": 0.7907,
+     "cover_90": 0.9002,
+     "pit_var_ratio": 1.0182,
+     "vs_baseline": {
+      "mean_diff": -0.29245,
+      "ci95": [
+       -0.35642,
+       -0.22534
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.24772,
+      "ci95": [
+       -0.30566,
+       -0.18855
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb_binned"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.153,
+     "rmse": 5.2484,
+     "bias": 0.0555,
+     "crps": 2.88116,
+     "log_score": 3.0304,
+     "cover_50": 0.5097,
+     "cover_80": 0.8075,
+     "cover_90": 0.9043,
+     "pit_var_ratio": 0.9894,
+     "vs_baseline": {
+      "mean_diff": -0.29621,
+      "ci95": [
+       -0.35525,
+       -0.23579
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.25148,
+      "ci95": [
+       -0.30361,
+       -0.19577
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.2279,
+     "rmse": 5.3607,
+     "bias": 0.0973,
+     "crps": 2.93742,
+     "log_score": 3.0303,
+     "cover_50": 0.5163,
+     "cover_80": 0.7974,
+     "cover_90": 0.9089,
+     "pit_var_ratio": 0.977,
+     "vs_baseline": {
+      "mean_diff": -0.23995,
+      "ci95": [
+       -0.29792,
+       -0.18116
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.19522,
+      "ci95": [
+       -0.24931,
+       -0.13959
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_oracle_availability(bound)",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.258,
+     "rmse": 5.3743,
+     "bias": 0.2903,
+     "crps": 2.94786,
+     "log_score": 3.0428,
+     "cover_50": 0.5193,
+     "cover_80": 0.8004,
+     "cover_90": 0.9033,
+     "pit_var_ratio": 0.9758,
+     "vs_baseline": {
+      "mean_diff": -0.22951,
+      "ci95": [
+       -0.28762,
+       -0.17166
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.18478,
+      "ci95": [
+       -0.23779,
+       -0.12651
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.1273,
+     "rmse": 5.2148,
+     "bias": 0.2385,
+     "crps": 2.85722,
+     "log_score": 3.0037,
+     "cover_50": 0.5107,
+     "cover_80": 0.808,
+     "cover_90": 0.9053,
+     "pit_var_ratio": 0.9841,
+     "vs_baseline": {
+      "mean_diff": -0.32015,
+      "ci95": [
+       -0.38274,
+       -0.25679
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.27542,
+      "ci95": [
+       -0.33172,
+       -0.21554
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_oracle_availability(bound)",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.1521,
+     "rmse": 5.2269,
+     "bias": 0.4405,
+     "crps": 2.85939,
+     "log_score": 3.0189,
+     "cover_50": 0.5137,
+     "cover_80": 0.805,
+     "cover_90": 0.9043,
+     "pit_var_ratio": 0.9829,
+     "vs_baseline": {
+      "mean_diff": -0.31798,
+      "ci95": [
+       -0.37798,
+       -0.25043
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.27325,
+      "ci95": [
+       -0.3279,
+       -0.21429
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_plus_availability",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.2262,
+     "rmse": 5.3596,
+     "bias": 0.0792,
+     "crps": 2.93618,
+     "log_score": 3.0315,
+     "cover_50": 0.5143,
+     "cover_80": 0.7989,
+     "cover_90": 0.9089,
+     "pit_var_ratio": 0.9754,
+     "vs_baseline": {
+      "mean_diff": -0.24118,
+      "ci95": [
+       -0.29934,
+       -0.18203
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.19646,
+      "ci95": [
+       -0.25111,
+       -0.14032
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_plus_availability",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.1255,
+     "rmse": 5.2136,
+     "bias": 0.2262,
+     "crps": 2.85468,
+     "log_score": 3.0016,
+     "cover_50": 0.5102,
+     "cover_80": 0.8096,
+     "cover_90": 0.9043,
+     "pit_var_ratio": 0.983,
+     "vs_baseline": {
+      "mean_diff": -0.32269,
+      "ci95": [
+       -0.38527,
+       -0.25735
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.27796,
+      "ci95": [
+       -0.33497,
+       -0.21854
+      ]
+     },
+     "verdict": "best",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.5501,
+     "rmse": 5.9705,
+     "bias": -0.6247,
+     "crps": 3.13264,
+     "log_score": 3.0583,
+     "cover_50": 0.4924,
+     "cover_80": 0.7938,
+     "cover_90": 0.8977,
+     "pit_var_ratio": 0.9991,
+     "vs_baseline": {
+      "mean_diff": -0.04473,
+      "ci95": [
+       -0.09244,
+       0.01006
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 4.364,
+     "rmse": 5.6054,
+     "bias": -0.1153,
+     "crps": 3.06637,
+     "log_score": 3.0355,
+     "cover_50": 0.5061,
+     "cover_80": 0.803,
+     "cover_90": 0.8997,
+     "pit_var_ratio": 0.9996,
+     "vs_baseline": {
+      "mean_diff": -0.11099,
+      "ci95": [
+       -0.15552,
+       -0.06344
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.06627,
+      "ci95": [
+       -0.08915,
+       -0.04369
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "F_plus_availability",
+   "holdout": {
+    "model": "F_plus_availability",
+    "n_obs": 1957,
+    "mae": 3.9748,
+    "crps": 2.75989,
+    "bias": 0.1002,
+    "cover_80": 0.8166,
+    "vs_baseline": {
+     "mean_diff": -0.27421,
+     "ci95": [
+      -0.33239,
+      -0.22053
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": -0.23317,
+     "ci95": [
+      -0.2854,
+      -0.18079
+     ]
+    }
+   },
+   "readiness": "SHADOW VALIDATION",
+   "readiness_reason": "subgroup failure: team_changed=new team (1st game) bias +2.21 on mean 6.22 (n=181)"
+  },
+  {
+   "family": "rushing_yards",
+   "unit": "player-game",
+   "opportunity_family": "carries",
+   "population": "RBs who played, mean >= 4 carries over their previous 4 games played (PIT)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 25.2296,
+     "rmse": 33.1117,
+     "bias": -0.818,
+     "crps": 17.62557,
+     "log_score": 5.0545,
+     "cover_50": 0.5107,
+     "cover_80": 0.7989,
+     "cover_90": 0.8977,
+     "pit_var_ratio": 0.9833,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": 0.5802,
+      "ci95": [
+       0.41488,
+       0.7452
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.8794,
+     "rmse": 32.521,
+     "bias": 0.0603,
+     "crps": 17.24172,
+     "log_score": 5.0147,
+     "cover_50": 0.5122,
+     "cover_80": 0.7994,
+     "cover_90": 0.9073,
+     "pit_var_ratio": 0.9792,
+     "vs_baseline": {
+      "mean_diff": -0.38385,
+      "ci95": [
+       -0.54437,
+       -0.22709
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.19635,
+      "ci95": [
+       0.0663,
+       0.33792
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.7744,
+     "rmse": 32.2099,
+     "bias": 0.2607,
+     "crps": 17.07738,
+     "log_score": 5.0874,
+     "cover_50": 0.5163,
+     "cover_80": 0.8121,
+     "cover_90": 0.9038,
+     "pit_var_ratio": 0.9722,
+     "vs_baseline": {
+      "mean_diff": -0.54819,
+      "ci95": [
+       -0.76814,
+       -0.33598
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.03201,
+      "ci95": [
+       -0.13461,
+       0.19951
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.6559,
+     "rmse": 32.0587,
+     "bias": 0.4215,
+     "crps": 17.02572,
+     "log_score": 5.0324,
+     "cover_50": 0.5097,
+     "cover_80": 0.806,
+     "cover_90": 0.9012,
+     "pit_var_ratio": 0.9716,
+     "vs_baseline": {
+      "mean_diff": -0.59985,
+      "ci95": [
+       -0.82287,
+       -0.3713
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.01965,
+      "ci95": [
+       -0.1877,
+       0.15187
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.4832,
+     "rmse": 31.9175,
+     "bias": 1.651,
+     "crps": 16.94029,
+     "log_score": 4.9778,
+     "cover_50": 0.5219,
+     "cover_80": 0.808,
+     "cover_90": 0.9145,
+     "pit_var_ratio": 0.9562,
+     "vs_baseline": {
+      "mean_diff": -0.68528,
+      "ci95": [
+       -0.98797,
+       -0.39176
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.10508,
+      "ci95": [
+       -0.36243,
+       0.14299
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.3045,
+     "rmse": 31.5749,
+     "bias": 0.8738,
+     "crps": 16.70813,
+     "log_score": 5.0536,
+     "cover_50": 0.5122,
+     "cover_80": 0.808,
+     "cover_90": 0.9068,
+     "pit_var_ratio": 0.9662,
+     "vs_baseline": {
+      "mean_diff": -0.91744,
+      "ci95": [
+       -1.15451,
+       -0.67357
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.33724,
+      "ci95": [
+       -0.51459,
+       -0.16197
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.6181,
+     "rmse": 31.9529,
+     "bias": 1.3209,
+     "crps": 16.87087,
+     "log_score": 5.0293,
+     "cover_50": 0.5214,
+     "cover_80": 0.8086,
+     "cover_90": 0.9043,
+     "pit_var_ratio": 0.9648,
+     "vs_baseline": {
+      "mean_diff": -0.75469,
+      "ci95": [
+       -1.00061,
+       -0.52223
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.17449,
+      "ci95": [
+       -0.36378,
+       0.00124
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.282,
+     "rmse": 31.4875,
+     "bias": 1.6529,
+     "crps": 16.62204,
+     "log_score": 4.9767,
+     "cover_50": 0.5193,
+     "cover_80": 0.8065,
+     "cover_90": 0.9043,
+     "pit_var_ratio": 0.9644,
+     "vs_baseline": {
+      "mean_diff": -1.00353,
+      "ci95": [
+       -1.25743,
+       -0.75644
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.42333,
+      "ci95": [
+       -0.62185,
+       -0.22653
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_plus_availability",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.5776,
+     "rmse": 31.9379,
+     "bias": 1.1444,
+     "crps": 16.85747,
+     "log_score": 5.0,
+     "cover_50": 0.5204,
+     "cover_80": 0.8136,
+     "cover_90": 0.9033,
+     "pit_var_ratio": 0.9625,
+     "vs_baseline": {
+      "mean_diff": -0.7681,
+      "ci95": [
+       -1.01297,
+       -0.53688
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.1879,
+      "ci95": [
+       -0.37971,
+       -0.00458
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_plus_availability",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.2382,
+     "rmse": 31.4679,
+     "bias": 1.493,
+     "crps": 16.61008,
+     "log_score": 4.9345,
+     "cover_50": 0.5204,
+     "cover_80": 0.804,
+     "cover_90": 0.9038,
+     "pit_var_ratio": 0.9644,
+     "vs_baseline": {
+      "mean_diff": -1.01549,
+      "ci95": [
+       -1.27546,
+       -0.76486
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.43529,
+      "ci95": [
+       -0.63741,
+       -0.23223
+      ]
+     },
+     "verdict": "best",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.6251,
+     "rmse": 32.3002,
+     "bias": 0.2293,
+     "crps": 17.04537,
+     "log_score": 5.1065,
+     "cover_50": 0.5249,
+     "cover_80": 0.8075,
+     "cover_90": 0.9048,
+     "pit_var_ratio": 0.9663,
+     "vs_baseline": {
+      "mean_diff": -0.5802,
+      "ci95": [
+       -0.7452,
+       -0.41488
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 1964,
+     "n_clusters": 543,
+     "mae": 24.6251,
+     "rmse": 32.3002,
+     "bias": 0.2293,
+     "crps": 17.04537,
+     "log_score": 5.1065,
+     "cover_50": 0.5249,
+     "cover_80": 0.8075,
+     "cover_90": 0.9048,
+     "pit_var_ratio": 0.9663,
+     "vs_baseline": {
+      "mean_diff": -0.5802,
+      "ci95": [
+       -0.7452,
+       -0.41488
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "F_plus_availability",
+   "holdout": {
+    "model": "F_plus_availability",
+    "n_obs": 1957,
+    "mae": 24.2582,
+    "crps": 16.76486,
+    "bias": -0.326,
+    "cover_80": 0.8068,
+    "vs_baseline": {
+     "mean_diff": -0.73764,
+     "ci95": [
+      -0.98453,
+      -0.51059
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": -0.24328,
+     "ci95": [
+      -0.45216,
+      -0.03062
+     ]
+    }
+   },
+   "readiness": "SHADOW VALIDATION",
+   "readiness_reason": "subgroup failure: team_changed=new team (1st game) bias +12.26 on mean 24.49 (n=181)"
+  },
+  {
+   "family": "passing_attempts",
+   "unit": "player-game",
+   "opportunity_family": "team_pass_attempts",
+   "population": "the team's starting QB (nflverse schedule starter id; announced pregame)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.9453,
+     "rmse": 8.9465,
+     "bias": -1.8464,
+     "crps": 4.86705,
+     "log_score": 3.699,
+     "cover_50": 0.5194,
+     "cover_80": 0.8226,
+     "cover_90": 0.9067,
+     "pit_var_ratio": 0.955,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": 0.00315,
+      "ci95": [
+       -0.04318,
+       0.04995
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 7.038,
+     "rmse": 9.0114,
+     "bias": -2.1282,
+     "crps": 4.89938,
+     "log_score": 3.7937,
+     "cover_50": 0.5139,
+     "cover_80": 0.8161,
+     "cover_90": 0.9057,
+     "pit_var_ratio": 0.9648,
+     "vs_baseline": {
+      "mean_diff": 0.03232,
+      "ci95": [
+       -0.02083,
+       0.08599
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.03547,
+      "ci95": [
+       -0.01858,
+       0.08513
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 7.1969,
+     "rmse": 9.2142,
+     "bias": -2.1363,
+     "crps": 4.95145,
+     "log_score": 3.756,
+     "cover_50": 0.5176,
+     "cover_80": 0.8179,
+     "cover_90": 0.9039,
+     "pit_var_ratio": 0.9725,
+     "vs_baseline": {
+      "mean_diff": 0.0844,
+      "ci95": [
+       0.02015,
+       0.15262
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.08754,
+      "ci95": [
+       0.02971,
+       0.15021
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 7.174,
+     "rmse": 9.1908,
+     "bias": -2.1655,
+     "crps": 4.8938,
+     "log_score": 3.7516,
+     "cover_50": 0.5277,
+     "cover_80": 0.8179,
+     "cover_90": 0.9094,
+     "pit_var_ratio": 0.9575,
+     "vs_baseline": {
+      "mean_diff": 0.02674,
+      "ci95": [
+       -0.04403,
+       0.09525
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.02989,
+      "ci95": [
+       -0.03324,
+       0.09474
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.8803,
+     "rmse": 8.9302,
+     "bias": 0.0184,
+     "crps": 4.9253,
+     "log_score": 3.8851,
+     "cover_50": 0.5111,
+     "cover_80": 0.8096,
+     "cover_90": 0.8928,
+     "pit_var_ratio": 0.9907,
+     "vs_baseline": {
+      "mean_diff": 0.05824,
+      "ci95": [
+       -0.03783,
+       0.14591
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.06139,
+      "ci95": [
+       -0.01607,
+       0.13545
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.8517,
+     "rmse": 8.8327,
+     "bias": -1.2207,
+     "crps": 4.86012,
+     "log_score": 3.7854,
+     "cover_50": 0.5176,
+     "cover_80": 0.8087,
+     "cover_90": 0.903,
+     "pit_var_ratio": 0.9743,
+     "vs_baseline": {
+      "mean_diff": -0.00693,
+      "ci95": [
+       -0.07287,
+       0.0537
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.00378,
+      "ci95": [
+       -0.05587,
+       0.04617
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "A_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.8151,
+     "rmse": 8.8161,
+     "bias": 1.2818,
+     "crps": 4.82621,
+     "log_score": 3.7768,
+     "cover_50": 0.5231,
+     "cover_80": 0.817,
+     "cover_90": 0.903,
+     "pit_var_ratio": 0.9656,
+     "vs_baseline": {
+      "mean_diff": -0.04084,
+      "ci95": [
+       -0.11239,
+       0.03017
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.0377,
+      "ci95": [
+       -0.10514,
+       0.03245
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "B_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.7687,
+     "rmse": 8.7331,
+     "bias": 1.0043,
+     "crps": 4.81759,
+     "log_score": 3.6579,
+     "cover_50": 0.5259,
+     "cover_80": 0.8216,
+     "cover_90": 0.8993,
+     "pit_var_ratio": 0.9531,
+     "vs_baseline": {
+      "mean_diff": -0.04946,
+      "ci95": [
+       -0.12602,
+       0.02569
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.04632,
+      "ci95": [
+       -0.11735,
+       0.02932
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "nb"
+    },
+    {
+     "model": "C_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.8512,
+     "rmse": 8.8645,
+     "bias": 0.9369,
+     "crps": 4.88167,
+     "log_score": 3.6727,
+     "cover_50": 0.5194,
+     "cover_80": 0.8226,
+     "cover_90": 0.8965,
+     "pit_var_ratio": 0.963,
+     "vs_baseline": {
+      "mean_diff": 0.01461,
+      "ci95": [
+       -0.06682,
+       0.09088
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.01776,
+      "ci95": [
+       -0.05904,
+       0.08969
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb"
+    },
+    {
+     "model": "D_qb_starts_env",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.7055,
+     "rmse": 8.7287,
+     "bias": 0.6599,
+     "crps": 4.80734,
+     "log_score": 3.7515,
+     "cover_50": 0.5139,
+     "cover_80": 0.8179,
+     "cover_90": 0.9048,
+     "pit_var_ratio": 0.9677,
+     "vs_baseline": {
+      "mean_diff": -0.05971,
+      "ci95": [
+       -0.14382,
+       0.02586
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.05657,
+      "ci95": [
+       -0.12987,
+       0.01315
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_qb_starts_env_stack",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.6821,
+     "rmse": 8.6864,
+     "bias": 0.5683,
+     "crps": 4.79588,
+     "log_score": 3.6539,
+     "cover_50": 0.5194,
+     "cover_80": 0.8198,
+     "cover_90": 0.8909,
+     "pit_var_ratio": 0.967,
+     "vs_baseline": {
+      "mean_diff": -0.07117,
+      "ci95": [
+       -0.14822,
+       0.00575
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.06803,
+      "ci95": [
+       -0.13636,
+       -0.00121
+      ]
+     },
+     "verdict": "best",
+     "distribution": "nb"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.8361,
+     "rmse": 8.7876,
+     "bias": 0.7369,
+     "crps": 4.86391,
+     "log_score": 3.5909,
+     "cover_50": 0.5518,
+     "cover_80": 0.8383,
+     "cover_90": 0.9113,
+     "pit_var_ratio": 0.9179,
+     "vs_baseline": {
+      "mean_diff": -0.00315,
+      "ci95": [
+       -0.04995,
+       0.04318
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 6.9041,
+     "rmse": 8.8728,
+     "bias": 0.8264,
+     "crps": 4.91206,
+     "log_score": 3.5994,
+     "cover_50": 0.5499,
+     "cover_80": 0.8309,
+     "cover_90": 0.914,
+     "pit_var_ratio": 0.922,
+     "vs_baseline": {
+      "mean_diff": 0.045,
+      "ci95": [
+       -0.00527,
+       0.09422
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.04815,
+      "ci95": [
+       0.0325,
+       0.06592
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "F_qb_starts_env_stack",
+   "holdout": {
+    "model": "F_qb_starts_env_stack",
+    "n_obs": 1050,
+    "mae": 6.7773,
+    "crps": 4.82097,
+    "bias": 1.1945,
+    "cover_80": 0.8038,
+    "vs_baseline": {
+     "mean_diff": -0.19609,
+     "ci95": [
+      -0.2802,
+      -0.1109
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": -0.13548,
+     "ci95": [
+      -0.20258,
+      -0.06844
+     ]
+    }
+   },
+   "readiness": "SHADOW VALIDATION",
+   "readiness_reason": "validation gain over baseline A not significant (CI crosses 0) although the frozen winner beat A and the incumbent on the 2024-25 holdout; needs a further untouched season before READY"
+  },
+  {
+   "family": "completions",
+   "unit": "player-game",
+   "opportunity_family": "passing_attempts",
+   "population": "the team's starting QB (nflverse schedule starter id; announced pregame)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.9373,
+     "rmse": 6.2964,
+     "bias": -1.2337,
+     "crps": 3.45163,
+     "log_score": 3.405,
+     "cover_50": 0.5111,
+     "cover_80": 0.7994,
+     "cover_90": 0.902,
+     "pit_var_ratio": 0.9758,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": 0.01705,
+      "ci95": [
+       -0.02168,
+       0.05639
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 5.0282,
+     "rmse": 6.388,
+     "bias": -1.3205,
+     "crps": 3.48669,
+     "log_score": 3.4004,
+     "cover_50": 0.512,
+     "cover_80": 0.8087,
+     "cover_90": 0.8993,
+     "pit_var_ratio": 0.9765,
+     "vs_baseline": {
+      "mean_diff": 0.03506,
+      "ci95": [
+       -0.00514,
+       0.07291
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.05212,
+      "ci95": [
+       0.00626,
+       0.09695
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 5.0878,
+     "rmse": 6.4559,
+     "bias": -1.3795,
+     "crps": 3.50574,
+     "log_score": 3.3818,
+     "cover_50": 0.4972,
+     "cover_80": 0.8142,
+     "cover_90": 0.8974,
+     "pit_var_ratio": 0.9867,
+     "vs_baseline": {
+      "mean_diff": 0.05412,
+      "ci95": [
+       0.00904,
+       0.09741
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.07117,
+      "ci95": [
+       0.02108,
+       0.1191
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 5.0359,
+     "rmse": 6.4015,
+     "bias": -1.3879,
+     "crps": 3.47242,
+     "log_score": 3.4162,
+     "cover_50": 0.5028,
+     "cover_80": 0.8142,
+     "cover_90": 0.8956,
+     "pit_var_ratio": 0.9902,
+     "vs_baseline": {
+      "mean_diff": 0.02079,
+      "ci95": [
+       -0.02652,
+       0.06823
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.03784,
+      "ci95": [
+       -0.00771,
+       0.08527
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.7979,
+     "rmse": 6.1989,
+     "bias": -0.0857,
+     "crps": 3.43649,
+     "log_score": 3.3834,
+     "cover_50": 0.5111,
+     "cover_80": 0.8041,
+     "cover_90": 0.89,
+     "pit_var_ratio": 0.9883,
+     "vs_baseline": {
+      "mean_diff": -0.01514,
+      "ci95": [
+       -0.08006,
+       0.0465
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00191,
+      "ci95": [
+       -0.05056,
+       0.05611
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.8109,
+     "rmse": 6.1765,
+     "bias": -0.6809,
+     "crps": 3.41434,
+     "log_score": 3.3519,
+     "cover_50": 0.5083,
+     "cover_80": 0.7985,
+     "cover_90": 0.9011,
+     "pit_var_ratio": 0.9881,
+     "vs_baseline": {
+      "mean_diff": -0.03729,
+      "ci95": [
+       -0.08854,
+       0.01192
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.02023,
+      "ci95": [
+       -0.06314,
+       0.02324
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "A_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.8019,
+     "rmse": 6.2039,
+     "bias": 0.7507,
+     "crps": 3.44309,
+     "log_score": 3.3052,
+     "cover_50": 0.5397,
+     "cover_80": 0.805,
+     "cover_90": 0.8919,
+     "pit_var_ratio": 0.9602,
+     "vs_baseline": {
+      "mean_diff": -0.00854,
+      "ci95": [
+       -0.05752,
+       0.04629
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00851,
+      "ci95": [
+       -0.04545,
+       0.06865
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb"
+    },
+    {
+     "model": "B_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.808,
+     "rmse": 6.1813,
+     "bias": 0.5544,
+     "crps": 3.43791,
+     "log_score": 3.3017,
+     "cover_50": 0.536,
+     "cover_80": 0.8004,
+     "cover_90": 0.8956,
+     "pit_var_ratio": 0.9696,
+     "vs_baseline": {
+      "mean_diff": -0.01371,
+      "ci95": [
+       -0.06845,
+       0.04587
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00334,
+      "ci95": [
+       -0.05389,
+       0.06224
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "nb"
+    },
+    {
+     "model": "C_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.8545,
+     "rmse": 6.262,
+     "bias": 0.5828,
+     "crps": 3.47561,
+     "log_score": 3.3803,
+     "cover_50": 0.5102,
+     "cover_80": 0.7994,
+     "cover_90": 0.89,
+     "pit_var_ratio": 0.9856,
+     "vs_baseline": {
+      "mean_diff": 0.02399,
+      "ci95": [
+       -0.03289,
+       0.08145
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.04104,
+      "ci95": [
+       -0.01849,
+       0.10137
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_qb_starts_env",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.7445,
+     "rmse": 6.1181,
+     "bias": 0.3228,
+     "crps": 3.39548,
+     "log_score": 3.4226,
+     "cover_50": 0.5037,
+     "cover_80": 0.8105,
+     "cover_90": 0.9011,
+     "pit_var_ratio": 0.9877,
+     "vs_baseline": {
+      "mean_diff": -0.05615,
+      "ci95": [
+       -0.11755,
+       0.00235
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.0391,
+      "ci95": [
+       -0.0858,
+       0.01038
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_qb_starts_env_stack",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.7144,
+     "rmse": 6.0857,
+     "bias": 0.2101,
+     "crps": 3.37529,
+     "log_score": 3.3475,
+     "cover_50": 0.5092,
+     "cover_80": 0.805,
+     "cover_90": 0.902,
+     "pit_var_ratio": 0.989,
+     "vs_baseline": {
+      "mean_diff": -0.07634,
+      "ci95": [
+       -0.14065,
+       -0.01762
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -0.05928,
+      "ci95": [
+       -0.10778,
+       -0.01101
+      ]
+     },
+     "verdict": "best",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.7985,
+     "rmse": 6.1656,
+     "bias": 0.2455,
+     "crps": 3.43457,
+     "log_score": 3.2362,
+     "cover_50": 0.5296,
+     "cover_80": 0.8226,
+     "cover_90": 0.9067,
+     "pit_var_ratio": 0.9426,
+     "vs_baseline": {
+      "mean_diff": -0.01705,
+      "ci95": [
+       -0.05639,
+       0.02168
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 4.8489,
+     "rmse": 6.2245,
+     "bias": 0.321,
+     "crps": 3.46827,
+     "log_score": 3.2453,
+     "cover_50": 0.5333,
+     "cover_80": 0.8179,
+     "cover_90": 0.9048,
+     "pit_var_ratio": 0.9485,
+     "vs_baseline": {
+      "mean_diff": 0.01664,
+      "ci95": [
+       -0.02197,
+       0.05644
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.03369,
+      "ci95": [
+       0.01866,
+       0.04918
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "F_qb_starts_env_stack",
+   "holdout": {
+    "model": "F_qb_starts_env_stack",
+    "n_obs": 1050,
+    "mae": 4.6845,
+    "crps": 3.33569,
+    "bias": 0.5556,
+    "cover_80": 0.8057,
+    "vs_baseline": {
+     "mean_diff": -0.13604,
+     "ci95": [
+      -0.19371,
+      -0.07798
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": -0.0907,
+     "ci95": [
+      -0.13656,
+      -0.04308
+     ]
+    }
+   },
+   "readiness": "READY",
+   "readiness_reason": "F_qb_starts_env_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.98, 80% coverage 0.81, no subgroup with >25% relative bias."
+  },
+  {
+   "family": "passing_yards",
+   "unit": "player-game",
+   "opportunity_family": "passing_attempts",
+   "population": "the team's starting QB (nflverse schedule starter id; announced pregame)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 59.3855,
+     "rmse": 75.7517,
+     "bias": -9.9815,
+     "crps": 42.24295,
+     "log_score": 7.3422,
+     "cover_50": 0.5342,
+     "cover_80": 0.8189,
+     "cover_90": 0.9002,
+     "pit_var_ratio": 0.9501,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": 0.79715,
+      "ci95": [
+       0.27958,
+       1.31818
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 60.427,
+     "rmse": 76.7994,
+     "bias": -10.0457,
+     "crps": 42.69665,
+     "log_score": 7.5184,
+     "cover_50": 0.5092,
+     "cover_80": 0.8105,
+     "cover_90": 0.9011,
+     "pit_var_ratio": 0.963,
+     "vs_baseline": {
+      "mean_diff": 0.4537,
+      "ci95": [
+       -0.0127,
+       0.90172
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 1.25085,
+      "ci95": [
+       0.60586,
+       1.92074
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 61.0474,
+     "rmse": 77.6982,
+     "bias": -11.5237,
+     "crps": 42.88,
+     "log_score": 7.7518,
+     "cover_50": 0.5231,
+     "cover_80": 0.805,
+     "cover_90": 0.8891,
+     "pit_var_ratio": 0.971,
+     "vs_baseline": {
+      "mean_diff": 0.63705,
+      "ci95": [
+       0.14459,
+       1.13527
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 1.4342,
+      "ci95": [
+       0.74955,
+       2.14157
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 60.4281,
+     "rmse": 76.801,
+     "bias": -11.5888,
+     "crps": 42.23652,
+     "log_score": 7.4237,
+     "cover_50": 0.512,
+     "cover_80": 0.805,
+     "cover_90": 0.8983,
+     "pit_var_ratio": 0.9783,
+     "vs_baseline": {
+      "mean_diff": -0.00643,
+      "ci95": [
+       -0.59709,
+       0.56116
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.79072,
+      "ci95": [
+       0.09326,
+       1.43831
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 61.0183,
+     "rmse": 77.3556,
+     "bias": 2.6668,
+     "crps": 42.94763,
+     "log_score": 7.5582,
+     "cover_50": 0.4972,
+     "cover_80": 0.7911,
+     "cover_90": 0.9159,
+     "pit_var_ratio": 1.0087,
+     "vs_baseline": {
+      "mean_diff": 0.70468,
+      "ci95": [
+       -0.12063,
+       1.52808
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 1.50183,
+      "ci95": [
+       0.74718,
+       2.24843
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 59.1045,
+     "rmse": 75.3382,
+     "bias": -6.1473,
+     "crps": 42.02947,
+     "log_score": 7.5035,
+     "cover_50": 0.5083,
+     "cover_80": 0.793,
+     "cover_90": 0.9002,
+     "pit_var_ratio": 0.9899,
+     "vs_baseline": {
+      "mean_diff": -0.21348,
+      "ci95": [
+       -0.87771,
+       0.4485
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.58367,
+      "ci95": [
+       -0.03796,
+       1.19798
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "A_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 59.6458,
+     "rmse": 76.0542,
+     "bias": 11.6979,
+     "crps": 42.15069,
+     "log_score": 7.3787,
+     "cover_50": 0.5407,
+     "cover_80": 0.8133,
+     "cover_90": 0.9039,
+     "pit_var_ratio": 0.9481,
+     "vs_baseline": {
+      "mean_diff": -0.09227,
+      "ci95": [
+       -0.67392,
+       0.49498
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.70488,
+      "ci95": [
+       -0.07841,
+       1.48194
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "B_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 59.2735,
+     "rmse": 75.8245,
+     "bias": 10.3259,
+     "crps": 42.1329,
+     "log_score": 7.2241,
+     "cover_50": 0.5268,
+     "cover_80": 0.8068,
+     "cover_90": 0.9011,
+     "pit_var_ratio": 0.957,
+     "vs_baseline": {
+      "mean_diff": -0.11005,
+      "ci95": [
+       -0.77059,
+       0.48861
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.6871,
+      "ci95": [
+       -0.07586,
+       1.43731
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "C_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 60.064,
+     "rmse": 76.7212,
+     "bias": 10.6993,
+     "crps": 42.69777,
+     "log_score": 7.343,
+     "cover_50": 0.5231,
+     "cover_80": 0.8004,
+     "cover_90": 0.8928,
+     "pit_var_ratio": 0.9662,
+     "vs_baseline": {
+      "mean_diff": 0.45482,
+      "ci95": [
+       -0.18422,
+       1.09494
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 1.25197,
+      "ci95": [
+       0.45782,
+       2.05179
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "D_qb_starts_env",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 58.2938,
+     "rmse": 74.4088,
+     "bias": 6.9333,
+     "crps": 41.47441,
+     "log_score": 7.6529,
+     "cover_50": 0.5203,
+     "cover_80": 0.8087,
+     "cover_90": 0.9067,
+     "pit_var_ratio": 0.9719,
+     "vs_baseline": {
+      "mean_diff": -0.76854,
+      "ci95": [
+       -1.51056,
+       -0.07776
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.02861,
+      "ci95": [
+       -0.61081,
+       0.66364
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "F_qb_starts_env_stack",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 58.1221,
+     "rmse": 74.1781,
+     "bias": 5.8994,
+     "crps": 41.45976,
+     "log_score": 7.2855,
+     "cover_50": 0.5074,
+     "cover_80": 0.7967,
+     "cover_90": 0.9011,
+     "pit_var_ratio": 0.9826,
+     "vs_baseline": {
+      "mean_diff": -0.78319,
+      "ci95": [
+       -1.51149,
+       -0.01548
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.01396,
+      "ci95": [
+       -0.59257,
+       0.65221
+      ]
+     },
+     "verdict": "best",
+     "distribution": "empirical_resid"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 58.1403,
+     "rmse": 74.0254,
+     "bias": 3.7637,
+     "crps": 41.4458,
+     "log_score": 5.7149,
+     "cover_50": 0.5434,
+     "cover_80": 0.8179,
+     "cover_90": 0.902,
+     "pit_var_ratio": 0.9407,
+     "vs_baseline": {
+      "mean_diff": -0.79715,
+      "ci95": [
+       -1.31818,
+       -0.27958
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 58.1403,
+     "rmse": 74.0254,
+     "bias": 3.7637,
+     "crps": 41.4458,
+     "log_score": 5.7149,
+     "cover_50": 0.5434,
+     "cover_80": 0.8179,
+     "cover_90": 0.902,
+     "pit_var_ratio": 0.9407,
+     "vs_baseline": {
+      "mean_diff": -0.79715,
+      "ci95": [
+       -1.31818,
+       -0.27958
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "F_qb_starts_env_stack",
+   "holdout": {
+    "model": "F_qb_starts_env_stack",
+    "n_obs": 1050,
+    "mae": 58.2794,
+    "crps": 41.4338,
+    "bias": 9.0412,
+    "cover_80": 0.8114,
+    "vs_baseline": {
+     "mean_diff": -1.36782,
+     "ci95": [
+      -2.13117,
+      -0.64954
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": -0.56307,
+     "ci95": [
+      -1.19364,
+      0.08706
+     ]
+    }
+   },
+   "readiness": "READY",
+   "readiness_reason": "F_qb_starts_env_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.99, 80% coverage 0.81, no subgroup with >25% relative bias."
+  },
+  {
+   "family": "passing_tds",
+   "unit": "player-game",
+   "opportunity_family": "passing_attempts",
+   "population": "the team's starting QB (nflverse schedule starter id; announced pregame)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8431,
+     "rmse": 1.0518,
+     "bias": -0.0017,
+     "crps": 0.56594,
+     "log_score": 1.41,
+     "cover_50": 0.5213,
+     "cover_80": 0.8438,
+     "cover_90": 0.9279,
+     "pit_var_ratio": 0.9205,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": 0.00894,
+      "ci95": [
+       0.00196,
+       0.01626
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "poisson"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8511,
+     "rmse": 1.0582,
+     "bias": 0.0152,
+     "crps": 0.56977,
+     "log_score": 1.4148,
+     "cover_50": 0.5157,
+     "cover_80": 0.8364,
+     "cover_90": 0.9242,
+     "pit_var_ratio": 0.9305,
+     "vs_baseline": {
+      "mean_diff": 0.00382,
+      "ci95": [
+       -0.00183,
+       0.00965
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.01276,
+      "ci95": [
+       0.00396,
+       0.02188
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "poisson"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8494,
+     "rmse": 1.0569,
+     "bias": 0.0003,
+     "crps": 0.56892,
+     "log_score": 1.4135,
+     "cover_50": 0.5157,
+     "cover_80": 0.8346,
+     "cover_90": 0.9261,
+     "pit_var_ratio": 0.9323,
+     "vs_baseline": {
+      "mean_diff": 0.00298,
+      "ci95": [
+       -0.00246,
+       0.00872
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.01192,
+      "ci95": [
+       0.00335,
+       0.0209
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "poisson"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.842,
+     "rmse": 1.0508,
+     "bias": -0.0166,
+     "crps": 0.56044,
+     "log_score": 1.4103,
+     "cover_50": 0.5065,
+     "cover_80": 0.8299,
+     "cover_90": 0.9177,
+     "pit_var_ratio": 0.9533,
+     "vs_baseline": {
+      "mean_diff": -0.0055,
+      "ci95": [
+       -0.01235,
+       0.00165
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00344,
+      "ci95": [
+       -0.00339,
+       0.01066
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8501,
+     "rmse": 1.0621,
+     "bias": 0.0513,
+     "crps": 0.56964,
+     "log_score": 1.4124,
+     "cover_50": 0.512,
+     "cover_80": 0.8281,
+     "cover_90": 0.9113,
+     "pit_var_ratio": 0.9308,
+     "vs_baseline": {
+      "mean_diff": 0.0037,
+      "ci95": [
+       -0.00698,
+       0.01462
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.01264,
+      "ci95": [
+       0.00532,
+       0.02064
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.837,
+     "rmse": 1.0459,
+     "bias": 0.0018,
+     "crps": 0.56259,
+     "log_score": 1.4058,
+     "cover_50": 0.5203,
+     "cover_80": 0.8346,
+     "cover_90": 0.9261,
+     "pit_var_ratio": 0.9231,
+     "vs_baseline": {
+      "mean_diff": -0.00336,
+      "ci95": [
+       -0.01027,
+       0.0039
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00558,
+      "ci95": [
+       -0.00104,
+       0.01207
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "poisson"
+    },
+    {
+     "model": "A_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8825,
+     "rmse": 1.071,
+     "bias": 0.1446,
+     "crps": 0.57398,
+     "log_score": 1.442,
+     "cover_50": 0.524,
+     "cover_80": 0.8318,
+     "cover_90": 0.9168,
+     "pit_var_ratio": 0.932,
+     "vs_baseline": {
+      "mean_diff": 0.00803,
+      "ci95": [
+       0.00115,
+       0.0145
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.01697,
+      "ci95": [
+       0.0076,
+       0.02618
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "B_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8724,
+     "rmse": 1.0696,
+     "bias": 0.1333,
+     "crps": 0.5721,
+     "log_score": 1.4395,
+     "cover_50": 0.5148,
+     "cover_80": 0.8216,
+     "cover_90": 0.9159,
+     "pit_var_ratio": 0.9457,
+     "vs_baseline": {
+      "mean_diff": 0.00616,
+      "ci95": [
+       -0.00119,
+       0.01437
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.0151,
+      "ci95": [
+       0.00575,
+       0.02515
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "C_qb_starts_only",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8722,
+     "rmse": 1.0687,
+     "bias": 0.1362,
+     "crps": 0.57283,
+     "log_score": 1.4389,
+     "cover_50": 0.5157,
+     "cover_80": 0.8309,
+     "cover_90": 0.9159,
+     "pit_var_ratio": 0.9383,
+     "vs_baseline": {
+      "mean_diff": 0.00689,
+      "ci95": [
+       -0.00045,
+       0.01497
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.01583,
+      "ci95": [
+       0.00617,
+       0.02554
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "D_qb_starts_env",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8549,
+     "rmse": 1.0551,
+     "bias": 0.1051,
+     "crps": 0.55936,
+     "log_score": 1.4005,
+     "cover_50": 0.5148,
+     "cover_80": 0.8309,
+     "cover_90": 0.9196,
+     "pit_var_ratio": 0.9472,
+     "vs_baseline": {
+      "mean_diff": -0.00658,
+      "ci95": [
+       -0.01415,
+       0.00097
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00235,
+      "ci95": [
+       -0.0048,
+       0.0096
+      ]
+     },
+     "verdict": "best",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "F_qb_starts_env_stack",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8471,
+     "rmse": 1.0488,
+     "bias": 0.0929,
+     "crps": 0.56044,
+     "log_score": 1.4031,
+     "cover_50": 0.5074,
+     "cover_80": 0.8272,
+     "cover_90": 0.9159,
+     "pit_var_ratio": 0.949,
+     "vs_baseline": {
+      "mean_diff": -0.0055,
+      "ci95": [
+       -0.01312,
+       0.00276
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00344,
+      "ci95": [
+       -0.00289,
+       0.0103
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "empirical_ratio"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8339,
+     "rmse": 1.037,
+     "bias": 0.0474,
+     "crps": 0.557,
+     "log_score": 1.3999,
+     "cover_50": 0.5342,
+     "cover_80": 0.8466,
+     "cover_90": 0.9325,
+     "pit_var_ratio": 0.8976,
+     "vs_baseline": {
+      "mean_diff": -0.00894,
+      "ci95": [
+       -0.01626,
+       -0.00196
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 1082,
+     "n_clusters": 543,
+     "mae": 0.8339,
+     "rmse": 1.037,
+     "bias": 0.0474,
+     "crps": 0.557,
+     "log_score": 1.3999,
+     "cover_50": 0.5342,
+     "cover_80": 0.8466,
+     "cover_90": 0.9325,
+     "pit_var_ratio": 0.8976,
+     "vs_baseline": {
+      "mean_diff": -0.00894,
+      "ci95": [
+       -0.01626,
+       -0.00196
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "D_qb_starts_env",
+   "holdout": {
+    "model": "D_qb_starts_env",
+    "n_obs": 1050,
+    "mae": 0.9275,
+    "crps": 0.61867,
+    "bias": 0.0257,
+    "cover_80": 0.7924,
+    "vs_baseline": {
+     "mean_diff": -0.01286,
+     "ci95": [
+      -0.02222,
+      -0.00382
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": 0.01231,
+     "ci95": [
+      0.00446,
+      0.02086
+     ]
+    }
+   },
+   "readiness": "NEEDS IMPROVEMENT",
+   "readiness_reason": "frozen winner is significantly worse than the incumbent shadow-0.4.0 on holdout"
+  },
+  {
+   "family": "anytime_td",
+   "unit": "player-game",
+   "opportunity_family": "touches",
+   "population": "RB/WR/TE who played with >= 2 targets or >= 4 carries per game over their previous 4 games (PIT)",
+   "models": [
+    {
+     "model": "A_season_avg_shrunk",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.327,
+     "rmse": 0.4081,
+     "bias": -0.0109,
+     "crps": 0.16654,
+     "log_score": 0.5112,
+     "cover_50": 0.5028,
+     "cover_80": 0.794,
+     "cover_90": 0.8945,
+     "pit_var_ratio": 1.0106,
+     "vs_baseline": null,
+     "vs_incumbent": {
+      "mean_diff": 0.00544,
+      "ci95": [
+       0.00399,
+       0.00693
+      ]
+     },
+     "verdict": "baseline",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "B_ewma_shrunk",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.3314,
+     "rmse": 0.407,
+     "bias": -0.0,
+     "crps": 0.16564,
+     "log_score": 0.5083,
+     "cover_50": 0.5087,
+     "cover_80": 0.7988,
+     "cover_90": 0.8988,
+     "pit_var_ratio": 0.9985,
+     "vs_baseline": {
+      "mean_diff": -0.0009,
+      "ci95": [
+       -0.00167,
+       -0.00016
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00454,
+      "ci95": [
+       0.00306,
+       0.00596
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "C_opportunity_x_efficiency",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.3368,
+     "rmse": 0.4036,
+     "bias": 0.019,
+     "crps": 0.16293,
+     "log_score": 0.5004,
+     "cover_50": 0.5166,
+     "cover_80": 0.8042,
+     "cover_90": 0.9018,
+     "pit_var_ratio": 0.9761,
+     "vs_baseline": {
+      "mean_diff": -0.00361,
+      "ci95": [
+       -0.00505,
+       -0.00232
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00182,
+      "ci95": [
+       0.00082,
+       0.00278
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "D_opp_env_adjusted",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.3308,
+     "rmse": 0.4024,
+     "bias": 0.0119,
+     "crps": 0.16195,
+     "log_score": 0.4977,
+     "cover_50": 0.5126,
+     "cover_80": 0.8011,
+     "cover_90": 0.901,
+     "pit_var_ratio": 0.9858,
+     "vs_baseline": {
+      "mean_diff": -0.00459,
+      "ci95": [
+       -0.00601,
+       -0.00322
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00084,
+      "ci95": [
+       -3e-05,
+       0.00175
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "E_lightgbm_walkforward",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.3265,
+     "rmse": 0.4028,
+     "bias": 0.0068,
+     "crps": 0.16223,
+     "log_score": 0.4971,
+     "cover_50": 0.5044,
+     "cover_80": 0.7978,
+     "cover_90": 0.8991,
+     "pit_var_ratio": 0.9973,
+     "vs_baseline": {
+      "mean_diff": -0.00431,
+      "ci95": [
+       -0.00615,
+       -0.00253
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00112,
+      "ci95": [
+       -0.00017,
+       0.0024
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "F_stack",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.3299,
+     "rmse": 0.4015,
+     "bias": 0.0107,
+     "crps": 0.16124,
+     "log_score": 0.4955,
+     "cover_50": 0.5096,
+     "cover_80": 0.8029,
+     "cover_90": 0.9014,
+     "pit_var_ratio": 0.9853,
+     "vs_baseline": {
+      "mean_diff": -0.0053,
+      "ci95": [
+       -0.00673,
+       -0.00393
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00013,
+      "ci95": [
+       -0.00074,
+       0.00098
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "D_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.3323,
+     "rmse": 0.4025,
+     "bias": 0.0152,
+     "crps": 0.16198,
+     "log_score": 0.4978,
+     "cover_50": 0.5146,
+     "cover_80": 0.8022,
+     "cover_90": 0.901,
+     "pit_var_ratio": 0.9827,
+     "vs_baseline": {
+      "mean_diff": -0.00456,
+      "ci95": [
+       -0.00602,
+       -0.00314
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00087,
+      "ci95": [
+       -4e-05,
+       0.00178
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "F_plus_vacated_opportunity",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.3312,
+     "rmse": 0.4016,
+     "bias": 0.0136,
+     "crps": 0.16124,
+     "log_score": 0.4956,
+     "cover_50": 0.5125,
+     "cover_80": 0.8036,
+     "cover_90": 0.9015,
+     "pit_var_ratio": 0.9825,
+     "vs_baseline": {
+      "mean_diff": -0.0053,
+      "ci95": [
+       -0.0068,
+       -0.00383
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00014,
+      "ci95": [
+       -0.00075,
+       0.00102
+      ]
+     },
+     "verdict": "competitive",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "D_plus_availability",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.331,
+     "rmse": 0.4022,
+     "bias": 0.0126,
+     "crps": 0.16178,
+     "log_score": 0.4974,
+     "cover_50": 0.5126,
+     "cover_80": 0.8013,
+     "cover_90": 0.9005,
+     "pit_var_ratio": 0.9851,
+     "vs_baseline": {
+      "mean_diff": -0.00476,
+      "ci95": [
+       -0.00624,
+       -0.00334
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.00068,
+      "ci95": [
+       -0.00031,
+       0.00163
+      ]
+     },
+     "verdict": "rejected",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "F_plus_availability",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.33,
+     "rmse": 0.4014,
+     "bias": 0.0113,
+     "crps": 0.16108,
+     "log_score": 0.4953,
+     "cover_50": 0.5111,
+     "cover_80": 0.8028,
+     "cover_90": 0.9008,
+     "pit_var_ratio": 0.9847,
+     "vs_baseline": {
+      "mean_diff": -0.00546,
+      "ci95": [
+       -0.00697,
+       -0.00405
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": -2e-05,
+      "ci95": [
+       -0.00094,
+       0.00083
+      ]
+     },
+     "verdict": "best",
+     "distribution": "bernoulli"
+    },
+    {
+     "model": "incumbent_shadow-0.4.0",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.3245,
+     "rmse": 0.4014,
+     "bias": 0.0032,
+     "crps": 0.16111,
+     "log_score": 0.4948,
+     "cover_50": 0.5032,
+     "cover_80": 0.7994,
+     "cover_90": 0.8998,
+     "pit_var_ratio": 0.9959,
+     "vs_baseline": {
+      "mean_diff": -0.00544,
+      "ci95": [
+       -0.00693,
+       -0.00399
+      ]
+     },
+     "vs_incumbent": null,
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    },
+    {
+     "model": "challenger_shadow-0.5.0",
+     "split": "validation",
+     "n_obs": 7118,
+     "n_clusters": 543,
+     "mae": 0.3245,
+     "rmse": 0.4014,
+     "bias": 0.0032,
+     "crps": 0.16111,
+     "log_score": 0.4948,
+     "cover_50": 0.5032,
+     "cover_80": 0.7994,
+     "cover_90": 0.8998,
+     "pit_var_ratio": 0.9959,
+     "vs_baseline": {
+      "mean_diff": -0.00544,
+      "ci95": [
+       -0.00693,
+       -0.00399
+      ]
+     },
+     "vs_incumbent": {
+      "mean_diff": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ]
+     },
+     "verdict": "incumbent",
+     "distribution": "incumbent_own"
+    }
+   ],
+   "best_model": "F_plus_availability",
+   "holdout": {
+    "model": "F_plus_availability",
+    "n_obs": 6965,
+    "mae": 0.3434,
+    "crps": 0.17248,
+    "bias": -0.0074,
+    "cover_80": 0.7983,
+    "vs_baseline": {
+     "mean_diff": -0.00629,
+     "ci95": [
+      -0.00764,
+      -0.00499
+     ]
+    },
+    "vs_incumbent": {
+     "mean_diff": -0.00112,
+     "ci95": [
+      -0.00208,
+      -5e-05
+     ]
+    }
+   },
+   "readiness": "SHADOW VALIDATION",
+   "readiness_reason": "subgroup failure: team_changed=new team (1st game) bias +0.07 on mean 0.14 (n=607)"
+  }
+ ],
+ "experiments": [
+  {
+   "id": "NFL-PF-01-ladder",
+   "question": "Which rung of the A..F ladder projects each family best?",
+   "hypothesis": "Structured opportunity x efficiency models (C/D) and learned models (E/F) beat shrunk averages (A/B).",
+   "method": "Walk-forward: A-D are point-in-time formulas whose few hyperparameters (shrinkage k, EWMA halflife, elasticities) were tuned on 2016-2021; E is LightGBM refitted every season on all earlier seasons; F is a non-negative stack fitted on 2016-2021 predictions. Each model gets its own distribution fitted on its development residuals; validation (2022-23) selects.",
+   "data": "nflverse 2012-2025 regular seasons; team_pass_attempts n_val=1086, team_rush_attempts n_val=1086, team_points n_val=1086, targets n_val=6373, receptions n_val=6373, receiving_yards n_val=6373, carries n_val=1964, rushing_yards n_val=1964, passing_attempts n_val=1082, completions n_val=1082, passing_yards n_val=1082, passing_tds n_val=1082, anytime_td n_val=7118",
+   "result": "team_pass_attempts: best F (val CRPS 4.2570 vs A 4.3159); team_rush_attempts: best F (val CRPS 4.1370 vs A 4.2102); team_points: best F (val CRPS 5.0486 vs A 5.2659); targets: best F_av (val CRPS 1.3844 vs A 1.4531); receptions: best F_av (val CRPS 1.0822 vs A 1.1203); receiving_yards: best F_av (val CRPS 14.3945 vs A 14.7391); carries: best F_av (val CRPS 2.8547 vs A 3.1774); rushing_yards: best F_av (val CRPS 16.6101 vs A 17.6256); passing_attempts: best F_qs (val CRPS 4.7959 vs A 4.8671); completions: best F_qs (val CRPS 3.3753 vs A 3.4516); passing_yards: best F_qs (val CRPS 41.4598 vs A 42.2430); passing_tds: best D_qs (val CRPS 0.5594 vs A 0.5659); anytime_td: best F_av (val CRPS 0.1611 vs A 0.1665)",
+   "interpretation": "See per-family tables. Gains over A are game-clustered paired differences on identical player-games.",
+   "decision": "adopt"
+  },
+  {
+   "id": "NFL-PF-02-opponent",
+   "question": "Does a schedule-adjusted opponent factor (rolling ridge, refitted before every week) plus closing spread/total improve player projections beyond opportunity x efficiency?",
+   "hypothesis": "D beats C on validation CRPS.",
+   "method": "D = C with team volume from the opponent/environment team model and an efficiency elasticity beta on the opponent's ridge factor, beta fitted by Poisson (Bernoulli for TD) likelihood on 2016-2021 only.",
+   "data": "validation 2022-2023, paired on identical player-games, games as clusters",
+   "result": "D better than C (CI excludes 0) in 6/7 efficiency families, worse in 0/7. receptions: -0.0023 [-0.0041, -0.0004] \u2714; receiving_yards: -0.0483 [-0.0758, -0.0204] \u2714; rushing_yards: -0.0517 [-0.1205, +0.0206]; completions: -0.0333 [-0.0578, -0.0101] \u2714; passing_yards: -0.6435 [-1.0147, -0.2745] \u2714; passing_tds: -0.0085 [-0.0142, -0.0030] \u2714; anytime_td: -0.0010 [-0.0016, -0.0003] \u2714",
+   "interpretation": "Negative = D better. Opponent effects in the NFL box score are small relative to player-game noise; the gain, where it exists, is modest.",
+   "decision": "adopt"
+  },
+  {
+   "id": "NFL-PF-03-game-environment",
+   "question": "Do the closing spread and total add to the opponent-adjusted team volume projection?",
+   "hypothesis": "D (opponent + environment) beats D_opp (opponent only) for team pass/rush attempts and points.",
+   "method": "Poisson log-linear elasticities on B (EWMA) fitted on 2016-2021; spread/7 and (total-44)/7 terms; for points log(implied/B).",
+   "data": "validation 2022-2023 team-games",
+   "result": "team_pass_attempts: D - D_opp -0.0231 [-0.0460, -0.0002] \u2714; D_opp - B -0.0245 [-0.0467, +0.0006]; team_rush_attempts: D - D_opp -0.0197 [-0.0432, +0.0026]; D_opp - B -0.0443 [-0.0851, +0.0006]; team_points: D - D_opp -0.1485 [-0.2193, -0.0720] \u2714; D_opp - B -0.0644 [-0.1090, -0.0134] \u2714",
+   "interpretation": "The closing line carries most of the pregame information on team points and rush volume; pass volume is nearly spread-neutral in aggregate (2016-21: 34.0 attempts as a 7+ point underdog vs 34.6 as a 7+ favourite) while rush attempts rise from 24.4 to 28.5.",
+   "decision": "adopt"
+  },
+  {
+   "id": "NFL-PF-04-vacated-opportunity",
+   "question": "Do teammates listed OUT/DOUBTFUL on the final injury report explain part of the opportunity error (the mean_defect 'listing/role' residual)?",
+   "hypothesis": "Renormalising a player's share for vacated teammate opportunity, share x (1-vacated)^(-gamma), improves targets/carries projections.",
+   "method": "vacated = sum of the listed teammates' EWMA target-per-attempt (carry share) among players who appeared in the team's last 3 games; gamma fitted on 2016-2021 (gamma=1 is proportional redistribution). An 'oracle' version uses who actually did not play (post-game) as an upper bound.",
+   "data": "29.0% of player-games have >5% of team targets vacated by listed teammates",
+   "result": "gamma(D,targets)=0.29, gamma(D,carries)=0.40; oracle gammas 0.06/0.14. Validation: targets: D_vac-D +0.0011 [-0.0014, +0.0034], F_vac-F +0.0001 [-0.0022, +0.0021], oracle-D +0.0009 [-0.0004, +0.0024]; receptions: D_vac-D +0.0007 [-0.0010, +0.0021], F_vac-F -0.0005 [-0.0019, +0.0007], oracle-D n/a; receiving_yards: D_vac-D -0.0021 [-0.0186, +0.0145], F_vac-F -0.0087 [-0.0235, +0.0061], oracle-D n/a; carries: D_vac-D -0.0318 [-0.0499, -0.0152] \u2714, F_vac-F -0.0239 [-0.0405, -0.0100] \u2714, oracle-D -0.0214 [-0.0346, -0.0088] \u2714; rushing_yards: D_vac-D -0.1548 [-0.2338, -0.0841] \u2714, F_vac-F -0.0861 [-0.1584, -0.0237] \u2714, oracle-D n/a; anytime_td: D_vac-D +0.0000 [-0.0002, +0.0002], F_vac-F +0.0000 [-0.0002, +0.0002], oracle-D n/a",
+   "interpretation": "Injury-report availability is the pregame-legitimate part of the role signal; the oracle bound shows how much better gameday availability information could be worth.",
+   "decision": "adopt"
+  },
+  {
+   "id": "NFL-PF-05-incumbent",
+   "question": "How do the frozen winners compare with the incumbent shadow-0.4.0 and the shadow-0.5.0 challenger, replayed walk-forward with their own code?",
+   "hypothesis": "The foundation models are at least as accurate as the incumbents.",
+   "method": "nfl/incumbent.py replays fit_bundle (seasons 2016..T-1) for T=2017..2026 with the frozen design (0.4.0) and the challenger design (0.5.0, in-memory function swap, no file edits) and scores the incumbents' own pmfs on the same player-games.",
+   "data": "validation 2022-2023 and holdout 2024-2025, paired rows present in both",
+   "result": "targets: best-vs-0.4.0 -0.1292 [-0.1460, -0.1126] \u2714, 0.5.0-0.4.0 -0.0507 [-0.0600, -0.0421] \u2714; receptions: best-vs-0.4.0 -0.0806 [-0.0938, -0.0680] \u2714, 0.5.0-0.4.0 -0.0332 [-0.0400, -0.0270] \u2714; receiving_yards: best-vs-0.4.0 -0.3250 [-0.4139, -0.2417] \u2714, 0.5.0-0.4.0 +0.0000 [+0.0000, +0.0000]; carries: best-vs-0.4.0 -0.2780 [-0.3350, -0.2185] \u2714, 0.5.0-0.4.0 -0.0663 [-0.0892, -0.0437] \u2714; rushing_yards: best-vs-0.4.0 -0.4353 [-0.6374, -0.2322] \u2714, 0.5.0-0.4.0 +0.0000 [+0.0000, +0.0000]; passing_attempts: best-vs-0.4.0 -0.0680 [-0.1364, -0.0012] \u2714, 0.5.0-0.4.0 +0.0482 [+0.0325, +0.0659] \u2718; completions: best-vs-0.4.0 -0.0593 [-0.1078, -0.0110] \u2714, 0.5.0-0.4.0 +0.0337 [+0.0187, +0.0492] \u2718; passing_yards: best-vs-0.4.0 +0.0140 [-0.5926, +0.6522], 0.5.0-0.4.0 +0.0000 [+0.0000, +0.0000]; passing_tds: best-vs-0.4.0 +0.0024 [-0.0048, +0.0096], 0.5.0-0.4.0 +0.0000 [+0.0000, +0.0000]; anytime_td: best-vs-0.4.0 -0.0000 [-0.0009, +0.0008], 0.5.0-0.4.0 +0.0000 [+0.0000, +0.0000]",
+   "interpretation": "Replay note: the research frame includes current-season games, so defect D1 (live history missing this season) does not affect this replay; the comparison is of model design only, which understates the incumbent's live 2026 error.",
+   "decision": "adopt"
+  },
+  {
+   "id": "NFL-PF-06-availability",
+   "question": "How much does the participation convention matter, and how well does pregame information predict participation?",
+   "hypothesis": "Final injury designations predict DNP well; most DNPs of role players are flagged.",
+   "method": "Candidates = role players (>=2 targets or >=4 carries per game) who appeared in one of the team's last 3 games; P(play | designation) fitted on 2016-21; targets CRPS on the full candidate set (DNP = 0) for 'assume he plays' vs the participation hurdle.",
+   "data": "validation candidates n=8165",
+   "result": "DNP rate 15.8%; Brier designation model 0.0967 vs constant 0.1330; 59% of DNPs carried no designation; among published (not OUT) projections DNP rate 12.2%, CRPS assume-plays 1.457 vs hurdle 1.415",
+   "interpretation": "Projections are published conditional on participation (prop void convention); the hurdle is the right object for any consumer that does not void DNPs.",
+   "decision": "adopt"
+  }
+ ],
+ "error_investigations": [
+  {
+   "pattern": "targets: early season (weeks 1-3)",
+   "frequency": "n=4791 player-games (dev+val)",
+   "impact": "bias +0.05 on mean 4.53 (+1%), MAE 2.11",
+   "cause": "",
+   "status": "ruled out",
+   "action": ""
+  },
+  {
+   "pattern": "targets: rookies",
+   "frequency": "n=2836 player-games (dev+val)",
+   "impact": "bias +0.03 on mean 4.18 (+1%), MAE 1.99",
+   "cause": "",
+   "status": "ruled out",
+   "action": ""
+  },
+  {
+   "pattern": "targets: first game with a new team",
+   "frequency": "n=506 player-games (dev+val)",
+   "impact": "bias +0.54 on mean 2.95 (+18%), MAE 2.04",
+   "cause": "",
+   "status": "verified defect",
+   "action": ""
+  },
+  {
+   "pattern": "targets: team's starting QB changed",
+   "frequency": "n=2978 player-games (dev+val)",
+   "impact": "bias +0.11 on mean 4.47 (+3%), MAE 2.12",
+   "cause": "",
+   "status": "ruled out",
+   "action": ""
+  },
+  {
+   "pattern": "targets: teammates listed out vacate >25% of targets",
+   "frequency": "n=848 player-games (dev+val)",
+   "impact": "bias +0.00 on mean 4.77 (+0%), MAE 2.21",
+   "cause": "",
+   "status": "ruled out",
+   "action": ""
+  },
+  {
+   "pattern": "carries: RB committees",
+   "frequency": "n=3277 player-games (dev+val)",
+   "impact": "bias +0.02 on mean 12.16 (+0%), MAE 4.38",
+   "cause": "",
+   "status": "ruled out",
+   "action": ""
+  },
+  {
+   "pattern": "carries: change-of-pace RBs",
+   "frequency": "n=3175 player-games (dev+val)",
+   "impact": "bias +0.30 on mean 6.64 (+5%), MAE 3.81",
+   "cause": "",
+   "status": "ruled out",
+   "action": ""
+  },
+  {
+   "pattern": "receiving_yards: WR1s",
+   "frequency": "n=4185 player-games (dev+val)",
+   "impact": "bias -2.20 on mean 63.52 (-3%), MAE 30.39",
+   "cause": "",
+   "status": "ruled out",
+   "action": ""
+  },
+  {
+   "pattern": "receiving_yards: WR3+",
+   "frequency": "n=5486 player-games (dev+val)",
+   "impact": "bias +2.13 on mean 25.83 (+8%), MAE 20.67",
+   "cause": "",
+   "status": "hypothesis",
+   "action": ""
+  },
+  {
+   "pattern": "targets: played through a Questionable tag",
+   "frequency": "n=1592 player-games (dev+val)",
+   "impact": "bias +0.03 on mean 4.76 (+1%), MAE 2.15",
+   "cause": "",
+   "status": "ruled out",
+   "action": ""
+  },
+  {
+   "pattern": "passing_yards: QB starts after a QB change",
+   "frequency": "n=510 player-games (dev+val)",
+   "impact": "bias +10.76 on mean 212.76 (+5%), MAE 60.58",
+   "cause": "",
+   "status": "hypothesis",
+   "action": ""
+  },
+  {
+   "pattern": "rushing_yards: RBs on 7+ point favourites",
+   "frequency": "n=968 player-games (dev+val)",
+   "impact": "bias -1.02 on mean 48.40 (-2%), MAE 24.64",
+   "cause": "",
+   "status": "ruled out",
+   "action": ""
+  }
+ ],
+ "opponent_adjustment": {
+  "summary": "Opponent factors come from pf_core.pit.rolling_ridge_ratings (schedule-adjusted offence/defence ridge, refitted before every week on all earlier games, prior seasons decayed x0.5). Elasticities were fitted on 2016-2021 only.",
+  "results": [
+   {
+    "family": "team_pass_attempts",
+    "comparison": "D_opp - B",
+    "crps_diff": {
+     "mean_diff": -0.024529416703154738,
+     "ci95": [
+      -0.04667516353550231,
+      0.0005738647976103873
+     ],
+     "z": -2.0666291273394335,
+     "mae_diff": {
+      "mean_diff": -0.048232584586683884,
+      "ci95": [
+       -0.08765779114088496,
+       -0.005201506819490416
+      ],
+      "z": -2.348513155238745
+     },
+     "n_common": 1086
+    }
+   },
+   {
+    "family": "team_rush_attempts",
+    "comparison": "D_opp - B",
+    "crps_diff": {
+     "mean_diff": -0.04432394471551576,
+     "ci95": [
+      -0.08506384064780155,
+      0.000606453533148445
+     ],
+     "z": -2.0310952177844683,
+     "mae_diff": {
+      "mean_diff": -0.08353714304055479,
+      "ci95": [
+       -0.14697221849428502,
+       -0.012496702425020356
+      ],
+      "z": -2.370901446386106
+     },
+     "n_common": 1086
+    }
+   },
+   {
+    "family": "team_points",
+    "comparison": "D_opp - B",
+    "crps_diff": {
+     "mean_diff": -0.06444973523740508,
+     "ci95": [
+      -0.10898117257719983,
+      -0.013358554067328485
+     ],
+     "z": -2.723492163761085,
+     "mae_diff": {
+      "mean_diff": -0.09064059973211061,
+      "ci95": [
+       -0.169065261017193,
+       -0.004191485291358735
+      ],
+      "z": -2.093856847994991
+     },
+     "n_common": 1086
+    }
+   },
+   {
+    "family": "targets",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.00043489866894635515,
+     "ci95": [
+      -0.00240890972193738,
+      0.0018036247407574248
+     ],
+     "z": -0.4066467809862882,
+     "mae_diff": {
+      "mean_diff": -0.0002693519621467312,
+      "ci95": [
+       -0.0037665018483629157,
+       0.0034452048536158923
+      ],
+      "z": -0.14194770281372962
+     },
+     "n_common": 6373
+    }
+   },
+   {
+    "family": "receptions",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.0022728840814052265,
+     "ci95": [
+      -0.004084951384951632,
+      -0.00041705008185565753
+     ],
+     "z": -2.3846432053349256,
+     "mae_diff": {
+      "mean_diff": -0.0028222205579437067,
+      "ci95": [
+       -0.005831621814644501,
+       0.0002766797935818532
+      ],
+      "z": -1.7970029514901744
+     },
+     "n_common": 6373
+    }
+   },
+   {
+    "family": "receiving_yards",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.048256544075070205,
+     "ci95": [
+      -0.07582862800065648,
+      -0.020358195806164384
+     ],
+     "z": -3.3811209165840217,
+     "mae_diff": {
+      "mean_diff": -0.0689023836156919,
+      "ci95": [
+       -0.11505925321704805,
+       -0.02200595532791493
+      ],
+      "z": -2.877056516956683
+     },
+     "n_common": 6373
+    }
+   },
+   {
+    "family": "carries",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.013121782937974044,
+     "ci95": [
+      -0.0260230763126804,
+      -0.00020436328177783936
+     ],
+     "z": -1.946359360920122,
+     "mae_diff": {
+      "mean_diff": -0.0392290594013049,
+      "ci95": [
+       -0.059279317451698454,
+       -0.02019157474057038
+      ],
+      "z": -3.962980349204911
+     },
+     "n_common": 1964
+    }
+   },
+   {
+    "family": "rushing_yards",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.05165825810238748,
+     "ci95": [
+      -0.12050066118102698,
+      0.020639065480115133
+     ],
+     "z": -1.4075588947047055,
+     "mae_diff": {
+      "mean_diff": -0.11846607779171454,
+      "ci95": [
+       -0.2323179647513537,
+       -0.011167100904666077
+      ],
+      "z": -2.0829190111085594
+     },
+     "n_common": 1964
+    }
+   },
+   {
+    "family": "passing_attempts",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.05765216112016161,
+     "ci95": [
+      -0.08924597721113192,
+      -0.024813277002131786
+     ],
+     "z": -3.4752086348776254,
+     "mae_diff": {
+      "mean_diff": -0.02295961473322452,
+      "ci95": [
+       -0.07288281661823975,
+       0.025774414259734126
+      ],
+      "z": -0.9148759527687831
+     },
+     "n_common": 1082
+    }
+   },
+   {
+    "family": "completions",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.03332877834772725,
+     "ci95": [
+      -0.05779140826318738,
+      -0.01010178482696985
+     ],
+     "z": -2.663020456164142,
+     "mae_diff": {
+      "mean_diff": -0.051877942780761854,
+      "ci95": [
+       -0.09820583617310927,
+       -0.009026064147730748
+      ],
+      "z": -2.25057464063063
+     },
+     "n_common": 1082
+    }
+   },
+   {
+    "family": "passing_yards",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.6434800685835507,
+     "ci95": [
+      -1.0146846200281767,
+      -0.2745255364497444
+     ],
+     "z": -3.399788853260035,
+     "mae_diff": {
+      "mean_diff": -0.6192725482719951,
+      "ci95": [
+       -1.2227758954646761,
+       -0.04464001731544805
+      ],
+      "z": -2.091287103887266
+     },
+     "n_common": 1082
+    }
+   },
+   {
+    "family": "passing_tds",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.008477798722379432,
+     "ci95": [
+      -0.014219231720290262,
+      -0.002967220038253324
+     ],
+     "z": -2.930698483808784,
+     "mae_diff": {
+      "mean_diff": -0.0073863317578439155,
+      "ci95": [
+       -0.01590104492525483,
+       0.0011887318191443658
+      ],
+      "z": -1.6936076015848953
+     },
+     "n_common": 1082
+    }
+   },
+   {
+    "family": "anytime_td",
+    "comparison": "D - C",
+    "crps_diff": {
+     "mean_diff": -0.0009810201177951092,
+     "ci95": [
+      -0.0016413478107640451,
+      -0.0003344764068121104
+     ],
+     "z": -2.932881605548052,
+     "mae_diff": {
+      "mean_diff": -0.0060067736641294745,
+      "ci95": [
+       -0.0070354030520927415,
+       -0.0049996834529027825
+      ],
+      "z": -11.653139503111028
+     },
+     "n_common": 7118
+    }
+   }
+  ],
+  "elasticities": {
+   "receptions": {
+    "factors": [
+     "opp_factor_catch_rate"
+    ],
+    "beta": [
+     0.8818681481063906
+    ]
+   },
+   "receiving_yards": {
+    "factors": [
+     "opp_factor_ypt"
+    ],
+    "beta": [
+     0.8174788423828859
+    ]
+   },
+   "rushing_yards": {
+    "factors": [
+     "opp_factor_ypc"
+    ],
+    "beta": [
+     0.6956452239071221
+    ]
+   },
+   "completions": {
+    "factors": [
+     "opp_factor_comp_pct"
+    ],
+    "beta": [
+     1.0268118197629623
+    ]
+   },
+   "passing_yards": {
+    "factors": [
+     "opp_factor_ypa"
+    ],
+    "beta": [
+     0.8804668907808643
+    ]
+   },
+   "passing_tds": {
+    "factors": [
+     "opp_factor_ptd_rate",
+     "_implied_ratio"
+    ],
+    "beta": [
+     0.34686078457380604,
+     0.469220478796466
+    ]
+   },
+   "anytime_td": {
+    "factors": [
+     "implied_ratio",
+     "opp_factor_points"
+    ],
+    "beta": [
+     0.8064060525021596,
+     0.2776797323440209
+    ]
+   },
+   "team_pass_attempts": {
+    "factors": [
+     "log opp ridge factor",
+     "home"
+    ],
+    "beta": [
+     0.5840858886783292,
+     -0.0019351320710803675
+    ]
+   },
+   "team_rush_attempts": {
+    "factors": [
+     "log opp ridge factor",
+     "home"
+    ],
+    "beta": [
+     0.8969283004478884,
+     0.028057355393755846
+    ]
+   },
+   "team_points": {
+    "factors": [
+     "log opp ridge factor",
+     "home"
+    ],
+    "beta": [
+     0.87816343972502,
+     0.06703697225026242
+    ]
+   }
+  }
+ },
+ "opportunity": {
+  "summary": "Opportunity (team volume and player share) is projected first; efficiency families inherit it.",
+  "results": [
+   {
+    "family": "team_pass_attempts",
+    "best": "F",
+    "mae": 6.078833280040351,
+    "bias": 0.44932339349683464,
+    "corr": 0.3406981923961127,
+    "crps": 4.257002878546913,
+    "vs_A": {
+     "mean_diff": -0.058915226262960585,
+     "ci95": [
+      -0.10494032603582608,
+      -0.010101998900917081
+     ],
+     "z": -2.4386655945789038,
+     "mae_diff": {
+      "mean_diff": -0.115117329451711,
+      "ci95": [
+       -0.19462187100134423,
+       -0.039851227211322345
+      ],
+      "z": -2.9104872743236045
+     },
+     "n_common": 1086
+    }
+   },
+   {
+    "family": "team_rush_attempts",
+    "best": "F",
+    "mae": 5.86739733604493,
+    "bias": -0.1346735092229487,
+    "corr": 0.29011435972969907,
+    "crps": 4.136962983730501,
+    "vs_A": {
+     "mean_diff": -0.07324085543987036,
+     "ci95": [
+      -0.11996063383172727,
+      -0.02322244239265911
+     ],
+     "z": -3.00863753097929,
+     "mae_diff": {
+      "mean_diff": -0.10846909105452963,
+      "ci95": [
+       -0.18232779845063907,
+       -0.024022393218606698
+      ],
+      "z": -2.6876984641329935
+     },
+     "n_common": 1086
+    }
+   },
+   {
+    "family": "targets",
+    "best": "F_av",
+    "mae": 2.014376045092635,
+    "bias": 0.12138702727817986,
+    "corr": 0.6517452410099398,
+    "crps": 1.3843649322452318,
+    "vs_A": {
+     "mean_diff": -0.06875051066198604,
+     "ci95": [
+      -0.08016841705563668,
+      -0.05730328611018387
+     ],
+     "z": -11.796983446375025,
+     "mae_diff": {
+      "mean_diff": -0.07921022291628046,
+      "ci95": [
+       -0.09736806575096067,
+       -0.060348021755472055
+      ],
+      "z": -8.484935856020247
+     },
+     "n_common": 6373
+    }
+   },
+   {
+    "family": "carries",
+    "best": "F_av",
+    "mae": 4.125455691182033,
+    "bias": 0.22623054743911702,
+    "corr": 0.6491955260384148,
+    "crps": 2.8546754887636445,
+    "vs_A": {
+     "mean_diff": -0.32268941321386757,
+     "ci95": [
+      -0.3852712422516177,
+      -0.25734848063092697
+     ],
+     "z": -10.05587301140422,
+     "mae_diff": {
+      "mean_diff": -0.38532040455260425,
+      "ci95": [
+       -0.47492397357566435,
+       -0.28649003398417805
+      ],
+      "z": -8.008175304831187
+     },
+     "n_common": 1964
+    }
+   },
+   {
+    "family": "passing_attempts",
+    "best": "F_qs",
+    "mae": 6.682136537811179,
+    "bias": 0.5682947966009455,
+    "corr": 0.3348956962689195,
+    "crps": 4.7958783029947885,
+    "vs_A": {
+     "mean_diff": -0.07117440390514715,
+     "ci95": [
+      -0.14821810151469056,
+      0.00574651359295994
+     ],
+     "z": -1.7702401349258354,
+     "mae_diff": {
+      "mean_diff": -0.2631430647160641,
+      "ci95": [
+       -0.4434500496636058,
+       -0.0751515616914841
+      ],
+      "z": -2.8346002453972776
+     },
+     "n_common": 1082
+    }
+   }
+  ],
+  "targets_bias_anatomy": {
+   "targets": [
+    {
+     "split": "development",
+     "weeks": "wk1-6",
+     "usage": "ewm<3",
+     "n": 1680,
+     "mean_pred": 2.478750506961237,
+     "mean_actual": 2.3845238095238095,
+     "realised_over_pred": 0.9619862115316549
+    },
+    {
+     "split": "development",
+     "weeks": "wk1-6",
+     "usage": "ewm3-6",
+     "n": 3156,
+     "mean_pred": 4.270178709027281,
+     "mean_actual": 4.265842839036756,
+     "realised_over_pred": 0.9989846162687854
+    },
+    {
+     "split": "development",
+     "weeks": "wk1-6",
+     "usage": "ewm6+",
+     "n": 1961,
+     "mean_pred": 7.3584147904458,
+     "mean_actual": 7.266700662927078,
+     "realised_over_pred": 0.9875361568856101
+    },
+    {
+     "split": "development",
+     "weeks": "wk7+",
+     "usage": "ewm<3",
+     "n": 3135,
+     "mean_pred": 2.570708667586074,
+     "mean_actual": 2.4637958532695374,
+     "realised_over_pred": 0.9584111511099664
+    },
+    {
+     "split": "development",
+     "weeks": "wk7+",
+     "usage": "ewm3-6",
+     "n": 5517,
+     "mean_pred": 4.400661381154825,
+     "mean_actual": 4.317745151350372,
+     "realised_over_pred": 0.9811582344964032
+    },
+    {
+     "split": "development",
+     "weeks": "wk7+",
+     "usage": "ewm6+",
+     "n": 3301,
+     "mean_pred": 7.3891186922534295,
+     "mean_actual": 7.377158436837322,
+     "realised_over_pred": 0.9983813691572385
+    },
+    {
+     "split": "validation",
+     "weeks": "wk1-6",
+     "usage": "ewm<3",
+     "n": 636,
+     "mean_pred": 2.4210206381342867,
+     "mean_actual": 2.110062893081761,
+     "realised_over_pred": 0.871559234087257
+    },
+    {
+     "split": "validation",
+     "weeks": "wk1-6",
+     "usage": "ewm3-6",
+     "n": 1065,
+     "mean_pred": 4.2147309482238,
+     "mean_actual": 3.984037558685446,
+     "realised_over_pred": 0.9452649783883419
+    },
+    {
+     "split": "validation",
+     "weeks": "wk1-6",
+     "usage": "ewm6+",
+     "n": 609,
+     "mean_pred": 7.438129210003998,
+     "mean_actual": 7.505747126436781,
+     "realised_over_pred": 1.0090907154909112
+    },
+    {
+     "split": "validation",
+     "weeks": "wk7+",
+     "usage": "ewm<3",
+     "n": 1155,
+     "mean_pred": 2.4569343239420034,
+     "mean_actual": 2.3212121212121213,
+     "realised_over_pred": 0.9447595316621553
+    },
+    {
+     "split": "validation",
+     "weeks": "wk7+",
+     "usage": "ewm3-6",
+     "n": 1849,
+     "mean_pred": 4.3337849314674735,
+     "mean_actual": 4.268253109789075,
+     "realised_over_pred": 0.9848788477705541
+    },
+    {
+     "split": "validation",
+     "weeks": "wk7+",
+     "usage": "ewm6+",
+     "n": 1059,
+     "mean_pred": 7.5480583265375625,
+     "mean_actual": 7.459867799811143,
+     "realised_over_pred": 0.9883161307304213
+    },
+    {
+     "split": "check2026",
+     "weeks": "wk1-6",
+     "usage": "ewm<3",
+     "n": 193,
+     "mean_pred": 2.2613469885825355,
+     "mean_actual": 2.227979274611399,
+     "realised_over_pred": 0.9852443193638089
+    },
+    {
+     "split": "check2026",
+     "weeks": "wk1-6",
+     "usage": "ewm3-6",
+     "n": 386,
+     "mean_pred": 4.345182080955385,
+     "mean_actual": 4.238341968911917,
+     "realised_over_pred": 0.9754118216330357
+    },
+    {
+     "split": "check2026",
+     "weeks": "wk1-6",
+     "usage": "ewm6+",
+     "n": 164,
+     "mean_pred": 7.242096642886557,
+     "mean_actual": 7.225609756097561,
+     "realised_over_pred": 0.9977234649574594
+    }
+   ],
+   "receptions": [
+    {
+     "split": "development",
+     "weeks": "wk1-6",
+     "usage": "ewm<3",
+     "n": 1680,
+     "mean_pred": 1.6789734871981268,
+     "mean_actual": 1.6011904761904763,
+     "realised_over_pred": 0.9536722815454014
+    },
+    {
+     "split": "development",
+     "weeks": "wk1-6",
+     "usage": "ewm3-6",
+     "n": 3156,
+     "mean_pred": 2.790447543801544,
+     "mean_actual": 2.8482256020278833,
+     "realised_over_pred": 1.0207056600489346
+    },
+    {
+     "split": "development",
+     "weeks": "wk1-6",
+     "usage": "ewm6+",
+     "n": 1961,
+     "mean_pred": 4.732248290711582,
+     "mean_actual": 4.717491075981642,
+     "realised_over_pred": 0.9968815637254483
+    },
+    {
+     "split": "development",
+     "weeks": "wk7+",
+     "usage": "ewm<3",
+     "n": 3135,
+     "mean_pred": 1.711777351484818,
+     "mean_actual": 1.687719298245614,
+     "realised_over_pred": 0.9859455710064537
+    },
+    {
+     "split": "development",
+     "weeks": "wk7+",
+     "usage": "ewm3-6",
+     "n": 5517,
+     "mean_pred": 2.8361899561384107,
+     "mean_actual": 2.8085916258836323,
+     "realised_over_pred": 0.9902692236128096
+    },
+    {
+     "split": "development",
+     "weeks": "wk7+",
+     "usage": "ewm6+",
+     "n": 3301,
+     "mean_pred": 4.6902871516382385,
+     "mean_actual": 4.748863980611936,
+     "realised_over_pred": 1.0124889643384067
+    },
+    {
+     "split": "validation",
+     "weeks": "wk1-6",
+     "usage": "ewm<3",
+     "n": 636,
+     "mean_pred": 1.6771132423545914,
+     "mean_actual": 1.490566037735849,
+     "realised_over_pred": 0.8887688678930001
+    },
+    {
+     "split": "validation",
+     "weeks": "wk1-6",
+     "usage": "ewm3-6",
+     "n": 1065,
+     "mean_pred": 2.8373674477143824,
+     "mean_actual": 2.6901408450704225,
+     "realised_over_pred": 0.9481115486954088
+    },
+    {
+     "split": "validation",
+     "weeks": "wk1-6",
+     "usage": "ewm6+",
+     "n": 609,
+     "mean_pred": 4.851589593766545,
+     "mean_actual": 4.940886699507389,
+     "realised_over_pred": 1.0184057418738748
+    },
+    {
+     "split": "validation",
+     "weeks": "wk7+",
+     "usage": "ewm<3",
+     "n": 1155,
+     "mean_pred": 1.6531990812634516,
+     "mean_actual": 1.6008658008658008,
+     "realised_over_pred": 0.9683442357361732
+    },
+    {
+     "split": "validation",
+     "weeks": "wk7+",
+     "usage": "ewm3-6",
+     "n": 1849,
+     "mean_pred": 2.84422124502582,
+     "mean_actual": 2.8642509464575445,
+     "realised_over_pred": 1.0070422445042746
+    },
+    {
+     "split": "validation",
+     "weeks": "wk7+",
+     "usage": "ewm6+",
+     "n": 1059,
+     "mean_pred": 4.896503765648446,
+     "mean_actual": 4.924457034938621,
+     "realised_over_pred": 1.0057088221776285
+    },
+    {
+     "split": "check2026",
+     "weeks": "wk1-6",
+     "usage": "ewm<3",
+     "n": 193,
+     "mean_pred": 1.5617573000229683,
+     "mean_actual": 1.549222797927461,
+     "realised_over_pred": 0.9919741037257691
+    },
+    {
+     "split": "check2026",
+     "weeks": "wk1-6",
+     "usage": "ewm3-6",
+     "n": 386,
+     "mean_pred": 2.9686002379266236,
+     "mean_actual": 2.8082901554404147,
+     "realised_over_pred": 0.9459980901307967
+    },
+    {
+     "split": "check2026",
+     "weeks": "wk1-6",
+     "usage": "ewm6+",
+     "n": 164,
+     "mean_pred": 4.8024763418538425,
+     "mean_actual": 5.0182926829268295,
+     "realised_over_pred": 1.0449385537190752
+    }
+   ]
+  }
+ },
+ "calibration": {
+  "summary": "Randomised-PIT coverage and PIT variance ratio (1 = calibrated, >1 over-confident, <1 under-confident) on the 2024-25 holdout, plus reliability at Kalshi-like rungs.",
+  "results": [
+   {
+    "family": "team_pass_attempts",
+    "cover_50": 0.49724264705882354,
+    "cover_80": 0.8051470588235294,
+    "cover_90": 0.9044117647058824,
+    "pit_var_ratio": 0.9663299972772896,
+    "pit_deciles": [
+     0.1213,
+     0.1131,
+     0.1039,
+     0.1002,
+     0.1204,
+     0.0965,
+     0.0983,
+     0.0919,
+     0.0809,
+     0.0735
+    ],
+    "thresholds": []
+   },
+   {
+    "family": "team_rush_attempts",
+    "cover_50": 0.5055147058823529,
+    "cover_80": 0.8042279411764706,
+    "cover_90": 0.8961397058823529,
+    "pit_var_ratio": 0.9953541900085167,
+    "pit_deciles": [
+     0.1002,
+     0.0928,
+     0.1131,
+     0.0882,
+     0.0846,
+     0.0965,
+     0.1158,
+     0.114,
+     0.0993,
+     0.0956
+    ],
+    "thresholds": []
+   },
+   {
+    "family": "team_points",
+    "cover_50": 0.5183823529411765,
+    "cover_80": 0.7996323529411765,
+    "cover_90": 0.9090073529411765,
+    "pit_var_ratio": 0.9674126210063364,
+    "pit_deciles": [
+     0.0809,
+     0.0846,
+     0.1167,
+     0.1029,
+     0.0919,
+     0.1121,
+     0.1121,
+     0.0846,
+     0.0947,
+     0.1195
+    ],
+    "thresholds": []
+   },
+   {
+    "family": "targets",
+    "cover_50": 0.5063311688311688,
+    "cover_80": 0.8103896103896104,
+    "cover_90": 0.9060064935064935,
+    "pit_var_ratio": 0.9768183283807215,
+    "pit_deciles": [
+     0.1096,
+     0.1031,
+     0.1045,
+     0.1042,
+     0.0987,
+     0.1071,
+     0.0948,
+     0.0977,
+     0.1002,
+     0.08
+    ],
+    "thresholds": [
+     {
+      "rung": "3+",
+      "mean_p": 0.6923984915821002,
+      "hit_rate": 0.6800324675324675,
+      "brier": 0.16148518896600766,
+      "ece": 0.012366024049632572
+     },
+     {
+      "rung": "5+",
+      "mean_p": 0.4475991309578537,
+      "hit_rate": 0.4253246753246753,
+      "brier": 0.1715858276418724,
+      "ece": 0.02427001446167748
+     },
+     {
+      "rung": "7+",
+      "mean_p": 0.2577600843532522,
+      "hit_rate": 0.23847402597402598,
+      "brier": 0.1329520564459211,
+      "ece": 0.02173405575796787
+     },
+     {
+      "rung": "9+",
+      "mean_p": 0.13334624687876986,
+      "hit_rate": 0.12467532467532468,
+      "brier": 0.08713770809845864,
+      "ece": 0.009979585630166066
+     }
+    ]
+   },
+   {
+    "family": "receptions",
+    "cover_50": 0.5108766233766234,
+    "cover_80": 0.8056818181818182,
+    "cover_90": 0.9029220779220779,
+    "pit_var_ratio": 0.9801441077727104,
+    "pit_deciles": [
+     0.1031,
+     0.1039,
+     0.1006,
+     0.1041,
+     0.101,
+     0.1006,
+     0.1021,
+     0.1016,
+     0.0917,
+     0.0912
+    ],
+    "thresholds": [
+     {
+      "rung": "3+",
+      "mean_p": 0.5216872561232498,
+      "hit_rate": 0.5173701298701299,
+      "brier": 0.1945083702681265,
+      "ece": 0.009802781118974561
+     },
+     {
+      "rung": "5+",
+      "mean_p": 0.24673585069919735,
+      "hit_rate": 0.23896103896103896,
+      "brier": 0.14260233758892588,
+      "ece": 0.013378913157393164
+     },
+     {
+      "rung": "7+",
+      "mean_p": 0.09792471318040456,
+      "hit_rate": 0.09155844155844156,
+      "brier": 0.0711443882249115,
+      "ece": 0.010889343929408714
+     }
+    ]
+   },
+   {
+    "family": "receiving_yards",
+    "cover_50": 0.5123376623376623,
+    "cover_80": 0.811038961038961,
+    "cover_90": 0.9074675324675324,
+    "pit_var_ratio": 0.9742316940511351,
+    "pit_deciles": [
+     0.0971,
+     0.0984,
+     0.1057,
+     0.1068,
+     0.0992,
+     0.0979,
+     0.1029,
+     0.0998,
+     0.1003,
+     0.0919
+    ],
+    "thresholds": [
+     {
+      "rung": "40+",
+      "mean_p": 0.34839711762740594,
+      "hit_rate": 0.3418831168831169,
+      "brier": 0.1735249728469466,
+      "ece": 0.010829165035442973
+     },
+     {
+      "rung": "60+",
+      "mean_p": 0.2000212417540485,
+      "hit_rate": 0.1913961038961039,
+      "brier": 0.12267773730851991,
+      "ece": 0.009437612224913234
+     },
+     {
+      "rung": "80+",
+      "mean_p": 0.10940683432577798,
+      "hit_rate": 0.10422077922077921,
+      "brier": 0.07960969676324535,
+      "ece": 0.00745523478079245
+     },
+     {
+      "rung": "100+",
+      "mean_p": 0.058246964105979786,
+      "hit_rate": 0.0512987012987013,
+      "brier": 0.04432567705403356,
+      "ece": 0.006948262807278479
+     }
+    ]
+   },
+   {
+    "family": "carries",
+    "cover_50": 0.5268267756770567,
+    "cover_80": 0.8165559529892693,
+    "cover_90": 0.9151762902401636,
+    "pit_var_ratio": 0.9476214974853303,
+    "pit_deciles": [
+     0.094,
+     0.093,
+     0.1027,
+     0.116,
+     0.1012,
+     0.093,
+     0.1083,
+     0.1058,
+     0.0966,
+     0.0894
+    ],
+    "thresholds": [
+     {
+      "rung": "10+",
+      "mean_p": 0.5267867570153075,
+      "hit_rate": 0.5319366377107818,
+      "brier": 0.15180419680319815,
+      "ece": 0.017872245937753644
+     },
+     {
+      "rung": "15+",
+      "mean_p": 0.29264944548438426,
+      "hit_rate": 0.2784874808380174,
+      "brier": 0.1451946790414923,
+      "ece": 0.027668261070599737
+     },
+     {
+      "rung": "20+",
+      "mean_p": 0.12035602109904649,
+      "hit_rate": 0.11139499233520694,
+      "brier": 0.08455851660167993,
+      "ece": 0.015028633041422775
+     }
+    ]
+   },
+   {
+    "family": "rushing_yards",
+    "cover_50": 0.5278487480838018,
+    "cover_80": 0.8068472151251916,
+    "cover_90": 0.9013796627491057,
+    "pit_var_ratio": 0.9682831862175165,
+    "pit_deciles": [
+     0.1002,
+     0.0935,
+     0.094,
+     0.1007,
+     0.1114,
+     0.0996,
+     0.1073,
+     0.1032,
+     0.0971,
+     0.093
+    ],
+    "thresholds": [
+     {
+      "rung": "40+",
+      "mean_p": 0.4850211533583226,
+      "hit_rate": 0.4864588656106285,
+      "brier": 0.18442509340004062,
+      "ece": 0.026955430750289538
+     },
+     {
+      "rung": "60+",
+      "mean_p": 0.3028990884951017,
+      "hit_rate": 0.3147675012774655,
+      "brier": 0.16914505599241755,
+      "ece": 0.026905092542435685
+     },
+     {
+      "rung": "80+",
+      "mean_p": 0.17754418500126215,
+      "hit_rate": 0.18446601941747573,
+      "brier": 0.1286736518249629,
+      "ece": 0.014671524652869592
+     },
+     {
+      "rung": "100+",
+      "mean_p": 0.10045433387667764,
+      "hit_rate": 0.10168625447112928,
+      "brier": 0.08244902724391641,
+      "ece": 0.007667365653881477
+     }
+    ]
+   },
+   {
+    "family": "passing_attempts",
+    "cover_50": 0.5123809523809524,
+    "cover_80": 0.8038095238095239,
+    "cover_90": 0.8857142857142857,
+    "pit_var_ratio": 0.9891775719735572,
+    "pit_deciles": [
+     0.121,
+     0.1076,
+     0.1048,
+     0.0962,
+     0.1057,
+     0.0971,
+     0.099,
+     0.1095,
+     0.0838,
+     0.0752
+    ],
+    "thresholds": [
+     {
+      "rung": "30+",
+      "mean_p": 0.6004836351413747,
+      "hit_rate": 0.5714285714285714,
+      "brier": 0.2355235854149471,
+      "ece": 0.03176457337106912
+     },
+     {
+      "rung": "35+",
+      "mean_p": 0.3720832809542846,
+      "hit_rate": 0.3361904761904762,
+      "brier": 0.2146718898935188,
+      "ece": 0.03833927639276772
+     },
+     {
+      "rung": "40+",
+      "mean_p": 0.19411983418100384,
+      "hit_rate": 0.1580952380952381,
+      "brier": 0.1310572493724167,
+      "ece": 0.03771159960474195
+     }
+    ]
+   },
+   {
+    "family": "completions",
+    "cover_50": 0.5142857142857142,
+    "cover_80": 0.8057142857142857,
+    "cover_90": 0.9114285714285715,
+    "pit_var_ratio": 0.9765358352610665,
+    "pit_deciles": [
+     0.1038,
+     0.1181,
+     0.1019,
+     0.1048,
+     0.1019,
+     0.1029,
+     0.101,
+     0.0895,
+     0.0857,
+     0.0905
+    ],
+    "thresholds": [
+     {
+      "rung": "18+",
+      "mean_p": 0.7014309309169886,
+      "hit_rate": 0.680952380952381,
+      "brier": 0.20339840548198757,
+      "ece": 0.02047854996460762
+     },
+     {
+      "rung": "22+",
+      "mean_p": 0.4469075582913875,
+      "hit_rate": 0.4257142857142857,
+      "brier": 0.22958759390904218,
+      "ece": 0.03869171200527229
+     },
+     {
+      "rung": "25+",
+      "mean_p": 0.266357135595347,
+      "hit_rate": 0.23809523809523808,
+      "brier": 0.1743315728431288,
+      "ece": 0.04400556848790125
+     }
+    ]
+   },
+   {
+    "family": "passing_yards",
+    "cover_50": 0.4980952380952381,
+    "cover_80": 0.8114285714285714,
+    "cover_90": 0.9114285714285715,
+    "pit_var_ratio": 0.9875655672523362,
+    "pit_deciles": [
+     0.101,
+     0.1114,
+     0.1057,
+     0.0867,
+     0.0914,
+     0.1124,
+     0.1095,
+     0.08,
+     0.1143,
+     0.0876
+    ],
+    "thresholds": [
+     {
+      "rung": "200+",
+      "mean_p": 0.6274197109636352,
+      "hit_rate": 0.6238095238095238,
+      "brier": 0.22357521877675135,
+      "ece": 0.04901275209445105
+     },
+     {
+      "rung": "250+",
+      "mean_p": 0.3697657463995438,
+      "hit_rate": 0.3628571428571429,
+      "brier": 0.21701850049815163,
+      "ece": 0.02376993500460958
+     },
+     {
+      "rung": "300+",
+      "mean_p": 0.17177827650625843,
+      "hit_rate": 0.1419047619047619,
+      "brier": 0.11691701022293896,
+      "ece": 0.031192509788588167
+     }
+    ]
+   },
+   {
+    "family": "passing_tds",
+    "cover_50": 0.49142857142857144,
+    "cover_80": 0.7923809523809524,
+    "cover_90": 0.8904761904761904,
+    "pit_var_ratio": 1.0270895287830637,
+    "pit_deciles": [
+     0.0981,
+     0.1048,
+     0.0876,
+     0.0886,
+     0.1067,
+     0.0981,
+     0.0952,
+     0.1181,
+     0.0933,
+     0.1095
+    ],
+    "thresholds": [
+     {
+      "rung": "1+",
+      "mean_p": 0.7626122482312843,
+      "hit_rate": 0.7666666666666667,
+      "brier": 0.17556339599624715,
+      "ece": 0.027159276387523405
+     },
+     {
+      "rung": "2+",
+      "mean_p": 0.4371628118548751,
+      "hit_rate": 0.44476190476190475,
+      "brier": 0.24139898685588915,
+      "ece": 0.03673297150090453
+     },
+     {
+      "rung": "3+",
+      "mean_p": 0.1710989413002657,
+      "hit_rate": 0.1742857142857143,
+      "brier": 0.13575490567605947,
+      "ece": 0.013373257995426432
+     }
+    ]
+   },
+   {
+    "family": "anytime_td",
+    "cover_50": 0.49691313711414214,
+    "cover_80": 0.7982770997846375,
+    "cover_90": 0.8992103374012922,
+    "pit_var_ratio": 1.0099347128186322,
+    "pit_deciles": [
+     0.1027,
+     0.0973,
+     0.0991,
+     0.0996,
+     0.0905,
+     0.1001,
+     0.1012,
+     0.1075,
+     0.1029,
+     0.0991
+    ],
+    "thresholds": [
+     {
+      "rung": "1+",
+      "mean_p": 0.24540442139561625,
+      "hit_rate": 0.2528356066044508,
+      "brier": 0.17247912321786893,
+      "ece": 0.01082349722363922
+     }
+    ]
+   }
+  ]
+ },
+ "failed_experiments": [
+  {
+   "name": "LightGBM (E) as a stand-alone projection",
+   "what_was_learned": "E beats the structured D rung only in targets, receptions, receiving_yards, carries; it does not in team_pass_attempts, team_rush_attempts, team_points, rushing_yards, passing_attempts, completions, passing_yards, passing_tds, anytime_td (team families and QB families: too few rows per season for trees). On its own it also extrapolates badly outside its training population (non-RB carries projected 3.4 vs 0.76 realised).",
+   "changes_future_decisions": "Use trees only inside a stack and only for players inside their training population."
+  },
+  {
+   "name": "Vacated targets from teammates listed OUT",
+   "what_was_learned": "gamma fitted on development is positive but validation CRPS does not improve (targets D_vac - D +0.0011 [-0.0014, +0.0034]); the oracle version using who actually sat is no better (+0.0009 [-0.0004, +0.0024]).",
+   "changes_future_decisions": "Do not spend effort on better absence data for targets; the remaining target error is role (depth chart / routes), not absences. Carries are different (absences matter)."
+  },
+  {
+   "name": "Opportunity x efficiency decomposition (C) on its own",
+   "what_was_learned": "For targets C - B -0.0004 [-0.0053, +0.0049]: decomposing into team volume x share does not beat a player EWMA (consistent with research/opportunity, which found the same on 2019-2025); its value is structural (it is where game environment and opponent enter).",
+   "changes_future_decisions": "Keep C/D for interpretability and as stack inputs, not as the headline model."
+  },
+  {
+   "name": "QB efficiency from the generic ladder (pre-fix)",
+   "what_was_learned": "Ladder rungs B-D were worse than the season average for QB volume because relief appearances contaminated histories; a seemingly 'robust' EWMA was the problem, not the baseline.",
+   "changes_future_decisions": "Condition every role-based history on the role (starts for QBs) before smoothing."
+  },
+  {
+   "name": "Discretised normal for yards / NB on yards",
+   "what_was_learned": "The normal misses the right skew and loses to empirical ratios in every yards family; 0-based NB cannot represent negative yards and is mis-scored by pf_core's out-of-support clipping.",
+   "changes_future_decisions": "Empirical (quantile-mapped) residual ratios by mean bin are the default for yards."
+  }
+ ],
+ "gate": {
+  "summary": {
+   "validation": {
+    "PASS": {
+     "n": 31481,
+     "share": 0.912677934653408,
+     "rel_crps": 0.9958242986545907
+    },
+    "REVIEW": {
+     "n": 3012,
+     "share": 0.08732206534659206,
+     "rel_crps": 1.0436438426476866
+    }
+   },
+   "holdout": {
+    "PASS": {
+     "n": 31303,
+     "share": 0.9327751124884531,
+     "rel_crps": 1.0006814538231643
+    },
+    "REVIEW": {
+     "n": 2256,
+     "share": 0.06722488751154683,
+     "rel_crps": 0.9905445261407292
+    }
+   }
+  },
+  "error_by_status": {
+   "targets": {
+    "PASS": {
+     "n": 5842,
+     "mae": 2.0045933041807467,
+     "crps": 1.3753140325130735,
+     "rel_crps": 0.9934620564842833,
+     "cover_80": 0.8839438548442314
+    },
+    "REVIEW": {
+     "n": 531,
+     "mae": 2.12200410035835,
+     "crps": 1.4839418743078852,
+     "rel_crps": 1.0719296911842129,
+     "cover_80": 0.8700564971751412
+    }
+   },
+   "receptions": {
+    "PASS": {
+     "n": 5841,
+     "mae": 1.5726288319236934,
+     "crps": 1.0789068458429072,
+     "rel_crps": 0.996921750245483,
+     "cover_80": 0.8984762883067968
+    },
+    "REVIEW": {
+     "n": 532,
+     "mae": 1.6340219384514851,
+     "crps": 1.1188147588809298,
+     "rel_crps": 1.0337970992784458,
+     "cover_80": 0.8796992481203008
+    }
+   },
+   "receiving_yards": {
+    "PASS": {
+     "n": 5838,
+     "mae": 20.950273380024086,
+     "crps": 14.371652616235696,
+     "rel_crps": 0.998413234235427,
+     "cover_80": 0.8586844809866393
+    },
+    "REVIEW": {
+     "n": 535,
+     "mae": 21.633650300952972,
+     "crps": 14.643734321123237,
+     "rel_crps": 1.0173150252964058,
+     "cover_80": 0.8205607476635514
+    }
+   },
+   "carries": {
+    "PASS": {
+     "n": 1803,
+     "mae": 4.077967747671595,
+     "crps": 2.8503378422719368,
+     "rel_crps": 0.9984805115296708,
+     "cover_80": 0.8652246256239601
+    },
+    "REVIEW": {
+     "n": 161,
+     "mae": 4.247920697575132,
+     "crps": 2.9032517410900387,
+     "rel_crps": 1.0170163833043708,
+     "cover_80": 0.84472049689441
+    }
+   },
+   "rushing_yards": {
+    "PASS": {
+     "n": 1803,
+     "mae": 24.039821259255262,
+     "crps": 16.573864707183002,
+     "rel_crps": 0.997819781927939,
+     "cover_80": 0.8291735995562951
+    },
+    "REVIEW": {
+     "n": 161,
+     "mae": 25.016799724271195,
+     "crps": 17.015625554588883,
+     "rel_crps": 1.0244157340616498,
+     "cover_80": 0.7950310559006211
+    }
+   },
+   "passing_attempts": {
+    "PASS": {
+     "n": 988,
+     "mae": 6.556677214329628,
+     "crps": 4.704933658617398,
+     "rel_crps": 0.9810369157364566,
+     "cover_80": 0.840080971659919
+    },
+    "REVIEW": {
+     "n": 94,
+     "mae": 8.00091513153443,
+     "crps": 5.751764565174171,
+     "rel_crps": 1.1993141197061816,
+     "cover_80": 0.7872340425531915
+    }
+   },
+   "completions": {
+    "PASS": {
+     "n": 988,
+     "mae": 4.6799446338264445,
+     "crps": 3.3524637779940183,
+     "rel_crps": 0.9932367558783065,
+     "cover_80": 0.8279352226720648
+    },
+    "REVIEW": {
+     "n": 94,
+     "mae": 5.006829259263239,
+     "crps": 3.615227728319046,
+     "rel_crps": 1.071086012683331,
+     "cover_80": 0.8191489361702128
+    }
+   },
+   "passing_yards": {
+    "PASS": {
+     "n": 988,
+     "mae": 57.45980749282088,
+     "crps": 41.00818796499884,
+     "rel_crps": 0.9891082407789281,
+     "cover_80": 0.8046558704453441
+    },
+    "REVIEW": {
+     "n": 94,
+     "mae": 62.29517783147473,
+     "crps": 46.206043422970545,
+     "rel_crps": 1.1144793416002001,
+     "cover_80": 0.7446808510638298
+    }
+   },
+   "passing_tds": {
+    "PASS": {
+     "n": 986,
+     "mae": 0.8255717215676535,
+     "crps": 0.5543711792010784,
+     "rel_crps": 0.9910851023006529,
+     "cover_80": 0.9584178498985801
+    },
+    "REVIEW": {
+     "n": 96,
+     "mae": 0.9533368093663102,
+     "crps": 0.610574514337805,
+     "rel_crps": 1.0915634284537095,
+     "cover_80": 0.96875
+    }
+   },
+   "anytime_td": {
+    "PASS": {
+     "n": 6404,
+     "mae": 0.3315830521524699,
+     "crps": 0.16072148773377912,
+     "rel_crps": 0.9977548934878537,
+     "cover_80": 0.9954715802623361
+    },
+    "REVIEW": {
+     "n": 714,
+     "mae": 0.31545741943555405,
+     "crps": 0.1643268324817425,
+     "rel_crps": 1.020136781657964,
+     "cover_80": 0.988795518207283
+    }
+   }
+  },
+  "team_reconciliation": {
+   "validation": {
+    "n_team_games": 1086,
+    "targets": {
+     "status": {
+      "PASS": 914,
+      "REVIEW": 165,
+      "BLOCK": 7
+     },
+     "mean_ratio_proj": 1.0273339380264612,
+     "mean_ratio_actual": 0.9933703339843242
+    },
+    "carries": {
+     "status": {
+      "PASS": 759,
+      "REVIEW": 278,
+      "BLOCK": 49
+     },
+     "mean_ratio_proj": 1.0493085883929394,
+     "mean_ratio_actual": 0.9965044237312716
+    },
+    "naive_frozen_model_for_all_participants": {
+     "targets_ratio": 1.1076489668708946,
+     "carries_ratio": 1.7144747725890033,
+     "targets_status": {
+      "PASS": 717,
+      "REVIEW": 361,
+      "BLOCK": 8
+     },
+     "carries_status": {
+      "BLOCK": 1060,
+      "REVIEW": 20,
+      "PASS": 6
+     }
+    },
+    "note": "player sums are over players who PLAYED (conditional projections), so the projected ratio is expected to sit near the realised ratio (QB/RB/WR/TE only, fullbacks excluded), not exactly at 1."
+   },
+   "holdout": {
+    "n_team_games": 1088,
+    "targets": {
+     "status": {
+      "PASS": 881,
+      "REVIEW": 196,
+      "BLOCK": 11
+     },
+     "mean_ratio_proj": 1.0155494790584019,
+     "mean_ratio_actual": 0.9938019165425712
+    },
+    "carries": {
+     "status": {
+      "PASS": 762,
+      "REVIEW": 268,
+      "BLOCK": 58
+     },
+     "mean_ratio_proj": 1.0423830414257118,
+     "mean_ratio_actual": 0.9974925652213268
+    },
+    "naive_frozen_model_for_all_participants": {
+     "targets_ratio": 1.1016225689768409,
+     "carries_ratio": 1.6326564450315322,
+     "targets_status": {
+      "PASS": 707,
+      "REVIEW": 369,
+      "BLOCK": 12
+     },
+     "carries_status": {
+      "BLOCK": 1040,
+      "REVIEW": 35,
+      "PASS": 13
+     }
+    },
+    "note": "player sums are over players who PLAYED (conditional projections), so the projected ratio is expected to sit near the realised ratio (QB/RB/WR/TE only, fullbacks excluded), not exactly at 1."
+   }
+  }
+ },
+ "priorities": [
+  {
+   "rank": 1,
+   "item": "Adopt the new-team tenure correction (C1) prospectively",
+   "impact": "first 1-4 games with a new team: 14-37% over-projection removed; family-wide CRPS -0.1% to -0.5%",
+   "evidence": "dev-fitted, validated 2022-23 with CIs excluding 0 in 5/6 families (post-freeze, not yet holdout-tested)",
+   "complexity": "low (one tenure feature + 3 multipliers)",
+   "data": "existing nflverse"
+  },
+  {
+   "rank": 2,
+   "item": "Adopt the backup-tier regression correction (C2) prospectively",
+   "impact": "RB2+/TE2+/WR3+ 7-18% over-projection; targets CRPS -0.3%",
+   "evidence": "dev-fitted, validated 2022-23, CIs exclude 0 in 6/6 families",
+   "complexity": "low",
+   "data": "existing"
+  },
+  {
+   "rank": 3,
+   "item": "Pregame role signal for listed players (archived depth-chart vintages 2025+, route participation)",
+   "impact": "the remaining opportunity error is role change; mean_defect's listed-population gap (+7%) is a role-selection effect",
+   "evidence": "vacated-target and oracle-absence tests rejected; tenure/backup segments are the largest residuals",
+   "complexity": "medium",
+   "data": "ESPN depth chart snapshots (dt-stamped) 2025+, pbp participation (2016-2025)"
+  },
+  {
+   "rank": 4,
+   "item": "Passing TDs: add the incumbent's direct implied-total regression as a ladder rung",
+   "impact": "only family where the incumbent wins on holdout (CRPS +0.012)",
+   "evidence": "holdout vs shadow-0.4.0",
+   "complexity": "low",
+   "data": "existing"
+  },
+  {
+   "rank": 5,
+   "item": "Participation model for non-voiding consumers (injury designation + weekly roster status vintages)",
+   "impact": "12% of published role-player projections are voids; 58% of DNPs carry no designation",
+   "evidence": "availability study",
+   "complexity": "medium",
+   "data": "timestamped roster/injury captures (context-capture.yml, 2026+)"
+  },
+  {
+   "rank": 6,
+   "item": "QB passing-yards level drift",
+   "impact": "+6 to +9 yards holdout bias tracks the 2022-25 league passing decline",
+   "evidence": "holdout bias",
+   "complexity": "low (league-level PIT trend term)",
+   "data": "existing"
+  }
+ ]
+}

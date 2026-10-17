@@ -370,6 +370,8 @@ def main(argv=None):
         wf["diagnostics"] = DG.run_all(S, json.load(open(FROZEN))["families"])
         from nfl import availability as AV
         wf["availability"] = AV.study(S["pf"], D.injuries())
+        from nfl import candidates as CA   # post-freeze candidates: dev-fitted, validation-scored, never adopted here
+        wf["candidates_post_freeze"] = CA.run(S, json.load(open(FROZEN))["families"], corr["preds"])
         json.dump(wf, open(WF, "w"), indent=1, default=_json)
     if a.stage in ("all", "holdout"):
         if not os.path.exists(FROZEN):
@@ -380,7 +382,11 @@ def main(argv=None):
         write_records(wf["select"], wf["holdout"])
     if a.stage in ("all", "gate"):
         from nfl import gate_eval
-        wf["gate"] = gate_eval.run(S, json.load(open(FROZEN))["families"], corr["preds"])
+        fz_ = json.load(open(FROZEN))["families"]
+        wf["gate"] = gate_eval.run(S, fz_, corr["preds"])
+        naive = gate_eval.run(S, fz_, corr["preds"], splits=("validation",), publish_pmf_mean=False)
+        wf["gate"]["naive_model_mean_validation"] = {"pooled": naive["pooled"],
+                                                     "by_family": {f: v["validation"]["summary"] for f, v in naive["by_family"].items()}}
         json.dump(wf, open(WF, "w"), indent=1, default=_json)
     if a.stage in ("all", "report"):
         from nfl import report
