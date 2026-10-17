@@ -60,7 +60,7 @@ jobs:
           git fetch --depth=1 --filter=blob:none origin market-data
           rm -rf /tmp/md && git worktree add --no-checkout -f /tmp/md origin/market-data
           git -C /tmp/md sparse-checkout init --no-cone
-          git -C /tmp/md sparse-checkout set '/data/shadow/evaluations/'
+          git -C /tmp/md sparse-checkout set '/data/shadow/evaluations/' '/data/shadow/evaluations_challenger/'
           git -C /tmp/md checkout -q
           ls /tmp/md/data/shadow/evaluations | wc -l
       - name: Diagnose
@@ -69,15 +69,41 @@ jobs:
           TS=$(date -u +%Y%m%dT%H%M%SZ)
           mkdir -p data/intelligence/nfl
           cd sift
+          # Paired challenger / incumbent / market scoring on identical observations. Insufficient evidence (no challenger
+          # evaluations yet) is a normal, honest output - it never fails the job and never fabricates a comparison.
+          mkdir -p /tmp/md/data/shadow/evaluations_challenger
+          python3 -m research.intelligence.paired_arms /tmp/md/data/shadow/evaluations /tmp/md/data/shadow/evaluations_challenger \
+            ../data/intelligence/nfl/$TS.paired_arms.json || echo '{"status":"INSUFFICIENT_EVIDENCE"}' > ../data/intelligence/nfl/$TS.paired_arms.json
           python3 -m research.intelligence.nfl_prospective /tmp/md/data/shadow/evaluations \
-            ../data/intelligence/nfl/$TS.diagnosis.json ../data/intelligence/nfl/$TS.disagreement_status.v1.json
+            ../data/intelligence/nfl/$TS.diagnosis.json ../data/intelligence/nfl/$TS.disagreement_status.v1.json \
+            ../data/intelligence/nfl/$TS.paired_arms.json
           cd ..
-          cp data/intelligence/nfl/$TS.disagreement_status.v1.json data/intelligence/nfl/latest.json
+          # Idempotence: an unchanged result (same contract apart from its timestamp) publishes nothing, so repeated runs
+          # never accumulate duplicate records.
+          python3 - "$TS" <<'PY'
+          import json, subprocess, sys, os
+          ts = sys.argv[1]
+          new = json.load(open(f"data/intelligence/nfl/{ts}.disagreement_status.v1.json"))
+          try:
+              old = json.loads(subprocess.check_output(["git", "show", "origin/market-data:data/intelligence/nfl/latest.json"], stderr=subprocess.DEVNULL))
+          except Exception:
+              old = None
+          strip = lambda c: {k: v for k, v in c.items() if k != "generated_at"} if c else None
+          if strip(old) == strip(new):
+              print("unchanged since the last publication; nothing to publish")
+              for f in os.listdir("data/intelligence/nfl"):
+                  os.remove(os.path.join("data/intelligence/nfl", f))
+          else:
+              json.dump(new, open("data/intelligence/nfl/latest.json", "w"), indent=1)
+          PY
           python3 - <<'PY'
           import json,glob
-          c=json.load(open(sorted(glob.glob("data/intelligence/nfl/*.disagreement_status.v1.json"))[-1]))
-          print(c["message"]); print(c["betting_signals"]["status_counts"], c["sample_accounting"]["independent_player_stat_games"], "independent units")
+          fs = sorted(glob.glob("data/intelligence/nfl/*.disagreement_status.v1.json"))
+          if fs:
+              c=json.load(open(fs[-1]))
+              print(c["message"]); print(c["betting_signals"]["status_counts"], c["sample_accounting"]["independent_player_stat_games"], "independent units")
           PY
       - name: Publish (derived, rebuildable; timestamped files are never rewritten)
         run: |
+          [ -n "$(ls -A data/intelligence/nfl 2>/dev/null)" ] || { echo "nothing new"; exit 0; }
           python3 scripts/ci/publish_market_data.py --src data/intelligence --message "disagreement diagnosis $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
