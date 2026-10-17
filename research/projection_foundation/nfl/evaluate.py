@@ -12,7 +12,9 @@ from pf_core import dists, metrics, models as M
 
 DIST_CANDIDATES = {
     "count": ["poisson", "nb", "nb_binned", "empirical_ratio"],
-    "yards": ["normal_binned", "empirical_resid", "empirical_ratio", "nb_binned"],
+    # nb_binned is NOT a yards candidate: it lives on 0.. and pf_core's DistBatch clips out-of-support outcomes to the
+    # boundary (crps/logpmf understate the loss of negative-yard games), which would bias the selection toward it.
+    "yards": ["normal_binned", "empirical_resid", "empirical_ratio"],
     "binary": ["bernoulli"],
 }
 

@@ -38,6 +38,13 @@ def _vacated(S):
 
 
 def corrections(S) -> dict:
+    if "corr" in _CACHE:
+        return _CACHE["corr"]
+    _CACHE["corr"] = _corrections(S)
+    return _CACHE["corr"]
+
+
+def _corrections(S) -> dict:
     pf, preds = S["pf"], S["preds"]
     V = _vacated(S)
     vac = V["vac"]
@@ -71,6 +78,28 @@ def corrections(S) -> dict:
         tshare = (pf.targets_ewm8 / (pf.targets_ewm8 + pf.carries_ewm8)).fillna(0.5).to_numpy()
         fac = tshare * ft + (1 - tshare) * fc
         out.setdefault("anytime_td", {})[f"{base}_vac"] = pd.Series(1 - np.exp(-lam * fac), index=pf.index).clip(0.001, 0.999)
+    # own designation: players who PLAY through a Questionable tag under-produce (availability study). Variant *_av =
+    # *_vac x exp(delta_f * 1[Questionable]), delta_f fitted on development for every family (Bernoulli link for TD).
+    q = (V["designation"] == "Questionable").astype(float)
+    for base in ("D", "F"):
+        for fam in ("targets", "receptions", "receiving_yards", "carries", "rushing_yards", "anytime_td"):
+            s_ = P.PLAYER_FAMILIES[fam]
+            y = pf[s_["y"]].to_numpy(float)
+            mu = np.asarray(out[fam][f"{base}_vac"], float)
+            if fam == "anytime_td":
+                lam = -np.log(1 - np.clip(mu, 1e-4, 0.999))
+                dl = float(L.fit_loglinear(y, lam, q[:, None], dev & pops[s_["pop"]], link="bernoulli")[0])
+                v = 1 - np.exp(-lam * np.exp(dl * q))
+            else:
+                dl = float(L.fit_loglinear(np.clip(y, 0, None), mu, q[:, None], dev & pops[s_["pop"]])[0])
+                v = mu * np.exp(dl * q)
+            summ[f"delta_questionable_{base}_{fam}"] = dl
+            out[fam][f"{base}_av"] = pd.Series(v, index=pf.index)
+    from . import qb_fix
+    qv, qparams = qb_fix.qb_variants(S)
+    for fam, d in qv.items():
+        out.setdefault(fam, {}).update(d)
+    summ["qb_fix_params"] = qparams
     summ["share_player_games_with_vacated_targets>0.05"] = float((vac.vac_tpa_inj > 0.05).mean())
     summ["share_player_games_with_vacated_carries>0.10"] = float((vac.vac_cs_inj > 0.10).mean())
     return {"preds": out, "summary": summ}
@@ -131,16 +160,37 @@ def run_all(S, frozen) -> dict:
         s = P.PLAYER_FAMILIES[fam]
         m = frozen[fam]["model"]
         mu = preds[fam][m] if m in preds[fam].columns else corrections(S)["preds"][fam][m]
-        d = pd.DataFrame({"y": pf[s["y"]], "mu": mu, "week": pf.week, "split": pf.split, "ewm": pf.targets_ewm4,
+        d = pd.DataFrame({"y": pf[s["y"]], "mu": mu, "week": pf.week, "split": pf.split, "tewm": pf.targets_ewm4,
                           "pos": pf.position})
         d = d[S["pops"][s["pop"]] & pf.y_observed.to_numpy()]
         rows = []
         for sp in ("development", "validation", "check2026"):
             for wk, wm in (("wk1-6", d.week <= 6), ("wk7+", d.week >= 7)):
-                for ut, um in (("ewm<3", d.ewm < 3), ("ewm3-6", d.ewm.between(3, 6)), ("ewm6+", d.ewm > 6)):
+                for ut, um in (("ewm<3", d.tewm < 3), ("ewm3-6", d.tewm.between(3, 6)), ("ewm6+", d.tewm > 6)):
                     g = d[(d.split == sp) & wm & um]
                     if len(g) >= 50:
                         rows.append({"split": sp, "weeks": wk, "usage": ut, "n": int(len(g)), "mean_pred": float(g.mu.mean()),
                                      "mean_actual": float(g.y.mean()), "realised_over_pred": float(g.y.mean() / g.mu.mean())})
         out["targets_bias"][fam] = rows
+    # tails by role: top-rung reliability on validation for the frozen winner and its frozen distribution
+    for fam, rung in (("receptions", 7), ("receiving_yards", 100), ("receiving_yards", 60), ("rushing_yards", 100), ("carries", 20),
+                      ("passing_yards", 300), ("targets", 9)):
+        fz = frozen[fam]
+        s = P.PLAYER_FAMILIES[fam]
+        m = fz["model"]
+        mu = preds[fam][m] if m in preds[fam].columns else corrections(S)["preds"][fam][m]
+        msk = S["pops"][s["pop"]] & (pf.split == "validation").to_numpy() & np.isfinite(np.asarray(mu, float))
+        d = EV.make(fz["dist_params"], np.asarray(mu, float)[msk])
+        p = d.prob_ge(rung)
+        o = (pf[s["y"]].to_numpy(float)[msk] >= rung).astype(float)
+        tt = tier[msk] if fam not in ("carries", "rushing_yards") else rb[msk]
+        rows = []
+        for t in sorted(set(tt)):
+            k = tt == t
+            if k.sum() >= 100:
+                rows.append({"segment": t, "n": int(k.sum()), "mean_p": float(p[k].mean()), "hit_rate": float(o[k].mean()),
+                             "diff_pp": float((p[k].mean() - o[k].mean()) * 100)})
+        rows.append({"segment": "all", "n": int(len(p)), "mean_p": float(p.mean()), "hit_rate": float(o.mean()),
+                     "diff_pp": float((p.mean() - o.mean()) * 100)})
+        out["tails"][f"{fam} {rung}+"] = rows
     return out

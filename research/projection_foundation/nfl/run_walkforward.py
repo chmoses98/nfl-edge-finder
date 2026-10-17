@@ -47,7 +47,10 @@ INC_VERSIONS = {"INC_0.4.0": "shadow-0.4.0", "INC_0.5.0": "shadow-0.5.0"}
 MODEL_NAMES = {"A": "A_season_avg_shrunk", "B": "B_ewma_shrunk", "C": "C_opportunity_x_efficiency",
                "D": "D_opp_env_adjusted", "D_opp": "D_opp_adjusted_only", "E": "E_lightgbm_walkforward", "F": "F_stack",
                "MKT": "MKT_closing_implied_total", "INC_0.4.0": "incumbent_shadow-0.4.0", "INC_0.5.0": "challenger_shadow-0.5.0",
-               "D_vac": "D_plus_vacated_opportunity", "F_vac": "F_plus_vacated_opportunity"}
+               "D_vac": "D_plus_vacated_opportunity", "F_vac": "F_plus_vacated_opportunity",
+               "A_qs": "A_qb_starts_only", "B_qs": "B_qb_starts_only", "C_qs": "C_qb_starts_only", "D_qs": "D_qb_starts_env",
+               "F_qs": "F_qb_starts_env_stack", "D_av": "D_plus_availability(vacated+own_questionable)",
+               "F_av": "F_plus_availability(vacated+own_questionable)"}
 
 
 def log(*a):
@@ -110,14 +113,17 @@ def model_eval(y, mu, dist, clusters, rungs):
     return EV.score(y, mu, dist, clusters, rungs)
 
 
-def _inc_dist(Pm, rows_mask):
+def _inc_dist(Pm, rows_mask, lo=0):
+    """Incumbent pmf on its own grid 0..grid_max, left-padded with zeros down to the family's support `lo` so that
+    negative-yard outcomes are scored correctly (pf_core.dists.DistBatch clips out-of-support outcomes to the boundary)."""
     pos, Pz = Pm
     sel = pos[rows_mask]
     ok = np.isfinite(sel)
-    Pr = np.zeros((len(sel), Pz.shape[1]))
-    Pr[ok] = Pz[sel[ok].astype(int)]
+    pad = max(0, -int(lo))
+    Pr = np.zeros((len(sel), Pz.shape[1] + pad))
+    Pr[ok, pad:] = Pz[sel[ok].astype(int)]
     from pf_core.dists import DistBatch
-    return DistBatch(0, Pr), ok
+    return DistBatch(-pad, Pr), ok
 
 
 def family_frames(S):
@@ -150,7 +156,7 @@ def select(S, corrections=None):
         dev = (df.split == "development").to_numpy() & df["pop"].to_numpy()
         val = (df.split == "validation").to_numpy() & df["pop"].to_numpy()
         y = df.y.to_numpy(float)
-        models = [m for m in preds.columns if m not in ("F_holdout",) and preds[m].notna().any()]
+        models = [m for m in preds.columns if not m.endswith("_holdout") and preds[m].notna().any()]
         fr = {"kind": kind, "unit": spec["unit"], "population": spec["pop_text"], "opportunity_family": spec["opp"],
               "models": {}, "dist_selection": {}}
         cand = EV.DIST_CANDIDATES[kind if kind != "count" or fam not in ("team_points",) else "count"]
@@ -194,7 +200,7 @@ def select(S, corrections=None):
                 if ok.sum() < 50:
                     continue
                 if Pm is not None:
-                    dd, okp = _inc_dist(Pm, ok)
+                    dd, okp = _inc_dist(Pm, ok, spec["lo"])
                 else:
                     dd = EV.make({"kind": "bernoulli"}, mu_i[ok])
                 fr["models"].setdefault(name, {"dist": "incumbent_own"})[split] = model_eval(
@@ -218,7 +224,8 @@ def select(S, corrections=None):
             r["mae_diff"] = EV.diff(ma, mb, gid[common])
             r["n_common"] = int(len(common))
             return r
-        ladder = [m for m in fr["models"] if not m.startswith("INC") and m != "MKT" and "validation" in fr["models"][m]]
+        ladder = [m for m in fr["models"] if not m.startswith("INC") and m != "MKT" and "oracle" not in m
+                  and "validation" in fr["models"][m]]
         best_m = min(ladder, key=lambda m: fr["models"][m]["validation"]["crps"])
         for m in fr["models"]:
             if m not in loss_val:
@@ -228,6 +235,13 @@ def select(S, corrections=None):
             fr["models"][m]["vs_challenger_0_5_0"] = paired(m, "INC_0.5.0") if "INC_0.5.0" in loss_val and m != "INC_0.5.0" else None
             fr["models"][m]["vs_best"] = paired(m, best_m) if m != best_m else None
         fr["best_model"] = best_m
+        fr["pairs"] = {}
+        for a_, b_ in (("B", "A"), ("C", "B"), ("D", "C"), ("D_opp", "B"), ("D", "D_opp"), ("E", "D"), ("F", "D"), ("F", "E"),
+                       ("D_vac", "D"), ("F_vac", "F"), ("D_av", "D_vac"), ("F_av", "F_vac"), ("F_av", "F"), ("D_av", "D"), ("D_oracle_avail", "D"), ("F_oracle_avail", "F"),
+                       ("INC_0.5.0", "INC_0.4.0"), ("MKT", "D"), ("D_qs", "D"), ("F_qs", "F"), ("A_qs", "A"), ("B_qs", "B"),
+                       ("F_qs", "INC_0.4.0"), ("D_qs", "INC_0.4.0")):
+            if a_ in loss_val and b_ in loss_val:
+                fr["pairs"][f"{a_} - {b_}"] = paired(a_, b_)
         frozen[fam] = {"model": best_m, "dist": fr["models"][best_m]["dist"], "dist_params": fr["models"][best_m]["dist_params"],
                        "lo": spec["lo"], "K": spec["K"], "rungs": spec["rungs"], "kind": kind,
                        "baseline_dist_params": fr["models"]["A"]["dist_params"]}
@@ -255,8 +269,8 @@ def holdout(S, frozen, corrections=None):
             if base.sum() < 30:
                 continue
             col = fz["model"]
-            if col == "F" and "F_holdout" in preds.columns:
-                col = "F_holdout"          # pre-declared: stack weights refitted on development+validation
+            if f"{col}_holdout" in preds.columns:
+                col = f"{col}_holdout"     # pre-declared: stack weights refitted on development+validation
             mu = preds[col].to_numpy(float)
             muA = preds["A"].to_numpy(float)
             ok = base & np.isfinite(mu) & np.isfinite(muA)
@@ -274,7 +288,7 @@ def holdout(S, frozen, corrections=None):
                 if oki.sum() < 30:
                     continue
                 if Pm is not None:
-                    di, _ = _inc_dist(Pm, oki)
+                    di, _ = _inc_dist(Pm, oki, spec["lo"])
                 else:
                     di = EV.make({"kind": "bernoulli"}, mu_i[oki])
                 sub = np.isin(np.where(ok)[0], np.where(oki)[0])
@@ -352,7 +366,10 @@ def main(argv=None):
             json.dump({"frozen_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "families": frozen},
                       open(FROZEN, "w"), indent=1, default=_json)
             log(f"froze selection -> {FROZEN}")
+        json.dump(wf, open(WF, "w"), indent=1, default=_json)
         wf["diagnostics"] = DG.run_all(S, json.load(open(FROZEN))["families"])
+        from nfl import availability as AV
+        wf["availability"] = AV.study(S["pf"], D.injuries())
         json.dump(wf, open(WF, "w"), indent=1, default=_json)
     if a.stage in ("all", "holdout"):
         if not os.path.exists(FROZEN):

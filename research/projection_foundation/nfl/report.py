@@ -22,7 +22,8 @@ MD = os.path.join(PF_ROOT, "RESULTS_NFL.md")
 NAMES = {"A": "A_season_avg_shrunk", "B": "B_ewma_shrunk", "C": "C_opportunity_x_efficiency", "D": "D_opp_env_adjusted",
          "D_opp": "D_opp_adjusted_only", "E": "E_lightgbm_walkforward", "F": "F_stack", "MKT": "MKT_closing_implied_total",
          "INC_0.4.0": "incumbent_shadow-0.4.0", "INC_0.5.0": "challenger_shadow-0.5.0", "D_vac": "D_plus_vacated_opportunity",
-         "F_vac": "F_plus_vacated_opportunity", "D_oracle_avail": "D_oracle_availability(bound)",
+         "F_vac": "F_plus_vacated_opportunity", "D_av": "D_plus_availability", "F_av": "F_plus_availability",
+         "A_qs": "A_qb_starts_only", "B_qs": "B_qb_starts_only", "C_qs": "C_qb_starts_only", "D_qs": "D_qb_starts_env", "F_qs": "F_qb_starts_env_stack", "D_oracle_avail": "D_oracle_availability(bound)",
          "F_oracle_avail": "F_oracle_availability(bound)"}
 
 

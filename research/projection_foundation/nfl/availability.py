@@ -45,13 +45,13 @@ def candidates(pf: pd.DataFrame, inj: pd.DataFrame) -> pd.DataFrame:
     c = c.merge(tgi, on=["team", "tidx"], how="inner")
     c = c[(c.post_tgt_r4 >= 2) | (c.post_car_r4 >= 4)]
     # still on this team: his most recent appearance before this block was for this team
-    last_team = p[["player_id", "block", "team"]].rename(columns={"team": "lt", "block": "lb"}).sort_values("lb")
+    last_team = p[["player_id", "block", "team"]].rename(columns={"team": "last_team", "block": "lb"}).sort_values("lb")
     c["block"] = c.block.astype(float)
     c = c.sort_values("block")
     c = pd.merge_asof(c, last_team.rename(columns={"lb": "block"}).assign(block=lambda d: d.block + 0.5).sort_values("block"),
                       on="block", by="player_id", direction="backward")
     c["block"] = c.block.astype(int)
-    c = c[c.lt == c.team]
+    c = c[c.last_team == c.team]
     played = p.set_index(["player_id", "block"])[["targets"]]
     c = c.merge(p[["player_id", "block", "targets"]], on=["player_id", "block"], how="left")
     c["played"] = c.targets.notna()

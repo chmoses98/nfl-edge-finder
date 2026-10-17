@@ -20,10 +20,15 @@ HIST_COLS = ["targets", "carries", "attempts", "touches", "receptions", "receivi
 
 def model_mean(S, corr, fam, model, split):
     preds = S["preds"][fam] if fam in S["preds"] else S["tpreds"][fam]
-    col = "F_holdout" if (model == "F" and split in ("holdout", "check2026", "forward") and "F_holdout" in preds.columns) else model
-    if col in preds.columns:
-        return preds[col].to_numpy(float)
-    return np.asarray(corr[fam][model], float)
+    late = split in ("holdout", "check2026", "forward")
+    if late and f"{model}_holdout" in preds.columns:
+        return preds[f"{model}_holdout"].to_numpy(float)
+    if model in preds.columns:
+        return preds[model].to_numpy(float)
+    c = corr.get(fam, {})
+    if late and f"{model}_holdout" in c:
+        return np.asarray(c[f"{model}_holdout"], float)
+    return np.asarray(c[model], float)
 
 
 def opp_factor(S, fam):
