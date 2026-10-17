@@ -1,0 +1,83 @@
+name: NFL Projection Foundation live run
+description: >-
+  Installs, downloads the nflverse inputs, runs the tests, restores/saves the walk-forward state, runs
+  research/projection_foundation `python -m nfl.live.run` against an archive checkout and (fresh runs) the reproducibility
+  check. Shared by the pull-request (read-only, dry-run) job and the scheduled (writing) job of projection-foundation.yml.
+inputs:
+  mode:
+    description: fresh | refresh | settle
+    required: true
+  dry_run:
+    description: "'true' = work on a temporary copy of the archive and write nothing"
+    required: true
+  archive:
+    description: path of the projection-data checkout
+    required: true
+outputs:
+  state_source:
+    description: fresh_build | saved_state | none
+    value: ${{ steps.run.outputs.state_source }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Install
+      shell: bash -eo pipefail {0}
+      run: pip install -q numpy pandas polars scipy scikit-learn statsmodels lightgbm pyarrow pyyaml pytest
+    - name: Fetch nflverse inputs (immutable release URLs) and build the id crosswalk
+      shell: bash -eo pipefail {0}
+      run: |
+        Y=$(date -u +%Y); M=$(date -u +%m); if [ "$M" -lt 3 ]; then Y=$((Y-1)); fi
+        python3 scripts/data/nflverse_download.py --only schedules,stats_player,stats_team,snap_counts,injuries,weekly_rosters,rosters,players,ff_playerids --seasons 2012-$Y 2>&1 | tail -3
+        python3 scripts/data/nflverse_download.py --only depth_charts --seasons $Y-$Y 2>&1 | tail -2
+        python3 nfl_edge/data/ids.py 2>&1 | tail -3
+    - name: Tests (shared core, NFL foundation + live, frozen-file pins)
+      shell: bash -eo pipefail {0}
+      run: |
+        python3 -m pytest -q research/projection_foundation/tests
+        python3 -m pytest -q tests/test_incumbent_unchanged.py
+    - name: Restore the walk-forward state saved by the latest fresh run
+      # refresh runs need it; pull-request runs reuse it when it is still valid (same state code, same upcoming week) so that
+      # iterating on a PR does not pay the ~1 h cold build every time. The first PR run (no cache) is the cold-path proof.
+      if: inputs.mode != 'fresh' || github.event_name == 'pull_request'
+      uses: actions/cache/restore@v4
+      with:
+        path: research/projection_foundation/.cache/live_state.pkl
+        key: nfl-pf-state-restore-${{ github.run_id }}
+        restore-keys: nfl-pf-state-
+    - name: Run the live chain
+      id: run
+      shell: bash -eo pipefail {0}
+      env:
+        MODE: ${{ inputs.mode }}
+        DRY: ${{ inputs.dry_run }}
+        ARCHIVE: ${{ inputs.archive }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        case "$MODE" in
+          fresh)   STAGES=all;                         POLICY=fresh ;;
+          refresh) STAGES=capture,project,publish,guard; POLICY=reuse-only ;;
+          settle)  STAGES=results,settle,score,guard;  POLICY=reuse ;;
+          *) echo "unknown mode $MODE"; exit 2 ;;
+        esac
+        if [ "$MODE" = "fresh" ] && [ "${{ github.event_name }}" = "pull_request" ]; then POLICY=reuse; fi
+        ARGS=""
+        if [ "$DRY" = "true" ]; then ARGS="--dry-run"; fi
+        # the incumbent ledger lives on market-data: blobless, depth-1 fetch; only the blobs that are read are downloaded
+        git fetch --no-tags --depth=1 --filter=blob:none origin market-data || echo "::warning::could not fetch market-data (incumbent forecasts will be skipped)"
+        cd research/projection_foundation
+        python3 -m nfl.live.run --archive "$ARCHIVE" --stage "$STAGES" --state-policy "$POLICY" $ARGS --summary-out "$RUNNER_TEMP/nfl_live_summary.json" --github-output "$GITHUB_OUTPUT"
+    - name: Reproducibility (frozen holdout re-scored from the freshly rebuilt state)
+      if: inputs.mode == 'fresh' && steps.run.outputs.state_source == 'fresh_build'
+      shell: bash -eo pipefail {0}
+      run: |
+        cd research/projection_foundation
+        python3 -m nfl.live.reproduce --summary-out "$RUNNER_TEMP/nfl_reproduce.json"
+    - name: Save the walk-forward state for the near-kickoff refresh runs
+      if: inputs.mode == 'fresh' && steps.run.outputs.state_source == 'fresh_build'
+      uses: actions/cache/save@v4
+      with:
+        path: research/projection_foundation/.cache/live_state.pkl
+        key: nfl-pf-state-${{ github.run_id }}-${{ github.run_attempt }}

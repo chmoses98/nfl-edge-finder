@@ -23,30 +23,36 @@ from . import pipeline as P
 _CACHE = {}
 
 
-def _vacated(S):
-    if "vac" in _CACHE:
+def _vacated(S, inj=None):
+    """inj=None: the nflverse injury table (study behaviour, cached). An explicit table (live operation: as-of designations
+    for the forward week) is used as given and never cached."""
+    if inj is None and "vac" in _CACHE:
         return _CACHE["vac"]
     pf = S["pf"]
-    inj = D.injuries()
+    explicit = inj is not None
+    inj = D.injuries() if inj is None else inj
     v = F.teammate_availability(pf, inj)   # forward rows included so upcoming games get vacated-opportunity terms
     m = pf[["team", "block"]].merge(v, on=["team", "block"], how="left").fillna(0)
     inj2 = inj.rename(columns={"gsis_id": "player_id"})[["season", "week", "player_id", "report_status"]]
     des = pf[["season", "week", "player_id"]].merge(inj2, on=["season", "week", "player_id"], how="left").report_status
     out = {"vac": m, "designation": des.fillna("None").replace({"Note": "None"}).to_numpy(), "inj": inj}
-    _CACHE["vac"] = out
+    if not explicit:
+        _CACHE["vac"] = out
     return out
 
 
-def corrections(S) -> dict:
+def corrections(S, inj=None) -> dict:
+    if inj is not None:                      # live operation: explicit as-of injury table, not cached
+        return _corrections(S, inj)
     if "corr" in _CACHE:
         return _CACHE["corr"]
     _CACHE["corr"] = _corrections(S)
     return _CACHE["corr"]
 
 
-def _corrections(S) -> dict:
+def _corrections(S, inj=None) -> dict:
     pf, preds = S["pf"], S["preds"]
-    V = _vacated(S)
+    V = _vacated(S, inj)
     vac = V["vac"]
     dev = pf.season.between(*L.DEV).to_numpy() & pf.y_observed.to_numpy()
     pops = S["pops"]

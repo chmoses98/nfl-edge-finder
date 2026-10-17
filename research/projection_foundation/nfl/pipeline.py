@@ -284,13 +284,20 @@ def player_ladder(pf: pd.DataFrame, log=print) -> tuple[dict, dict]:
 
 
 # ============================================================================ assembly
-def build_frames(upcoming_pg: pd.DataFrame | None = None, upcoming_block: int | None = None, log=print, force: bool = True):
-    """Returns (tf with team predictions, pf with player features+team predictions, params)."""
+def build_frames(upcoming_pg: pd.DataFrame | None = None, upcoming_block: int | None = None, log=print, force: bool = True,
+                 tg: pd.DataFrame | None = None, pg: pd.DataFrame | None = None, cache_tag: str = ""):
+    """Returns (tf with team predictions, pf with player features+team predictions, params).
+
+    tg / pg / cache_tag (live operation only): an explicit team-game / player-game frame (e.g. with one finished game
+    hidden to replay a past pregame state) and a suffix for the feature cache names so a replay never overwrites the
+    caches of the real run. Defaults reproduce the committed behaviour exactly."""
     sched = D.load_schedule()
-    tg = D.cached("team_games", lambda: D.team_games(sched))
-    pg = D.cached("player_games", lambda: D.player_games(sched))
+    if tg is None:
+        tg = D.cached("team_games", lambda: D.team_games(sched))
+    if pg is None:
+        pg = D.cached("player_games", lambda: D.player_games(sched))
     t0 = time.time()
-    tf = D.cached(f"team_features_{upcoming_block}", lambda: F.team_features(tg, upcoming_block=upcoming_block), force=force)
+    tf = D.cached(f"team_features_{upcoming_block}{cache_tag}", lambda: F.team_features(tg, upcoming_block=upcoming_block), force=force)
     log(f"team features {tf.shape} in {time.time() - t0:.0f}s")
     tpreds, tparams = team_ladder(tf, log)
     for fam, short in (("team_pass_attempts", "team_att"), ("team_rush_attempts", "team_rush"), ("team_points", "team_pts")):
@@ -304,7 +311,7 @@ def build_frames(upcoming_pg: pd.DataFrame | None = None, upcoming_block: int | 
         pg = pd.concat([pg, up], ignore_index=True)
     pg["y_observed"] = ~pg.upcoming
     t0 = time.time()
-    pf = D.cached(f"player_features_{upcoming_block}", lambda: F.player_features(pg), force=force)
+    pf = D.cached(f"player_features_{upcoming_block}{cache_tag}", lambda: F.player_features(pg), force=force)
     log(f"player features {pf.shape} in {time.time() - t0:.0f}s")
     keep = ["game_id", "team", "team_att_B", "team_att_D", "team_rush_B", "team_rush_D", "team_pts_B", "team_pts_D",
             "league_points", "league_tm_attempts", "league_tm_carries"] + [c for c in tf.columns if c.startswith("opp_factor_")] + \

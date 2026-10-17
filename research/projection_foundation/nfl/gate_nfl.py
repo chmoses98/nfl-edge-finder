@@ -38,8 +38,10 @@ def opp_season_games(tf: pd.DataFrame) -> pd.DataFrame:
 
 
 def run(fam: str, rows: pd.DataFrame, mean, dist, ycol: str, opp_mean=None, opp_factor=None, injury=None, now_utc=None,
-        rungs=None, team_verified=True) -> list[dict]:
-    """rows: player frame rows (with _hist_ columns, kickoff_utc, career_games, opp_games_season)."""
+        rungs=None, team_verified=True, participation=None, participation_reasons=None, data_asof_utc=None) -> list[dict]:
+    """rows: player frame rows (with _hist_ columns, kickoff_utc, career_games, opp_games_season).
+    participation / participation_reasons (live operation): per-row pf_core participation class and reasons (None = the
+    study's behaviour: no point-in-time availability feed)."""
     res = []
     P = dist.P
     lo = dist.lo
@@ -53,14 +55,16 @@ def run(fam: str, rows: pd.DataFrame, mean, dist, ycol: str, opp_mean=None, opp_
         gi = gate.GateInput(
             sport="NFL", family=GATE_FAMILY.get(fam, fam), entity_id=r.player_id, entity_name=r.get("player_display_name"),
             team=r.team, game_id=r.game_id, game_start_utc=ko.isoformat() if pd.notna(ko) else None,
-            mean=float(mean[i]), team_verified=team_verified, data_asof_utc=(ko - pd.Timedelta(hours=20)).isoformat() if pd.notna(ko) else None,
+            mean=float(mean[i]), team_verified=team_verified, data_asof_utc=(data_asof_utc or ((ko - pd.Timedelta(hours=20)).isoformat() if pd.notna(ko) else None)),
             injury_status=(injury[i] if injury is not None else None),
             expected_opportunity=(float(opp_mean[i]) if opp_mean is not None else None),
             opportunity_history=list(r[f"_hist_{oc}"]) if f"_hist_{oc}" in rows.columns else None,
             stat_history=list(r[f"_hist_{sc}"]) if sc and f"_hist_{sc}" in rows.columns else None,
             opponent_sample_games=int(r.opp_games_season) if pd.notna(r.get("opp_games_season")) else None,
             opponent_factor=(float(opp_factor[i]) if opp_factor is not None else None),
-            support_lo=lo, probs=P[i], thresholds=th, sd=float(sd[i]), model_n_obs=int(r.career_games))
+            support_lo=lo, probs=P[i], thresholds=th, sd=float(sd[i]), model_n_obs=int(r.career_games),
+            participation=(participation[i] if participation is not None else None),
+            participation_reasons=(participation_reasons[i] if participation_reasons is not None else None))
         res.append(gate.evaluate(gi, now_utc=now_utc or (ko - pd.Timedelta(hours=19)).isoformat()))
     return res
 
