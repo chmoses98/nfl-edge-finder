@@ -77,7 +77,9 @@ def team_ladder(tf: pd.DataFrame, log=print) -> tuple[pd.DataFrame, dict]:
         pb, B = L.tune_B(tf, s["own"], prior, y, dev, halflives=(4, 8))
         h = pb["halflife"]
         plays = M.est_B(tf, "own_plays", tf.league_plays, pb["k"], h)
-        prate = M.est_B(tf, "own_pass_rate", pd.Series(np.full(len(tf), np.nanmean(tf.pass_rate)), index=tf.index), pb["k"], h)
+        # prior = warm-up (2012-2015) league pass rate. (Committed results used the whole-sample mean 0.578 vs 0.582 here: a
+        # look-ahead constant affecting only rung C, which has zero weight in every frozen team stack.)
+        prate = M.est_B(tf, "own_pass_rate", pd.Series(np.full(len(tf), np.nanmean(tf.pass_rate[tf.season <= 2015])), index=tf.index), pb["k"], h)
         if fam == "team_pass_attempts":
             att_per_db = np.nanmean((tf.tm_attempts / (tf.plays * tf.pass_rate))[dev])
             C = plays * prate * att_per_db

@@ -44,9 +44,9 @@ def qb_variants(S) -> dict:
     qs = d.position.eq("QB") & d.qb_starter.astype(bool)
     prior = {}
     for c in QB_COLS:
-        tmp = d[["block", "position"]].copy()
+        tmp = d[["block", "position", "season"]].copy()
         tmp["_x"] = d[c].where(qs)
-        prior[c] = M.group_prior_pit(tmp.assign(position="QB"), ["position"], "block", "_x")
+        prior[c] = M.group_prior_pit(tmp.assign(position="QB"), ["position"], "block", "_x", fallback=L.warmup_mean(tmp, "_x"))
     rp = {}
     for num, k, fb in (("completions", "comp", 0.63), ("passing_yards", "ypa", 7.0), ("passing_tds", "ptd", 0.045)):
         tmp = pd.DataFrame({"g": "QB", "block": d.block, "n": d[num].where(qs).fillna(0), "dd": d.attempts.where(qs).fillna(0)})

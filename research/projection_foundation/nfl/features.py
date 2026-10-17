@@ -80,7 +80,8 @@ def team_features(tg: pd.DataFrame, ridge_alpha: float = 10.0, upcoming_block: i
         by = tg[tg.played].groupby("block")[col].agg(["sum", "count"]).sort_index()
         lm = (by["sum"].cumsum() - by["sum"]) / (by["count"].cumsum() - by["count"]).replace(0, np.nan)
         lm = lm.reindex(sorted(set(f.block)), method="ffill") if upcoming_block else lm
-        f[f"league_{col}"] = f.block.map(lm.ffill()).fillna(tg[col].mean())
+        # first block has no earlier games: fall back to the warm-up (2012-2015) mean, never the whole sample
+        f[f"league_{col}"] = f.block.map(lm.ffill()).fillna(float(tg.loc[tg.played & (tg.season <= 2015), col].mean()))
     return f
 
 

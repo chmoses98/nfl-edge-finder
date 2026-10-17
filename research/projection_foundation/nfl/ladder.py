@@ -61,8 +61,18 @@ def ratio_prior_pit(df: pd.DataFrame, group: str, num: str, den: str, fallback: 
     return out.fillna(fallback)
 
 
+WARMUP_END = 2015   # last warm-up season: fallbacks are computed from seasons <= this only (never from evaluated rows)
+
+
+def warmup_mean(df, col):
+    """Explicit earlier-only fallback for pf_core.models.group_prior_pit, whose default fallback (pf_core 1.0.0) is the
+    whole-sample mean (look-ahead). Only rows in a group's very first block (2012 week 1, warm-up) ever use it."""
+    v = df.loc[df.season <= WARMUP_END, col].astype(float).mean()
+    return float(v) if np.isfinite(v) else 0.0
+
+
 def mean_prior_pit(df, group, col):
-    return M.group_prior_pit(df, [group], "block", col)
+    return M.group_prior_pit(df, [group], "block", col, fallback=warmup_mean(df, col))
 
 
 # ----------------------------------------------------------------------------- A / B tuning

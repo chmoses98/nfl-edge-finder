@@ -267,6 +267,14 @@ def limitations_text():
         "understate the loss of out-of-support outcomes (e.g. y=-5 on a 0-based pmf is scored as y=0; y above the support loses the lattice "
         "points beyond it). Worked around here by supports down to -20/-30 for yards, by dropping 0-based NB from the yards candidates, and by "
         "left-padding the incumbents' pmfs.",
+        "- pf_core 1.0.0 look-ahead (reported by the coordinator; pf_core not edited): `models.group_prior_pit`'s default fallback and "
+        "`pit.rolling_opponent_allowed`'s NaN league fill use the whole-sample mean. This study never calls rolling_opponent_allowed; every "
+        "group_prior_pit call now passes an explicit warm-up-only (2012-2015) fallback. Audit of the committed run: the fallback was hit only by "
+        "328 warm-up rows (2012 week 1, each position's first block) and by no development, validation or holdout row, so no reported number "
+        "depends on it. The same audit found one whole-sample constant in this study's own code: the team-level C rung shrank pass rate toward "
+        "the all-seasons mean (0.578; warm-up-only 0.582). C has zero weight in all three frozen team stacks and was never selected, so frozen "
+        "winners and holdout numbers are unaffected; the team C rows in the tables carry this negligible look-ahead. Fixed in code for "
+        "subsequent runs.",
         "- Selection used the minimum validation CRPS among 6-12 candidates per family; several winners beat the runner-up by less than the "
         "CI width (see per-family tables). The holdout is the honest estimate.",
         "- 2026 weeks >= 5 are the untouched market holdout and are never scored here; forward projections for them are archived by the workflow.",
