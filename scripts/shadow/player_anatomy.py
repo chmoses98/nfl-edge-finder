@@ -44,8 +44,6 @@ def main():
     ap.add_argument("--target-season", type=int, default=0)
     ap.add_argument("--model-version", default=PA.MODEL_VERSION_DEFAULT, help="must equal the pricer's --model-version")
     ap.add_argument("--role-features", action="store_true", help="mirror the pricer's flag exactly")
-    ap.add_argument("--include-current-season-history", action="store_true", help="mirror the pricer's flag exactly")
-    ap.add_argument("--mean-design", choices=("v1", "v2"), default="v1", help="mirror the pricer's flag exactly")
     ap.add_argument("--github-output", default="")
     a = ap.parse_args()
     now = datetime.now(timezone.utc)
@@ -63,8 +61,7 @@ def main():
         _emit(a.github_output, {"status": "NO_LEDGER"}); return 2
     games = pl.read_parquet(os.path.join(ROOT, "data", "silver", "games.parquet"))
     rep = PA.replay_player_models(ROOT, a.market_data, quotes, run_ts, games, season, model_version=a.model_version,
-                                  role_features=a.role_features, verbose=lambda m: print(m, flush=True),
-                                  include_current_season_history=a.include_current_season_history, mean_design=a.mean_design)
+                                  role_features=a.role_features, verbose=lambda m: print(m, flush=True))
     if rep["bundle"] is not None:
         ledger_sha = next((r.get("model_artifact_sha") for r in rows if r.get("family") == "PLAYER_STAT" and r.get("support_state") == "SUPPORTED"), None)
         print(f"bundle {rep['bundle'].version} sha={rep['bundle'].artifact_sha} (ledger rows carry {ledger_sha})", flush=True)

@@ -36,7 +36,7 @@ from nfl_edge.research import player_distributions as pdist
 from nfl_edge.settlement import semantics as sem_mod
 from nfl_edge.settlement.availability import AvailabilityBook
 from nfl_edge.shadow.models import KALSHI_STAT_TO_SPEC, fit_bundle
-from nfl_edge.shadow.prospective import build_prospective_rows, pit_history, upcoming_from_markets
+from nfl_edge.shadow.prospective import build_prospective_rows, upcoming_from_markets
 from nfl_edge.features import opportunity
 
 ANATOMY_VERSION = "anatomy-1.0.0"
@@ -78,8 +78,7 @@ def _f(x):
 # ------------------------------------------------------------------ the replay of the incumbent's player path
 def replay_player_models(root: str, market_data: str, quotes: dict, run_ts: datetime, games: pl.DataFrame,
                          target_season: int, *, model_version: str = MODEL_VERSION_DEFAULT,
-                         role_features: bool = False, max_availability_age_min: float = 600.0, verbose=lambda *_: None,
-                         include_current_season_history: bool = False, mean_design: str = "v1") -> dict:
+                         role_features: bool = False, max_availability_age_min: float = 600.0, verbose=lambda *_: None) -> dict:
     """price_slate's identity, availability and player-model blocks, call for call, on the same inputs."""
     import glob
     sched = games.filter(pl.col("season") == target_season)
@@ -108,7 +107,7 @@ def replay_player_models(root: str, market_data: str, quotes: dict, run_ts: date
         book_av.load_roster(r.filter(pl.col("week") == wk).select("gsis_id", "status").to_dicts(), f"week{wk}")
     book_av.finalize()
 
-    hist = pdist.load_player_games(root, range(2013, target_season + (1 if include_current_season_history else 0)))
+    hist = pdist.load_player_games(root, range(2013, target_season))
     cfg = json.load(open(os.path.join(root, "research/player_distributions/results.json")))["config"]
     priors = pdist.position_priors(hist, range(2013, 2016))
     qb_ids = {}
@@ -124,8 +123,6 @@ def replay_player_models(root: str, market_data: str, quotes: dict, run_ts: date
     bundle = feat = None
     role_attached = False
     if len(upcoming):
-        if include_current_season_history:
-            hist = pit_history(hist, upcoming, target_season)
         combined = build_prospective_rows(hist, upcoming)
         combined = pdist.add_ewma_features(combined, halflife=cfg["halflife"], season_carry=cfg["season_carry"],
                                            shrink_k=cfg["shrink_k"], priors=priors)
@@ -138,11 +135,11 @@ def replay_player_models(root: str, market_data: str, quotes: dict, run_ts: date
         feat = combined[combined.is_prospective == True].copy()   # noqa: E712
         histf = combined[combined.is_prospective != True].copy()  # noqa: E712
         bundle = fit_bundle(histf, target_season, model_version,
-                            {"ewma": cfg, "min_train_season": 2016, "use_role_features": role_features, **({"mean_design": mean_design} if mean_design != "v1" else {})}, verbose=verbose)
+                            {"ewma": cfg, "min_train_season": 2016, "use_role_features": role_features}, verbose=verbose)
         from nfl_edge.shadow.models import CHOSEN_FAMILY as _CF
         _CF_backup = dict(_CF); _CF["anytime_td"] = "negbin"
         cnt_bundle = fit_bundle(histf, target_season, model_version + "-tdcount",
-                                {"ewma": cfg, "min_train_season": 2016, "use_role_features": role_features, **({"mean_design": mean_design} if mean_design != "v1" else {})},
+                                {"ewma": cfg, "min_train_season": 2016, "use_role_features": role_features},
                                 stats=["anytime_td"], verbose=lambda *_: None)
         _CF.clear(); _CF.update(_CF_backup)
         if "anytime_td" in cnt_bundle.stat_models:

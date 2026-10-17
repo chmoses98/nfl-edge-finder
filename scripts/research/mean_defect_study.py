@@ -14,6 +14,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.research import player_distributions as pdist          # noqa: E402
 from nfl_edge.shadow.models import fit_bundle                         # noqa: E402
+from nfl_edge.shadow import challenger as C                           # noqa: E402
 
 STATS = ["receptions", "targets", "carries"]
 WINDOWS = {"select_2021_24": lambda d: d.season.between(2021, 2024), "confirm_2025": lambda d: d.season == 2025,
@@ -31,7 +32,16 @@ def frame():
 
 
 def score(df, target, design, stat):
-    b = fit_bundle(df, target, f"study-{design}", {"mean_design": design, "min_train_season": 2016}, stats=[stat], verbose=lambda *a, **k: None)
+    cfg = {"min_train_season": 2016}
+    if design == "v2":
+        with C.count_design_v2():
+            b = fit_bundle(df, target, "study-v2", cfg, stats=[stat], verbose=lambda *a, **k: None)
+            return _score(df, target, b, stat)
+    b = fit_bundle(df, target, "study-v1", cfg, stats=[stat], verbose=lambda *a, **k: None)
+    return _score(df, target, b, stat)
+
+
+def _score(df, target, b, stat):
     sm = b.stat_models[stat]
     spec = pdist.STAT_SPECS[stat]
     te = df[pdist.population_mask(df, spec.pop) & (df.season == target) & (df.n_prior >= 10)
