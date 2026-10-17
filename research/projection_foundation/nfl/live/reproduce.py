@@ -46,7 +46,9 @@ def compare(S: dict, tol: float) -> tuple[list[dict], bool]:
         diffs = {k: (None if a is None or b is None else abs(b - a)) for k, (a, b) in d.items()}
         stack = fam not in ("passing_tds",) and ("F" in str(ref.get("model", "")))
         t = STACK_TOL if stack and not fam.startswith("team_") else tol
-        rel = {k: (diffs[k] or 0) / max(1.0, abs(d[k][0] or 0)) for k in ("mae", "crps", "bias")}
+        # bias is a small difference of large quantities: judge it on the scale of the MAE, not of itself
+        scale = {"mae": max(1.0, abs(d["mae"][0] or 0)), "crps": max(1.0, abs(d["crps"][0] or 0)), "bias": max(1.0, abs(d["mae"][0] or 0))}
+        rel = {k: (diffs[k] or 0) / scale[k] for k in ("mae", "crps", "bias")}
         ci_old, ci_new = ref["vs_baseline"].get("ci95"), new["vs_baseline"]["ci95"]
         sig = lambda ci: None if not ci else (ci[1] < 0) - (ci[0] > 0)       # noqa: E731  -1 better, 0 not significant, +1 worse
         same_conclusion = sig(ci_old) == sig(ci_new)
