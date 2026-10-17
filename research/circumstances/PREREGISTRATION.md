@@ -12,7 +12,7 @@ only if its rule, frozen as written below, is positive after fees on 2026 weeks 
 Features (all point-in-time, from nflverse stats through the prior game only):
 * `trend3` = mean targets in the player's last 3 games minus his EWMA targets (role change)
 * `opp_soft` = opponent's trailing-EWMA targets allowed to WR/TE/RB, ranked among teams that week; tercile 3 = softest
-* `implied_total`, `spread_team` (closing consensus line, known pregame)
+* `implied_total`, `spread_team` (closing consensus line, known pregame; positive = team favoured, as in `load_player_games`)
 
 | id | circumstance | prediction | test |
 |---|---|---|---|
@@ -21,8 +21,10 @@ Features (all point-in-time, from nflverse stats through the prior game only):
 | C3 | opp_soft in top tercile | market under-prices YES | mean(y - mid) > 0 |
 | C4 | opp_soft in bottom tercile | market over-prices YES | mean(y - mid) < 0 |
 | C5 | implied_total >= 26 | market under-prices YES | mean(y - mid) > 0 |
-| C6 | spread_team >= +7 (heavy underdog) | market under-prices YES for pass-catchers (volume in catch-up script) | mean(y - mid) > 0 |
+| C6 | spread_team <= -7 (heavy underdog; nflverse convention: spread_team > 0 means the team is FAVOURED) | market under-prices YES for pass-catchers (volume in catch-up script) | mean(y - mid) > 0 |
 | C7 | challenger-minus-market gap >= +0.05 AND C1 | the model's disagreement is informative only when the role change explains it | EV at ask > 0 |
 
 Decision rule: one-sided cluster z; 14 tests (7 x 2 stats) -> Bonferroni alpha 0.05/14 = 0.0036 (z >= 2.69). A hypothesis passing on weeks
 1-4 is "DISCOVERY_SUPPORTED", not validated. Fails stay recorded as negatives.
+
+Amendment (same day, before any join): C6 sign corrected to the repository's spread convention. No outcome or price had been read.
