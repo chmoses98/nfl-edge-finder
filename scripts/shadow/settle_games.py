@@ -61,6 +61,12 @@ EVALUABLE_SUPPORT_STATES = ("SUPPORTED",)
 SETTLEMENT_SOURCE = "nflverse:schedules+stats_player+snap_counts"
 
 
+# Which ledger / evaluation corpus this run settles. The incumbent is the default; the shadow-0.5.0 challenger passes
+# --ledger-name ledger_challenger --eval-name evaluations_challenger and so settles its own forecasts into its own corpus.
+LEDGER_NAME = "ledger"
+EVAL_NAME = "evaluations"
+
+
 def ledger_files(market_data: str, day_lo: str | None = None, day_hi: str | None = None) -> list:
     """Ledger snapshot files, optionally bounded to a window of capture DAYS.
 
@@ -69,7 +75,7 @@ def ledger_files(market_data: str, day_lo: str | None = None, day_hi: str | None
     reading every snapshot of the season to discover that would make the settle job grow without bound.
     """
     out = []
-    for d in sorted(glob.glob(os.path.join(market_data, "data", "shadow", "ledger", "*"))):
+    for d in sorted(glob.glob(os.path.join(market_data, "data", "shadow", LEDGER_NAME, "*"))):
         day = os.path.basename(d)
         if day_lo and day < day_lo:
             continue
@@ -156,6 +162,8 @@ def main():
     ap.add_argument("--market-data", required=True, help="market-data worktree (published ledger + capture)")
     ap.add_argument("--out", default=os.path.join(ROOT, "data", "shadow", "evaluations"),
                     help="local staging directory for NEW evaluation batches")
+    ap.add_argument("--ledger-name", default="ledger", help="directory under data/shadow holding the ledger to settle")
+    ap.add_argument("--eval-name", default="evaluations", help="directory under data/shadow holding this arm's published evaluations")
     ap.add_argument("--scorecard-out", default=os.path.join(ROOT, "data", "shadow", "scorecards"))
     ap.add_argument("--season", type=int, default=0, help="0 = every season present in the ledger")
     ap.add_argument("--game", action="append", default=[], help="settle only this game_id (repeatable)")
@@ -178,6 +186,8 @@ def main():
                     help="skip the ESPN completion attestation (the postgame tables still have to attest)")
     ap.add_argument("--github-output", default="")
     a = ap.parse_args()
+    global LEDGER_NAME, EVAL_NAME
+    LEDGER_NAME, EVAL_NAME = a.ledger_name, a.eval_name
     t0 = datetime.now(timezone.utc)
     now = t0
 
@@ -219,7 +229,7 @@ def main():
         book.sources["espn_final_status"] = espn_meta
         print(f"espn completion attestations: {len(atts)} event(s) over {len(dates)} date(s)", flush=True)
 
-    corpus = ST.EvaluationCorpus(a.out, read_roots=[os.path.join(a.market_data, "data", "shadow", "evaluations")])
+    corpus = ST.EvaluationCorpus(a.out, read_roots=[os.path.join(a.market_data, "data", "shadow", EVAL_NAME)])
     batch = ST.batch_id(now)
     capture_root = os.path.join(a.market_data, "data", "kalshi", "capture")
 
@@ -263,7 +273,7 @@ def main():
 
     scorecard_path = ""
     if not a.no_scorecard and not a.dry_run:
-        rows = ST.read_corpus([a.out, os.path.join(a.market_data, "data", "shadow", "evaluations")])
+        rows = ST.read_corpus([a.out, os.path.join(a.market_data, "data", "shadow", EVAL_NAME)])
         if rows:
             sc = build_scorecard(rows, evaluation_version=a.eval_version)
             d = os.path.join(a.scorecard_out, batch)
@@ -316,7 +326,7 @@ def exchange_settlements(gid, obs, results, a, batch, now):
     required = S.exact_scalar_dependencies(obs, results)
     book = KS.ExactSettlementBook()
 
-    pinned = KS.find_snapshots([a.out, os.path.join(a.market_data, "data", "shadow", "evaluations")], gid)
+    pinned = KS.find_snapshots([a.out, os.path.join(a.market_data, "data", "shadow", EVAL_NAME), os.path.join(a.market_data, "data", "shadow", "evaluations")], gid)
     for path in pinned:
         book.load_snapshot(path)
     if pinned:
