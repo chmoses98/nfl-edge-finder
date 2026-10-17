@@ -45,8 +45,8 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: research/projection_foundation/.cache/live_state.pkl
-        key: nfl-pf-state-restore-${{ github.run_id }}
-        restore-keys: nfl-pf-state-
+        key: nfl-pf-state-${{ hashFiles('research/projection_foundation/requirements-pf.txt') }}-restore-${{ github.run_id }}
+        restore-keys: nfl-pf-state-${{ hashFiles('research/projection_foundation/requirements-pf.txt') }}-
     - name: Run the live chain
       id: run
       shell: bash -eo pipefail {0}
@@ -80,4 +80,4 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: research/projection_foundation/.cache/live_state.pkl
-        key: nfl-pf-state-${{ github.run_id }}-${{ github.run_attempt }}
+        key: nfl-pf-state-${{ hashFiles('research/projection_foundation/requirements-pf.txt') }}-${{ github.run_id }}-${{ github.run_attempt }}
