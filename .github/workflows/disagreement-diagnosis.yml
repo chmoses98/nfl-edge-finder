@@ -1,0 +1,83 @@
+name: Disagreement Diagnosis (projection accuracy + validated-signal contract)
+
+# After settlement, scores the frozen pre-kickoff projections against settled outcomes and the contemporaneous Kalshi
+# quote, classifies every model-market disagreement segment as MODEL_ERROR / VALIDATED_SIGNAL / UNRESOLVED with the rules
+# in chmoses98/sift-sports-intelligence research/intelligence, and publishes `sift.disagreement_status.v1` to
+# market-data under data/intelligence/nfl/ for SIFT to read. RESEARCH ONLY: nothing here reaches the pricer, the gates,
+# the risk policy, the preflight or staking, and the contract says so (authority RESEARCH_ONLY).
+#
+# INERT UNTIL MERGED: schedules fire from the default branch only. Disk discipline: market-data is fetched BLOBLESS and only
+# data/shadow/evaluations/ is checked out (~120 MB), never the whole branch.
+
+on:
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      intelligence_ref:
+        description: 'ref of chmoses98/sift-sports-intelligence holding research/intelligence'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: disagreement-diagnosis
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # a feature-branch dispatch must not publish
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: chmoses98/sift-sports-intelligence
+          ref: ${{ github.event.inputs.intelligence_ref || 'main' }}
+          path: sift
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -q numpy pandas
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Fetch settled evaluations (sparse, blobless)
+        run: |
+          git fetch --depth=1 --filter=blob:none origin market-data
+          rm -rf /tmp/md && git worktree add --no-checkout -f /tmp/md origin/market-data
+          git -C /tmp/md sparse-checkout init --no-cone
+          git -C /tmp/md sparse-checkout set '/data/shadow/evaluations/'
+          git -C /tmp/md checkout -q
+          ls /tmp/md/data/shadow/evaluations | wc -l
+      - name: Diagnose
+        id: diag
+        run: |
+          TS=$(date -u +%Y%m%dT%H%M%SZ)
+          mkdir -p data/intelligence/nfl
+          cd sift
+          python3 -m research.intelligence.nfl_prospective /tmp/md/data/shadow/evaluations \
+            ../data/intelligence/nfl/$TS.diagnosis.json ../data/intelligence/nfl/$TS.disagreement_status.v1.json
+          cd ..
+          cp data/intelligence/nfl/$TS.disagreement_status.v1.json data/intelligence/nfl/latest.json
+          python3 - <<'PY'
+          import json,glob
+          c=json.load(open(sorted(glob.glob("data/intelligence/nfl/*.disagreement_status.v1.json"))[-1]))
+          print(c["message"]); print(c["betting_signals"]["status_counts"], c["sample_accounting"]["independent_player_stat_games"], "independent units")
+          PY
+      - name: Publish (derived, rebuildable; timestamped files are never rewritten)
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/intelligence --message "disagreement diagnosis $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
