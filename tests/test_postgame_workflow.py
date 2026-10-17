@@ -97,9 +97,11 @@ def test_the_publish_steps_are_reached_only_after_something_was_written():
     for s in steps():
         if "publish_market_data" in (s.get("run") or ""):
             cond = s.get("if") or ""
-            assert re.search(r"steps\.(settle|arms|autopsy)\.outputs\.status == 'WROTE'", cond), s.get("name")
+            assert re.search(r"steps\.(settle|settle_challenger|arms|autopsy)\.outputs\.status == 'WROTE'", cond), s.get("name")
             assert "dry_run" in cond, "a dry run must never publish"
-            if "--src data/shadow/evaluations" in s["run"] or "--src data/shadow/scorecards" in s["run"]:
+            if "--src data/shadow/evaluations_challenger" in s["run"]:
+                assert "steps.settle_challenger.outputs.status == 'WROTE'" in cond   # the challenger corpus is gated on its own step
+            elif "--src data/shadow/evaluations" in s["run"] or "--src data/shadow/scorecards" in s["run"]:
                 assert "steps.settle.outputs.status == 'WROTE'" in cond
 
 

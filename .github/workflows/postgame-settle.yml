@@ -172,6 +172,32 @@ jobs:
           python3 scripts/ci/publish_market_data.py --src data/shadow/evaluations \
             --message "shadow evaluations ${{ steps.settle.outputs.batch_id }} (${{ steps.settle.outputs.written }} records)"
 
+      # shadow-0.5.0 CHALLENGER: the same settlement engine over the challenger's own ledger, into its own write-once
+      # corpus. Idempotent (a game already evaluated is `unchanged`, never rewritten), research only, and it can never
+      # fail the incumbent settlement above: a failure here is reported in the run summary and retried at the next poll.
+      - name: Settle the shadow-0.5.0 challenger ledger
+        id: settle_challenger
+        if: steps.gate.outputs.work == 'true' || github.event.inputs.games != ''
+        continue-on-error: true
+        env:
+          INPUT_LOOKBACK: ${{ github.event.inputs.lookback_days }}
+        run: |
+          if ls -d /tmp/md/data/shadow/ledger_challenger/*/ >/dev/null 2>&1; then
+            python3 scripts/shadow/settle_games.py --market-data /tmp/md \
+              --ledger-name ledger_challenger --eval-name evaluations_challenger \
+              --out data/shadow/evaluations_challenger --no-scorecard \
+              --lookback-days "${INPUT_LOOKBACK:-10}" --github-output "$GITHUB_OUTPUT"
+          else
+            echo "no challenger ledger published yet; nothing to settle"
+            echo "status=NOTHING_TO_DO" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish the immutable challenger evaluation records
+        if: steps.settle_challenger.outputs.status == 'WROTE' && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/evaluations_challenger \
+            --message "challenger evaluations ${{ steps.settle_challenger.outputs.batch_id }} (${{ steps.settle_challenger.outputs.written }} records)"
+
       # The scorecard is derived and can always be rebuilt from the corpus, so a failure here must not fail a
       # run whose immutable product is already published.
       - name: Rebuild the cumulative research report from the whole corpus

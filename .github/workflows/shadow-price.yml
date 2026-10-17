@@ -63,6 +63,16 @@ jobs:
           python3 scripts/shadow/price_slate.py --market-data /tmp/md \
             ${{ github.event.inputs.model_version && format('--model-version {0}', github.event.inputs.model_version) || '' }} \
             --out data/shadow/ledger 2>&1 | tail -25
+      # shadow-0.5.0 CHALLENGER (research/mean_defect): the same frozen pricer code path with this season's completed
+      # games in the EWMA features and the repaired count mean models. Its own ledger directory and model version; the
+      # incumbent above is untouched and still the only arm anything else reads. Zero authority. A failure here is
+      # reported and cannot fail the pricing job.
+      - name: Price the slate (shadow-0.5.0 challenger)
+        id: price_challenger
+        continue-on-error: true
+        run: |
+          python3 scripts/shadow/price_slate_challenger.py --market-data /tmp/md \
+            --out data/shadow/ledger_challenger 2>&1 | tail -25
       # ---- three-arm game-centre experiment (shadow research; zero authority) ------------------------
       # Replays the frozen pricer's game-environment block on the same capture to obtain the exact CURRENT
       # centre (verified against the ledger snapshot just written), rates teams from football data at the
@@ -104,6 +114,11 @@ jobs:
       - name: Publish ledger
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/ledger --message "shadow ledger $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: Publish the challenger ledger
+        if: steps.price_challenger.outcome == 'success'
+        continue-on-error: true
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/ledger_challenger --message "challenger ledger $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
       - name: Publish the three-arm snapshot
         if: steps.arms.outputs.status == 'WRITTEN' && steps.arms_validate.outcome == 'success'
         continue-on-error: true
