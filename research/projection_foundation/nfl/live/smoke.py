@@ -140,7 +140,11 @@ def main(argv=None) -> int:
           len(ch2) == len(ch1) and pj2["challenger_new_versions"] == 0, f"{len(ch1)} -> {len(ch2)}")
     check("run2 coverage is over the projected players only and improved with the later ESPN capture",
           pj2["availability_coverage"]["mean_coverage"] >= pj["availability_coverage"]["mean_coverage"], f"{pj['availability_coverage']['mean_coverage']} -> {pj2['availability_coverage']['mean_coverage']}")
-    check("the gate/BLOCK path for CONFIRMED_OUT projections is covered by tests/test_nfl_live.py and the runner dry-run (52 BLOCK rows from real Out candidates); this replay game has none", True)
+    # Not a check (nothing to assert in this game): no projected player was ruled out. The CONFIRMED_OUT -> BLOCK path is
+    # pinned by tests/test_nfl_live.py::test_nfl_gate_blocks_confirmed_out_and_reviews_unverified and was seen on the runner
+    # dry-run (52 CONFIRMED_OUT candidates -> 52 BLOCK rows).
+    print("NOTE no projected player was ruled out in this game; CONFIRMED_OUT -> BLOCK is covered by "
+          "tests/test_nfl_live.py::test_nfl_gate_blocks_confirmed_out_and_reviews_unverified", flush=True)
     check("incumbent forecasts of run2 come from the later ledger run", pj2["incumbent"]["ledger_run"] > pj["incumbent"]["ledger_run"], f"{pj['incumbent']['ledger_run']} -> {pj2['incumbent']['ledger_run']}")
     report["run2"] = {"participation": pj2["build"]["participation"], "certainty": pj2["build"]["participation_certainty"], "gate": pj2["build"]["gate_status"],
                       "coverage": pj2["availability_coverage"], "archive": pj2["archive"], "qb_mismatch": pj2["build"]["qb_starter_mismatch"]}

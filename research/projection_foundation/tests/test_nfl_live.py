@@ -349,3 +349,25 @@ def test_segment_drift_reports_bias_with_n():
     assert r["new_team_first4"]["n"] == 40 and r["new_team_first4"]["relative_bias"] > 0.15
     assert r["new_team_first4"]["status"] == "WATCH" and abs(r["none_of_the_three"]["relative_bias"]) < 0.2
     assert "bias_ci95" in r["new_team_first4"]
+
+
+def test_nfl_gate_blocks_confirmed_out_and_reviews_unverified():
+    """The NFL gate wrapper the live projector calls (gate_nfl.run) turns participation into gate status: CONFIRMED_OUT is
+    BLOCK (SIFT withholds the number), UNVERIFIED / UNCERTAIN are REVIEW, a likely-active player with clean inputs is not
+    blocked. The TNF replay game has no projected player who was ruled out, so the BLOCK path is pinned here."""
+    from nfl import gate_nfl as G
+    ko = pd.Timestamp("2026-10-16T00:15:00Z")
+    hist = [5.0, 7.0, 6.0, 8.0, 6.0, 7.0, 5.0, 6.0]
+    rows = pd.DataFrame([{"player_id": f"00-00{i}", "player_display_name": f"P{i}", "team": "SEA", "game_id": "2026_06_SEA_DEN",
+                          "kickoff_utc": ko, "career_games": 40, "opp_games_season": 5,
+                          "_hist_targets": hist, "_hist_receptions": [4.0, 5.0, 4.0, 6.0, 4.0, 5.0, 3.0, 4.0]} for i in range(4)])
+    mean = np.array([4.5, 4.5, 4.5, 4.5])
+    dist = dists.poisson(mean)
+    part = [av.CONFIRMED_OUT, av.UNVERIFIED, av.UNCERTAIN, av.LIKELY_ACTIVE]
+    res = G.run("receptions", rows, mean, dist, "receptions", opp_mean=np.full(4, 6.5), rungs=[3, 5],
+                now_utc="2026-10-15T23:20:00Z", participation=part, participation_reasons=[["r"]] * 4,
+                data_asof_utc="2026-10-15T23:00:00Z")
+    st = [r["status"] for r in res]
+    assert st[0] == "BLOCK"
+    assert st[1] == "REVIEW" and st[2] == "REVIEW"
+    assert st[3] != "BLOCK"
