@@ -143,7 +143,11 @@ def stage_project(a, ctx, rows):
     frozen = json.load(open(os.path.join(PF_ROOT, "results", "nfl_frozen_selection.json")))["families"]
     # coverage of availability over the players we will project
     pf = S["pf"]
-    fwd = pf[(pf.split == "forward") & pf.game_id.isin({e["event_id"] for e in events})]
+    import numpy as np
+    in_pop = np.zeros(len(pf), bool)
+    for m in S["pops"].values():                 # coverage is over the players we actually project (in at least one family population)
+        in_pop |= np.asarray(m, bool)
+    fwd = pf[(pf.split == "forward") & pf.game_id.isin({e["event_id"] for e in events}).to_numpy() & in_pop]
     expected: dict[str, list[str]] = {}
     for gid, g in fwd.groupby("game_id"):
         expected[gid] = sorted(set(g.player_id))
@@ -206,13 +210,18 @@ def stage_publish(a, ctx):
         pdir = os.path.join(root, "projections", "nfl")
         os.makedirs(pdir, exist_ok=True)
         latest = os.path.join(pdir, "latest.json")
-        same = os.path.exists(latest) and _strip(json.load(open(latest))) == _strip(doc)
-        if not same:
+        prev = json.load(open(latest)) if os.path.exists(latest) else None
+        same = prev is not None and _strip(prev) == _strip(doc)
+        # latest.json only moves forward in time: re-running an older clock (replay, delayed backup cron) must not regress it
+        older = prev is not None and av._ts(doc["generated_utc"]) < av._ts(prev["generated_utc"])
+        if not same and not older:
             stamp = av._ts(ctx["now"]).strftime("%Y-%m-%dT%H%MZ")
-            with gzip.open(os.path.join(pdir, f"{stamp}.json.gz"), "wt") as f:
-                json.dump(doc, f, default=str)
+            copy = os.path.join(pdir, f"{stamp}.json.gz")
+            if not os.path.exists(copy):       # timestamped copies are write-once; mtime=0 keeps the bytes a pure function of the content
+                with open(copy, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as gz:
+                    gz.write(json.dumps(doc, default=str).encode())
             json.dump(doc, open(latest, "w"), indent=1, default=str)
-        out["projections"] = {"changed": not same, "players": len(doc["players"]), "games": len(doc["games"])}
+        out["projections"] = {"changed": not same and not older, "stale_clock_skipped": bool(older), "players": len(doc["players"]), "games": len(doc["games"])}
     else:
         out["projections"] = {"changed": False, "note": "no projection document this run"}
     sdir = os.path.join(root, "summary", "nfl")

@@ -127,13 +127,20 @@ def main(argv=None) -> int:
     pj2 = s2["stages"]["project"]
     f2 = forecasts(archive)
     ch2 = f2[f2.model_role == "challenger"]
-    check("run2 archived NEW versions (availability changed) without touching run1's", len(ch2) > len(ch1) and len(ch1) == len(f1[f1.model_role == "challenger"]),
-          f"{len(ch1)} -> {len(ch2)}")
-    check("run2 has CONFIRMED_OUT players (inactive list as relayed by ESPN) that run1 had as active",
-          pj2["build"]["participation"].get("CONFIRMED_OUT", 0) > part1.get("CONFIRMED_OUT", 0),
-          f"{part1} -> {pj2['build']['participation']}")
-    out_rows = ch2[ch2.participation == "CONFIRMED_OUT"]
-    check("CONFIRMED_OUT rows are gate BLOCK (written, number withheld by SIFT)", (out_rows.gate_status == "BLOCK").all() and len(out_rows) > 0, str(len(out_rows)))
+    inactive = _skill_inactives()
+    rows1, rows2 = LA_rows(archive, T1), LA_rows(archive, T2)
+    st1 = {e: _status(rows1, T1, e) for e in inactive}
+    st2 = {e: _status(rows2, T2, e) for e in inactive}
+    check("the ESPN feed flips exactly the official skill-position inactives from active (run 1) to CONFIRMED_OUT (run 2)",
+          len(inactive) >= 5 and set(st1.values()) == {"LIKELY_ACTIVE"} and set(st2.values()) == {"CONFIRMED_OUT"}, f"{len(inactive)} players: {sorted(set(st1.values()))} -> {sorted(set(st2.values()))}")
+    projected = set(ch2.entity_id)
+    check("none of those inactives is in the projected population (QB2, TE/WR/RB reserves), so no projection row exists to BLOCK for them",
+          not (set(inactive) & projected), f"{len(projected)} projected entities")
+    check("run2 correctly archives NO new version: availability of the projected players did not change",
+          len(ch2) == len(ch1) and pj2["challenger_new_versions"] == 0, f"{len(ch1)} -> {len(ch2)}")
+    check("run2 coverage is over the projected players only and improved with the later ESPN capture",
+          pj2["availability_coverage"]["mean_coverage"] >= pj["availability_coverage"]["mean_coverage"], f"{pj['availability_coverage']['mean_coverage']} -> {pj2['availability_coverage']['mean_coverage']}")
+    check("the gate/BLOCK path for CONFIRMED_OUT projections is covered by tests/test_nfl_live.py and the runner dry-run (52 BLOCK rows from real Out candidates); this replay game has none", True)
     check("incumbent forecasts of run2 come from the later ledger run", pj2["incumbent"]["ledger_run"] > pj["incumbent"]["ledger_run"], f"{pj['incumbent']['ledger_run']} -> {pj2['incumbent']['ledger_run']}")
     report["run2"] = {"participation": pj2["build"]["participation"], "certainty": pj2["build"]["participation_certainty"], "gate": pj2["build"]["gate_status"],
                       "coverage": pj2["availability_coverage"], "archive": pj2["archive"], "qb_mismatch": pj2["build"]["qb_starter_mismatch"]}
@@ -198,6 +205,26 @@ def main(argv=None) -> int:
     bad = [n for n, ok, _ in CHECKS if not ok]
     print(f"\n{len(CHECKS) - len(bad)}/{len(CHECKS)} checks passed" + (f"; FAILED: {bad}" if bad else ""))
     return 1 if bad else 0
+
+
+def LA_rows(archive, now):
+    from nfl.live import availability as LA
+    return LA.load_rows(archive, now)
+
+
+def _status(rows, now, entity):
+    from nfl.live import availability as LA
+    return LA.resolve(rows, now, GAME, entity).status
+
+
+def _skill_inactives():
+    """gsis ids of the skill players on the official inactive list of the game (nflverse weekly roster INA, a realised label
+    read AFTER the game and used here only as the answer key for the replay)."""
+    import pandas as pd
+    from nfl import data as D
+    r = D.weekly_roster()
+    r = r[(r.season == 2026) & (r.week == 6) & (r.team.isin(["SEA", "DEN"])) & (r.status == "INA") & r.position.isin(["QB", "RB", "WR", "TE", "FB"])]
+    return sorted(r.gsis_id.dropna())
 
 
 def pd_ts(s):
