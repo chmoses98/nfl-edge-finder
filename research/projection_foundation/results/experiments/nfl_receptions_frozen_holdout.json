@@ -1,0 +1,70 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:55Z",
+  "data_provenance": [
+    "nflverse release files"
+  ],
+  "distribution": {
+    "cover_80": 0.8056818181818182,
+    "crps": 1.0626231672010806,
+    "log_score": 1.9687704197245923,
+    "pit_var_ratio": 0.9801441077727104
+  },
+  "eval_period": "2024-2025 regular seasons",
+  "experiment_id": "nfl_receptions_frozen_holdout",
+  "family": "receptions",
+  "features": [],
+  "fingerprint": "0f278254b0dc9939",
+  "hyperparameters": {},
+  "hypothesis": "validation advantage over baseline persists on 2024-2025",
+  "limitations": [],
+  "model": "F_plus_availability(vacated+own_questionable)",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 544,
+  "n_independent": 6160,
+  "n_obs": 6160,
+  "point": {
+    "bias": 0.07313153089740138,
+    "mae": 1.551743719445607,
+    "rmse": 1.9901139761234257
+  },
+  "python": "3.13.16",
+  "question": "Does the frozen receptions winner hold up out of sample?",
+  "split": "holdout",
+  "sport": "NFL",
+  "train_period": "<= previous season (walk-forward)",
+  "verdict": "holdout (frozen)",
+  "vs_baseline": {
+    "ci95": [
+      -0.050456201787278714,
+      -0.03629757542731516
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.05443947585114772,
+        -0.031516181438280416
+      ],
+      "mean_diff": -0.0423250832719489,
+      "z": -7.431836829681613
+    },
+    "mean_diff": -0.04290322423575297,
+    "z": -11.611955868417596
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.08174638369660046,
+      -0.05755715031480846
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.10699778700101474,
+        -0.06509791296889798
+      ],
+      "mean_diff": -0.0853056507879799,
+      "z": -8.103374185670328
+    },
+    "mean_diff": -0.0690131126950155,
+    "z": -11.617516362093404
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:55Z",
+  "data_provenance": [
+    "nflverse release files"
+  ],
+  "distribution": {
+    "cover_80": 0.8038095238095239,
+    "crps": 4.82097203417857,
+    "log_score": 3.655844767379956,
+    "pit_var_ratio": 0.9891775719735572
+  },
+  "eval_period": "2024-2025 regular seasons",
+  "experiment_id": "nfl_passing_attempts_frozen_holdout",
+  "family": "passing_attempts",
+  "features": [],
+  "fingerprint": "7d73679df1967599",
+  "hyperparameters": {},
+  "hypothesis": "validation advantage over baseline persists on 2024-2025",
+  "limitations": [],
+  "model": "F_qb_starts_env_stack",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1050,
+  "n_obs": 1050,
+  "point": {
+    "bias": 1.1944704087467022,
+    "mae": 6.777329288799195,
+    "rmse": 8.696693343588258
+  },
+  "python": "3.13.16",
+  "question": "Does the frozen passing_attempts winner hold up out of sample?",
+  "split": "holdout",
+  "sport": "NFL",
+  "train_period": "<= previous season (walk-forward)",
+  "verdict": "holdout (frozen)",
+  "vs_baseline": {
+    "ci95": [
+      -0.2801982814011075,
+      -0.1108979744176042
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.5208238999891247,
+        -0.13851797517183373
+      ],
+      "mean_diff": -0.32114912434368414,
+      "z": -3.214668645990325
+    },
+    "mean_diff": -0.19609201359795586,
+    "z": -4.5750792852408555
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.2025764567202615,
+      -0.06843670225998598
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.28784150506342243,
+        -0.07664427576669039
+      ],
+      "mean_diff": -0.1838130287789774,
+      "z": -3.416952869281916
+    },
+    "mean_diff": -0.1354765988101755,
+    "z": -3.8485089150263776
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:54Z",
+  "data_provenance": [
+    "nflverse stats_player/stats_team/snap_counts/schedules/injuries release files (data/raw/nflverse/_manifest.jsonl)"
+  ],
+  "distribution": {
+    "cover_50": 0.5341959334565619,
+    "cover_80": 0.8188539741219963,
+    "cover_90": 0.9001848428835489,
+    "crps": 42.24295085474016,
+    "log_score": 7.342158132404746,
+    "pit_var_ratio": 0.9500993099649016
+  },
+  "eval_period": "2022-2023 regular seasons",
+  "experiment_id": "nfl_passing_yards_A_validation",
+  "family": "passing_yards",
+  "features": [],
+  "fingerprint": "95ca6335fa0456a3",
+  "hyperparameters": {
+    "dist": "empirical_resid"
+  },
+  "hypothesis": "beats the season-average baseline A on validation CRPS",
+  "limitations": [
+    "conditional on participation (DNP rows excluded)",
+    "injury designations untimestamped"
+  ],
+  "model": "A_season_avg_shrunk",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1082,
+  "n_obs": 1082,
+  "point": {
+    "bias": -9.981535962805827,
+    "corr": 0.317593221862111,
+    "mae": 59.38553944514971,
+    "rmse": 75.75171804402224
+  },
+  "python": "3.13.16",
+  "question": "How accurate is A_season_avg_shrunk for passing_yards?",
+  "split": "validation",
+  "sport": "NFL",
+  "train_period": "2012-2021 (features from 2012; tuning 2016-2021; E refit each season on all earlier seasons)",
+  "verdict": "baseline",
+  "vs_baseline": {},
+  "vs_incumbent": {
+    "ci95": [
+      0.27957561608263565,
+      1.318183680224968
+    ],
+    "mae_diff": {
+      "ci95": [
+        0.13146319642797913,
+        2.3872406388676475
+      ],
+      "mean_diff": 1.2452633391218348,
+      "z": 2.1984622981299413
+    },
+    "mean_diff": 0.7971498144507168,
+    "n_common": 1082,
+    "z": 2.9746368376683194
+  }
+}

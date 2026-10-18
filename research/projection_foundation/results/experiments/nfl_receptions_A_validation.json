@@ -1,0 +1,64 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:54Z",
+  "data_provenance": [
+    "nflverse stats_player/stats_team/snap_counts/schedules/injuries release files (data/raw/nflverse/_manifest.jsonl)"
+  ],
+  "distribution": {
+    "cover_50": 0.4934881531460851,
+    "cover_80": 0.7884826612270516,
+    "cover_90": 0.8981641299231131,
+    "crps": 1.1203160267012984,
+    "log_score": 2.0136868362035587,
+    "pit_var_ratio": 1.0197884507597645
+  },
+  "eval_period": "2022-2023 regular seasons",
+  "experiment_id": "nfl_receptions_A_validation",
+  "family": "receptions",
+  "features": [],
+  "fingerprint": "e66790a107b90aff",
+  "hyperparameters": {
+    "dist": "nb_binned"
+  },
+  "hypothesis": "beats the season-average baseline A on validation CRPS",
+  "limitations": [
+    "conditional on participation (DNP rows excluded)",
+    "injury designations untimestamped"
+  ],
+  "model": "A_season_avg_shrunk",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 6373,
+  "n_obs": 6373,
+  "point": {
+    "bias": -0.05243887818908344,
+    "corr": 0.5494351087438636,
+    "mae": 1.6219537812913871,
+    "rmse": 2.0817036483081695
+  },
+  "python": "3.13.16",
+  "question": "How accurate is A_season_avg_shrunk for receptions?",
+  "split": "validation",
+  "sport": "NFL",
+  "train_period": "2012-2021 (features from 2012; tuning 2016-2021; E refit each season on all earlier seasons)",
+  "verdict": "baseline",
+  "vs_baseline": {},
+  "vs_incumbent": {
+    "ci95": [
+      -0.05493234061535975,
+      -0.031018633383674114
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.10223861093688669,
+        -0.06014109936653273
+      ],
+      "mean_diff": -0.0805743098562945,
+      "z": -7.504506557433609
+    },
+    "mean_diff": -0.042557967140429295,
+    "n_common": 6373,
+    "z": -7.139703319531751
+  }
+}

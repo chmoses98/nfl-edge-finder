@@ -1,0 +1,165 @@
+name: Projection Foundation (NFL)
+
+# LIVE SHADOW OPERATION of the SIFT Projection Foundation (research only; authority is research_only everywhere).
+#
+# What runs (research/projection_foundation, `python -m nfl.live.run`; see nfl/live/run.py):
+#   capture -> project -> publish -> results -> settle -> score -> guard
+# Frozen models, frozen selection and frozen distributions: nothing is re-selected or re-tuned here. Forecasts for games
+# that have not started are archived write-once (challenger = the Projection Foundation models, incumbent = the shadow-0.4.0
+# ledger read-only); finished games are settled once against nflverse; scorecards (7-day, 28-day, season) compare them and
+# monitor the segments the study flagged (new team first 4 games, backup tiers, rookies).
+#
+# Everything is written to the orphan branch `projection-data` (never main, never market-data). The incumbent pricer,
+# ledgers, shadow-0.5.0 challenger and the disagreement-diagnosis workflows are untouched and keep running as they are.
+# 2026 weeks >= 5 are the untouched MARKET holdout: archiving and scoring PROJECTION accuracy on them is fine, nothing here
+# tunes on them or touches a market/disagreement verdict.
+#
+# Cadence (UTC, in season Sep-Feb). GitHub drops and delays crons, so every refresh slot has a backup 12 minutes later; the
+# run is idempotent (identical forecasts/observations are not archived twice) and serialised by the concurrency group.
+#   fresh    Thu 13:11, Sat 13:11, Sun 08:11 - rebuild the validated walk-forward state from the newest nflverse data (~1 h on a
+#            runner) and run the whole chain; the state is cached for the refresh runs of the same week.
+#   refresh  ~70 min before kickoff windows (Thu 23:03 TNF, Sun 12:20 London, 15:52 early, 19:02 late, 23:12 SNF, Mon 23:03 MNF):
+#            new availability (injury designations as they flip to Out around the ~T-90 min inactive list) -> new forecast
+#            versions; reuses the cached state, fails loudly if there is none (the morning fresh run must produce it).
+#   settle   Tue 15:23 and Wed 15:23: final results -> settlement -> scorecards (Wednesday catches stat corrections).
+#
+# pull_request: the FULL chain runs with --dry-run (live fetches, real projections, gate, archiving into a temporary copy of the
+# archive, settle/score on whatever the archive holds, plus the reproducibility check of the frozen holdout) with read-only
+# permissions: it cannot and does not push anything.
+
+on:
+  schedule:
+    - cron: '11 13 * 9-12,1-2 4'
+    - cron: '11 13 * 9-12,1-2 6'
+    - cron: '11 8 * 9-12,1-2 0'
+    - cron: '3 23 * 9-12,1-2 4'
+    - cron: '15 23 * 9-12,1-2 4'
+    - cron: '20 12 * 9-12,1-2 0'
+    - cron: '32 12 * 9-12,1-2 0'
+    - cron: '52 15 * 9-12,1-2 0'
+    - cron: '4 16 * 9-12,1-2 0'
+    - cron: '2 19 * 9-12,1-2 0'
+    - cron: '14 19 * 9-12,1-2 0'
+    - cron: '12 23 * 9-12,1-2 0'
+    - cron: '24 23 * 9-12,1-2 0'
+    - cron: '3 23 * 9-12,1-2 1'
+    - cron: '15 23 * 9-12,1-2 1'
+    - cron: '23 15 * 9-12,1-2 2'
+    - cron: '23 15 * 9-12,1-2 3'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'fresh (rebuild state, whole chain) | refresh (reuse the saved state) | settle (results, settle, score)'
+        required: false
+        default: 'fresh'
+      dry_run:
+        description: 'true = work on a temporary copy of the archive, push nothing'
+        required: false
+        default: 'false'
+  pull_request:
+    paths:
+      - 'research/projection_foundation/**'
+      - '.github/workflows/projection-foundation.yml'
+      - '.github/actions/nfl-pf-live/**'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: projection-foundation-nfl-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'live' }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------------------------- pull request: dry run, read-only
+  pr-dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 175
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Archive checkout (read-only; empty orphan if projection-data does not exist yet)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash research/projection_foundation/nfl/live/ci.sh checkout "$GITHUB_WORKSPACE/archive"
+      - id: live
+        uses: ./.github/actions/nfl-pf-live
+        with:
+          mode: fresh
+          dry_run: 'true'
+          archive: ${{ github.workspace }}/archive
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: projection-foundation-nfl-pr
+          path: |
+            ${{ runner.temp }}/nfl_live_summary.json
+            ${{ runner.temp }}/nfl_reproduce.json
+            research/projection_foundation/.cache/live_run/projection_doc.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------------------------- scheduled / manual: writes projection-data
+  live:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 175
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Which run is this (by schedule slot)
+        id: plan
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          IN_MODE: ${{ github.event.inputs.mode }}
+          IN_DRY: ${{ github.event.inputs.dry_run }}
+        run: |
+          MODE="${IN_MODE:-}"
+          if [ -z "$MODE" ]; then
+            case "$SCHEDULE" in
+              '11 13 * 9-12,1-2 4'|'11 13 * 9-12,1-2 6'|'11 8 * 9-12,1-2 0') MODE=fresh ;;
+              '23 15 * 9-12,1-2 2'|'23 15 * 9-12,1-2 3') MODE=settle ;;
+              *) MODE=refresh ;;
+            esac
+          fi
+          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+          echo "dry=${IN_DRY:-false}" >> "$GITHUB_OUTPUT"
+          echo "mode ${MODE} (schedule '${SCHEDULE}', dry ${IN_DRY:-false})"
+      - name: Archive checkout (creates the orphan branch on the first run)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash research/projection_foundation/nfl/live/ci.sh checkout "$GITHUB_WORKSPACE/archive"
+      - id: live
+        uses: ./.github/actions/nfl-pf-live
+        with:
+          mode: ${{ steps.plan.outputs.mode }}
+          dry_run: ${{ steps.plan.outputs.dry }}
+          archive: ${{ github.workspace }}/archive
+      # Only reached when every stage (incl. archive_guard) passed: a failed stage fails the job above and nothing is committed;
+      # the next run redoes the idempotent stages.
+      - name: Commit the archive to projection-data (additions only; guard runs again after any rebase)
+        if: steps.plan.outputs.dry != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash research/projection_foundation/nfl/live/ci.sh push "$GITHUB_WORKSPACE/archive" "nfl projection foundation ${{ steps.plan.outputs.mode }} $(date -u +'%Y-%m-%dT%H:%MZ')"
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: projection-foundation-nfl-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/nfl_live_summary.json
+            ${{ runner.temp }}/nfl_reproduce.json
+          if-no-files-found: warn
+          retention-days: 30
