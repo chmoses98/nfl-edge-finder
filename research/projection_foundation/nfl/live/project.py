@@ -225,6 +225,8 @@ def build(S: dict, frozen: dict, summary: dict | None, now_utc: str, events: lis
                 "player_id": r.player_id, "name": r.player_display_name, "team": r.team, "opponent": r.opp, "game_id": r.game_id,
                 "position": r.position, "family": fam, "mean": round(float(mu[j]), 3), "median": int(dist.median[j]),
                 "p10": int(dist.quantile(0.1)[j]), "p90": int(dist.quantile(0.9)[j]),
+                # additive (contract 3.1b): the full set the app draws its range bars from, all from the same distribution
+                "quantiles": {f"p{int(q * 100):02d}": int(dist.quantile(q)[j]) for q in (0.05, 0.25, 0.5, 0.75, 0.95)},
                 "thresholds": {str(k): round(float(thr[k][j]), 4) for k in rungs},
                 "opportunity": ({"family": oppfam, "mean": round(float(opp_mu[j]), 2), "p10": int(od.quantile(0.1)[j]),
                                  "p90": int(od.quantile(0.9)[j])} if od is not None else

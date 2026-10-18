@@ -125,3 +125,7 @@ def test_projection_contract():
         assert all(th[i] >= th[i + 1] - 1e-9 for i in range(len(th) - 1))
         assert p["gate"]["status"] in ("PASS", "REVIEW", "BLOCK")
         assert p["p10"] <= p["median"] <= p["p90"]
+        q = p.get("quantiles")  # additive (contract 3.1b); rows written before it existed simply lack it
+        if q:
+            vals = [q[k] for k in ("p05", "p25", "p50", "p75", "p95")]
+            assert vals == sorted(vals) and q["p05"] <= p["p10"] and p["p90"] <= q["p95"]

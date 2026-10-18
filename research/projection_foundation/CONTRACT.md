@@ -124,3 +124,9 @@ CONFIRMED_OUT is gate BLOCK. A player is never presented as active without an ob
 
 Model roles in the forecast archive: `challenger` (Projection Foundation frozen model) and `incumbent` (today's production
 model, archived unchanged from its own output). Paired comparisons use only keys both roles forecast before the start.
+
+### 3.1b Player quantiles (additive, pf_core 1.2.1)
+
+Player rows MAY carry `"quantiles": {"p05": .., "p25": .., "p50": .., "p75": .., "p95": ..}`, all taken from the same
+distribution as `mean`, `median`, `p10`, `p90` and `thresholds`. SIFT draws its range bars from them so the displayed
+range, expected value and rung probabilities always describe one model. Consumers that do not know the field ignore it.
