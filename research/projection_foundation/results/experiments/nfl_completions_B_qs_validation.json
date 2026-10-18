@@ -1,0 +1,80 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:54Z",
+  "data_provenance": [
+    "nflverse stats_player/stats_team/snap_counts/schedules/injuries release files (data/raw/nflverse/_manifest.jsonl)"
+  ],
+  "distribution": {
+    "cover_50": 0.5360443622920518,
+    "cover_80": 0.800369685767098,
+    "cover_90": 0.8955637707948244,
+    "crps": 3.4379128706271254,
+    "log_score": 3.301679925918286,
+    "pit_var_ratio": 0.9695639254318484
+  },
+  "eval_period": "2022-2023 regular seasons",
+  "experiment_id": "nfl_completions_B_qs_validation",
+  "family": "completions",
+  "features": [],
+  "fingerprint": "3098146fb23c815b",
+  "hyperparameters": {
+    "dist": "nb"
+  },
+  "hypothesis": "beats the season-average baseline A on validation CRPS",
+  "limitations": [
+    "conditional on participation (DNP rows excluded)",
+    "injury designations untimestamped"
+  ],
+  "model": "B_qb_starts_only",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1082,
+  "n_obs": 1082,
+  "point": {
+    "bias": 0.5543692376119059,
+    "corr": 0.3646407359076531,
+    "mae": 4.807976623773569,
+    "rmse": 6.18133159744905
+  },
+  "python": "3.13.16",
+  "question": "How accurate is B_qb_starts_only for completions?",
+  "split": "validation",
+  "sport": "NFL",
+  "train_period": "2012-2021 (features from 2012; tuning 2016-2021; E refit each season on all earlier seasons)",
+  "verdict": "candidate",
+  "vs_baseline": {
+    "ci95": [
+      -0.06845111334060514,
+      0.04586685746396869
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.26138755814371645,
+        0.008034674536495373
+      ],
+      "mean_diff": -0.1293548435554601,
+      "z": -1.8855837985564683
+    },
+    "mean_diff": -0.013714139051558298,
+    "n_common": 1082,
+    "z": -0.4758821196715398
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.05389089808320361,
+      0.06223672990937454
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.08757198065852846,
+        0.10476515044753297
+      ],
+      "mean_diff": 0.009431234506368107,
+      "z": 0.1894105214657264
+    },
+    "mean_diff": 0.0033399466961287483,
+    "n_common": 1082,
+    "z": 0.11201975334904292
+  }
+}

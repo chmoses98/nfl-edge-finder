@@ -1,0 +1,70 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:55Z",
+  "data_provenance": [
+    "nflverse release files"
+  ],
+  "distribution": {
+    "cover_80": 0.7982770997846375,
+    "crps": 0.17247912321786893,
+    "log_score": 0.5213499000549213,
+    "pit_var_ratio": 1.0099347128186322
+  },
+  "eval_period": "2024-2025 regular seasons",
+  "experiment_id": "nfl_anytime_td_frozen_holdout",
+  "family": "anytime_td",
+  "features": [],
+  "fingerprint": "7efc45146ee6ef7b",
+  "hyperparameters": {},
+  "hypothesis": "validation advantage over baseline persists on 2024-2025",
+  "limitations": [],
+  "model": "F_plus_availability(vacated+own_questionable)",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 544,
+  "n_independent": 6965,
+  "n_obs": 6965,
+  "point": {
+    "bias": -0.007431185208834581,
+    "mae": 0.34335552638862143,
+    "rmse": 0.41530605969317247
+  },
+  "python": "3.13.16",
+  "question": "Does the frozen anytime_td winner hold up out of sample?",
+  "split": "holdout",
+  "sport": "NFL",
+  "train_period": "<= previous season (walk-forward)",
+  "verdict": "holdout (frozen)",
+  "vs_baseline": {
+    "ci95": [
+      -0.007642031907768098,
+      -0.004988316258795566
+    ],
+    "mae_diff": {
+      "ci95": [
+        0.000978050263257218,
+        0.0038058368015727734
+      ],
+      "mean_diff": 0.002426686943538974,
+      "z": 3.195724465964665
+    },
+    "mean_diff": -0.006293917429636826,
+    "z": -9.195128609046975
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.002083882941930993,
+      -5.2409863750559255e-05
+    ],
+    "mae_diff": {
+      "ci95": [
+        0.0044108368609500626,
+        0.006862455424829011
+      ],
+      "mean_diff": 0.005602861432920595,
+      "z": 9.267939156678356
+    },
+    "mean_diff": -0.001118201238970742,
+    "z": -2.188163374647357
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:55Z",
+  "data_provenance": [
+    "nflverse release files"
+  ],
+  "distribution": {
+    "cover_80": 0.811038961038961,
+    "crps": 14.321775709844296,
+    "log_score": 4.473860960344254,
+    "pit_var_ratio": 0.9742316940511351
+  },
+  "eval_period": "2024-2025 regular seasons",
+  "experiment_id": "nfl_receiving_yards_frozen_holdout",
+  "family": "receiving_yards",
+  "features": [],
+  "fingerprint": "78a5d0c28c23a551",
+  "hyperparameters": {},
+  "hypothesis": "validation advantage over baseline persists on 2024-2025",
+  "limitations": [],
+  "model": "F_plus_availability(vacated+own_questionable)",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 544,
+  "n_independent": 6160,
+  "n_obs": 6160,
+  "point": {
+    "bias": 0.9652204965371474,
+    "mae": 20.97711100417676,
+    "rmse": 27.6881815640545
+  },
+  "python": "3.13.16",
+  "question": "Does the frozen receiving_yards winner hold up out of sample?",
+  "split": "holdout",
+  "sport": "NFL",
+  "train_period": "<= previous season (walk-forward)",
+  "verdict": "holdout (frozen)",
+  "vs_baseline": {
+    "ci95": [
+      -0.4491489687451986,
+      -0.3061216229209824
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.3739993838501772,
+        -0.13606835332871142
+      ],
+      "mean_diff": -0.25295434338656064,
+      "z": -4.06127116213175
+    },
+    "mean_diff": -0.3767879255850305,
+    "z": -10.12490613136164
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.40583047349206236,
+      -0.25230662853888136
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.22130335439905427,
+        0.03817284672686701
+      ],
+      "mean_diff": -0.08918791340995852,
+      "z": -1.3143664383461575
+    },
+    "mean_diff": -0.32532843439498266,
+    "z": -8.11699322684955
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:54Z",
+  "data_provenance": [
+    "nflverse stats_player/stats_team/snap_counts/schedules/injuries release files (data/raw/nflverse/_manifest.jsonl)"
+  ],
+  "distribution": {
+    "cover_50": 0.4881531460850463,
+    "cover_80": 0.7880119253099012,
+    "cover_90": 0.8978503059783461,
+    "crps": 1.1072827122465883,
+    "log_score": 2.001843983401946,
+    "pit_var_ratio": 1.0220093768627396
+  },
+  "eval_period": "2022-2023 regular seasons",
+  "experiment_id": "nfl_receptions_D_vac_validation",
+  "family": "receptions",
+  "features": [],
+  "fingerprint": "cf384eb31bb8ac6f",
+  "hyperparameters": {
+    "dist": "nb_binned"
+  },
+  "hypothesis": "beats the season-average baseline A on validation CRPS",
+  "limitations": [
+    "conditional on participation (DNP rows excluded)",
+    "injury designations untimestamped"
+  ],
+  "model": "D_plus_vacated_opportunity",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 6373,
+  "n_obs": 6373,
+  "point": {
+    "bias": 0.09836839299136042,
+    "corr": 0.5607469270430264,
+    "mae": 1.6216626007066368,
+    "rmse": 2.0645619573185376
+  },
+  "python": "3.13.16",
+  "question": "How accurate is D_plus_vacated_opportunity for receptions?",
+  "split": "validation",
+  "sport": "NFL",
+  "train_period": "2012-2021 (features from 2012; tuning 2016-2021; E refit each season on all earlier seasons)",
+  "verdict": "candidate",
+  "vs_baseline": {
+    "ci95": [
+      -0.02016321199356885,
+      -0.005842715391142646
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.01157856088736014,
+        0.010470408000597207
+      ],
+      "mean_diff": -0.00029118058475007165,
+      "z": -0.052745676426103595
+    },
+    "mean_diff": -0.01303331445470989,
+    "n_common": 6373,
+    "z": -3.6599310439836583
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.06847015957490891,
+      -0.04391226012780677
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.10270294324562207,
+        -0.05989638348171705
+      ],
+      "mean_diff": -0.08086549044104456,
+      "z": -7.1156354131688
+    },
+    "mean_diff": -0.05559128159513919,
+    "n_common": 6373,
+    "z": -8.914978302095028
+  }
+}

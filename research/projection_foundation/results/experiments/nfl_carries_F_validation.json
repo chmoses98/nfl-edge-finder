@@ -1,0 +1,80 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:54Z",
+  "data_provenance": [
+    "nflverse stats_player/stats_team/snap_counts/schedules/injuries release files (data/raw/nflverse/_manifest.jsonl)"
+  ],
+  "distribution": {
+    "cover_50": 0.5096741344195519,
+    "cover_80": 0.8075356415478615,
+    "cover_90": 0.9042769857433809,
+    "crps": 2.881157931543778,
+    "log_score": 3.030432266246904,
+    "pit_var_ratio": 0.9893946044244916
+  },
+  "eval_period": "2022-2023 regular seasons",
+  "experiment_id": "nfl_carries_F_validation",
+  "family": "carries",
+  "features": [],
+  "fingerprint": "5ebe5caca056e3b0",
+  "hyperparameters": {
+    "dist": "empirical_ratio"
+  },
+  "hypothesis": "beats the season-average baseline A on validation CRPS",
+  "limitations": [
+    "conditional on participation (DNP rows excluded)",
+    "injury designations untimestamped"
+  ],
+  "model": "F_stack",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 543,
+  "n_independent": 1964,
+  "n_obs": 1964,
+  "point": {
+    "bias": 0.055523764854083495,
+    "corr": 0.6423549540580595,
+    "mae": 4.152973297747677,
+    "rmse": 5.2484227493001345
+  },
+  "python": "3.13.16",
+  "question": "How accurate is F_stack for carries?",
+  "split": "validation",
+  "sport": "NFL",
+  "train_period": "2012-2021 (features from 2012; tuning 2016-2021; E refit each season on all earlier seasons)",
+  "verdict": "candidate",
+  "vs_baseline": {
+    "ci95": [
+      -0.3552545026776085,
+      -0.23578516897911325
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.4417027452754654,
+        -0.26645240361606776
+      ],
+      "mean_diff": -0.35780279798696024,
+      "z": -7.792450385902794
+    },
+    "mean_diff": -0.2962069704337338,
+    "n_common": 1964,
+    "z": -9.70520837957851
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.30360960819316524,
+      -0.19576517525529463
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.4946960685078621,
+        -0.2987000218870255
+      ],
+      "mean_diff": -0.39710468626193046,
+      "z": -7.806035532427955
+    },
+    "mean_diff": -0.25147997003115036,
+    "n_common": 1964,
+    "z": -9.006643400223032
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:55Z",
+  "data_provenance": [
+    "nflverse release files"
+  ],
+  "distribution": {
+    "cover_80": 0.8103896103896104,
+    "crps": 1.3730200471459257,
+    "log_score": 2.2342618757491506,
+    "pit_var_ratio": 0.9768183283807215
+  },
+  "eval_period": "2024-2025 regular seasons",
+  "experiment_id": "nfl_targets_frozen_holdout",
+  "family": "targets",
+  "features": [],
+  "fingerprint": "df02082aecef8a2f",
+  "hyperparameters": {},
+  "hypothesis": "validation advantage over baseline persists on 2024-2025",
+  "limitations": [],
+  "model": "F_plus_availability(vacated+own_questionable)",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 544,
+  "n_independent": 6160,
+  "n_obs": 6160,
+  "point": {
+    "bias": 0.17133227330828754,
+    "mae": 1.9960781242489678,
+    "rmse": 2.5540876513390454
+  },
+  "python": "3.13.16",
+  "question": "Does the frozen targets winner hold up out of sample?",
+  "split": "holdout",
+  "sport": "NFL",
+  "train_period": "<= previous season (walk-forward)",
+  "verdict": "holdout (frozen)",
+  "vs_baseline": {
+    "ci95": [
+      -0.09560030617276356,
+      -0.07177535188874173
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.10851250244050391,
+        -0.07131104851546032
+      ],
+      "mean_diff": -0.08941880031650755,
+      "z": -9.421288706317862
+    },
+    "mean_diff": -0.08278756743472192,
+    "z": -13.637590641043184
+  },
+  "vs_incumbent": {
+    "ci95": [
+      -0.14091621730118292,
+      -0.10731327086991689
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.190045484010649,
+        -0.13056644499581008
+      ],
+      "mean_diff": -0.15821699758937244,
+      "z": -10.483741185738076
+    },
+    "mean_diff": -0.12313214202501133,
+    "z": -14.352482138219246
+  }
+}

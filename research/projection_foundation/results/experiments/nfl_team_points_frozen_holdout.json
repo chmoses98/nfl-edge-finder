@@ -1,0 +1,55 @@
+{
+  "code_sha": "baac85fac4c3eff49ea0e872ac84c774b74dbdc2",
+  "compute_seconds": 0.0,
+  "created_utc": "2026-10-17T07:29:55Z",
+  "data_provenance": [
+    "nflverse release files"
+  ],
+  "distribution": {
+    "cover_80": 0.7996323529411765,
+    "crps": 5.062422441337169,
+    "log_score": 3.6000463955311006,
+    "pit_var_ratio": 0.9674126210063364
+  },
+  "eval_period": "2024-2025 regular seasons",
+  "experiment_id": "nfl_team_points_frozen_holdout",
+  "family": "team_points",
+  "features": [],
+  "fingerprint": "7746654c38799c3e",
+  "hyperparameters": {},
+  "hypothesis": "validation advantage over baseline persists on 2024-2025",
+  "limitations": [],
+  "model": "F_stack",
+  "model_version": "pf-nfl-1.0",
+  "n_clusters": 544,
+  "n_independent": 1088,
+  "n_obs": 1088,
+  "point": {
+    "bias": -0.6623926817541369,
+    "mae": 7.1674806756952,
+    "rmse": 8.955402803067768
+  },
+  "python": "3.13.16",
+  "question": "Does the frozen team_points winner hold up out of sample?",
+  "split": "holdout",
+  "sport": "NFL",
+  "train_period": "<= previous season (walk-forward)",
+  "verdict": "holdout (frozen)",
+  "vs_baseline": {
+    "ci95": [
+      -0.4531094283999788,
+      -0.2589713631137317
+    ],
+    "mae_diff": {
+      "ci95": [
+        -0.6087243592166898,
+        -0.3115342496342231
+      ],
+      "mean_diff": -0.456780942013561,
+      "z": -5.881337873928782
+    },
+    "mean_diff": -0.35155324091328366,
+    "z": -6.825856427336916
+  },
+  "vs_incumbent": {}
+}
