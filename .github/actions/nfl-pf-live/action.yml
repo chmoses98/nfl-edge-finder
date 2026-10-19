@@ -69,6 +69,18 @@ runs:
         git fetch --no-tags --depth=1 --filter=blob:none origin market-data || echo "::warning::could not fetch market-data (incumbent forecasts will be skipped)"
         cd research/projection_foundation
         python3 -m nfl.live.run --archive "$ARCHIVE" --stage "$STAGES" --state-policy "$POLICY" $ARGS --summary-out "$RUNNER_TEMP/nfl_live_summary.json" --github-output "$GITHUB_OUTPUT"
+    - name: Publish the distribution artifact (projections/nfl/distributions; a separate versioned artifact, derived from the archive)
+      # Reads projections/nfl/latest.json and the pmfs archived in forecasts/nfl; writes projections/nfl/distributions/ only. A pull-request
+      # dry run has no write permission and only checks that the artifact can be built from the current archive (--check).
+      if: inputs.mode != 'settle'
+      shell: bash -eo pipefail {0}
+      env:
+        DRY: ${{ inputs.dry_run }}
+        ARCHIVE: ${{ inputs.archive }}
+      run: |
+        cd research/projection_foundation
+        CHECK=""; if [ "$DRY" = "true" ]; then CHECK="--check"; fi
+        python3 -m nfl.live.distributions_artifact --archive "$ARCHIVE" $CHECK --summary-out "$RUNNER_TEMP/nfl_distributions_summary.json"
     - name: Reproducibility (frozen holdout re-scored from the freshly rebuilt state)
       if: inputs.mode == 'fresh' && steps.run.outputs.state_source == 'fresh_build'
       shell: bash -eo pipefail {0}
