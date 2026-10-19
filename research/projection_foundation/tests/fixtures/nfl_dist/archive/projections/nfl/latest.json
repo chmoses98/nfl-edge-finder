@@ -1,0 +1,4354 @@
+{
+ "schema": "sift.projections.v1",
+ "sport": "NFL",
+ "generated_utc": "2026-10-19T01:34:27Z",
+ "data_asof_utc": "2026-10-19T01:34:16Z",
+ "mode": "live_upcoming",
+ "season": 2026,
+ "week": 6,
+ "model": {
+  "id": "pf-nfl",
+  "version": "pf-1.2.1+531bd04",
+  "authority": "research_only"
+ },
+ "role": "shadow",
+ "conditioning": "Player projections are CONDITIONAL ON THE PLAYER PARTICIPATING (DNP = void), the prop-settlement convention. Each row carries the point-in-time participation call (status, certainty, source, capture time). OUT players are written with gate BLOCK (numbers withheld by SIFT); QUESTIONABLE/DOUBTFUL/UNVERIFIED with REVIEW. passing_tds is NEEDS IMPROVEMENT (the frozen winner lost to the incumbent on holdout): shadow-only, not for display.",
+ "families": {
+  "team_pass_attempts": {
+   "readiness": "READY",
+   "model": "F",
+   "reason": "F_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.97, 80% coverage 0.81, no subgroup with >25% relative bias.",
+   "role": "shadow"
+  },
+  "team_rush_attempts": {
+   "readiness": "READY",
+   "model": "F",
+   "reason": "F_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 1.00, 80% coverage 0.80, no subgroup with >25% relative bias.",
+   "role": "shadow"
+  },
+  "team_points": {
+   "readiness": "READY",
+   "model": "F",
+   "reason": "F_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.97, 80% coverage 0.80, no subgroup with >25% relative bias. Mean is essentially the closing implied team total (stack weight on the market-driven D rung).",
+   "role": "shadow"
+  },
+  "targets": {
+   "readiness": "READY",
+   "model": "F_av",
+   "reason": "F_plus_availability beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.98, 80% coverage 0.81, no subgroup with >25% relative bias.",
+   "role": "shadow"
+  },
+  "receptions": {
+   "readiness": "READY",
+   "model": "F_av",
+   "reason": "F_plus_availability beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.98, 80% coverage 0.81, no subgroup with >25% relative bias.",
+   "role": "shadow"
+  },
+  "receiving_yards": {
+   "readiness": "SHADOW VALIDATION",
+   "model": "F_av",
+   "reason": "subgroup failure: team_changed=new team (1st game) bias +6.30 on mean 21.52 (n=506)",
+   "role": "shadow"
+  },
+  "carries": {
+   "readiness": "SHADOW VALIDATION",
+   "model": "F_av",
+   "reason": "subgroup failure: team_changed=new team (1st game) bias +2.21 on mean 6.22 (n=181)",
+   "role": "shadow"
+  },
+  "rushing_yards": {
+   "readiness": "SHADOW VALIDATION",
+   "model": "F_av",
+   "reason": "subgroup failure: team_changed=new team (1st game) bias +12.26 on mean 24.49 (n=181)",
+   "role": "shadow"
+  },
+  "passing_attempts": {
+   "readiness": "SHADOW VALIDATION",
+   "model": "F_qs",
+   "reason": "validation gain over baseline A not significant (CI crosses 0) although the frozen winner beat A and the incumbent on the 2024-25 holdout; needs a further untouched season before READY",
+   "role": "shadow"
+  },
+  "completions": {
+   "readiness": "READY",
+   "model": "F_qs",
+   "reason": "F_qb_starts_env_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.98, 80% coverage 0.81, no subgroup with >25% relative bias.",
+   "role": "shadow"
+  },
+  "passing_yards": {
+   "readiness": "READY",
+   "model": "F_qs",
+   "reason": "F_qb_starts_env_stack beats baseline A on validation and holdout (game-clustered 95% CIs exclude 0), holdout PIT variance ratio 0.99, 80% coverage 0.81, no subgroup with >25% relative bias.",
+   "role": "shadow"
+  },
+  "passing_tds": {
+   "readiness": "NEEDS IMPROVEMENT",
+   "model": "D_qs",
+   "reason": "frozen winner is significantly worse than the incumbent shadow-0.4.0 on holdout",
+   "role": "shadow"
+  },
+  "anytime_td": {
+   "readiness": "SHADOW VALIDATION",
+   "model": "F_av",
+   "reason": "subgroup failure: team_changed=new team (1st game) bias +0.07 on mean 0.14 (n=607)",
+   "role": "shadow"
+  }
+ },
+ "games": [
+  {
+   "game_id": "2026_06_WAS_SF",
+   "start_utc": "2026-10-20T00:15:00Z",
+   "home": "SF",
+   "away": "WAS",
+   "closing_spread_home": -7.5,
+   "total_line": 52.5,
+   "teams": [
+    {
+     "team": "SF",
+     "family": "team_pass_attempts",
+     "mean": 32.77,
+     "p10": 23,
+     "p90": 43
+    },
+    {
+     "team": "SF",
+     "family": "team_rush_attempts",
+     "mean": 27.59,
+     "p10": 19,
+     "p90": 37
+    },
+    {
+     "team": "SF",
+     "family": "team_points",
+     "mean": 29.79,
+     "p10": 18,
+     "p90": 42
+    },
+    {
+     "team": "WAS",
+     "family": "team_pass_attempts",
+     "mean": 32.02,
+     "p10": 22,
+     "p90": 42
+    },
+    {
+     "team": "WAS",
+     "family": "team_rush_attempts",
+     "mean": 26.34,
+     "p10": 17,
+     "p90": 36
+    },
+    {
+     "team": "WAS",
+     "family": "team_points",
+     "mean": 22.9,
+     "p10": 11,
+     "p90": 35
+    }
+   ]
+  }
+ ],
+ "players": [
+  {
+   "player_id": "00-0031236",
+   "name": "Brandin Cooks",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "targets",
+   "mean": 2.084,
+   "median": 2,
+   "p10": 0,
+   "p90": 5,
+   "thresholds": {
+    "3": 0.3321,
+    "5": 0.1117,
+    "7": 0.0333,
+    "9": 0.0092
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 2.08
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected bench (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": true,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031408",
+   "name": "Mike Evans",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "targets",
+   "mean": 6.386,
+   "median": 6,
+   "p10": 3,
+   "p90": 10,
+   "thresholds": {
+    "3": 0.9168,
+    "5": 0.708,
+    "7": 0.4426,
+    "9": 0.2273
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.39
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "UNCERTAIN",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: questionable"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "REVIEW",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "REVIEW",
+      "what": "Player listed QUESTIONABLE: participation uncertain",
+      "category": "uncertainty",
+      "action": "Show as conditional on playing or widen with a participation hurdle."
+     },
+     {
+      "check": "participation",
+      "severity": "REVIEW",
+      "what": "Participation not confirmed",
+      "category": "uncertainty",
+      "action": "Label conditional on playing; refresh availability capture before start."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031588",
+   "name": "Stefon Diggs",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "targets",
+   "mean": 6.025,
+   "median": 6,
+   "p10": 3,
+   "p90": 10,
+   "thresholds": {
+    "3": 0.9,
+    "5": 0.6682,
+    "7": 0.3951,
+    "9": 0.1902
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.02
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "UNCERTAIN",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: questionable"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "REVIEW",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "REVIEW",
+      "what": "Player listed QUESTIONABLE: participation uncertain",
+      "category": "uncertainty",
+      "action": "Show as conditional on playing or widen with a participation hurdle."
+     },
+     {
+      "check": "participation",
+      "severity": "REVIEW",
+      "what": "Participation not confirmed",
+      "category": "uncertainty",
+      "action": "Label conditional on playing; refresh availability capture before start."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR2",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033280",
+   "name": "Christian McCaffrey",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "targets",
+   "mean": 5.88,
+   "median": 6,
+   "p10": 2,
+   "p90": 10,
+   "thresholds": {
+    "3": 0.8924,
+    "5": 0.651,
+    "7": 0.3758,
+    "9": 0.176
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 5.88
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033288",
+   "name": "George Kittle",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "TE",
+   "family": "targets",
+   "mean": 6.669,
+   "median": 6,
+   "p10": 3,
+   "p90": 11,
+   "thresholds": {
+    "3": 0.928,
+    "5": 0.7364,
+    "7": 0.4787,
+    "9": 0.2575
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.67
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "TE1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033699",
+   "name": "Austin Ekeler",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "targets",
+   "mean": 1.921,
+   "median": 1,
+   "p10": 0,
+   "p90": 4,
+   "thresholds": {
+    "3": 0.2997,
+    "5": 0.0926,
+    "7": 0.0253,
+    "9": 0.0064
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 1.92
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0035659",
+   "name": "Terry McLaurin",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "targets",
+   "mean": 6.124,
+   "median": 6,
+   "p10": 3,
+   "p90": 10,
+   "thresholds": {
+    "3": 0.905,
+    "5": 0.6796,
+    "7": 0.4083,
+    "9": 0.2002
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.12
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0035719",
+   "name": "Deebo Samuel Sr.",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "targets",
+   "mean": 4.907,
+   "median": 5,
+   "p10": 2,
+   "p90": 9,
+   "thresholds": {
+    "3": 0.807,
+    "5": 0.5091,
+    "7": 0.2522,
+    "9": 0.1029
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 4.91
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "CONFIRMED_OUT",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: OUT (injury)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "BLOCK",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "BLOCK",
+      "what": "Player listed OUT",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     },
+     {
+      "check": "participation",
+      "severity": "BLOCK",
+      "what": "Confirmed out / inactive before the game",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR2",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0036626",
+   "name": "Dyami Brown",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "targets",
+   "mean": 2.635,
+   "median": 2,
+   "p10": 0,
+   "p90": 5,
+   "thresholds": {
+    "3": 0.4538,
+    "5": 0.166,
+    "7": 0.0491,
+    "9": 0.0126
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 2.64
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected bench (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037256",
+   "name": "Rachaad White",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "targets",
+   "mean": 2.753,
+   "median": 2,
+   "p10": 0,
+   "p90": 6,
+   "thresholds": {
+    "3": 0.4762,
+    "5": 0.1826,
+    "7": 0.0568,
+    "9": 0.0154
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 2.75
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037742",
+   "name": "Treylon Burks",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "targets",
+   "mean": 3.79,
+   "median": 3,
+   "p10": 1,
+   "p90": 7,
+   "thresholds": {
+    "3": 0.6602,
+    "5": 0.335,
+    "7": 0.1348,
+    "9": 0.0459
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 3.79
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037809",
+   "name": "Chig Okonkwo",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "TE",
+   "family": "targets",
+   "mean": 4.803,
+   "median": 4,
+   "p10": 2,
+   "p90": 8,
+   "thresholds": {
+    "3": 0.7975,
+    "5": 0.4939,
+    "7": 0.2391,
+    "9": 0.0952
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 4.8
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": true,
+    "tier": "TE1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0041040",
+   "name": "Antonio Williams",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "targets",
+   "mean": 4.735,
+   "median": 4,
+   "p10": 2,
+   "p90": 8,
+   "thresholds": {
+    "3": 0.7912,
+    "5": 0.484,
+    "7": 0.2308,
+    "9": 0.0904
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 4.74
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": true
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031236",
+   "name": "Brandin Cooks",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receptions",
+   "mean": 1.347,
+   "median": 1,
+   "p10": 0,
+   "p90": 3,
+   "thresholds": {
+    "3": 0.1798,
+    "5": 0.0383,
+    "7": 0.0072
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 2.08,
+    "p10": 0,
+    "p90": 5
+   },
+   "opponent_adjustment": {
+    "factor": 1.004,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected bench (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": true,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031408",
+   "name": "Mike Evans",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receptions",
+   "mean": 4.224,
+   "median": 4,
+   "p10": 1,
+   "p90": 7,
+   "thresholds": {
+    "3": 0.7482,
+    "5": 0.4074,
+    "7": 0.1636
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.39,
+    "p10": 3,
+    "p90": 10
+   },
+   "opponent_adjustment": {
+    "factor": 1.004,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "UNCERTAIN",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: questionable"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "REVIEW",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "REVIEW",
+      "what": "Player listed QUESTIONABLE: participation uncertain",
+      "category": "uncertainty",
+      "action": "Show as conditional on playing or widen with a participation hurdle."
+     },
+     {
+      "check": "participation",
+      "severity": "REVIEW",
+      "what": "Participation not confirmed",
+      "category": "uncertainty",
+      "action": "Label conditional on playing; refresh availability capture before start."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031588",
+   "name": "Stefon Diggs",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receptions",
+   "mean": 4.134,
+   "median": 4,
+   "p10": 1,
+   "p90": 7,
+   "thresholds": {
+    "3": 0.737,
+    "5": 0.3924,
+    "7": 0.1534
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.02,
+    "p10": 3,
+    "p90": 10
+   },
+   "opponent_adjustment": {
+    "factor": 1.008,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "UNCERTAIN",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: questionable"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "REVIEW",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "REVIEW",
+      "what": "Player listed QUESTIONABLE: participation uncertain",
+      "category": "uncertainty",
+      "action": "Show as conditional on playing or widen with a participation hurdle."
+     },
+     {
+      "check": "participation",
+      "severity": "REVIEW",
+      "what": "Participation not confirmed",
+      "category": "uncertainty",
+      "action": "Label conditional on playing; refresh availability capture before start."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR2",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033280",
+   "name": "Christian McCaffrey",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "receptions",
+   "mean": 4.923,
+   "median": 5,
+   "p10": 2,
+   "p90": 8,
+   "thresholds": {
+    "3": 0.8364,
+    "5": 0.5266,
+    "7": 0.2433
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 5.88,
+    "p10": 2,
+    "p90": 10
+   },
+   "opponent_adjustment": {
+    "factor": 1.004,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033288",
+   "name": "George Kittle",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "TE",
+   "family": "receptions",
+   "mean": 5.077,
+   "median": 5,
+   "p10": 2,
+   "p90": 8,
+   "thresholds": {
+    "3": 0.8495,
+    "5": 0.5505,
+    "7": 0.264
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.67,
+    "p10": 3,
+    "p90": 11
+   },
+   "opponent_adjustment": {
+    "factor": 1.004,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "TE1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033699",
+   "name": "Austin Ekeler",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "receptions",
+   "mean": 1.516,
+   "median": 1,
+   "p10": 0,
+   "p90": 4,
+   "thresholds": {
+    "3": 0.2156,
+    "5": 0.0528,
+    "7": 0.0115
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 1.92,
+    "p10": 0,
+    "p90": 4
+   },
+   "opponent_adjustment": {
+    "factor": 1.008,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0035659",
+   "name": "Terry McLaurin",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receptions",
+   "mean": 3.96,
+   "median": 4,
+   "p10": 1,
+   "p90": 7,
+   "thresholds": {
+    "3": 0.7139,
+    "5": 0.363,
+    "7": 0.1343
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.12,
+    "p10": 3,
+    "p90": 10
+   },
+   "opponent_adjustment": {
+    "factor": 1.008,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0035719",
+   "name": "Deebo Samuel Sr.",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receptions",
+   "mean": 3.612,
+   "median": 3,
+   "p10": 1,
+   "p90": 6,
+   "thresholds": {
+    "3": 0.6622,
+    "5": 0.3037,
+    "7": 0.0996
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 4.91,
+    "p10": 2,
+    "p90": 9
+   },
+   "opponent_adjustment": {
+    "factor": 1.004,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "CONFIRMED_OUT",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: OUT (injury)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "BLOCK",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "BLOCK",
+      "what": "Player listed OUT",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     },
+     {
+      "check": "participation",
+      "severity": "BLOCK",
+      "what": "Confirmed out / inactive before the game",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR2",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0036626",
+   "name": "Dyami Brown",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receptions",
+   "mean": 1.523,
+   "median": 1,
+   "p10": 0,
+   "p90": 4,
+   "thresholds": {
+    "3": 0.2171,
+    "5": 0.0535,
+    "7": 0.0117
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 2.64,
+    "p10": 0,
+    "p90": 5
+   },
+   "opponent_adjustment": {
+    "factor": 1.008,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected bench (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037256",
+   "name": "Rachaad White",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "receptions",
+   "mean": 2.223,
+   "median": 2,
+   "p10": 0,
+   "p90": 5,
+   "thresholds": {
+    "3": 0.3682,
+    "5": 0.1136,
+    "7": 0.0285
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 2.75,
+    "p10": 0,
+    "p90": 6
+   },
+   "opponent_adjustment": {
+    "factor": 1.008,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037742",
+   "name": "Treylon Burks",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receptions",
+   "mean": 1.966,
+   "median": 2,
+   "p10": 0,
+   "p90": 4,
+   "thresholds": {
+    "3": 0.3124,
+    "5": 0.0832,
+    "7": 0.0179
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 3.79,
+    "p10": 1,
+    "p90": 7
+   },
+   "opponent_adjustment": {
+    "factor": 1.008,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037809",
+   "name": "Chig Okonkwo",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "TE",
+   "family": "receptions",
+   "mean": 3.197,
+   "median": 3,
+   "p10": 1,
+   "p90": 6,
+   "thresholds": {
+    "3": 0.5793,
+    "5": 0.2385,
+    "7": 0.0729
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 4.8,
+    "p10": 2,
+    "p90": 8
+   },
+   "opponent_adjustment": {
+    "factor": 1.008,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": true,
+    "tier": "TE1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0041040",
+   "name": "Antonio Williams",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receptions",
+   "mean": 3.13,
+   "median": 3,
+   "p10": 1,
+   "p90": 6,
+   "thresholds": {
+    "3": 0.567,
+    "5": 0.2277,
+    "7": 0.0676
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 4.74,
+    "p10": 2,
+    "p90": 8
+   },
+   "opponent_adjustment": {
+    "factor": 1.008,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": true
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031236",
+   "name": "Brandin Cooks",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receiving_yards",
+   "mean": 17.555,
+   "median": 13,
+   "p10": 0,
+   "p90": 44,
+   "thresholds": {
+    "40": 0.1301,
+    "60": 0.0376,
+    "80": 0.0126,
+    "100": 0.0026
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 2.08,
+    "p10": 0,
+    "p90": 5
+   },
+   "opponent_adjustment": {
+    "factor": 1.046,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x1.05 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected bench (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": true,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031408",
+   "name": "Mike Evans",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receiving_yards",
+   "mean": 53.378,
+   "median": 48,
+   "p10": 10,
+   "p90": 106,
+   "thresholds": {
+    "40": 0.59,
+    "60": 0.3775,
+    "80": 0.2175,
+    "100": 0.12
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.39,
+    "p10": 3,
+    "p90": 10
+   },
+   "opponent_adjustment": {
+    "factor": 1.046,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x1.05 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "UNCERTAIN",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: questionable"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "REVIEW",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "REVIEW",
+      "what": "Player listed QUESTIONABLE: participation uncertain",
+      "category": "uncertainty",
+      "action": "Show as conditional on playing or widen with a participation hurdle."
+     },
+     {
+      "check": "participation",
+      "severity": "REVIEW",
+      "what": "Participation not confirmed",
+      "category": "uncertainty",
+      "action": "Label conditional on playing; refresh availability capture before start."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031588",
+   "name": "Stefon Diggs",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receiving_yards",
+   "mean": 43.436,
+   "median": 39,
+   "p10": 8,
+   "p90": 86,
+   "thresholds": {
+    "40": 0.49,
+    "60": 0.2675,
+    "80": 0.13,
+    "100": 0.0575
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.02,
+    "p10": 3,
+    "p90": 10
+   },
+   "opponent_adjustment": {
+    "factor": 0.965,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.97 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "UNCERTAIN",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: questionable"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "REVIEW",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "REVIEW",
+      "what": "Player listed QUESTIONABLE: participation uncertain",
+      "category": "uncertainty",
+      "action": "Show as conditional on playing or widen with a participation hurdle."
+     },
+     {
+      "check": "participation",
+      "severity": "REVIEW",
+      "what": "Participation not confirmed",
+      "category": "uncertainty",
+      "action": "Label conditional on playing; refresh availability capture before start."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR2",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033280",
+   "name": "Christian McCaffrey",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "receiving_yards",
+   "mean": 41.913,
+   "median": 37,
+   "p10": 8,
+   "p90": 83,
+   "thresholds": {
+    "40": 0.47,
+    "60": 0.245,
+    "80": 0.115,
+    "100": 0.0475
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 5.88,
+    "p10": 2,
+    "p90": 10
+   },
+   "opponent_adjustment": {
+    "factor": 1.046,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x1.05 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033288",
+   "name": "George Kittle",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "TE",
+   "family": "receiving_yards",
+   "mean": 63.319,
+   "median": 58,
+   "p10": 19,
+   "p90": 115,
+   "thresholds": {
+    "40": 0.705,
+    "60": 0.485,
+    "80": 0.295,
+    "100": 0.165
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.67,
+    "p10": 3,
+    "p90": 11
+   },
+   "opponent_adjustment": {
+    "factor": 1.046,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x1.05 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "TE1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033699",
+   "name": "Austin Ekeler",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "receiving_yards",
+   "mean": 14.228,
+   "median": 8,
+   "p10": 0,
+   "p90": 39,
+   "thresholds": {
+    "40": 0.0976,
+    "60": 0.0376,
+    "80": 0.0126,
+    "100": 0.0026
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 1.92,
+    "p10": 0,
+    "p90": 4
+   },
+   "opponent_adjustment": {
+    "factor": 0.965,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.97 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0035659",
+   "name": "Terry McLaurin",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receiving_yards",
+   "mean": 55.447,
+   "median": 51,
+   "p10": 16,
+   "p90": 101,
+   "thresholds": {
+    "40": 0.6375,
+    "60": 0.3975,
+    "80": 0.2175,
+    "100": 0.1025
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 6.12,
+    "p10": 3,
+    "p90": 10
+   },
+   "opponent_adjustment": {
+    "factor": 0.965,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.97 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0035719",
+   "name": "Deebo Samuel Sr.",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receiving_yards",
+   "mean": 47.768,
+   "median": 43,
+   "p10": 9,
+   "p90": 95,
+   "thresholds": {
+    "40": 0.54,
+    "60": 0.32,
+    "80": 0.17,
+    "100": 0.0825
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 4.91,
+    "p10": 2,
+    "p90": 9
+   },
+   "opponent_adjustment": {
+    "factor": 1.046,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x1.05 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "CONFIRMED_OUT",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: OUT (injury)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "BLOCK",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "BLOCK",
+      "what": "Player listed OUT",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     },
+     {
+      "check": "participation",
+      "severity": "BLOCK",
+      "what": "Confirmed out / inactive before the game",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR2",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0036626",
+   "name": "Dyami Brown",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receiving_yards",
+   "mean": 17.106,
+   "median": 12,
+   "p10": 0,
+   "p90": 43,
+   "thresholds": {
+    "40": 0.1226,
+    "60": 0.0351,
+    "80": 0.0101,
+    "100": 0.0026
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 2.64,
+    "p10": 0,
+    "p90": 5
+   },
+   "opponent_adjustment": {
+    "factor": 0.965,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.97 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected bench (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037256",
+   "name": "Rachaad White",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "receiving_yards",
+   "mean": 13.573,
+   "median": 8,
+   "p10": 0,
+   "p90": 38,
+   "thresholds": {
+    "40": 0.0901,
+    "60": 0.0326,
+    "80": 0.0076,
+    "100": 0.0026
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 2.75,
+    "p10": 0,
+    "p90": 6
+   },
+   "opponent_adjustment": {
+    "factor": 0.965,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.97 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037742",
+   "name": "Treylon Burks",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receiving_yards",
+   "mean": 24.51,
+   "median": 18,
+   "p10": 0,
+   "p90": 58,
+   "thresholds": {
+    "40": 0.22,
+    "60": 0.0901,
+    "80": 0.0326,
+    "100": 0.0101
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 3.79,
+    "p10": 1,
+    "p90": 7
+   },
+   "opponent_adjustment": {
+    "factor": 0.965,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.97 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037809",
+   "name": "Chig Okonkwo",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "TE",
+   "family": "receiving_yards",
+   "mean": 34.302,
+   "median": 29,
+   "p10": 3,
+   "p90": 72,
+   "thresholds": {
+    "40": 0.3525,
+    "60": 0.17,
+    "80": 0.0726,
+    "100": 0.0301
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 4.8,
+    "p10": 2,
+    "p90": 8
+   },
+   "opponent_adjustment": {
+    "factor": 0.965,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.97 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": true,
+    "tier": "TE1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0041040",
+   "name": "Antonio Williams",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "receiving_yards",
+   "mean": 36.651,
+   "median": 31,
+   "p10": 3,
+   "p90": 77,
+   "thresholds": {
+    "40": 0.3825,
+    "60": 0.195,
+    "80": 0.0901,
+    "100": 0.04
+   },
+   "opportunity": {
+    "family": "targets",
+    "mean": 4.74,
+    "p10": 2,
+    "p90": 8
+   },
+   "opponent_adjustment": {
+    "factor": 0.965,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.97 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": true
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033280",
+   "name": "Christian McCaffrey",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "carries",
+   "mean": 14.373,
+   "median": 14,
+   "p10": 7,
+   "p90": 22,
+   "thresholds": {
+    "10": 0.805,
+    "15": 0.47,
+    "20": 0.1975
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 14.2
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033699",
+   "name": "Austin Ekeler",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "carries",
+   "mean": 5.123,
+   "median": 4,
+   "p10": 0,
+   "p90": 12,
+   "thresholds": {
+    "10": 0.1525,
+    "15": 0.05,
+    "20": 0.0225
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 5.53
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037256",
+   "name": "Rachaad White",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "carries",
+   "mean": 8.808,
+   "median": 8,
+   "p10": 3,
+   "p90": 16,
+   "thresholds": {
+    "10": 0.4075,
+    "15": 0.1375,
+    "20": 0.0325
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 8.82
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0040242",
+   "name": "Jacory Croskey-Merritt",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "carries",
+   "mean": 14.388,
+   "median": 14,
+   "p10": 7,
+   "p90": 22,
+   "thresholds": {
+    "10": 0.8075,
+    "15": 0.47,
+    "20": 0.1975
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 14.22
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "CONFIRMED_OUT",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: OUT (injury)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "BLOCK",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "BLOCK",
+      "what": "Player listed OUT",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     },
+     {
+      "check": "participation",
+      "severity": "BLOCK",
+      "what": "Confirmed out / inactive before the game",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0041052",
+   "name": "Kaelon Black",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "carries",
+   "mean": 6.68,
+   "median": 6,
+   "p10": 1,
+   "p90": 14,
+   "thresholds": {
+    "10": 0.2375,
+    "15": 0.085,
+    "20": 0.025
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 6.99
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": true
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033280",
+   "name": "Christian McCaffrey",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "rushing_yards",
+   "mean": 57.941,
+   "median": 53,
+   "p10": 18,
+   "p90": 108,
+   "thresholds": {
+    "40": 0.67,
+    "60": 0.42,
+    "80": 0.2375,
+    "100": 0.1325
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 14.37,
+    "p10": 7,
+    "p90": 22
+   },
+   "opponent_adjustment": {
+    "factor": 1.025,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x1.02 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033699",
+   "name": "Austin Ekeler",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "rushing_yards",
+   "mean": 23.279,
+   "median": 14,
+   "p10": 0,
+   "p90": 59,
+   "thresholds": {
+    "40": 0.2075,
+    "60": 0.0976,
+    "80": 0.0501,
+    "100": 0.03
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 5.12,
+    "p10": 0,
+    "p90": 12
+   },
+   "opponent_adjustment": {
+    "factor": 0.979,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.98 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037256",
+   "name": "Rachaad White",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "rushing_yards",
+   "mean": 33.483,
+   "median": 28,
+   "p10": 4,
+   "p90": 71,
+   "thresholds": {
+    "40": 0.3575,
+    "60": 0.1675,
+    "80": 0.065,
+    "100": 0.02
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 8.81,
+    "p10": 3,
+    "p90": 16
+   },
+   "opponent_adjustment": {
+    "factor": 0.979,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.98 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0040242",
+   "name": "Jacory Croskey-Merritt",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "rushing_yards",
+   "mean": 51.669,
+   "median": 46,
+   "p10": 10,
+   "p90": 100,
+   "thresholds": {
+    "40": 0.5625,
+    "60": 0.35,
+    "80": 0.185,
+    "100": 0.1
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 14.39,
+    "p10": 7,
+    "p90": 22
+   },
+   "opponent_adjustment": {
+    "factor": 0.979,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.98 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "CONFIRMED_OUT",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: OUT (injury)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "BLOCK",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "BLOCK",
+      "what": "Player listed OUT",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     },
+     {
+      "check": "participation",
+      "severity": "BLOCK",
+      "what": "Confirmed out / inactive before the game",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0041052",
+   "name": "Kaelon Black",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "rushing_yards",
+   "mean": 28.061,
+   "median": 21,
+   "p10": 1,
+   "p90": 62,
+   "thresholds": {
+    "40": 0.2775,
+    "60": 0.1176,
+    "80": 0.0451,
+    "100": 0.0225
+   },
+   "opportunity": {
+    "family": "carries",
+    "mean": 6.68,
+    "p10": 1,
+    "p90": 14
+   },
+   "opponent_adjustment": {
+    "factor": 1.025,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x1.02 (fitted elasticity on 2016-2021).",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": true
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037834",
+   "name": "Brock Purdy",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "QB",
+   "family": "passing_attempts",
+   "mean": 31.716,
+   "median": 31,
+   "p10": 22,
+   "p90": 43,
+   "thresholds": {
+    "30": 0.5814,
+    "35": 0.3462,
+    "40": 0.1703
+   },
+   "opportunity": {
+    "family": "passing_attempts",
+    "mean": 31.72
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (starter)",
+     "depth chart (PROJECTED) lists him as QB1"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "QB",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0039910",
+   "name": "Jayden Daniels",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "QB",
+   "family": "passing_attempts",
+   "mean": 30.298,
+   "median": 30,
+   "p10": 20,
+   "p90": 41,
+   "thresholds": {
+    "30": 0.5132,
+    "35": 0.2827,
+    "40": 0.1274
+   },
+   "opportunity": {
+    "family": "passing_attempts",
+    "mean": 30.3
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active",
+     "depth chart (PROJECTED) lists him as QB1"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "QB",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037834",
+   "name": "Brock Purdy",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "QB",
+   "family": "completions",
+   "mean": 21.878,
+   "median": 22,
+   "p10": 14,
+   "p90": 30,
+   "thresholds": {
+    "18": 0.7775,
+    "22": 0.5,
+    "25": 0.3225
+   },
+   "opportunity": {
+    "family": "passing_attempts",
+    "mean": 31.72,
+    "p10": 22,
+    "p90": 43
+   },
+   "opponent_adjustment": {
+    "factor": 1.003,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (starter)",
+     "depth chart (PROJECTED) lists him as QB1"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "QB",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0039910",
+   "name": "Jayden Daniels",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "QB",
+   "family": "completions",
+   "mean": 19.693,
+   "median": 20,
+   "p10": 12,
+   "p90": 27,
+   "thresholds": {
+    "18": 0.62,
+    "22": 0.39,
+    "25": 0.205
+   },
+   "opportunity": {
+    "family": "passing_attempts",
+    "mean": 30.3,
+    "p10": 20,
+    "p90": 41
+   },
+   "opponent_adjustment": {
+    "factor": 1.013,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active",
+     "depth chart (PROJECTED) lists him as QB1"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "QB",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037834",
+   "name": "Brock Purdy",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "QB",
+   "family": "passing_yards",
+   "mean": 275.103,
+   "median": 272,
+   "p10": 190,
+   "p90": 370,
+   "thresholds": {
+    "200": 0.8625,
+    "250": 0.62,
+    "300": 0.3725
+   },
+   "opportunity": {
+    "family": "passing_attempts",
+    "mean": 31.72,
+    "p10": 22,
+    "p90": 43
+   },
+   "opponent_adjustment": {
+    "factor": 1.048,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x1.05 (fitted elasticity on 2016-2021)."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (starter)",
+     "depth chart (PROJECTED) lists him as QB1"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "QB",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0039910",
+   "name": "Jayden Daniels",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "QB",
+   "family": "passing_yards",
+   "mean": 204.715,
+   "median": 205,
+   "p10": 111,
+   "p90": 302,
+   "thresholds": {
+    "200": 0.54,
+    "250": 0.2576,
+    "300": 0.1001
+   },
+   "opportunity": {
+    "family": "passing_attempts",
+    "mean": 30.3,
+    "p10": 20,
+    "p90": 41
+   },
+   "opponent_adjustment": {
+    "factor": 0.966,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.97 (fitted elasticity on 2016-2021)."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active",
+     "depth chart (PROJECTED) lists him as QB1"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "READY",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "QB",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037834",
+   "name": "Brock Purdy",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "QB",
+   "family": "passing_tds",
+   "mean": 2.3,
+   "median": 2,
+   "p10": 0,
+   "p90": 4,
+   "thresholds": {
+    "1": 0.895,
+    "2": 0.6625,
+    "3": 0.3975
+   },
+   "opportunity": {
+    "family": "passing_attempts",
+    "mean": 31.72,
+    "p10": 22,
+    "p90": 43
+   },
+   "opponent_adjustment": {
+    "factor": 1.084,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x1.08 (fitted elasticity on 2016-2021)."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (starter)",
+     "depth chart (PROJECTED) lists him as QB1"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "NEEDS IMPROVEMENT",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "QB",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0039910",
+   "name": "Jayden Daniels",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "QB",
+   "family": "passing_tds",
+   "mean": 1.385,
+   "median": 1,
+   "p10": 0,
+   "p90": 3,
+   "thresholds": {
+    "1": 0.7725,
+    "2": 0.43,
+    "3": 0.1425
+   },
+   "opportunity": {
+    "family": "passing_attempts",
+    "mean": 30.3,
+    "p10": 20,
+    "p90": 41
+   },
+   "opponent_adjustment": {
+    "factor": 0.978,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Opponent efficiency factor x0.98 (fitted elasticity on 2016-2021)."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active",
+     "depth chart (PROJECTED) lists him as QB1"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "NEEDS IMPROVEMENT",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "QB",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031236",
+   "name": "Brandin Cooks",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "anytime_td",
+   "mean": 0.159,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.1589
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 3.63
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected bench (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": true,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031408",
+   "name": "Mike Evans",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "anytime_td",
+   "mean": 0.441,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.4411
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 8.08
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "UNCERTAIN",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: questionable"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "REVIEW",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "REVIEW",
+      "what": "Player listed QUESTIONABLE: participation uncertain",
+      "category": "uncertainty",
+      "action": "Show as conditional on playing or widen with a participation hurdle."
+     },
+     {
+      "check": "participation",
+      "severity": "REVIEW",
+      "what": "Participation not confirmed",
+      "category": "uncertainty",
+      "action": "Label conditional on playing; refresh availability capture before start."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0031588",
+   "name": "Stefon Diggs",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "anytime_td",
+   "mean": 0.233,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.2333
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 7.96
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "UNCERTAIN",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: questionable"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "REVIEW",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "REVIEW",
+      "what": "Player listed QUESTIONABLE: participation uncertain",
+      "category": "uncertainty",
+      "action": "Show as conditional on playing or widen with a participation hurdle."
+     },
+     {
+      "check": "participation",
+      "severity": "REVIEW",
+      "what": "Participation not confirmed",
+      "category": "uncertainty",
+      "action": "Label conditional on playing; refresh availability capture before start."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR2",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033280",
+   "name": "Christian McCaffrey",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "anytime_td",
+   "mean": 0.608,
+   "median": 1,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.6077
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 20.08
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected starting (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033288",
+   "name": "George Kittle",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "TE",
+   "family": "anytime_td",
+   "mean": 0.507,
+   "median": 1,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.5074
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 8.36
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "TE1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0033699",
+   "name": "Austin Ekeler",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "anytime_td",
+   "mean": 0.272,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.2717
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 7.45
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0035659",
+   "name": "Terry McLaurin",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "anytime_td",
+   "mean": 0.309,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.3086
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 8.04
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0035719",
+   "name": "Deebo Samuel Sr.",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "anytime_td",
+   "mean": 0.368,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.3679
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 7.63
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "CONFIRMED_OUT",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: OUT (injury)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "BLOCK",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "BLOCK",
+      "what": "Player listed OUT",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     },
+     {
+      "check": "participation",
+      "severity": "BLOCK",
+      "what": "Confirmed out / inactive before the game",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR2",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0036626",
+   "name": "Dyami Brown",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "anytime_td",
+   "mean": 0.098,
+   "median": 0,
+   "p10": 0,
+   "p90": 0,
+   "thresholds": {
+    "1": 0.0984
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 4.34
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "PROJECTED",
+    "source": "nflverse_depth",
+    "captured_utc": "2026-10-19T01:34:16Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_depth: projected bench (depth)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037256",
+   "name": "Rachaad White",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "anytime_td",
+   "mean": 0.251,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.2509
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 11.57
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037742",
+   "name": "Treylon Burks",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "anytime_td",
+   "mean": 0.162,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.1617
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 5.78
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0037809",
+   "name": "Chig Okonkwo",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "TE",
+   "family": "anytime_td",
+   "mean": 0.174,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.1736
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 6.77
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": true,
+    "tier": "TE1",
+    "backup": false,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0040242",
+   "name": "Jacory Croskey-Merritt",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "anytime_td",
+   "mean": 0.394,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.3941
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 15.58
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "CONFIRMED_OUT",
+    "certainty": "REPORTED",
+    "source": "nflverse_injuries",
+    "captured_utc": "2026-10-19T01:34:15Z",
+    "age_minutes": 0.2,
+    "reasons": [
+     "nflverse_injuries: OUT (injury)"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "BLOCK",
+    "findings": [
+     {
+      "check": "injury",
+      "severity": "BLOCK",
+      "what": "Player listed OUT",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     },
+     {
+      "check": "participation",
+      "severity": "BLOCK",
+      "what": "Confirmed out / inactive before the game",
+      "category": "data_quality",
+      "action": "Withhold; redistribute opportunity to teammates."
+     }
+    ]
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": false
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0041040",
+   "name": "Antonio Williams",
+   "team": "WAS",
+   "opponent": "SF",
+   "game_id": "2026_06_WAS_SF",
+   "position": "WR",
+   "family": "anytime_td",
+   "mean": 0.2,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.2
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 6.85
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread -7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 3% of team targets / 55% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "WR3+",
+    "backup": true,
+    "rookie": true
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  },
+  {
+   "player_id": "00-0041052",
+   "name": "Kaelon Black",
+   "team": "SF",
+   "opponent": "WAS",
+   "game_id": "2026_06_WAS_SF",
+   "position": "RB",
+   "family": "anytime_td",
+   "mean": 0.236,
+   "median": 0,
+   "p10": 0,
+   "p90": 1,
+   "thresholds": {
+    "1": 0.2361
+   },
+   "opportunity": {
+    "family": "touches",
+    "mean": 8.19
+   },
+   "opponent_adjustment": {
+    "factor": 1.0,
+    "sample_games": 5
+   },
+   "adjustments": [
+    "Team volume uses the market line (spread +7.5, total 52.5) and the opponent's schedule-adjusted defensive rating.",
+    "Teammates listed OUT/DOUBTFUL vacate 17% of team targets / 6% of carries; shares renormalised."
+   ],
+   "participation": {
+    "status": "LIKELY_ACTIVE",
+    "certainty": "REPORTED",
+    "source": "espn_injuries",
+    "captured_utc": "2026-10-19T01:16:17Z",
+    "age_minutes": 18.2,
+    "reasons": [
+     "espn_injuries: active"
+    ]
+   },
+   "role": "shadow",
+   "readiness": "SHADOW VALIDATION",
+   "gate": {
+    "status": "PASS",
+    "findings": []
+   },
+   "segments": {
+    "new_team_first4": false,
+    "tier": "RB2+",
+    "backup": true,
+    "rookie": true
+   },
+   "data_asof_utc": "2026-10-19T01:34:16Z"
+  }
+ ],
+ "team_reconciliation": [
+  {
+   "game_id": "2026_06_WAS_SF",
+   "team": "SF",
+   "status": "REVIEW",
+   "ratio": 0.8152271448100936,
+   "note": "population players only (WR/TE/RB with role); ratio < 1 is expected"
+  },
+  {
+   "game_id": "2026_06_WAS_SF",
+   "team": "WAS",
+   "status": "PASS",
+   "ratio": 1.0550830927052868,
+   "note": "population players only (WR/TE/RB with role); ratio < 1 is expected"
+  }
+ ],
+ "availability": {
+  "events": {
+   "2026_06_WAS_SF": {
+    "expected": 17,
+    "observed": 17,
+    "coverage": 1.0,
+    "newest_capture_utc": "2026-10-19T01:34:16Z",
+    "newest_age_minutes": 0.2,
+    "sources": [
+     "espn_injuries",
+     "nflverse_depth",
+     "nflverse_injuries",
+     "nflverse_roster"
+    ]
+   }
+  },
+  "mean_coverage": 1.0,
+  "n_events": 1,
+  "participation_status": {
+   "LIKELY_ACTIVE": 13,
+   "UNCERTAIN": 2,
+   "CONFIRMED_OUT": 2
+  },
+  "participation_certainty": {
+   "PROJECTED": 4,
+   "REPORTED": 13
+  }
+ },
+ "state": {
+  "policy": "reuse",
+  "reuse_check": "ok",
+  "source": "saved_state",
+  "built_utc": "2026-10-18T04:46:44Z"
+ },
+ "gate_summary": {
+  "n": 72,
+  "status_counts": {
+   "PASS": 57,
+   "REVIEW": 8,
+   "BLOCK": 7
+  },
+  "check_counts": {
+   "injury:REVIEW": 8,
+   "participation:REVIEW": 8,
+   "injury:BLOCK": 7,
+   "participation:BLOCK": 7
+  }
+ }
+}
