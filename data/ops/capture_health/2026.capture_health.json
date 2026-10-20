@@ -1,5 +1,5 @@
 {
- "as_of": "2026-10-19T22:51:14.889977+00:00",
+ "as_of": "2026-10-20T01:50:43.912487+00:00",
  "capture_health_report": "horizon-capture-health-1.0.0",
  "conductor_deployed_utc": "2026-09-24T12:00:00+00:00",
  "notes": [
@@ -7,10 +7,10 @@
  ],
  "run_nfl_latency": {
   "median": {
-   "packet_publish_latency_min": 30.4,
-   "pipeline_processing_min": 22.2,
-   "snapshot_capture_latency_min": 8.5,
-   "time_remaining_to_kickoff_at_publication_min": 317.6
+   "packet_publish_latency_min": 30.6,
+   "pipeline_processing_min": 22.3,
+   "snapshot_capture_latency_min": 8.6,
+   "time_remaining_to_kickoff_at_publication_min": 305.4
   },
   "rows": [
    {
@@ -710,12 +710,28 @@
     "time_remaining_to_kickoff_at_publication_min": 1372.6
    },
    {
+    "horizon_id": "2026-REG-06|20261020T0015Z|T-30m",
+    "packet_publish_latency_min": 37.2,
+    "pipeline_processing_min": 28.0,
+    "snapshot_capture_latency_min": 9.1,
+    "status": "MISSED",
+    "time_remaining_to_kickoff_at_publication_min": -7.2
+   },
+   {
     "horizon_id": "2026-REG-06|20261020T0015Z|T-360m",
     "packet_publish_latency_min": 38.6,
     "pipeline_processing_min": 31.4,
     "snapshot_capture_latency_min": 7.2,
     "status": "CAPTURED",
     "time_remaining_to_kickoff_at_publication_min": 321.4
+   },
+   {
+    "horizon_id": "2026-REG-06|20261020T0015Z|T-90m",
+    "packet_publish_latency_min": 57.9,
+    "pipeline_processing_min": 29.8,
+    "snapshot_capture_latency_min": 28.1,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 32.1
    }
   ]
  },
@@ -2632,26 +2648,32 @@
      "week": 6
     },
     {
+     "cause": "UNATTRIBUTED (no workflow start times supplied)",
      "cluster_key": "20261020T0015Z",
      "era": "AFTER_CONDUCTOR",
      "horizon_id": "2026-REG-06|20261020T0015Z|T-90m",
      "horizon_min": 90,
      "kickoff_utc": "2026-10-20T00:15:00+00:00",
+     "lateness_min": 57.9,
      "n_games": 1,
      "slate_id": "2026-REG-06",
-     "status": "DUE",
+     "snapshot_id": "2026-10-19T23:42:52.411075+00:00",
+     "status": "DELIVERED_DEGRADED",
      "trigger_utc": "2026-10-19T22:45:00+00:00",
      "week": 6
     },
     {
+     "cause": "CAPTURED_AT_OR_AFTER_KICKOFF: the marker exists but the capture was not observed before kickoff",
      "cluster_key": "20261020T0015Z",
      "era": "AFTER_CONDUCTOR",
      "horizon_id": "2026-REG-06|20261020T0015Z|T-30m",
      "horizon_min": 30,
      "kickoff_utc": "2026-10-20T00:15:00+00:00",
+     "lateness_min": 37.2,
      "n_games": 1,
      "slate_id": "2026-REG-06",
-     "status": "NOT_YET_DUE",
+     "snapshot_id": "2026-10-20T00:22:09.369134+00:00",
+     "status": "MISSED",
      "trigger_utc": "2026-10-19T23:45:00+00:00",
      "week": 6
     }
@@ -2659,17 +2681,15 @@
    "summary": {
     "AFTER_CONDUCTOR": {
      "counts": {
-      "DELIVERED_DEGRADED": 6,
+      "DELIVERED_DEGRADED": 7,
       "DELIVERED_LATE": 71,
-      "DUE": 1,
-      "MISSED": 12,
-      "NOT_YET_DUE": 1
+      "MISSED": 13
      },
-     "delivered": 77,
-     "delivered_pct": 86.5,
+     "delivered": 78,
+     "delivered_pct": 85.7,
      "horizons": 91,
-     "median_lateness_min": 29.1,
-     "missed": 12,
+     "median_lateness_min": 29.3,
+     "missed": 13,
      "missed_ids": [
       "2026-REG-04|20261005T0020Z|T-30m",
       "2026-REG-05|20261009T0015Z|T-30m",
@@ -2682,10 +2702,11 @@
       "2026-REG-06|20261018T1700Z|T-30m",
       "2026-REG-06|20261018T2005Z|T-90m",
       "2026-REG-06|20261018T2005Z|T-30m",
-      "2026-REG-06|20261019T0020Z|T-30m"
+      "2026-REG-06|20261019T0020Z|T-30m",
+      "2026-REG-06|20261020T0015Z|T-30m"
      ],
      "on_time_pct": 0.0,
-     "owed": 89
+     "owed": 91
     },
     "BEFORE_CONDUCTOR": {
      "counts": {
@@ -4526,6 +4547,7 @@
      "week": 6
     },
     {
+     "cause": "UNATTRIBUTED (no workflow start times supplied)",
      "cluster_key": "20261020T0015Z",
      "era": "AFTER_CONDUCTOR",
      "horizon_id": "2026-REG-06|20261020T0015Z|T-1440m",
@@ -4533,11 +4555,12 @@
      "kickoff_utc": "2026-10-20T00:15:00+00:00",
      "n_games": 1,
      "slate_id": "2026-REG-06",
-     "status": "DUE",
+     "status": "MISSED",
      "trigger_utc": "2026-10-19T00:15:00+00:00",
      "week": 6
     },
     {
+     "cause": "UNATTRIBUTED (no workflow start times supplied)",
      "cluster_key": "20261020T0015Z",
      "era": "AFTER_CONDUCTOR",
      "horizon_id": "2026-REG-06|20261020T0015Z|T-360m",
@@ -4545,11 +4568,12 @@
      "kickoff_utc": "2026-10-20T00:15:00+00:00",
      "n_games": 1,
      "slate_id": "2026-REG-06",
-     "status": "DUE",
+     "status": "MISSED",
      "trigger_utc": "2026-10-19T18:15:00+00:00",
      "week": 6
     },
     {
+     "cause": "UNATTRIBUTED (no workflow start times supplied)",
      "cluster_key": "20261020T0015Z",
      "era": "AFTER_CONDUCTOR",
      "horizon_id": "2026-REG-06|20261020T0015Z|T-90m",
@@ -4557,11 +4581,12 @@
      "kickoff_utc": "2026-10-20T00:15:00+00:00",
      "n_games": 1,
      "slate_id": "2026-REG-06",
-     "status": "DUE",
+     "status": "MISSED",
      "trigger_utc": "2026-10-19T22:45:00+00:00",
      "week": 6
     },
     {
+     "cause": "UNATTRIBUTED (no workflow start times supplied)",
      "cluster_key": "20261020T0015Z",
      "era": "AFTER_CONDUCTOR",
      "horizon_id": "2026-REG-06|20261020T0015Z|T-30m",
@@ -4569,7 +4594,7 @@
      "kickoff_utc": "2026-10-20T00:15:00+00:00",
      "n_games": 1,
      "slate_id": "2026-REG-06",
-     "status": "NOT_YET_DUE",
+     "status": "MISSED",
      "trigger_utc": "2026-10-19T23:45:00+00:00",
      "week": 6
     }
@@ -4579,15 +4604,13 @@
      "counts": {
       "DELIVERED_LATE": 25,
       "DELIVERED_ON_TIME": 18,
-      "DUE": 3,
-      "MISSED": 44,
-      "NOT_YET_DUE": 1
+      "MISSED": 48
      },
      "delivered": 43,
-     "delivered_pct": 49.4,
+     "delivered_pct": 47.3,
      "horizons": 91,
      "median_lateness_min": 10.5,
-     "missed": 44,
+     "missed": 48,
      "missed_ids": [
       "2026-REG-05|20261009T0015Z|T-1440m",
       "2026-REG-05|20261009T0015Z|T-360m",
@@ -4632,10 +4655,14 @@
       "2026-REG-06|20261019T0020Z|T-1440m",
       "2026-REG-06|20261019T0020Z|T-360m",
       "2026-REG-06|20261019T0020Z|T-90m",
-      "2026-REG-06|20261019T0020Z|T-30m"
+      "2026-REG-06|20261019T0020Z|T-30m",
+      "2026-REG-06|20261020T0015Z|T-1440m",
+      "2026-REG-06|20261020T0015Z|T-360m",
+      "2026-REG-06|20261020T0015Z|T-90m",
+      "2026-REG-06|20261020T0015Z|T-30m"
      ],
-     "on_time_pct": 20.7,
-     "owed": 87
+     "on_time_pct": 19.8,
+     "owed": 91
     },
     "BEFORE_CONDUCTOR": {
      "counts": {
