@@ -52,7 +52,7 @@ Exclusions (every contract that left the funnel, by reason):
 - 3 — football_settled: exchange-only tier: REFUSED_PARTICIPATION_UNPROVEN [PLAYER_STAT:FULL:interceptions]
 - 3 — football_settled: exchange-only tier: REFUSED_PARTICIPATION_UNPROVEN [PLAYER_STAT:FULL:passing_tds]
 
-Discovery universe: GAME_NOT_IN_REG_SCHEDULE (preseason / prior season) 10,294 · GAME_OTHER_WEEKS 14,569 · GAME_TARGET_WEEKS 51,974 · NON_GAME (season / futures / awards / leaders) 25,572
+Discovery universe: GAME_NOT_IN_REG_SCHEDULE (preseason / prior season) 10,050 · GAME_OTHER_WEEKS 13,813 · GAME_TARGET_WEEKS 64,180 · NON_GAME (season / futures / awards / leaders) 31,491
 
 By week × family (primary horizon):
 
