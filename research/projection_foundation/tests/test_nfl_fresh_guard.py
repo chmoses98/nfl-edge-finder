@@ -231,3 +231,20 @@ def test_refresh_still_reuses_only_and_fresh_still_rebuilds_everything():
     assert re.search(r"fresh\)\s+STAGES=all;\s+POLICY=fresh", act)
     assert re.search(r"refresh\)\s+STAGES=capture,project,publish,guard;\s+POLICY=reuse-only", act)
     assert re.search(r"settle\)\s+STAGES=results,settle,score,guard;\s+POLICY=reuse", act)
+
+
+# ------------------------------------------------------------------------------------------ overlap
+def test_a_backup_can_never_overlap_a_running_original_fresh_run():
+    """One concurrency group for every scheduled and dispatched run, and a running run is never cancelled: the backup is queued
+    behind the original and starts only after it finished (then the guard sees its commit and skips). Pull requests have their own
+    group, so a PR dry run neither blocks nor is blocked by the live chain."""
+    c = wf["concurrency"]
+    assert c["cancel-in-progress"] is False
+    live_group = re.sub(r"\$\{\{.*?\}\}", "<expr>", c["group"])
+    assert live_group == "projection-foundation-nfl-<expr>" and "|| 'live'" in c["group"] and "'pull_request'" in c["group"]
+    # every job that can write the archive is in this workflow (so it is under this one group); no other workflow pushes projection-data
+    others = [f for f in os.listdir(os.path.dirname(WORKFLOW)) if f.endswith(".yml") and f != "projection-foundation.yml"]
+    for f in others:
+        assert "projection-data" not in open(os.path.join(os.path.dirname(WORKFLOW), f)).read(), f
+    # and no job in the workflow overrides the group
+    assert not any("concurrency" in j for j in wf["jobs"].values())
