@@ -68,7 +68,7 @@ runs:
         # the incumbent ledger lives on market-data: blobless, depth-1 fetch; only the blobs that are read are downloaded
         git fetch --no-tags --depth=1 --filter=blob:none origin market-data || echo "::warning::could not fetch market-data (incumbent forecasts will be skipped)"
         cd research/projection_foundation
-        python3 -m nfl.live.run --archive "$ARCHIVE" --stage "$STAGES" --state-policy "$POLICY" $ARGS --summary-out "$RUNNER_TEMP/nfl_live_summary.json" --github-output "$GITHUB_OUTPUT"
+        python3 -m nfl.live.main --archive "$ARCHIVE" --stage "$STAGES" --state-policy "$POLICY" $ARGS --summary-out "$RUNNER_TEMP/nfl_live_summary.json" --github-output "$GITHUB_OUTPUT"
     - name: Publish the distribution artifact (projections/nfl/distributions; a separate versioned artifact, derived from the archive)
       # Reads projections/nfl/latest.json and the pmfs archived in forecasts/nfl; writes projections/nfl/distributions/ only. A pull-request
       # dry run has no write permission and only checks that the artifact can be built from the current archive (--check).
