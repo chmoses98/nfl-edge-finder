@@ -1,13 +1,13 @@
 ## NFL projection scorecard — last 28 days
 
-Generated 2026-10-20T19:31:18Z. Research only; nothing here is a betting signal.
+Generated 2026-10-21T17:35:55Z. Research only; nothing here is a betting signal.
 
 Archived pregame forecasts: 1736 across 13 games. Settled: 1521 (void/DNP 108, stat corrections 0).
 
 | Stat | Model | n (games) | MAE | Bias | CRPS | 80% range caught | vs incumbent (CRPS) |
 |---|---|---|---|---|---|---|---|
-| anytime_td | pf-nfl (challenger) | 163 (13) | 0.336 | +0.020 | 0.166 | 77% | — |
-| anytime_td | shadow-0.4.0 (incumbent) | 257 (13) | 0.252 | -0.037 | — | — |  |
+| anytime_td (yes/no) | pf-nfl (challenger) | 163 (13) | Brier 0.1660 | calib +0.020 | log loss 0.5083 | — | -0.0080 [-0.0219, +0.0068] (n=158) (Brier) |
+| anytime_td (yes/no) | shadow-0.4.0 (incumbent) | 257 (13) | Brier 0.1396 | calib -0.037 | log loss 0.4540 | — |  |
 | carries | pf-nfl (challenger) | 37 (13) | 4.072 | +0.344 | 2.858 | 84% | — |
 | carries | shadow-0.4.0 (incumbent) | 29 (12) | 6.184 | -5.228 | — | — |  |
 | completions | pf-nfl (challenger) | 23 (13) | 3.716 | -1.170 | 2.876 | 78% | — |
@@ -31,7 +31,7 @@ Archived pregame forecasts: 1736 across 13 games. Settled: 1521 (void/DNP 108, s
 
 **Drift checks**
 
-- anytime_td: **ALERT** — challenger worse than incumbent on identical forecasts: +0.0413 [+0.0272, +0.0559]
+- anytime_td: **OK** — within expectations
 - carries: **INSUFFICIENT** — 37 settled forecasts (< 100)
 - completions: **INSUFFICIENT** — 23 settled forecasts (< 100)
 - passing_attempts: **INSUFFICIENT** — 23 settled forecasts (< 100)
