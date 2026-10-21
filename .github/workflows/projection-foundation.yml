@@ -18,6 +18,11 @@ name: Projection Foundation (NFL)
 # run is idempotent (identical forecasts/observations are not archived twice) and serialised by the concurrency group.
 #   fresh    Thu 13:11, Sat 13:11, Sun 08:11 - rebuild the validated walk-forward state from the newest nflverse data (~1 h on a
 #            runner) and run the whole chain; the state is cached for the refresh runs of the same week.
+#            Each fresh slot has a backup cron 25 minutes later (13:36, 13:36, 08:36). A fresh run is expensive, so every
+#            scheduled fresh run (primary or backup) first asks nfl/live/fresh_guard.py whether a fresh run already completed
+#            in the last 6 h (its `nfl projection foundation fresh ...` commit on projection-data, pushed only after every stage
+#            and archive_guard passed) and, if so, does nothing: no rebuild, no write, no commit. Otherwise it runs exactly as the
+#            primary would. A backup queued behind a still-running primary waits in the concurrency group, then skips.
 #   refresh  ~70 min before kickoff windows (Thu 23:03 TNF, Sun 12:20 London, 15:52 early, 19:02 late, 23:12 SNF, Mon 23:03 MNF):
 #            new availability (injury designations as they flip to Out around the ~T-90 min inactive list) -> new forecast
 #            versions; reuses the cached state, fails loudly if there is none (the morning fresh run must produce it).
@@ -32,6 +37,9 @@ on:
     - cron: '11 13 * 9-12,1-2 4'
     - cron: '11 13 * 9-12,1-2 6'
     - cron: '11 8 * 9-12,1-2 0'
+    - cron: '36 13 * 9-12,1-2 4'
+    - cron: '36 13 * 9-12,1-2 6'
+    - cron: '36 8 * 9-12,1-2 0'
     - cron: '3 23 * 9-12,1-2 4'
     - cron: '15 23 * 9-12,1-2 4'
     - cron: '20 12 * 9-12,1-2 0'
@@ -130,6 +138,7 @@ jobs:
           if [ -z "$MODE" ]; then
             case "$SCHEDULE" in
               '11 13 * 9-12,1-2 4'|'11 13 * 9-12,1-2 6'|'11 8 * 9-12,1-2 0') MODE=fresh ;;
+              '36 13 * 9-12,1-2 4'|'36 13 * 9-12,1-2 6'|'36 8 * 9-12,1-2 0') MODE=fresh ;;       # backups of the fresh slots
               '23 15 * 9-12,1-2 2'|'23 15 * 9-12,1-2 3') MODE=settle ;;
               *) MODE=refresh ;;
             esac
@@ -141,7 +150,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: bash research/projection_foundation/nfl/live/ci.sh checkout "$GITHUB_WORKSPACE/archive"
+      - id: guard
+        name: Fresh-run guard (scheduled fresh runs only; a manual dispatch always runs)
+        if: github.event_name == 'schedule' && steps.plan.outputs.mode == 'fresh'
+        run: python3 research/projection_foundation/nfl/live/fresh_guard.py --archive "$GITHUB_WORKSPACE/archive" --window-hours 6 --github-output "$GITHUB_OUTPUT"
       - id: live
+        if: steps.guard.outputs.skip != 'true'
         uses: ./.github/actions/nfl-pf-live
         with:
           mode: ${{ steps.plan.outputs.mode }}
@@ -150,7 +164,7 @@ jobs:
       # Only reached when every stage (incl. archive_guard) passed: a failed stage fails the job above and nothing is committed;
       # the next run redoes the idempotent stages.
       - name: Commit the archive to projection-data (additions only; guard runs again after any rebase)
-        if: steps.plan.outputs.dry != 'true'
+        if: steps.plan.outputs.dry != 'true' && steps.guard.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: bash research/projection_foundation/nfl/live/ci.sh push "$GITHUB_WORKSPACE/archive" "nfl projection foundation ${{ steps.plan.outputs.mode }} $(date -u +'%Y-%m-%dT%H:%MZ')"
