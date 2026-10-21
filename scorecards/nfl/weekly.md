@@ -1,6 +1,6 @@
 ## NFL projection scorecard — last 28 days
 
-Generated 2026-10-21T17:35:55Z. Research only; nothing here is a betting signal.
+Generated 2026-10-21T19:25:20Z. Research only; nothing here is a betting signal.
 
 Archived pregame forecasts: 1736 across 13 games. Settled: 1521 (void/DNP 108, stat corrections 0).
 
