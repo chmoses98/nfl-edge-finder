@@ -255,23 +255,10 @@ def stage_score(a, ctx, capture_stats=None):
     summary = json.load(open(os.path.join(PF_ROOT, "results", "summary.json")))
     cards = SC.build_cards(ctx["archive"], ctx["now"], summary, capture_stats)
     paths = SC.write_cards(cards, ctx["archive"])
-    _prune_dated(ctx["archive"], keep_tags=("season",) if a.keep_dated_season else ())
     for tag in ("daily", "weekly"):
         step_summary(pr.render_markdown(cards[tag], title=f"NFL projection scorecard ({tag})") + SC.render_nfl_markdown(cards[tag]))
     return {"cards": list(paths), "alerts": {t: [x for x in c["alerts"] if x["status"] in ("WATCH", "ALERT")] for t, c in cards.items()},
             "settled": cards["season"]["settlement"], "capture": cards["season"]["capture"]}
-
-
-def _prune_dated(archive: str, keep_tags=()):
-    """pf_core.write_scorecard also writes a dated copy per call; with several runs a day only latest/<tag> are kept (the
-    forecasts/settlements archive is the audit trail)."""
-    d = os.path.join(archive, "scorecards", "nfl")
-    if not os.path.isdir(d):
-        return
-    for fn in os.listdir(d):
-        for tag in ("daily", "weekly", "season"):
-            if fn.startswith(tag + "_") and fn.endswith(".json") and tag not in keep_tags:
-                os.remove(os.path.join(d, fn))
 
 
 def stage_guard(a, ctx):
