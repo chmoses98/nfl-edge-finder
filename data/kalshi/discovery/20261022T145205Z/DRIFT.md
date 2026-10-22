@@ -1,0 +1,162 @@
+# Discovery -> registry drift (20261022T145205Z)
+
+Registry holds 392 series; discovery lists 502 NFL candidates.
+
+| quantity | n |
+|---|---|
+| new_series | 46 |
+| new_series_open_markets | 5750 |
+| unclassified_series | 33 |
+| capture_gap_contracts | 5750 |
+| capture_gap_contracts_outside_registry | 5750 |
+
+## NEW_SERIES (not in the reviewed registry)
+
+| series | family | open | first seen | lag (days) | title |
+|---|---|---|---|---|---|
+| KXNFLRECYDSPROT | UNKNOWN_NEEDS_CLASSIFICATION | 1070 | 20261022T145205Z | 0.0 | Receiving Yards Protected |
+| KXNFLDRAFTSELECT | DRAFT | 992 | 20261022T145205Z | 0.0 | NFL Draft Exact Selection |
+| KXNFLTDPROT | UNKNOWN_NEEDS_CLASSIFICATION | 573 | 20261022T145205Z | 0.0 | Pro Football Touchdowns Protected |
+| KXNFLSBOUTCOME | UNKNOWN_NEEDS_CLASSIFICATION | 512 | 20261022T145205Z | 0.0 | NFL Championship Outcome |
+| KXNFLRSHYDSPROT | UNKNOWN_NEEDS_CLASSIFICATION | 496 | 20261022T145205Z | 0.0 | Rushing Yards Protected |
+| KXNFLWEEKHIGHSCORE | WEEK_EVENT | 358 | 20261022T145205Z | 0.0 | NFL Highest Scoring Team of the Week |
+| KXNFLPOTM | AWARD | 300 | 20261022T145205Z | 0.0 | NFL Player of the Month |
+| KXNFLPASSYDSPROT | UNKNOWN_NEEDS_CLASSIFICATION | 229 | 20261022T145205Z | 0.0 | Passing Yards Protected |
+| KXNFLFFWEEKLEAD | WEEK_LEADER | 214 | 20261022T145205Z | 0.0 | Weekly Fantasy Football Leader |
+| KXNFLWEEKGAMEHIGH | UNKNOWN_NEEDS_CLASSIFICATION | 179 | 20261022T145205Z | 0.0 | NFL Week Highest Scoring Game |
+| KXNFLRECPROT | UNKNOWN_NEEDS_CLASSIFICATION | 167 | 20261022T145205Z | 0.0 | Receptions Protected |
+| KXNFLROTM | AWARD | 150 | 20261022T145205Z | 0.0 | NFL Rookie of the Month |
+| KXNFLFFWEEKTOP | WEEK_LEADER | 120 | 20261022T145205Z | 0.0 | Weekly Fantasy Football Top Players |
+| KXNFLPASSTDSPROT | UNKNOWN_NEEDS_CLASSIFICATION | 109 | 20261022T145205Z | 0.0 | Passing Touchdowns Protected |
+| KXNFLFFPLAYOFFLEADER | SEASON_FANTASY | 75 | 20261022T145205Z | 0.0 | Fantasy Football Playoffs Leader |
+| KXNFLFFSEASONTOTAL | SEASON_FANTASY | 36 | 20261022T145205Z | 0.0 | Pro Football Player's Fantasy Season Total |
+| KXNFLSEEDOU | UNKNOWN_NEEDS_CLASSIFICATION | 32 | 20261022T145205Z | 0.0 | NFL Playoffs Seed Over/Unders |
+| KXNFLMVPSPECIALS | UNKNOWN_NEEDS_CLASSIFICATION | 14 | 20261022T145205Z | 0.0 | NFL MVP Award Specials |
+| KXNFLTIE | UNKNOWN_NEEDS_CLASSIFICATION | 14 | 20261022T145205Z | 0.0 | NFL Game to Tie |
+| KXNFLCAREERPASSYDS | UNKNOWN_NEEDS_CLASSIFICATION | 13 | 20261022T145205Z | 0.0 | NFL Career Passing Yards |
+| KXNFLFFPTSLADDER | SEASON_FANTASY | 13 | 20261022T145205Z | 0.0 | Fantasy Ladder |
+| KXNFLESCALATORREC | UNKNOWN_NEEDS_CLASSIFICATION | 11 | 20261022T145205Z | 0.0 | Receptions Escalator |
+| KXNFLESCALATORRECYDS | UNKNOWN_NEEDS_CLASSIFICATION | 11 | 20261022T145205Z | 0.0 | Receiving Yards Escalator |
+| KXNFLLADDERREC | UNKNOWN_NEEDS_CLASSIFICATION | 11 | 20261022T145205Z | 0.0 | Receptions Ladder |
+| KXNFLLADDERRECYDS | UNKNOWN_NEEDS_CLASSIFICATION | 11 | 20261022T145205Z | 0.0 | Receiving Yards Ladder |
+| KXNFLCAREERRECYDS | UNKNOWN_NEEDS_CLASSIFICATION | 10 | 20261022T145205Z | 0.0 | NFL Career Receiving Yards |
+| KXNFLCAREERRSHYDS | UNKNOWN_NEEDS_CLASSIFICATION | 6 | 20261022T145205Z | 0.0 | NFL Career Rushing Yards |
+| KXNFLESCALATORRSHYDS | UNKNOWN_NEEDS_CLASSIFICATION | 6 | 20261022T145205Z | 0.0 | Rushing Yards Escalator |
+| KXNFLLADDERRSHYDS | UNKNOWN_NEEDS_CLASSIFICATION | 6 | 20261022T145205Z | 0.0 | Rushing Yards Ladder |
+| KXNFLLONGESTPLAY | SEASON_SPECIAL | 5 | 20261022T145205Z | 0.0 | NFL Longest Touchdown |
+| KXNFLDPOYSPECIALS | UNKNOWN_NEEDS_CLASSIFICATION | 2 | 20261022T145205Z | 0.0 | NFL Defensive Player of the Year Specials |
+| KXNFLLASTTOWIN | UNKNOWN_NEEDS_CLASSIFICATION | 2 | 20261022T145205Z | 0.0 | Pro Football last team to win a game |
+| KXNFLOPOYSPECIALS | UNKNOWN_NEEDS_CLASSIFICATION | 2 | 20261022T145205Z | 0.0 | NFL Offensive Player of the Year Specials |
+| KXNFLHKANE | UNKNOWN_NEEDS_CLASSIFICATION | 1 | 20261022T145205Z | 0.0 | Harry Kane Pro Football signing |
+| KXNFLCAREERPASSTDS | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20261022T145205Z | 0.0 | NFL Career Passing Touchdowns |
+| KXNFLCAREERRSHTDS | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20261022T145205Z | 0.0 | NFL Career Rushing Touchdowns |
+| KXNFLDELAY | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20261022T145205Z | 0.0 | NFL Weather Delay |
+| KXNFLGAMELOCATION | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20261022T145205Z | 0.0 | NFL Game Location |
+| KXNFLNBA | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20261022T145205Z | 0.0 | NFL and NBA Champion Combo |
+| KXNFLWEEKHIGH | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20261022T145205Z | 0.0 | NFL Week Highest Scoring Game |
+| KXNFLWEEKQBSTART | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20261022T145205Z | 0.0 | NFL Week QB Starter |
+| KXNFLWEEKSTART | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20261022T145205Z | 0.0 | NFL Week Starter |
+| KXNFLWEEKTIE | WEEK_EVENT | 0 | 20261022T145205Z | 0.0 | NFL Weekly Tie |
+| KXNFLWINNINGSTREAK | UNKNOWN_NEEDS_CLASSIFICATION | 0 | 20261022T145205Z | 0.0 | NFL Team Winning Streak |
+| KXSBLSPREAD | SUPER_BOWL_EVENT | 0 | 20261022T145205Z | 0.0 | Slovakia SBL Spread |
+| KXSBLTOTAL | SUPER_BOWL_EVENT | 0 | 20261022T145205Z | 0.0 | Slovakia SBL Total |
+
+## UNCLASSIFIED
+
+| series | open | title |
+|---|---|---|
+| KXNFLRECYDSPROT | 1070 | Receiving Yards Protected |
+| KXNFLTDPROT | 573 | Pro Football Touchdowns Protected |
+| KXNFLSBOUTCOME | 512 | NFL Championship Outcome |
+| KXNFLRSHYDSPROT | 496 | Rushing Yards Protected |
+| KXNFLPASSYDSPROT | 229 | Passing Yards Protected |
+| KXNFLWEEKGAMEHIGH | 179 | NFL Week Highest Scoring Game |
+| KXNFLRECPROT | 167 | Receptions Protected |
+| KXNFLPASSTDSPROT | 109 | Passing Touchdowns Protected |
+| KXNFLSEEDOU | 32 | NFL Playoffs Seed Over/Unders |
+| KXNFLMVPSPECIALS | 14 | NFL MVP Award Specials |
+| KXNFLTIE | 14 | NFL Game to Tie |
+| KXNFLCAREERPASSYDS | 13 | NFL Career Passing Yards |
+| KXNFLESCALATORREC | 11 | Receptions Escalator |
+| KXNFLESCALATORRECYDS | 11 | Receiving Yards Escalator |
+| KXNFLLADDERREC | 11 | Receptions Ladder |
+| KXNFLLADDERRECYDS | 11 | Receiving Yards Ladder |
+| KXNFLCAREERRECYDS | 10 | NFL Career Receiving Yards |
+| KXNFLCAREERRSHYDS | 6 | NFL Career Rushing Yards |
+| KXNFLESCALATORRSHYDS | 6 | Rushing Yards Escalator |
+| KXNFLLADDERRSHYDS | 6 | Rushing Yards Ladder |
+| KXNFLDPOYSPECIALS | 2 | NFL Defensive Player of the Year Specials |
+| KXNFLLASTTOWIN | 2 | Pro Football last team to win a game |
+| KXNFLOPOYSPECIALS | 2 | NFL Offensive Player of the Year Specials |
+| KXNFLHKANE | 1 | Harry Kane Pro Football signing |
+| KXNFLCAREERPASSTDS | 0 | NFL Career Passing Touchdowns |
+| KXNFLCAREERRSHTDS | 0 | NFL Career Rushing Touchdowns |
+| KXNFLDELAY | 0 | NFL Weather Delay |
+| KXNFLGAMELOCATION | 0 | NFL Game Location |
+| KXNFLNBA | 0 | NFL and NBA Champion Combo |
+| KXNFLWEEKHIGH | 0 | NFL Week Highest Scoring Game |
+| KXNFLWEEKQBSTART | 0 | NFL Week QB Starter |
+| KXNFLWEEKSTART | 0 | NFL Week Starter |
+| KXNFLWINNINGSTREAK | 0 | NFL Team Winning Streak |
+
+## CAPTURE_GAP (open contracts never confirmed open by any capture run)
+
+| series | open | never seen | in registry | tier |
+|---|---|---|---|---|
+| KXNFLRECYDSPROT | 1070 | 1070 | False | None |
+| KXNFLDRAFTSELECT | 992 | 992 | False | None |
+| KXNFLTDPROT | 573 | 573 | False | None |
+| KXNFLSBOUTCOME | 512 | 512 | False | None |
+| KXNFLRSHYDSPROT | 496 | 496 | False | None |
+| KXNFLWEEKHIGHSCORE | 358 | 358 | False | None |
+| KXNFLPOTM | 300 | 300 | False | None |
+| KXNFLPASSYDSPROT | 229 | 229 | False | None |
+| KXNFLFFWEEKLEAD | 214 | 214 | False | None |
+| KXNFLWEEKGAMEHIGH | 179 | 179 | False | None |
+| KXNFLRECPROT | 167 | 167 | False | None |
+| KXNFLROTM | 150 | 150 | False | None |
+| KXNFLFFWEEKTOP | 120 | 120 | False | None |
+| KXNFLPASSTDSPROT | 109 | 109 | False | None |
+| KXNFLFFPLAYOFFLEADER | 75 | 75 | False | None |
+| KXNFLFFSEASONTOTAL | 36 | 36 | False | None |
+| KXNFLSEEDOU | 32 | 32 | False | None |
+| KXNFLMVPSPECIALS | 14 | 14 | False | None |
+| KXNFLTIE | 14 | 14 | False | None |
+| KXNFLCAREERPASSYDS | 13 | 13 | False | None |
+| KXNFLFFPTSLADDER | 13 | 13 | False | None |
+| KXNFLESCALATORREC | 11 | 11 | False | None |
+| KXNFLESCALATORRECYDS | 11 | 11 | False | None |
+| KXNFLLADDERREC | 11 | 11 | False | None |
+| KXNFLLADDERRECYDS | 11 | 11 | False | None |
+| KXNFLCAREERRECYDS | 10 | 10 | False | None |
+| KXNFLCAREERRSHYDS | 6 | 6 | False | None |
+| KXNFLESCALATORRSHYDS | 6 | 6 | False | None |
+| KXNFLLADDERRSHYDS | 6 | 6 | False | None |
+| KXNFLLONGESTPLAY | 5 | 5 | False | None |
+| KXNFLDPOYSPECIALS | 2 | 2 | False | None |
+| KXNFLLASTTOWIN | 2 | 2 | False | None |
+| KXNFLOPOYSPECIALS | 2 | 2 | False | None |
+| KXNFLHKANE | 1 | 1 | False | None |
+
+## NEW_MARKET_STRUCTURES: 63 contracts on PROVEN families did not parse PROVEN
+
+* KXNFLFG-26OCT25PITNO-PIT4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT25PITNO-PIT3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT25PITNO-PIT2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT25PITNO-PIT1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT25PITNO-NO4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT25PITNO-NO3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT25PITNO-NO2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT25PITNO-NO1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT22NECHI-NE4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT22NECHI-NE3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT22NECHI-NE2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT22NECHI-NE1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT22NECHI-CHI4 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT22NECHI-CHI3 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT22NECHI-CHI2 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLFG-26OCT22NECHI-CHI1 (PLAYER_STAT/FULL, greater): LIKELY ['team-level statistic under a player-stat series; no engine yet']
+* KXNFLTEAMFIRSTTD-26OCT25PITNO-PIT-RTONYAN85 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26OCT25PITNO-PIT-RNOWAKOWSKI37 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26OCT25PITNO-PIT-PITDST (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
+* KXNFLTEAMFIRSTTD-26OCT25PITNO-PIT-PFREIERMUTH88 (FIRST_TD_TEAM/FULL, structured): LIKELY ["player scores his TEAM's first touchdown (KXNFLTEAMFIRSTTD); scoring order + identity"]
