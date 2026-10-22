@@ -1,5 +1,5 @@
 {
- "as_of": "2026-10-22T00:47:14.322291+00:00",
+ "as_of": "2026-10-22T05:43:08.664425+00:00",
  "capture_health_report": "horizon-capture-health-1.0.0",
  "conductor_deployed_utc": "2026-09-24T12:00:00+00:00",
  "notes": [
@@ -8,7 +8,7 @@
  "run_nfl_latency": {
   "median": {
    "packet_publish_latency_min": 30.6,
-   "pipeline_processing_min": 22.3,
+   "pipeline_processing_min": 22.4,
    "snapshot_capture_latency_min": 8.6,
    "time_remaining_to_kickoff_at_publication_min": 305.4
   },
@@ -732,6 +732,14 @@
     "snapshot_capture_latency_min": 28.1,
     "status": "CAPTURED",
     "time_remaining_to_kickoff_at_publication_min": 32.1
+   },
+   {
+    "horizon_id": "2026-REG-07|20261023T0015Z|T-1440m",
+    "packet_publish_latency_min": 43.5,
+    "pipeline_processing_min": 37.6,
+    "snapshot_capture_latency_min": 5.9,
+    "status": "CAPTURED",
+    "time_remaining_to_kickoff_at_publication_min": 1396.5
    }
   ]
  },
@@ -2683,9 +2691,11 @@
      "horizon_id": "2026-REG-07|20261023T0015Z|T-1440m",
      "horizon_min": 1440,
      "kickoff_utc": "2026-10-23T00:15:00+00:00",
+     "lateness_min": 43.5,
      "n_games": 1,
      "slate_id": "2026-REG-07",
-     "status": "DUE",
+     "snapshot_id": "2026-10-22T00:58:30.948964+00:00",
+     "status": "DELIVERED_LATE",
      "trigger_utc": "2026-10-22T00:15:00+00:00",
      "week": 7
     },
@@ -2970,13 +2980,12 @@
     "AFTER_CONDUCTOR": {
      "counts": {
       "DELIVERED_DEGRADED": 7,
-      "DELIVERED_LATE": 71,
-      "DUE": 1,
+      "DELIVERED_LATE": 72,
       "MISSED": 13,
       "NOT_YET_DUE": 23
      },
-     "delivered": 78,
-     "delivered_pct": 85.7,
+     "delivered": 79,
+     "delivered_pct": 85.9,
      "horizons": 115,
      "median_lateness_min": 29.3,
      "missed": 13,
@@ -2996,7 +3005,7 @@
       "2026-REG-06|20261020T0015Z|T-30m"
      ],
      "on_time_pct": 0.0,
-     "owed": 91
+     "owed": 92
     },
     "BEFORE_CONDUCTOR": {
      "counts": {
