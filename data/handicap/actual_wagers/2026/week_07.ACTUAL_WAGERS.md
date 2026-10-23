@@ -9,25 +9,27 @@
 * Independent position episodes: **3** (from 3 transactions/orders)
 * Pregame thesis: 0 · live thesis: 0 · unknown phase: 3 · opened within 10 min after scheduled kickoff: 0
 * Full cashouts: 0 · partial cashouts: 0 · reversals: 0 · held to settlement: 3
-* Total P&L (all executions and fees): — = realized trading 0.00 + settlement — - fees 4.56
+* Total P&L (all executions and fees): 54.54 = realized trading 0.00 + settlement 59.09 - fees 4.56
 * PREGAME ENTRY CLV (one observation per pregame-opened episode; exits and live entries excluded): 0 valid, mean —/contract, positive —; states {'PHASE_UNKNOWN_NO_PREGAME_CLV': 3}
 * Live exit benchmark: {'exits': 0, 'valued': 0, 'states': {}}
-* Lifecycle vs order-settlement reconciliation: {'ORDER_SETTLEMENTS_INCOMPLETE': 2, 'RECONCILED': 1}
+* Lifecycle vs order-settlement reconciliation: {'RECONCILED': 3}
 
 | episode | market | opened | phase | side | opened qty | entry cost | adds | reductions | cashouts | final qty | settlement | fees | realized trading | settlement P&L | total P&L | entry CLV | exit benchmark | class |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ep-b490375654565a308840 | KXNFLPASSYDS-26OCT22NECHI-CHICWILLIAMS18-250 | 2026-10-23T00:03:48Z | UNKNOWN | LONG_YES | 71.8 | 35.00 | 0 | 0 | 0 | 71.8 | NOT_SETTLED | 1.25 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
+| ep-b490375654565a308840 | KXNFLPASSYDS-26OCT22NECHI-CHICWILLIAMS18-250 | 2026-10-23T00:03:48Z | UNKNOWN | LONG_YES | 71.8 | 35.00 | 0 | 0 | 0 | 71.8 | SETTLED | 1.25 | 0.00 | 38.05 | 36.80 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 | ep-f0a8cbd39913f7fe796d | KXNFLREC-26OCT22NECHI-CHIDSWIFT4-3 | 2026-10-23T00:04:29Z | UNKNOWN | LONG_YES | 127.73 | 75.00 | 0 | 0 | 0 | 127.73 | SETTLED | 2.19 | 0.00 | 54.92 | 52.73 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
-| ep-11d6721f85a9866c6fb6 | KXNFLRECYDS-26OCT22NECHI-NEABROWN1-70 | 2026-10-23T00:04:12Z | UNKNOWN | LONG_YES | 63.93 | 35.00 | 0 | 0 | 0 | 63.93 | NOT_SETTLED | 1.11 | 0.00 | — | — | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
+| ep-11d6721f85a9866c6fb6 | KXNFLRECYDS-26OCT22NECHI-NEABROWN1-70 | 2026-10-23T00:04:12Z | UNKNOWN | LONG_YES | 63.93 | 35.00 | 0 | 0 | 0 | 63.93 | SETTLED | 1.11 | 0.00 | -33.88 | -35.00 | PHASE_UNKNOWN_NO_PREGAME_CLV | — | UNKNOWN_POSITION_HELD_TO_SETTLEMENT |
 
 ### Transactions (chronological, per market)
 
 | market | executed | action | side | qty | price | fee | before | after | role | phase | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | KXNFLPASSYDS-26OCT22NECHI-CHICWILLIAMS18-250 | 2026-10-23T00:03:48Z | BUY | YES | 71.8 | 0.47 | 1.252 | 0.0 | 71.8 | OPEN | UNKNOWN | NO_KICKOFF |
+| KXNFLPASSYDS-26OCT22NECHI-CHICWILLIAMS18-250 | (settlement) | — | — | 71.8 | 1.0 | — | 71.8 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLREC-26OCT22NECHI-CHIDSWIFT4-3 | 2026-10-23T00:04:29Z | BUY | YES | 127.73 | 0.57 | 2.1915 | 0.0 | 127.73 | OPEN | UNKNOWN | NO_KICKOFF |
 | KXNFLREC-26OCT22NECHI-CHIDSWIFT4-3 | (settlement) | — | — | 127.73 | 1.0 | — | 127.73 | 0.0 | SETTLEMENT | POST_FINAL | — |
 | KXNFLRECYDS-26OCT22NECHI-NEABROWN1-70 | 2026-10-23T00:04:12Z | BUY | YES | 63.93 | 0.53 | 1.1148 | 0.0 | 63.93 | OPEN | UNKNOWN | NO_KICKOFF |
+| KXNFLRECYDS-26OCT22NECHI-NEABROWN1-70 | (settlement) | — | — | 63.93 | 0.0 | — | 63.93 | 0.0 | SETTLEMENT | POST_FINAL | — |
 
 `*` the verb was not delivered (pre-`execution_action` record); the side is replayed as the exposure it states. Position before/after are on Kalshi's signed YES axis (+ long YES, - long NO).
 
@@ -35,7 +37,7 @@
 
 | game | orders | episodes | original cash outlay | added | cashout proceeds | gross transaction volume | recycled in volume | max simultaneous capital at risk | at | total P&L |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 26OCT22NECHI | 3 | 3 | 144.99 | 0.00 | 0.00 | 144.99 | 0.00 | 144.99 | 2026-10-23T00:04:29Z | — |
+| 26OCT22NECHI | 3 | 3 | 144.99 | 0.00 | 0.00 | 144.99 | 0.00 | 144.99 | 2026-10-23T00:04:29Z | 54.54 |
 
 Gross transaction volume is the sum of order stakes (turnover). It is NOT capital at risk: an exit bought on the complementary side carries a large stake while returning cash.
 
@@ -57,55 +59,53 @@ Stake is contracts x execution price PLUS the entry fee the exchange charged on 
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| all | 3 | 1 | 0 | 2 | 0 | 144.99 | 4.56 | — | — | — | 0 | — | — | 3 |
+| all | 3 | 2 | 1 | 0 | 0 | 144.99 | 4.56 | 199.53 | 54.54 | 37.6% | 0 | — | — | 3 |
 
-ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment corrected it (0 amended; versions {'router-settlement-economics.v2': 1}). As ORIGINALLY RECORDED, net P&L: —. The exchange evidence and the filed settlements are unchanged; an amendment sits beside the record it supersedes.
+ECONOMICS: figures above are CANONICAL -- the settlement as amended, where an append-only amendment corrected it (0 amended; versions {'router-settlement-economics.v2': 3}). As ORIGINALLY RECORDED, net P&L: 54.54. The exchange evidence and the filed settlements are unchanged; an amendment sits beside the record it supersedes.
 
-FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's own figures prove that equality (0 of 1 established wagers). Not every established wager reconciles, so no fee-reconciled total is stated.
-
-Headline gross/net/ROI withheld: 2 pending and 0 settled with an unestablished figure. ESTABLISHED SUBSET ONLY (1 of 3 wagers, not the period's P&L): stake 75.00, gross 127.73, net 52.73, ROI 70.3%.
+FEE RECONCILIATION (a finding, not a rewrite). Kalshi's settlement `fee_cost` equals, to the cent, the entry fees already inside the stakes on every reconciled position, so the recorded net subtracts the trading fee twice. Recorded net stays as filed; the reconciled net is gross - stake where the exchange's own figures prove that equality (0 of 3 established wagers). Not every established wager reconciles, so no fee-reconciled total is stated.
 
 ## By week
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 7 | 3 | 1 | 0 | 2 | 0 | 144.99 | 4.56 | — | — | — | 0 | — | — | 3 |
+| 7 | 3 | 2 | 1 | 0 | 0 | 144.99 | 4.56 | 199.53 | 54.54 | 37.6% | 0 | — | — | 3 |
 
 ## By market family
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| series:KXNFLPASSYDS | 1 | 0 | 0 | 1 | 0 | 35.00 | 1.25 | — | — | — | 0 | — | — | 1 |
+| series:KXNFLPASSYDS | 1 | 1 | 0 | 0 | 0 | 35.00 | 1.25 | 71.80 | 36.80 | 105.2% | 0 | — | — | 1 |
 | series:KXNFLREC | 1 | 1 | 0 | 0 | 0 | 75.00 | 2.19 | 127.73 | 52.73 | 70.3% | 0 | — | — | 1 |
-| series:KXNFLRECYDS | 1 | 0 | 0 | 1 | 0 | 35.00 | 1.11 | — | — | — | 0 | — | — | 1 |
+| series:KXNFLRECYDS | 1 | 0 | 1 | 0 | 0 | 35.00 | 1.11 | 0.00 | -35.00 | -100.0% | 0 | — | — | 1 |
 
 ## By game
 
 | group | wagers | W | L | pending | P&L unestablished | stake | fees | gross return | net P&L | ROI | CLV valid | mean CLV/contract | CLV>0 | no close |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| KXNFLPASSYDS-26OCT22NECHI | 1 | 0 | 0 | 1 | 0 | 35.00 | 1.25 | — | — | — | 0 | — | — | 1 |
+| KXNFLPASSYDS-26OCT22NECHI | 1 | 1 | 0 | 0 | 0 | 35.00 | 1.25 | 71.80 | 36.80 | 105.2% | 0 | — | — | 1 |
 | KXNFLREC-26OCT22NECHI | 1 | 1 | 0 | 0 | 0 | 75.00 | 2.19 | 127.73 | 52.73 | 70.3% | 0 | — | — | 1 |
-| KXNFLRECYDS-26OCT22NECHI | 1 | 0 | 0 | 1 | 0 | 35.00 | 1.11 | — | — | — | 0 | — | — | 1 |
+| KXNFLRECYDS-26OCT22NECHI | 1 | 0 | 1 | 0 | 0 | 35.00 | 1.11 | 0.00 | -35.00 | -100.0% | 0 | — | — | 1 |
 
 ## Orders
 
 | week | game | family | side | contracts | price | stake | fees | result | gross | net | close | CLV/contract | CLV state | role | phase |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 7 | KXNFLPASSYDS-26OCT22NECHI | series:KXNFLPASSYDS | YES | 71.8 | 0.47 | 35.00 | 1.25 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
+| 7 | KXNFLPASSYDS-26OCT22NECHI | series:KXNFLPASSYDS | YES | 71.8 | 0.47 | 35.00 | 1.25 | WON | 71.80 | 36.80 | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
 | 7 | KXNFLREC-26OCT22NECHI | series:KXNFLREC | YES | 127.73 | 0.57 | 75.00 | 2.19 | WON | 127.73 | 52.73 | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
-| 7 | KXNFLRECYDS-26OCT22NECHI | series:KXNFLRECYDS | YES | 63.93 | 0.53 | 35.00 | 1.11 | PENDING | — | — | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
+| 7 | KXNFLRECYDS-26OCT22NECHI | series:KXNFLRECYDS | YES | 63.93 | 0.53 | 35.00 | 1.11 | LOST | 0.00 | -35.00 | — | — | NO_CANONICAL_CLOSE | OPEN | UNKNOWN |
 
 ## RISK & CONCENTRATION
 
 Governance reporting only: where the placed stake sat and how much of the result each exposure explains. Nothing here changes, recommends or caps a stake. Different tickers are not diversification: wagers are grouped by game, market, ladder (one underlying variable) and correlated cluster.
 
-Net basis: **NONE COMPLETE** (preference net_canonical > net_fee_reconciled > net_profit_loss). No net basis covers every wager in scope; P&L figures are for the wagers that have one and are labelled incomplete.
+Net basis: **net_canonical** (preference net_canonical > net_fee_reconciled > net_profit_loss). P&L below is on the primary basis (the most-preferred one every wager has); other bases are shown beside it, never merged.
 
 | basis | wagers with figure | complete | stake | net P&L | ROI |
 |---|---|---|---|---|---|
-| net_canonical | 1 | NO | 144.99 | 52.73 | — |
-| net_fee_reconciled | 1 | NO | 144.99 | 52.73 | — |
-| net_profit_loss | 1 | NO | 144.99 | 52.73 | — |
+| net_canonical (primary) | 3 | yes | 144.99 | 54.54 | 37.6% |
+| net_fee_reconciled | 3 | yes | 144.99 | 54.54 | 37.6% |
+| net_profit_loss | 3 | yes | 144.99 | 54.54 | 37.6% |
 
 Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evidence for the owner's account (the router's bankroll is a secret; nothing is guessed).
 
@@ -134,45 +134,45 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) | links |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 26OCT22NECHI#1 | 3 | 144.99 | 100.0% | 52.73 (partial) | 100.0% | 52.73 (partial) | 100.0% | 52.73 (partial) | 100.0% | SAME_GAME_CORRELATED |
+| 26OCT22NECHI#1 | 3 | 144.99 | 100.0% | 54.54 | 100.0% | 54.54 | 100.0% | 54.54 | 100.0% | SAME_GAME_CORRELATED |
 
 ### By game
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| 26OCT22NECHI | 3 | 144.99 | 100.0% | 52.73 (partial) | 100.0% | 52.73 (partial) | 100.0% | 52.73 (partial) | 100.0% |
+| 26OCT22NECHI | 3 | 144.99 | 100.0% | 54.54 | 100.0% | 54.54 | 100.0% | 54.54 | 100.0% |
 
 ### By market family
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| series:KXNFLREC | 1 | 75.00 | 51.7% | 52.73 | 100.0% | 52.73 | 100.0% | 52.73 | 100.0% |
-| series:KXNFLPASSYDS | 1 | 35.00 | 24.1% | — (partial) | — | — (partial) | — | — (partial) | — |
-| series:KXNFLRECYDS | 1 | 35.00 | 24.1% | — (partial) | — | — (partial) | — | — (partial) | — |
+| series:KXNFLREC | 1 | 75.00 | 51.7% | 52.73 | 96.7% | 52.73 | 96.7% | 52.73 | 96.7% |
+| series:KXNFLPASSYDS | 1 | 35.00 | 24.1% | 36.80 | 67.5% | 36.80 | 67.5% | 36.80 | 67.5% |
+| series:KXNFLRECYDS | 1 | 35.00 | 24.1% | -35.00 | -64.2% | -35.00 | -64.2% | -35.00 | -64.2% |
 
 ### By ladder (underlying variable)
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| KXNFLREC-26OCT22NECHI-CHIDSWIFT4 | 1 | 75.00 | 51.7% | 52.73 | 100.0% | 52.73 | 100.0% | 52.73 | 100.0% |
-| KXNFLPASSYDS-26OCT22NECHI-CHICWILLIAMS18 | 1 | 35.00 | 24.1% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLRECYDS-26OCT22NECHI-NEABROWN1 | 1 | 35.00 | 24.1% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLREC-26OCT22NECHI-CHIDSWIFT4 | 1 | 75.00 | 51.7% | 52.73 | 96.7% | 52.73 | 96.7% | 52.73 | 96.7% |
+| KXNFLPASSYDS-26OCT22NECHI-CHICWILLIAMS18 | 1 | 35.00 | 24.1% | 36.80 | 67.5% | 36.80 | 67.5% | 36.80 | 67.5% |
+| KXNFLRECYDS-26OCT22NECHI-NEABROWN1 | 1 | 35.00 | 24.1% | -35.00 | -64.2% | -35.00 | -64.2% | -35.00 | -64.2% |
 
 ### By market
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| KXNFLREC-26OCT22NECHI-CHIDSWIFT4-3 | 1 | 75.00 | 51.7% | 52.73 | 100.0% | 52.73 | 100.0% | 52.73 | 100.0% |
-| KXNFLPASSYDS-26OCT22NECHI-CHICWILLIAMS18-250 | 1 | 35.00 | 24.1% | — (partial) | — | — (partial) | — | — (partial) | — |
-| KXNFLRECYDS-26OCT22NECHI-NEABROWN1-70 | 1 | 35.00 | 24.1% | — (partial) | — | — (partial) | — | — (partial) | — |
+| KXNFLREC-26OCT22NECHI-CHIDSWIFT4-3 | 1 | 75.00 | 51.7% | 52.73 | 96.7% | 52.73 | 96.7% | 52.73 | 96.7% |
+| KXNFLPASSYDS-26OCT22NECHI-CHICWILLIAMS18-250 | 1 | 35.00 | 24.1% | 36.80 | 67.5% | 36.80 | 67.5% | 36.80 | 67.5% |
+| KXNFLRECYDS-26OCT22NECHI-NEABROWN1-70 | 1 | 35.00 | 24.1% | -35.00 | -64.2% | -35.00 | -64.2% | -35.00 | -64.2% |
 
 ### By player (parsable player props; not a partition of stake)
 
 | group | wagers | stake | % stake | net (net_canonical) | % of net (net_canonical) | net (net_fee_reconciled) | % of net (net_fee_reconciled) | net (net_profit_loss) | % of net (net_profit_loss) |
 |---|---|---|---|---|---|---|---|---|---|
-| CHIDSWIFT4 | 1 | 75.00 | 51.7% | 52.73 | 100.0% | 52.73 | 100.0% | 52.73 | 100.0% |
-| CHICWILLIAMS18 | 1 | 35.00 | 24.1% | — (partial) | — | — (partial) | — | — (partial) | — |
-| NEABROWN1 | 1 | 35.00 | 24.1% | — (partial) | — | — (partial) | — | — (partial) | — |
+| CHIDSWIFT4 | 1 | 75.00 | 51.7% | 52.73 | 96.7% | 52.73 | 96.7% | 52.73 | 96.7% |
+| CHICWILLIAMS18 | 1 | 35.00 | 24.1% | 36.80 | 67.5% | 36.80 | 67.5% | 36.80 | 67.5% |
+| NEABROWN1 | 1 | 35.00 | 24.1% | -35.00 | -64.2% | -35.00 | -64.2% | -35.00 | -64.2% |
 
 ### Decomposition: entry quality, outcome variance, sizing
 
@@ -181,9 +181,9 @@ Share of starting bankroll: NOT_AVAILABLE — no readable starting-bankroll evid
 * Sizing/concentration is shown as the cluster's share of stake beside its share of net P&L; a large loss share on a large stake share is what concentration does whether or not the entry was good.
 * One or two weeks of wagers is far too few to establish skill or its absence. Nothing here does.
 
-| cluster | wagers | % stake | % of net (None) | CLV valid | CLV$ | mean CLV/contract | sign | outcome residual vs close | friction | net (None) |
+| cluster | wagers | % stake | % of net (net_canonical) | CLV valid | CLV$ | mean CLV/contract | sign | outcome residual vs close | friction | net (net_canonical) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 26OCT22NECHI#1 | 3 | 100.0% | — | 0 | — | — | — | — | — | — |
+| 26OCT22NECHI#1 | 3 | 100.0% | 100.0% | 0 | — | — | — | — | — | 54.54 |
 
 ### Rules and thresholds
 
