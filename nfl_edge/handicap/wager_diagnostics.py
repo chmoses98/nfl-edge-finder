@@ -455,7 +455,7 @@ def judge(a: dict) -> list:
 
 # ---------------------------------------------------------------------------------------------- top level
 
-def build_diagnostics(doc: dict, *, quote_at=None, fallback_clv: dict | None = None, n_boot: int = 4000) -> dict:
+def build_diagnostics(doc: dict, *, quote_at=None, fallback_clv: dict | None = None, n_boot: int = 4000, attribution: dict | None = None) -> dict:
     """`doc` is a season-level `actual_wager_postmortem.build` document. `quote_at` (optional) enables the labelled
     capture-based CLV fallback; `fallback_clv` injects a precomputed one (tests)."""
     eps = (doc.get("position_lifecycle") or {}).get("episodes") or []
@@ -500,6 +500,8 @@ def build_diagnostics(doc: dict, *, quote_at=None, fallback_clv: dict | None = N
                                                   "pnl", "clv_per_contract", "clv_source", "entry_minutes_before_kickoff")}
                              for f in facts), key=lambda r: (r["pnl"] if r["pnl"] is not None else 0.0)),
     }
+    if attribution is not None:
+        a["attribution"] = {k: attribution[k] for k in ("version", "fills", "counts", "real_recommendations", "recommendations_filled", "owner_selected_share", "statement")}
     a["hypotheses"] = judge(a)
     return a
 
@@ -531,6 +533,8 @@ def redact(diag: dict) -> dict:
     e = diag["exposure"]
     out["exposure"] = {k: e[k] for k in ("games_with_two_or_more_positions", "games", "games_over_8U_combined")}
     out["stake_escalation_after_loss"] = diag["stake_escalation_after_loss"]
+    if "attribution" in diag:
+        out["attribution"] = diag["attribution"]
     out["hypotheses"] = [{"id": h["id"], "name": h["name"], "verdict": h["verdict"]} for h in diag["hypotheses"]]
     return out
 
@@ -588,6 +592,7 @@ def render(diag: dict) -> str:
           "## Buys versus cashouts", "", f"* {json_line(diag['buys_vs_cashouts'])}", "",
           "## Winners that were poor value; losers that were good value", "", f"* {json_line(diag['winners_with_poor_value'])}", "",
           "## Stake escalation after a loss", "", f"* {json_line(diag['stake_escalation_after_loss'])}", "",
+          "## Provenance (recommendation attribution)", "", f"* {json_line(diag.get('attribution'))}", "",
           "## Verdicts on the ten candidate causes", "", "| # | cause | verdict | evidence |", "|---|---|---|---|"]
     for h in diag["hypotheses"]:
         L.append(f"| {h['id']} | {h['name']} | **{h['verdict']}** | {h['evidence']} {h['caveat']} |")

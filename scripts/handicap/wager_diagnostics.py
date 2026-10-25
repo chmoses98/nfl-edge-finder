@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(ROOT, "scripts", "handicap"))
 from nfl_edge.handicap import settlement_amendments as AM  # noqa: E402
 from nfl_edge.handicap import store  # noqa: E402
 from nfl_edge.handicap import schedule_kickoffs as SK  # noqa: E402
+from nfl_edge.handicap import attribution as AT  # noqa: E402
 from nfl_edge.handicap import wager_diagnostics as WD  # noqa: E402
 from nfl_edge.handicap.actual_wager_postmortem import build  # noqa: E402
 from nfl_edge.handicap.position_lifecycle import CaptureQuoteLookup  # noqa: E402
@@ -60,7 +61,8 @@ def main(argv=None) -> int:
     if a.capture_git_dir and os.path.isdir(a.capture_git_dir):
         base = AWP.git_quote_lookup(a.capture_git_dir, a.capture_ref)
         deep = CaptureQuoteLookup(base.list_runs, base.read, runs_back=8)
-    diag = WD.build_diagnostics(doc, quote_at=deep, n_boot=a.n_boot)
+    attribution = AT.attribute(wagers, store.read_kind(a.handicap_root, "recommendations"))
+    diag = WD.build_diagnostics(doc, quote_at=deep, n_boot=a.n_boot, attribution=attribution)
 
     if a.out_private:
         os.makedirs(a.out_private, exist_ok=True)
