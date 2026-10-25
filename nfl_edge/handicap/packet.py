@@ -797,9 +797,11 @@ def matchup_advantages(profiles: dict, home: str, away: str) -> dict:
             o, d = oprof.get(off_key), dprof.get(def_key)
             if o is None or d is None:
                 continue
-            # Defensive ratings are stored as points allowed above average: lower is better, so a good
-            # defence (negative) reduces the offence's expected edge.
-            edge = round(o - d, 5)
+            # The ratings come from one additive model, y = off_t + def_opp (nfl_edge/research/team_ratings.py), so the
+            # expected EPA of offence t against defence opp is o + d. Defensive ratings are EPA ALLOWED above average:
+            # positive is a WORSE defence, so a good defence (negative d) REDUCES the offence's edge. (Until 2026-10-25
+            # this was `o - d`, which credited an offence for facing a good defence; the sack pair below was right.)
+            edge = round(o + d, 5)
             if off_key == "off_sack_rate":
                 edge = round(-(o) - d, 5)     # sacks allowed and sacks generated both hurt the offence
             out["pairs"].append({"matchup": label, "offense": oteam, "defense": dteam,
