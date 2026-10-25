@@ -363,7 +363,7 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
     for l in lines:
         pf = pre.get(l["recommendation_id"])
         if pf and pf.get("verdict") == "APPROVED" and pf.get("live_ask") is not None:
-            priced = l["evaluation"]["ask"]
+            priced = l["evaluation"]["ask_cents"] / 100.0
             if abs(float(pf["live_ask"]) - float(priced)) > REQUOTE_TOLERANCE + 1e-9:
                 pf["verdict"] = "BLOCKED"
                 pf["may_be_shown_as_a_bet"] = False
