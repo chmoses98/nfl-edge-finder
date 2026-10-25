@@ -10,6 +10,7 @@ Every unstarted game ends in exactly one DISPOSITION:
 
   REVIEWED_PRICED_BET        deeply reviewed, a defensible thesis, priced, and approved by the real preflight
   REVIEWED_PRICED_CANDIDATE  deeply reviewed, thesis priced, NOT approved to bet (preflight not run or stake authority missing); shown as a candidate
+  REVIEWED_PRICED_PREFLIGHT_BLOCKED  deeply reviewed and priced, but the real preflight withdrew the line (price moved, stale availability, depth, schema); not a rejection of the thesis, not a bet
   REVIEWED_REJECTED          deeply reviewed; the thesis was rejected (by the analyst, the challenge, the 2c edge floor or the risk policy)
   INSUFFICIENT_DATA          the analyst could not complete the research for a named reason (missing/conflicting data, unresolved starters)
   NOT_REVIEWED               no qualifying review record. Merely scanning the markets is this.
@@ -34,9 +35,10 @@ D_CANDIDATE = "REVIEWED_PRICED_CANDIDATE"
 D_REJECTED = "REVIEWED_REJECTED"
 D_INSUFFICIENT = "INSUFFICIENT_DATA"
 D_NOT_REVIEWED = "NOT_REVIEWED"
+D_PREFLIGHT_BLOCKED = "REVIEWED_PRICED_PREFLIGHT_BLOCKED"
 D_POST = "POST_KICKOFF_EXCLUDED"
 D_BLOCKED = "BLOCKED"
-DISPOSITIONS = (D_BET, D_CANDIDATE, D_REJECTED, D_INSUFFICIENT, D_NOT_REVIEWED, D_POST, D_BLOCKED)
+DISPOSITIONS = (D_BET, D_CANDIDATE, D_PREFLIGHT_BLOCKED, D_REJECTED, D_INSUFFICIENT, D_NOT_REVIEWED, D_POST, D_BLOCKED)
 
 
 def _cited(coverage: dict, cat: str) -> list:
