@@ -527,7 +527,13 @@ def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig
         row = rows[e["ticker"]]
         pm = next((m for m in game.get("markets", []) if m["ticker"] == e["ticker"]), None)
         inj = _player_injury(game, row) if e["family"] == "PLAYER_STAT" else None
-        ch = CH.challenge(th, next((c for c in th.get("candidates", []) if c["ticker"] == e["ticker"]), {"usage": e.get("usage")}), e, [x for x in ranked if x is not e],
+        def _usable_alt(x):
+            # an alternative whose player is out / unresolved cannot be the "superior expression" that sinks this one: that decision is itself blocked
+            if x.get("family") != "PLAYER_STAT":
+                return True
+            st = (_player_injury(game, rows.get(x["ticker"], {})) or {}).get("status")
+            return not (st is not None and str(st).upper() in CH.BAD_AVAILABILITY + ("QUESTIONABLE", "UNKNOWN"))
+        ch = CH.challenge(th, next((c for c in th.get("candidates", []) if c["ticker"] == e["ticker"]), {"usage": e.get("usage")}), e, [x for x in ranked if x is not e and _usable_alt(x)],
                           packet_market=pm, player_injury=inj, quote_age_min=quote_age, mode=mode, unresolved_starters=unresolved_starters, live_requote=live_requote,
                           owner_open_units=owner["by_game"].get(th["game_id"], 0.0) / UNIT if owner["state"] == "OK" else 0.0,
                           game_cap_units=policy.max_exposure_per_game_units)
