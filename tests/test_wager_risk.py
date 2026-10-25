@@ -132,7 +132,7 @@ def test_default_thresholds_fire_on_a_dominant_correlated_game():
     assert got == {"CONCENTRATION_HIGH", "CORRELATED_EXPOSURE_HIGH", "SINGLE_GAME_DOMINATES_WEEK"}
     assert risk["warning_counts"]["OPPOSING_POSITION_PAIR"] == 0
     w = next(w for w in risk["warnings"] if w["code"] == "SINGLE_GAME_DOMINATES_WEEK")
-    assert w["value"] == 0.6 and w["threshold"] == round(1 / 3, 6)
+    assert w["value"] == 0.6 and w["threshold"] == round(8 / 25, 6)   # owner policy: 8U of a 25U slate
 
 
 def test_a_diversified_week_raises_no_warning():

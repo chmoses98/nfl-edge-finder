@@ -383,7 +383,8 @@ def test_a_missing_risk_report_blocks():
 
 @pytest.fixture(scope="module")
 def policy():
-    return R.RiskPolicy.load(ROOT)
+    # The pilot FIXTURE (a module-scoped fixture is built before conftest's per-test redirect applies); the owner policy has tests/test_owner_policy.py.
+    return R.RiskPolicy.load(ROOT, os.path.join(ROOT, "tests", "fixtures", "risk_policy_pilot_2026_v1.json"))
 
 
 def test_the_policy_is_configuration_not_code(policy):

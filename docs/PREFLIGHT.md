@@ -1,5 +1,7 @@
 # NFL pre-trade preflight: fast, event-driven, pre-kickoff, replayable
 
+> **Operating policy:** [`NFL_OPERATING_POLICY.md`](NFL_OPERATING_POLICY.md) is authoritative for the owner's staking (1U = $75, 1U-5U), the RUN NFL loop and the Airtable disposition. Where this document disagrees with it, it is right.
+
 This is the operating description of the **pre-trade leg** after the 2026-09-13 latency incident. The
 Airtable transport contract lives in `docs/AIRTABLE_BRIDGE.md`; this document is about how the verdict is
 produced, how quickly, and on what evidence.

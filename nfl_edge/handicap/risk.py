@@ -1,4 +1,10 @@
-"""Bankroll and portfolio risk policy for the prospective pilot.
+"""Bankroll and portfolio risk policy.
+
+OWNER POLICY (2026-10): the live `config/risk_policy.json` sets `fixed_unit_dollars` = 75, whole-unit stakes of 1U to
+5U and unit-count exposure limits, so it is evaluated without a bankroll snapshot; bankroll-fraction guards apply
+only when one is supplied, and the report says "NOT_EVALUATED" otherwise. The authoritative description is
+docs/NFL_OPERATING_POLICY.md. The text below was written for the earlier PILOT policy and its reasoning about
+flat unit sizing, correlation and cumulative exposure still holds; its numbers (0.5% units, 2u) do not.
 
 The decision layer proposes stakes. This module decides whether the bankroll may carry them. Those are two
 different jobs and they are done by two different things on purpose:
@@ -177,7 +183,7 @@ EMPTY_EXPOSURE = OutstandingExposure(source="no prior exposure supplied")
 class PortfolioReport:
     """The whole slate's verdict, plus the exposure it actually consumes."""
     policy_id: str
-    bankroll_snapshot: float
+    bankroll_snapshot: float | None
     unit_dollars: float
     verdicts: list = field(default_factory=list)
     exposure_by_game: dict = field(default_factory=dict)
@@ -217,6 +223,13 @@ class RiskPolicy:
     grade_caps_units: dict = field(default_factory=dict)
     round_stakes_to_dollars: bool = True
     min_stake_dollars: float = 1.0
+    # OWNER STAKING (docs/NFL_OPERATING_POLICY.md). When `fixed_unit_dollars` is set a unit is that many
+    # dollars whatever the bankroll is, so the policy is expressible without a bankroll snapshot. Everything
+    # else is OPTIONAL and additive: a policy file that sets none of them behaves exactly as the pilot did.
+    fixed_unit_dollars: float | None = None
+    stake_increment_units: float | None = None       # stakes are floored to a whole multiple of this many units
+    min_stake_units: float | None = None             # below this the position is rejected, not taken at a token size
+    bankroll_max_stake_fraction: float | None = None      # per-position cap as a fraction of bankroll, WHEN one is known
 
     # ---- loading --------------------------------------------------------------------------------
     @classmethod
@@ -231,7 +244,9 @@ class RiskPolicy:
         known = {k: d[k] for k in d if k in cls.__dataclass_fields__}
         return cls(**known)
 
-    def unit_dollars(self, bankroll: float) -> float:
+    def unit_dollars(self, bankroll: float | None) -> float:
+        if self.fixed_unit_dollars is not None:
+            return float(self.fixed_unit_dollars)
         return float(bankroll) * float(self.unit_fraction_of_bankroll)
 
     def _slate_cap(self, unit: float, bankroll: float) -> tuple[float, str]:
@@ -242,7 +257,8 @@ class RiskPolicy:
         tighten the policy, never quietly loosen it through the other.
         """
         by_units = self.max_slate_exposure_units * unit
-        if self.max_slate_exposure_fraction_of_bankroll is None:
+        if self.max_slate_exposure_fraction_of_bankroll is None or bankroll is None:
+            # No bankroll known (only possible with a fixed unit): the unit-count cap still binds in full.
             return by_units, "max_slate_exposure_units"
         by_fraction = float(bankroll) * float(self.max_slate_exposure_fraction_of_bankroll)
         return ((by_units, "max_slate_exposure_units") if by_units <= by_fraction
@@ -255,6 +271,9 @@ class RiskPolicy:
         written straight onto the record the pre-trade path shows the owner -- a 20.0 there is refused by
         `validate_recommendation` at the last moment, for a reason that has nothing to do with the bet.
         """
+        if self.stake_increment_units and self.fixed_unit_dollars is not None:
+            step = float(self.stake_increment_units) * float(self.fixed_unit_dollars)
+            return int(math.floor(stake / step + 1e-9) * step)
         if not self.round_stakes_to_dollars:
             return round(stake, 2)
         return int(math.floor(stake + 1e-9))
@@ -273,16 +292,21 @@ class RiskPolicy:
         smallest positions that get squeezed, not whichever happened to be listed first. Order-dependence is
         unavoidable in a greedy allocator; making it deterministic and stated is the honest version.
         """
-        if bankroll_snapshot is None or float(bankroll_snapshot) <= 0:
+        if bankroll_snapshot is None and self.fixed_unit_dollars is not None:
+            bankroll = None            # unit-count limits bind in full; bankroll-fraction guards are NOT evaluated
+        elif bankroll_snapshot is None or float(bankroll_snapshot) <= 0:
             raise RiskPolicyError(
                 "bankroll_snapshot must be a positive number; portfolio limits are fractions of a bankroll "
                 "and cannot be evaluated without one")
-        bankroll = float(bankroll_snapshot)
+        else:
+            bankroll = float(bankroll_snapshot)
         unit = self.unit_dollars(bankroll)
         slate_cap, slate_limit_name = self._slate_cap(unit, bankroll)
         report = PortfolioReport(
             policy_id=self.policy_id, bankroll_snapshot=bankroll, unit_dollars=round(unit, 4),
             limits={
+                "bankroll_guards": ("EVALUATED" if bankroll is not None else
+                                    "NOT_EVALUATED: no bankroll snapshot supplied; unit-count limits bind in full"),
                 "unit_dollars": round(unit, 4),
                 "max_stake_per_position": round(self.max_stake_per_position_units * unit, 2),
                 "max_exposure_per_game": round(self.max_exposure_per_game_units * unit, 2),
@@ -322,6 +346,9 @@ class RiskPolicy:
 
             tighten(self.max_stake_per_position_units * unit, "max_stake_per_position_units",
                     f"per-position cap {self.max_stake_per_position_units}u")
+            if self.bankroll_max_stake_fraction is not None and bankroll is not None:
+                tighten(bankroll * float(self.bankroll_max_stake_fraction), "bankroll_max_stake_fraction",
+                        f"bankroll guard {self.bankroll_max_stake_fraction:.2%} of bankroll")
 
             if p.grade and self.grade_caps_units:
                 gc = self.grade_caps_units.get(p.grade)
@@ -353,10 +380,11 @@ class RiskPolicy:
 
             allowed = self._round(allowed)
 
-            if allowed < self.min_stake_dollars:
+            floor_dollars = max(self.min_stake_dollars, (self.min_stake_units or 0.0) * unit)
+            if allowed < floor_dollars:
                 report.verdicts.append(Verdict(
                     p.recommendation_id, REJECTED, float(p.proposed_stake), 0.0, binding,
-                    reasons + [f"remaining room {allowed:.2f} is below the {self.min_stake_dollars} minimum "
+                    reasons + [f"remaining room {allowed:.2f} is below the {floor_dollars:g} minimum "
                                "stake; the position is rejected rather than taken at a token size"]))
                 report.violations.append(
                     f"{p.recommendation_id}: rejected by {binding or 'policy'}")
@@ -402,10 +430,13 @@ def evaluate_records(records: list, policy: RiskPolicy, bankroll_snapshot: float
                 f"the batch carries more than one bankroll_snapshot ({sorted(snaps)}); portfolio limits are "
                 "undefined when the records disagree about the size of the bankroll")
         if not snaps:
-            raise RiskPolicyError(
-                "no bankroll_snapshot on any record in the batch; a portfolio limit expressed as a fraction "
-                "of bankroll cannot be evaluated without one")
-        bankroll_snapshot = snaps.pop()
+            if policy.fixed_unit_dollars is None:
+                raise RiskPolicyError(
+                    "no bankroll_snapshot on any record in the batch; a portfolio limit expressed as a fraction "
+                    "of bankroll cannot be evaluated without one")
+            bankroll_snapshot = None
+        else:
+            bankroll_snapshot = snaps.pop()
     return policy.evaluate([Proposal.from_record(r) for r in live], bankroll_snapshot, outstanding)
 
 

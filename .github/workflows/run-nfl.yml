@@ -328,6 +328,15 @@ jobs:
             --initial-sim-run-id '${{ steps.sim_initial.outputs.run_id }}' \
             $LIMIT
 
+      # Per-game review dossiers and the all-game triage index (docs/NFL_OPERATING_POLICY.md, step B). Reads the packet only; fail-soft
+      # so that a problem here can never cost the report. They land in the report directory and are published with it.
+      - name: Build the review dossiers and triage index
+        if: steps.build.outputs.report_status == 'SUCCESS'
+        continue-on-error: true
+        run: |
+          python3 scripts/handicap/build_dossiers.py --reports-dir data/handicap_report \
+            --schedule-csv data/raw/nflverse/schedules/games.csv
+
       # Immutable history lives here, not on the report branch: one artifact per run, traceable through its
       # manifest to the workflow run, both source SHAs, the model version and the packet SHA.
       - name: Upload the report artifact

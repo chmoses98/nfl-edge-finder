@@ -54,7 +54,7 @@ jobs:
           git worktree add -f /tmp/hd origin/handicap-data
           git fetch --depth=1 --filter=blob:none origin market-data
           git worktree add -f --no-checkout /tmp/md origin/market-data
-          git -C /tmp/md sparse-checkout set --no-cone 'data/shadow/v2/closes/'
+          git -C /tmp/md sparse-checkout set --no-cone 'data/shadow/v2/closes/' 'data/kalshi/capture/schedule_cache.csv'
           git -C /tmp/md checkout -q
           echo "close files: $(find /tmp/md/data/shadow/v2/closes -name '*.closes_v2.jsonl.gz' | wc -l)"
       - name: Validate the ledger (this repository's own rules)
@@ -67,7 +67,25 @@ jobs:
           python3 scripts/handicap/actual_wager_postmortem.py --handicap-root /tmp/hd \
             --closes-root /tmp/md/data/shadow/v2/closes --season "$S" --out data/handicap/actual_wagers \
             --capture-git-dir /tmp/md --capture-ref origin/market-data \
+            --schedule-csv /tmp/md/data/kalshi/capture/schedule_cache.csv \
             --fail-on-overdue-days 3 | tee -a "$GITHUB_STEP_SUMMARY"
+      # The diagnosis (ROI by week/family/price/timing/stake, CLV with a labelled capture fallback, the ten candidate causes). The repository is
+      # PUBLIC, so only the REDACTED form is written here: ratios, counts and z-scores, no dollars, tickers, games or episode ids. The full document
+      # is produced locally with --out-private. Fail-soft: it must never mask the postmortem or the overdue check.
+      - name: Write the redacted wager diagnosis
+        id: diagnosis
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          S=$(date -u +%Y)
+          python3 scripts/handicap/wager_diagnostics.py --handicap-root /tmp/hd \
+            --closes-root /tmp/md/data/shadow/v2/closes --schedule-csv /tmp/md/data/kalshi/capture/schedule_cache.csv \
+            --capture-git-dir /tmp/md --capture-ref origin/market-data --season "$S" --out-public data/handicap/diagnostics
+      - name: Publish the redacted diagnosis to market-data
+        if: steps.diagnosis.outcome == 'success'
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/handicap/diagnostics \
+            --message "owner wager diagnosis (redacted) $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       - name: Publish the postmortem to market-data
         run: |
           test -d data/handicap/actual_wagers || { echo "::error::no postmortem was written"; exit 1; }

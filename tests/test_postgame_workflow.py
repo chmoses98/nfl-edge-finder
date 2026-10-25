@@ -563,7 +563,8 @@ def test_the_upstream_workflow_exists_and_cannot_be_triggered_by_this_one():
 #            genuinely a diff question -- so that half stays a diff, scoped to research/ alone, where it
 #            cannot be tripped by unrelated code.
 SCIENTIFIC_PINS = {
-    "nfl_edge/handicap/risk.py": "e8ba8fd37f0d01a3",                 # the risk policy engine
+    # DELIBERATE, REVIEWED EDIT (owner staking policy; same reason as tests/test_incumbent_unchanged.py): fixed unit, whole-unit stakes, optional bankroll guards.
+    "nfl_edge/handicap/risk.py": "e7af977ea69a524b",                 # the risk policy engine
     "nfl_edge/handicap/gates.py": "2821835860e32f3e",                # the real-money gates
     "nfl_edge/settlement/settle.py": "1f24b396ae07569a",             # settlement
     "nfl_edge/settlement/semantics.py": "e877fba94b93a122",          # contract value vs event probability

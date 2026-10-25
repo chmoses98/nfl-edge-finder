@@ -66,7 +66,7 @@ def exposure(recs=(), exes=(), evals=(), as_of=LATER, **kw):
     return R.outstanding_exposure(list(recs), list(exes), list(evals), as_of, **kw)
 
 
-POLICY = R.RiskPolicy.load(ROOT)
+POLICY = R.RiskPolicy.load(ROOT, os.path.join(ROOT, "tests", "fixtures", "risk_policy_pilot_2026_v1.json"))   # mechanics fixture, see conftest.py
 
 
 def verdict(batch, outstanding):

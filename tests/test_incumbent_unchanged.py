@@ -36,10 +36,13 @@ SOURCE_PINS = {
     # It is now made at TWO stages (formation, and immediately before the outbound Airtable write), because
     # an approval that exists only in the worker's memory has authorised nothing: see `deliver`.
     "nfl_edge/handicap/gates.py": "2821835860e32f3e",            # the real-money gates
-    "nfl_edge/handicap/risk.py": "e8ba8fd37f0d01a3",             # the risk policy engine
+    # DELIBERATE, REVIEWED EDIT (owner staking policy, docs/NFL_OPERATING_POLICY.md): risk.py gained a fixed unit,
+    # whole-unit stake rounding, a minimum stake in units and optional bankroll guards. The pilot limits are still
+    # reproduced exactly by tests/fixtures/risk_policy_pilot_2026_v1.json; no freshness, depth, fee or net-EV code moved.
+    "nfl_edge/handicap/risk.py": "e7af977ea69a524b",             # the risk policy engine
     "nfl_edge/handicap/schema.py": "1ea7b6c31b15d03e",           # recommendation schema, availability rules, ceilings
     "nfl_edge/handicap/preflight.py": "b32665e82cf0b994",        # the pre-trade check
-    "config/risk_policy.json": "11d24fbea908f9ed",               # risk limits
+    "config/risk_policy.json": "baa6de6c6c2d9ad8",               # risk limits: the OWNER policy (owner-2026-10-v1); the old pilot file is tests/fixtures/risk_policy_pilot_2026_v1.json (hash 11d24fbea908f9ed)
     # the frozen Week-1 code lineage (research/FREEZE_WEEK1_2026.json), byte-identical to main
     "nfl_edge/shadow/ledger.py": "26949b1807296331",
     "nfl_edge/shadow/models.py": "af2364218bf0aade",

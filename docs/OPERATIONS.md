@@ -1,5 +1,7 @@
 # Operations
 
+> **Operating policy:** [`NFL_OPERATING_POLICY.md`](NFL_OPERATING_POLICY.md) is authoritative for the owner's staking (1U = $75, 1U-5U), the RUN NFL loop and the Airtable disposition. Where this document disagrees with it, it is right.
+
 > The decision standard — what a real recommendation must satisfy, and the vocabulary for prices, fees and
 > P/L — is [`DECISION_STANDARD.md`](DECISION_STANDARD.md). This file is how the machinery is run.
 
