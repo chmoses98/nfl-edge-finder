@@ -35,6 +35,8 @@ CARD_VERSION = "card-2.0.0"
 LIVE, REHEARSAL = "LIVE", "REHEARSAL"
 UNIT = ST.UNIT_DOLLARS
 MAX_CAPTURE_AGE_MIN = 15.0
+MAX_PINNED_PACKET_AGE_H = 12.0   # LIVE with a live venue fetch: the packet supplies the market CENTRE the analyst read; every finalist is re-quoted from the venue
+REQUOTE_TOLERANCE = 0.03          # the live ask may differ from the priced ask by at most this before the line is withdrawn (the ceiling already guards the other side)
 UNITS_TO_GRADE = {1: "B-", 2: "B", 3: "A-", 4: "A", 5: "A+"}      # each grade's cap in config/risk_policy.json is exactly that many units
 ELIG_KEY = {"GAME_WINNER": "game_winner", "SPREAD": "spread", "TOTAL": "total", "TEAM_TOTAL": "team_total", "BOTH_TEAMS_SCORE_N": "both_teams_score"}
 
@@ -79,7 +81,7 @@ def shard(run: dict, game_id: str) -> dict:
     return run["_shards"][game_id]
 
 
-def data_gate(run: dict, as_of: datetime, mode: str) -> dict:
+def data_gate(run: dict, as_of: datetime, mode: str, live_requote: bool = False) -> dict:
     """Coverage and freshness. LIVE fails closed; REHEARSAL reports the same findings but is measured at the snapshot's own clock."""
     pk, mf = run["packet"], run["manifest"]
     reasons, warns = [], []
@@ -92,6 +94,12 @@ def data_gate(run: dict, as_of: datetime, mode: str) -> dict:
     age = None if cap is None else (as_of - cap).total_seconds() / 60.0
     if cap is None:
         reasons.append("no capture timestamp on the packet: freshness cannot be established")
+    elif live_requote and mode == LIVE and age > MAX_CAPTURE_AGE_MIN:
+        if age / 60.0 > MAX_PINNED_PACKET_AGE_H:
+            reasons.append(f"packet capture is {age / 60:.1f} h old (limit {MAX_PINNED_PACKET_AGE_H:g} h even with live re-quoting): rebuild the packet and re-read it")
+        else:
+            warns.append(f"packet capture is {age:.0f} minutes old: prices and the market centre are from the packet the analyst read; every finalist is re-quoted from the venue "
+                         f"and withdrawn if the live ask is more than {REQUOTE_TOLERANCE * 100:.0f}c from the priced ask or above the bet-up-to ceiling")
     elif age > MAX_CAPTURE_AGE_MIN:
         (warns if mode == REHEARSAL else reasons).append(f"capture is {age:.0f} minutes old at {as_of.isoformat()} (limit {MAX_CAPTURE_AGE_MIN:.0f})")
     if pk.get("real_money_status") is None:
@@ -198,7 +206,7 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
     pk = run["packet"]
     season = pk["season"]
     policy = policy or R.RiskPolicy.load(root)
-    gate = data_gate(run, as_of, mode)
+    gate = data_gate(run, as_of, mode, live_requote=live_client is not None)
     ref = DS.slate_reference(pk)
     bank, bank_meta = FV.bank_from_schedule(schedule_text, season)
     owner = owner_open_exposure(handicap_root, schedule_text, season)
@@ -207,7 +215,16 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
     games_out, dossiers = [], {}
     for g in pk["games"]:
         ko = _ts(g["kickoff_utc"])
-        if submission is not None:
+        published = os.path.join(run["dir"], "dossiers", f"{g['game_id']}.json")
+        d = None
+        if submission is not None and os.path.exists(published):
+            # The dossier the analyst READ is the one its evidence ids are checked against (built from this same packet by RUN NFL).
+            with open(published) as f:
+                d = json.load(f)
+            d = d if d.get("version_v2") else None
+        if d is not None:
+            pass
+        elif submission is not None:
             d = DS.build_dossier_v2(g, ref, DS.schedule_row(schedule_text, g["game_id"]), shard(run, g["game_id"])["rows"], stats, snaps, pk.get("week"))
         else:
             d = DS.build_dossier(g, ref, DS.schedule_row(schedule_text, g["game_id"]))
@@ -298,7 +315,7 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
                 continue
             th = dict(th, evidence={"measured": measured, "simulation": simulation})
         rep = _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig, replay_segments, policy,
-                               unresolved_starters=_unresolved(gid) if submission is not None else None)
+                               unresolved_starters=_unresolved(gid) if submission is not None else None, live_requote=live_client is not None)
         if rep.get("outcome") == "PASS" and rep.get("top_ranked"):
             top = rep["top_ranked"][0]
             g = next(x for x in pk["games"] if x["game_id"] == gid)
@@ -343,6 +360,16 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
     pre = _preflight(lines, run, as_of, mode, root, market_data_root, handicap_root, policy, live_client=live_client, bank_total=bank_total,
                      fee_observations_root=fee_observations_root, clock=clock)
     live_docs = pre.pop("__evidence_docs__", None)
+    for l in lines:
+        pf = pre.get(l["recommendation_id"])
+        if pf and pf.get("verdict") == "APPROVED" and pf.get("live_ask") is not None:
+            priced = l["evaluation"]["ask"]
+            if abs(float(pf["live_ask"]) - float(priced)) > REQUOTE_TOLERANCE + 1e-9:
+                pf["verdict"] = "BLOCKED"
+                pf["may_be_shown_as_a_bet"] = False
+                pf["blocking_reasons"] = (pf.get("blocking_reasons") or []) + [
+                    f"REQUOTE: the venue asks {round(float(pf['live_ask']) * 100)}c now vs {round(float(priced) * 100)}c when priced (tolerance {REQUOTE_TOLERANCE * 100:.0f}c): the market has moved since the packet was read; "
+                    "re-read a fresh packet before betting"]
     # stake authorization: available cash must cover the lines the preflight approved, in kickoff order
     auth = {}
     if mode == LIVE:
@@ -414,7 +441,7 @@ def _review_coverage(games_out, submission, errors, warnings) -> dict:
             "not_reviewed_games": sum(1 for g in unstarted if g.get("disposition") in (None, SB.D_NOT_REVIEWED) and submission is not None)}
 
 
-def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig, replay_segments, policy, unresolved_starters=None) -> dict:
+def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig, replay_segments, policy, unresolved_starters=None, live_requote=False) -> dict:
     from nfl_edge.execution.fees import load_fee_schedule
     pk = run["packet"]
     game = next(g for g in pk["games"] if g["game_id"] == th["game_id"])
@@ -501,7 +528,7 @@ def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig
         pm = next((m for m in game.get("markets", []) if m["ticker"] == e["ticker"]), None)
         inj = _player_injury(game, row) if e["family"] == "PLAYER_STAT" else None
         ch = CH.challenge(th, next((c for c in th.get("candidates", []) if c["ticker"] == e["ticker"]), {"usage": e.get("usage")}), e, [x for x in ranked if x is not e],
-                          packet_market=pm, player_injury=inj, quote_age_min=quote_age, mode=mode, unresolved_starters=unresolved_starters,
+                          packet_market=pm, player_injury=inj, quote_age_min=quote_age, mode=mode, unresolved_starters=unresolved_starters, live_requote=live_requote,
                           owner_open_units=owner["by_game"].get(th["game_id"], 0.0) / UNIT if owner["state"] == "OK" else 0.0,
                           game_cap_units=policy.max_exposure_per_game_units)
         tried.append({"ticker": e["ticker"], "side": e["side"], "name": e["name"], "cleared": ch["cleared"], "open": ch["open"], "failed": ch["failed"]})

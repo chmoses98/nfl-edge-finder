@@ -1,0 +1,186 @@
+name: NFL thesis card
+
+# THE ANALYST-TO-CARD LEG. Event-driven; nothing runs on a schedule.
+#
+#   RUN NFL builds the packet and one dossier per game  (handicap-reports/latest/dossiers/*.md|json, ANALYST_GUIDE.md, submission_template.json)
+#     -> the analyst (ChatGPT) reads every game's dossier and writes ONE submission: a review record per game and zero or more theses
+#     -> the analyst opens (or edits) an issue titled `NFL CARD` whose body -- or a later comment, for a long file -- holds the submission in a ```json block
+#     -> THIS workflow: pins the packet the analyst read (its sha is in the submission), prices every thesis through the expression engine,
+#        challenges and sizes it, re-quotes each finalist from the venue (read-only public GETs), runs the real preflight, applies bankroll evidence,
+#        and writes the card back to the issue as a comment.
+#
+# WHY AN ISSUE. ChatGPT's GitHub integration can open issues and comment on them; it cannot dispatch a workflow or run a script. The doorbell pattern is the
+# one preflight.yml proved. Unlike the preflight doorbell, THIS issue carries input (the submission), so the author guard is the security boundary: the job runs
+# only when the issue's AUTHOR is the repository owner (and, for comments, the commenter is), and `issue_submission.extract` re-applies the same rule to every
+# comment block. The content is data -- validated, priced, challenged -- and is never executed or interpolated into a shell.
+#
+# WHAT IT NEVER DOES. It places nothing. The Kalshi client in this repository has no order surface; the only calls are two public GETs per finalist contract.
+# It writes no ledger and no Airtable row. The bankroll amount (a sealed secret) is read into memory by the card step and appears in no log, comment or artifact.
+#
+# PRIVACY. The comment and the artifact are PUBLIC on a public repository. They carry the card (units, prices, reasons) and bankroll STATE only; owner positions
+# are reduced to "a position is open" (card.redact_public).
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'the NFL CARD issue to read the submission from'
+        required: true
+      mode:
+        description: 'LIVE (default) or REHEARSAL (replay at the packet capture time; nothing executable)'
+        required: false
+        default: 'LIVE'
+
+permissions:
+  contents: read
+  issues: write
+  actions: read      # download the pinned packet from the RUN NFL run artifact
+
+concurrency:
+  group: nfl-thesis-card
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+jobs:
+  card:
+    # The boundary. Owner-authored issue titled `NFL CARD`; or an owner comment on such an issue; or a manual dispatch (which only a collaborator can start).
+    if: >-
+      (github.event_name == 'issues' && github.event.issue.user.login == github.repository_owner && startsWith(github.event.issue.title, 'NFL CARD'))
+      || (github.event_name == 'issue_comment' && !github.event.issue.pull_request && github.event.comment.user.login == github.repository_owner
+          && github.event.issue.user.login == github.repository_owner && startsWith(github.event.issue.title, 'NFL CARD'))
+      || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout code (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: code
+          fetch-depth: 1
+
+      # The branch holds ONE packet (latest/, replaced on every run); the history of packets is the Actions artifact of each RUN NFL run, indexed in
+      # history/index.jsonl by packet sha. The analyst's submission names the packet it read, so that packet is what gets priced.
+      - name: Checkout reports (handicap-reports)
+        uses: actions/checkout@v4
+        with:
+          ref: handicap-reports
+          path: hr
+          fetch-depth: 1
+
+      - name: Checkout ledger (handicap-data)
+        uses: actions/checkout@v4
+        with:
+          ref: handicap-data
+          path: hd
+          fetch-depth: 1
+
+      - name: Checkout fee observations and schedule only (market-data, sparse)
+        uses: actions/checkout@v4
+        with:
+          ref: market-data
+          path: md
+          fetch-depth: 1
+          sparse-checkout: |
+            data/kalshi/fees
+            data/kalshi/capture/schedule_cache.csv
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install
+        run: pip install -q numpy pandas scipy pyarrow
+
+      - name: Read the trigger issue
+        id: issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT_ISSUE: ${{ github.event.issue.number }}
+          INPUT_ISSUE: ${{ inputs.issue_number }}
+        run: |
+          N="${EVENT_ISSUE:-$INPUT_ISSUE}"
+          [[ "$N" =~ ^[0-9]+$ ]] || { echo "::error::no issue number"; exit 1; }
+          echo "number=$N" >> "$GITHUB_OUTPUT"
+          gh api "repos/$GH_REPO/issues/$N" > "$RUNNER_TEMP/issue.json"
+          gh api --paginate "repos/$GH_REPO/issues/$N/comments" > "$RUNNER_TEMP/comments.json"
+
+      - name: Extract the analyst submission
+        id: sub
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set +e
+          python3 code/scripts/handicap/card_from_issue.py --issue "$RUNNER_TEMP/issue.json" --comments "$RUNNER_TEMP/comments.json" --owner "$OWNER" --out "$RUNNER_TEMP/submission.json" | tee "$RUNNER_TEMP/extract.json"
+          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Pin the packet the analyst read
+        if: steps.sub.outputs.rc == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "REPORTS=hr/latest" >> "$GITHUB_ENV"
+          ART=$(python3 code/scripts/ci/pin_packet.py --submission "$RUNNER_TEMP/submission.json" --reports hr)
+          echo "packet selection: $ART"
+          if [ "$ART" = "MISSING" ]; then
+            echo "::warning::the packet named in the submission is not in the report history; using latest (the card refuses the mismatch in LIVE)"
+          elif [ "$ART" != "LATEST" ]; then
+            RUNID="${ART##*-}"
+            if [[ "$RUNID" =~ ^[0-9]+$ ]] && gh run download "$RUNID" -R "${{ github.repository }}" -n "$ART" -D pinned; then
+              echo "REPORTS=pinned" >> "$GITHUB_ENV"; echo "pinned the packet from artifact $ART"
+            else
+              echo "::warning::artifact $ART could not be downloaded; using latest (the card refuses the mismatch in LIVE)"
+            fi
+          fi
+
+      - name: Build the card
+        id: card
+        if: steps.sub.outputs.rc == '0'
+        env:
+          MODE: ${{ inputs.mode || 'LIVE' }}
+          # The sealed available-cash reading from the router (kalshi-bet-router publish-bankroll-nfl.yml). Read into memory by the card; never printed.
+          KALSHI_BANKROLL_CONTEXT: ${{ secrets.KALSHI_BANKROLL_CONTEXT }}
+        run: |
+          set +e
+          EXTRA=""
+          [ "$MODE" = "LIVE" ] && EXTRA="--live-evidence"
+          python3 code/scripts/handicap/run_card.py --reports-dir "$REPORTS" --submission "$RUNNER_TEMP/submission.json" \
+            --schedule-csv md/data/kalshi/capture/schedule_cache.csv --handicap-root hd --fee-root md --mode "$MODE" $EXTRA --out out 2>&1 | tail -20
+          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Compose the reply
+        if: always()
+        env:
+          EXTRACT_RC: ${{ steps.sub.outputs.rc }}
+          CARD_RC: ${{ steps.card.outputs.rc }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 code/scripts/handicap/compose_card_reply.py --extract-rc "$EXTRACT_RC" --card-rc "$CARD_RC" --run-url "$RUN_URL" \
+            --extract "$RUNNER_TEMP/extract.json" --card out/CARD.md --out "$RUNNER_TEMP/reply.md"
+
+      - name: Post the card to the issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ steps.issue.outputs.number }}
+        run: |
+          [ -n "$ISSUE" ] && gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/reply.md" || echo "::warning::no issue to reply to"
+
+      - name: Keep the card and the venue evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nfl-card-${{ github.run_id }}
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -249,3 +249,72 @@ def test_redact_public_strips_owner_positions():
     card = {"owner_open_exposure": {"state": "OK", "by_game": {"G1": 225.0}}, "games": [], "theses": [], "portfolio": {"outstanding": {"total": 225}}}
     red = C.redact_public(card)
     assert "225" not in json.dumps(red) and red["owner_open_exposure"]["games_with_open_owner_position"] == ["G1"]
+
+
+# ---------------------------------------------------------------- the issue channel
+def _fence(obj):
+    return "text\n```json\n" + json.dumps(obj) + "\n```\n"
+
+
+def test_issue_submission_comes_only_from_the_owner_and_the_last_block_wins():
+    from nfl_edge.handicap import issue_submission as IS
+    issue = {"user": {"login": "owner"}, "body": _fence({"submission_version": "1", "reviews": [], "theses": [], "analyst": "first"})}
+    comments = [{"id": 1, "user": {"login": "stranger"}, "body": _fence({"submission_version": "1", "reviews": [], "theses": [], "analyst": "evil"})},
+                {"id": 2, "user": {"login": "owner"}, "body": _fence({"submission_version": "1", "reviews": [], "theses": [], "analyst": "second"})}]
+    r = IS.extract(issue, comments, "owner")
+    assert r["submission"]["analyst"] == "second" and r["ignored_foreign_blocks"] == 1
+
+
+def test_issue_without_an_owner_block_is_refused_with_a_reason():
+    from nfl_edge.handicap import issue_submission as IS
+    r = IS.extract({"user": {"login": "stranger"}, "body": _fence({"submission_version": "1"})}, [], "owner")
+    assert r["submission"] is None and r["errors"]
+    r2 = IS.extract({"user": {"login": "owner"}, "body": "```json\n{not json, \"submission_version\"}\n```"}, [], "owner")
+    assert r2["submission"] is None and "not valid JSON" in r2["errors"][0]
+
+
+def _script(name):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(name, os.path.join(ROOT, "scripts", *name.split("/")) + ".py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_card_from_issue_reads_paginated_comment_pages_and_refuses_a_foreign_issue(tmp_path, capsys):
+    m = _script("handicap/card_from_issue")
+    good = {"submission_version": "1", "analyst": "a", "packet_sha": "x", "reviews": [], "theses": []}
+    issue = {"user": {"login": "owner"}, "title": "NFL CARD wk7", "body": "no block here"}
+    (tmp_path / "i.json").write_text(json.dumps(issue))
+    (tmp_path / "c.json").write_text(json.dumps([{"id": 1, "user": {"login": "owner"}, "body": "x"}]) + json.dumps([{"id": 2, "user": {"login": "owner"}, "body": _fence(good)}]))
+    assert m.main(["--issue", str(tmp_path / "i.json"), "--comments", str(tmp_path / "c.json"), "--owner", "owner", "--out", str(tmp_path / "s.json")]) == 0
+    assert json.load(open(tmp_path / "s.json"))["analyst"] == "a"
+    (tmp_path / "i2.json").write_text(json.dumps({"user": {"login": "stranger"}, "title": "NFL CARD", "body": _fence(good)}))
+    assert m.main(["--issue", str(tmp_path / "i2.json"), "--owner", "owner", "--out", str(tmp_path / "s2.json")]) == 4 and not (tmp_path / "s2.json").exists()
+    (tmp_path / "i3.json").write_text(json.dumps({"user": {"login": "owner"}, "title": "something else", "body": _fence(good)}))
+    assert m.main(["--issue", str(tmp_path / "i3.json"), "--owner", "owner", "--out", str(tmp_path / "s3.json")]) == 4
+
+
+def test_pin_packet_selects_latest_artifact_or_missing(tmp_path, capsys):
+    m = _script("ci/pin_packet")
+    hr = tmp_path / "hr"
+    (hr / "latest").mkdir(parents=True)
+    (hr / "history").mkdir()
+    (hr / "latest" / "packet.json").write_text(json.dumps({"packet_sha": "a" * 20}))
+    (hr / "history" / "index.jsonl").write_text(json.dumps({"packet_sha": "b" * 20, "artifact_name": "run-nfl-2026-w07-123"}) + "\n")
+    for sha, want in (("a" * 20, "LATEST"), ("b" * 20, "run-nfl-2026-w07-123"), ("c" * 20, "MISSING"), ("zz", "LATEST")):
+        (tmp_path / "s.json").write_text(json.dumps({"packet_sha": sha}))
+        m.main(["--submission", str(tmp_path / "s.json"), "--reports", str(hr)])
+        assert capsys.readouterr().out.strip() == want
+
+
+def test_compose_reply_covers_all_three_outcomes(tmp_path):
+    m = _script("handicap/compose_card_reply")
+    (tmp_path / "e.json").write_text(json.dumps({"errors": ["no block"]}))
+    m.main(["--extract-rc", "4", "--run-url", "U", "--extract", str(tmp_path / "e.json"), "--out", str(tmp_path / "r.md")])
+    assert "no submission was read" in open(tmp_path / "r.md").read()
+    (tmp_path / "CARD.md").write_text("# card")
+    m.main(["--extract-rc", "0", "--run-url", "U", "--card", str(tmp_path / "CARD.md"), "--out", str(tmp_path / "r.md")])
+    assert open(tmp_path / "r.md").read().startswith("# card") and "Placed nothing" in open(tmp_path / "r.md").read()
+    m.main(["--extract-rc", "0", "--card-rc", "5", "--run-url", "U", "--card", str(tmp_path / "none.md"), "--out", str(tmp_path / "r.md")])
+    assert "could not be built" in open(tmp_path / "r.md").read()

@@ -5,7 +5,9 @@
 
 Adds to the report directory (so the publish step carries it into `handicap-reports/latest/`):
 
-    dossiers/<game_id>.json   measured / simulation / unavailable, per game (nfl_edge/handicap/dossier.py)
+    dossiers/<game_id>.json   measured / simulation / unavailable, per game (nfl_edge/handicap/dossier.py); v2 adds player markets and evidence ids
+    dossiers/<game_id>.md     the same as one readable page (every line starts with the evidence id to cite)
+    dossiers/submission_template.json, ANALYST_GUIDE.md   the analyst's working file and instructions
     dossiers/index.md|json    EVERY game in the packet with a triage rank and the reasons; an ordering for deep review, never a filter
 
 Reads the packet only. No ledger, no Kalshi, no model authority. Fail-soft in the workflow: a failure here must not stop the report.
@@ -52,6 +54,9 @@ def main(argv=None) -> int:
         rows.append({"game_id": g["game_id"], "matchup": f"{g['away_team']} @ {g['home_team']}", "kickoff_utc": g["kickoff_utc"], "started": started, **t})
         with open(os.path.join(out, f"{g['game_id']}.json"), "w") as f:
             json.dump(d, f, indent=1)
+        if d.get("version_v2"):
+            with open(os.path.join(out, f"{g['game_id']}.md"), "w") as f:
+                f.write(DS.brief_markdown(d))
     order = sorted(rows, key=lambda r: (r["started"], -r["score"]))
     for i, r in enumerate([x for x in order if not x["started"]], 1):
         r["triage_rank"] = i

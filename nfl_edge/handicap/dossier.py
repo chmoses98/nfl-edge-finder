@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from statistics import mean
 
 DOSSIER_VERSION = "dossier-1.0.0"
@@ -499,3 +500,37 @@ trade after fees is a PASS; that is a correct outcome.
 ## Submit
 Commit the file to a branch / PR, or paste it into a GitHub issue titled `NFL CARD`; the workflow `nfl-thesis-card.yml` runs only for the repository owner's issues.
 """
+
+
+BRIEF_ORDER = (("team_matchup", "Team matchup (advantage to the offence; schedule-adjusted where marked)"), ("qb_ol", "Quarterback and offensive line"),
+               ("availability", "Availability"), ("environment", "Environment and market centre"), ("scripts", "Game scripts and team volume"),
+               ("player_opportunity", "Simulated player opportunity (research, context only)"), ("player_usage", "Measured player usage (last four games, share of team)"),
+               ("opponent_allowed", "Production the opponent allows to each position group (RAW, not schedule-adjusted)"),
+               ("markets", "Contract families and player ladders (id -> how it can be priced)"))
+BRIEF_MAX_ITEM = 420
+
+
+def brief_markdown(d: dict) -> str:
+    """The dossier as ONE readable page (~10 KB) for an analyst who cannot ingest the 300 KB JSON: every line starts with the evidence id to cite."""
+    ix = d.get("evidence_index") or {}
+    by = d.get("evidence_ids_by_category") or {}
+    L = [f"# {d.get('away')} @ {d.get('home')} — {d.get('game_id')}", "", f"Kickoff {d.get('kickoff_utc')} UTC. Cite evidence by the id in backticks. Full detail: `dossiers/{d.get('game_id')}.json`.", ""]
+    kq = d.get("key_questions") or []
+    if kq:
+        L += ["## Questions the data raises", ""] + [f"* {q if isinstance(q, str) else json.dumps(q)}" for q in kq[:8]] + [""]
+    for cat, title in BRIEF_ORDER:
+        ids = by.get(cat) or []
+        if not ids:
+            L += [f"## {title}", "", "*(no evidence of this kind in the dossier)*", ""]
+            continue
+        L += [f"## {title}", ""]
+        shown = ids if cat != "markets" else [i for i in ids if i.startswith("FAM:") and "|FULL" in i] + [i for i in ids if i.startswith("PM:")]
+        for i in shown[:140]:
+            e = ix[i]
+            t = e["text"] if len(e["text"]) <= BRIEF_MAX_ITEM else e["text"][:BRIEF_MAX_ITEM - 1] + "…"
+            L.append(f"* `{i}` — {t}" + ("" if e.get("opponent_adjusted") is None else (" [adjusted]" if e["opponent_adjusted"] else " [RAW]")))
+        if cat == "markets" and len(ids) > len(shown):
+            L.append(f"* (+{len(ids) - len(shown)} period/other families: see `contract_families` in the JSON; price them with `ladder_shifts` or declare a fair range)")
+        L.append("")
+    L += ["## Not captured", "", "; ".join(d.get("unavailable") or []), ""]
+    return "\n".join(L)

@@ -52,7 +52,7 @@ def _item(i, status, finding, auto=True):
 
 def challenge(thesis: dict, cand: dict, ev: dict, ranked_alternatives: list, *, packet_market: dict | None, player_injury: dict | None,
               quote_age_min: float | None, mode: str, owner_open_units: float, game_cap_units: float = 8.0,
-              unresolved_starters: list | None = None) -> dict:
+              unresolved_starters: list | None = None, live_requote: bool = False) -> dict:
     """`thesis` is the analyst's thesis record; `cand` the analyst's candidate entry; `ev` the engine's evaluation of it;
     `ranked_alternatives` the engine's ranked evaluations of the OTHER contracts for the same thesis."""
     ch = thesis.get("challenge") or {}
@@ -156,6 +156,10 @@ def challenge(thesis: dict, cand: dict, ev: dict, ranked_alternatives: list, *, 
     # C9
     if quote_age_min is None:
         items.append(_item("C9", "FAIL", "quote age unknown"))
+    elif quote_age_min > MAX_QUOTE_AGE_MIN and live_requote and mode != "REHEARSAL":
+        items.append(_item("C9", "FLAG" if ev.get("executable") else "FAIL",
+                           f"priced off a packet quote {quote_age_min:.0f} min old; the venue is asked for this contract just before the gates and the line is withdrawn if the live ask "
+                           "moved more than 3c or sits above the bet-up-to price" if ev.get("executable") else (ev.get("reject") or "book not executable")))
     elif quote_age_min > MAX_QUOTE_AGE_MIN:
         if mode == "REHEARSAL":
             items.append(_item("C9", "FLAG", f"REHEARSAL: quote is {quote_age_min:.0f} min old (> {MAX_QUOTE_AGE_MIN:.0f}); a live run would be BLOCKED here"))

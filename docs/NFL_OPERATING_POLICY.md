@@ -79,8 +79,10 @@ Commands (the card builder reads and computes; it places nothing):
 
 ```bash
 # inputs: handicap-reports/latest (packet.json, analysis/), market-data (live preflight), handicap-data, the nflverse schedule
-python3 scripts/handicap/run_card.py --reports-dir /tmp/hr/latest --theses theses.json \
-    --schedule-csv /tmp/md/data/kalshi/capture/schedule_cache.csv --handicap-root /tmp/hd --market-data /tmp/md --out /tmp/card
+python3 scripts/handicap/run_card.py --reports-dir /tmp/hr/latest --submission submission.json \
+    --schedule-csv /tmp/md/data/kalshi/capture/schedule_cache.csv --handicap-root /tmp/hd --fee-root /tmp/md --live-evidence --out /tmp/card
+# normally this runs as .github/workflows/nfl-thesis-card.yml, rung by an issue titled `NFL CARD` that the repository owner (ChatGPT) opens
+# --theses (a bare list, no review records) is REHEARSAL-only unless --allow-unreviewed
 # a replay of an old snapshot at its own capture time (nothing executable):  --mode REHEARSAL
 ```
 
@@ -103,11 +105,50 @@ neither derive a combo's price nor its legs' correlation, so a combo has no defe
 product with no Kalshi equivalent. A future optional section needs the executable combo quote, a correlation estimate and the exact settlement
 semantics before any price is shown. On the 2026 ledger the combos cost 4.2% in fees and returned -39% on 37 positions.
 
+### The analyst submission: the only way a game becomes DEEP-REVIEWED
+
+The card never decides which football theses deserve consideration; the analyst (ChatGPT) does. Under `--submission` (`nfl_edge/handicap/submission.py`) every unstarted
+game ends in exactly one disposition, and **scanning markets is not a review**:
+
+| disposition | meaning |
+|---|---|
+| `REVIEWED_PRICED_BET` | deeply reviewed, a defensible thesis, priced, challenged, sized, preflight-approved **and** stake-authorized by bankroll evidence |
+| `REVIEWED_PRICED_CANDIDATE` | deeply reviewed and priced, **not** approved to bet (preflight not run or blocked on stake authority, REHEARSAL, no fresh bankroll evidence) |
+| `REVIEWED_REJECTED` | deeply reviewed; the analyst rejected it, or the priced thesis failed the 2.0c floor / challenge / risk policy (reasons on the card) |
+| `INSUFFICIENT_DATA` | the analyst names the missing or conflicting item (>= 20 chars) and cites dossier evidence showing what blocked the review |
+| `NOT_REVIEWED` | no review record, or one that does not meet the deep-review standard. Its theses are **not priced** |
+
+A review record meets the standard only when its `coverage` cites **evidence ids that exist in that game's dossier** (`evidence_index`), from every required category
+(team matchup >= 2, QB/OL, availability, environment, scripts), cites player evidence (>= 2 ids from player opportunity / measured usage / opponent-allowed, or a written
+`player_markets_reason`), names at least one game-line family and one player-stat family (or the reason), and carries >= 120 characters of the analyst's own reasoning.
+The check proves the citations resolve; it cannot prove they were read, and says so. Evidence ids in a thesis are resolved to the **dossier's** text and its
+opponent-adjusted flag; the analyst cannot relabel a raw statistic as adjusted, and an uncited claim never counts as adjusted (C4).
+
+`latest/dossiers/` carries, for every game: `<game>.md` (one readable page, every line prefixed by the id to cite), `<game>.json` (full detail incl. every player ladder's rungs,
+measured usage and opponent-allowed production), plus `submission_template.json` and `ANALYST_GUIDE.md`. Player markets in the dossier: per player the measured last-four-game usage
+(targets, receptions, yards, carries, attempts), target/carry share and snap share, the opponent's RAW production allowed to the position group (labelled unadjusted), the
+simulated opportunity (research, context only), availability, and each ladder's market median and whether it is priceable. Unavailable (never implied): routes, coverage, blitz, etc.
+
+**Player and period markets are priced by ladder shift** (`nfl_edge/handicap/ladder_fair.py`): the market's own ladder of rungs (isotonic-fitted mids of two-sided books) is the centre;
+the analyst supplies a shift range in units of the stat (`ladder_shifts`); P(X + d >= k) = S(k - d) gives a fair range for every rung on both sides, widened by a stated buffer (3.0c player,
+2.5c period, 2.0c other). A rung whose shifted position leaves the priced range, or a ladder with fewer than 3 usable rungs, is NOT_DERIVABLE (no tail extrapolation). Game-line `shift` and
+`ladder_shifts` in one thesis are ranked on one footing, and the card prints the best clearing expression **per contract family** so a player market can be compared with the game market
+expressing the same thesis. Nothing estimates the shift automatically; the incumbent and the research arms are never the source.
+
+**Stake authorization (LIVE).** A line is a BET only if (1) the real preflight approves it on a **live venue quote fetched just before the gates** (two public GETs per finalist), (2) the live ask
+is within 3c of the priced ask and under the bet-up-to price, and (3) `nfl_edge/handicap/bankroll.py` holds fresh **available-cash** evidence (the router's sealed `KALSHI_BANKROLL_CONTEXT`,
+`valueType = KALSHI_AVAILABLE_CASH_BALANCE`, <= 30 minutes old) covering the lines in kickoff order. Missing, stale, malformed or wrong-type evidence => every line is a CANDIDATE saying so.
+Available cash, total bankroll (estimated as cash + open positions at cost, used only by the optional 3% / 10% guards) and existing exposure are kept distinct; no amount is printed.
+
 ### The thesis record
 
 ```json
 { "thesis_id": "2026_07_NYG_HOU::T1", "game_id": "2026_07_NYG_HOU", "statement": "...", "short_reason": "<= 150 chars for the card",
   "drivers": ["HOU_SIDE", "NYG_SCORING_DOWN"],                         // theses that share a driver share one correlation budget
+  "evidence_ids": ["TM:HOU>NYG:pass_offence_v_pass_defence", "US:nico_collins"],   // resolved against the dossier (text and adjusted flag come from IT)
+  "ladder_shifts": [{"selector": {"family": "PLAYER_STAT", "subject": "Kendre Miller", "stat": "receptions", "period": "FULL"}, "shift": [0.4, 1.0],
+                     "basis": "..", "evidence_ids": ["US:kendre_miller"], "script_results": {"FAVORITE_CONTROL": "MIXED", "COMPETITIVE": "WIN", "UNDERDOG_CONTROL": "WIN"},
+                     "usage": {"projected_opportunity": "..", "recent_usage": "..", "role_stability": "..", "teammate_context": ".."}}],
   "shift": {"home_margin": [0.5, 2.0], "total": [-1.5, 0.5]},          // a RANGE, in points, on the market centre (home = the home team)
   "candidates": [ {"ticker": "...", "side": "YES|NO", "fair": {"low": 0.70, "high": 0.80, "basis": "..."},   // fair = P(the SIDE YOU BUY wins)
                    "usage": {"projected_opportunity": "..", "recent_usage": "..", "role_stability": "..", "teammate_context": ".."},   // player props only (C5)
@@ -180,7 +221,8 @@ book current (<= 15 min; a replay flags instead) · C10 duplicates exposure alre
 
 `chmoses98/nfl-edge-finder` is a **public** repository, and so are its data branches. The router keeps the owner's fills private in its own repo, but
 delivers each fill (ticker, price, size) to `handicap-data` here, and the actual-wager postmortem files on `market-data` carry stakes and P&L.
-That is how the system was built and this change does not alter it. What this change guarantees: the **new** published diagnosis is redacted
+That is how the system was built and this change does not alter it. **Verified anonymously on 2026-10-25**: `handicap-data` returns HTTP 200 without credentials and holds 209 imported fills,
+209 settlements and 18 amendments (price, contracts, fees, execution time). A tested, non-destructive migration path is in `docs/PRIVATE_LEDGER_MIGRATION.md`. What this change guarantees: the **new** published diagnosis is redacted
 (ratios, counts and z-scores only), nothing prints a stake, price or ticker to an Actions log, and the card builder never writes the owner's open
 exposure beyond a unit count. **If the owner wants the ledger private, the decision is theirs and the fix is infrastructural** (make the data
 branches private or move the ledger); see section 9, item 1.
