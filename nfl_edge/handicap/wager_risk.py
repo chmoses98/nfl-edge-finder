@@ -63,20 +63,20 @@ LINK_RULES = {
 class RiskThresholds:
     """Warning thresholds, as shares of the scope's total stake. Strictly greater-than fires.
 
-    Defaults are the repository's own PILOT risk policy (config/risk_policy.json) read as shares of its slate
-    cap of 12 units, so the audit of what was placed uses the same yardstick the pre-trade policy would have:
+    Defaults are the repository's OWNER risk policy (config/risk_policy.json, owner-2026-10-v1) read as shares of
+    its slate cap of 25 units, so the audit of what was placed uses the same yardstick the pre-trade policy would have:
 
-      concentration_high_share      0.25   a correlation group may carry 3u of a 12u slate
-      single_game_dominates_share   1/3    a game may carry 4u of a 12u slate
-      correlated_exposure_high_share 1/6   a single position may carry 2u of 12u; a MULTI-leg cluster above
+      concentration_high_share      0.24   a correlation group may carry 6u of a 25u slate
+      single_game_dominates_share   0.32   a game may carry 8u of a 25u slate
+      correlated_exposure_high_share 0.20  a single position may carry 5u of 25u; a MULTI-leg cluster above
                                            that is correlation doing what one position was not allowed to do
       correlated_min_wagers         2      a "correlated" cluster has at least two legs
       opposing_pair_min_share       0.0    any YES+NO pair on one market is flagged
     """
-    concentration_high_share: float = 0.25
-    correlated_exposure_high_share: float = 1.0 / 6.0
+    concentration_high_share: float = 6.0 / 25.0
+    correlated_exposure_high_share: float = 5.0 / 25.0
     correlated_min_wagers: int = 2
-    single_game_dominates_share: float = 1.0 / 3.0
+    single_game_dominates_share: float = 8.0 / 25.0
     opposing_pair_min_share: float = 0.0
     #: None = every family is linked within a game. A tuple narrows SAME_GAME_CORRELATED to those families.
     same_game_linked_families: tuple | None = None

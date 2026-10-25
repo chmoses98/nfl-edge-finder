@@ -25,6 +25,7 @@ from nfl_edge.handicap import settlement_amendments as AM
 from nfl_edge.handicap.settlement_amendments import ECONOMICS_V1, ECONOMICS_V2
 
 from nfl_edge.handicap import position_lifecycle as PL
+from nfl_edge.handicap import schedule_kickoffs as SK
 from nfl_edge.handicap import wager_risk
 
 POSTMORTEM_VERSION = "actual-wager-postmortem-1.1.0"
@@ -276,7 +277,7 @@ def apply_clv_eligibility(rows: list) -> None:
 
 def build(wagers: list, settlements: list, close_rows, *, season: int, week: int | None = None,
           risk_thresholds: wager_risk.RiskThresholds = wager_risk.DEFAULT_THRESHOLDS,
-          amendments: dict | None = None, quote_at=None) -> dict:
+          amendments: dict | None = None, quote_at=None, schedule_kickoffs: dict | None = None) -> dict:
     amendments = amendments or {}
     by_key = {s.get("source_bet_key"): AM.canonical_settlement(s, amendments.get(s.get("settlement_id"), []))
               for s in settlements or () if s.get("source_bet_key")}
@@ -287,7 +288,15 @@ def build(wagers: list, settlements: list, close_rows, *, season: int, week: int
     reconcile_fees(rows)
     # POSITION LIFECYCLE (derived): orders replayed as episodes. Annotates each row with its transaction role and
     # phase, and withdraws exits and live entries from the order-level CLV counts (see position_lifecycle).
-    lifecycle = PL.build(rows, kickoffs=kickoffs_by_game(close_rows), closes=closes, quote_at=quote_at)
+    # KICKOFFS: a canonical close's kickoff wins; the nflverse schedule fills games with no close (the close publisher
+    # fell behind after week 4 -- schedule_kickoffs.py). A disagreement between the two is reported, never resolved.
+    kickoffs, kick_report = SK.kickoffs_for_games(
+        {PL.game_key(r.get("market_ticker")) for r in rows if r.get("market_ticker")},
+        kickoffs_by_game(close_rows), schedule_kickoffs or {})
+    lifecycle = PL.build(rows, kickoffs=kickoffs, closes=closes, quote_at=quote_at)
+    lifecycle["kickoff_sources"] = {"from_canonical_closes": len(kickoffs) - len(kick_report["filled_from_schedule"]),
+                                    "filled_from_schedule": len(kick_report["filled_from_schedule"]),
+                                    "conflicts": kick_report["conflicts"]}
     apply_clv_eligibility(rows)
 
     def group(key):

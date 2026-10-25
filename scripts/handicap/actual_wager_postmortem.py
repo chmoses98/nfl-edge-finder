@@ -102,6 +102,9 @@ def main(argv=None) -> int:
     ap.add_argument("--capture-git-dir", default=None,
                     help="a market-data clone (blobless is fine) for contemporaneous live-exit benchmarks")
     ap.add_argument("--capture-ref", default="origin/market-data")
+    ap.add_argument("--schedule-csv", default=None,
+                    help="nflverse games.csv (market-data: data/kalshi/capture/schedule_cache.csv). Supplies the scheduled "
+                         "kickoff for games with no canonical close; a close's kickoff always wins")
     ap.add_argument("--fail-on-overdue-days", type=int, default=None)
     a = ap.parse_args(argv)
 
@@ -117,10 +120,16 @@ def main(argv=None) -> int:
     season_dir = os.path.join(a.out, str(a.season))
     os.makedirs(season_dir, exist_ok=True)
     quote_at = git_quote_lookup(a.capture_git_dir, a.capture_ref)
-    docs = {"season": build(wagers, settlements, closes, season=a.season, amendments=amendments, quote_at=quote_at)}
+    sched = {}
+    if a.schedule_csv and os.path.exists(a.schedule_csv):
+        from nfl_edge.handicap import schedule_kickoffs as SK
+        with open(a.schedule_csv, encoding="utf-8") as f:
+            sched = SK.kickoffs_from_schedule(f.read(), a.season)
+    docs = {"season": build(wagers, settlements, closes, season=a.season, amendments=amendments, quote_at=quote_at,
+                            schedule_kickoffs=sched)}
     for wk in sorted({w.get("week") for w in wagers if isinstance(w.get("week"), int)}):
         docs[f"week_{wk:02d}"] = build(wagers, settlements, closes, season=a.season, week=wk, amendments=amendments,
-                                       quote_at=quote_at)
+                                       quote_at=quote_at, schedule_kickoffs=sched)
     for name, doc in docs.items():
         with open(os.path.join(season_dir, f"{name}.actual_wagers.json"), "w") as f:
             json.dump(doc, f, indent=1, sort_keys=True)

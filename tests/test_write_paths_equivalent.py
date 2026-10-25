@@ -28,6 +28,7 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+from nfl_edge.handicap import risk as R  # noqa: E402
 from nfl_edge.handicap import schema as S  # noqa: E402
 
 SCRIPT = os.path.join(ROOT, "scripts", "handicap", "validate_recommendations.py")
@@ -47,7 +48,7 @@ def rec(**kw):
         model_probability=0.64,
         probability_low=0.70, probability_mid=0.78, probability_high=0.86,
         decision=S.RECOMMENDED, grade="B", bet_up_to_probability=0.65,
-        proposed_stake=10, recommended_stake=10, bankroll_snapshot=2000.0,
+        proposed_stake=75, recommended_stake=75, bankroll_snapshot=10000.0,   # valid under BOTH the owner policy (1U) and the pilot fixture (conftest)
         primary_thesis="thesis", key_supporting_factors=["a"], counterarguments=["b"],
         uncertainties=["c"], source_freshness={"shadow_snapshot": NOW.isoformat()},
     )
@@ -95,6 +96,14 @@ def capture_tree(tmp_path, ask=0.62, minutes_ago=3.0, depth=100000.0):
         "run_id": rid, "observed_at": when.isoformat(), "ticker": "KXNFLGAME-26SEP09NESEA-SEA",
         "orderbook_fp": {"no_dollars": [[f"{1 - ask:.4f}", f"{depth}"]],
                          "yes_dollars": [["0.5000", "10"]]}}) + "\n")
+    # A CLEAN live fee capture one day old. Without it the gate falls back to the committed attestation in
+    # config/kalshi_fee_schedule.json, which ages out 45 days after it is written -- these tests then start failing
+    # on the wall clock alone (they did, on 2026-10-22), which proves nothing about the write paths.
+    fees = tmp_path / "md" / "data" / "kalshi" / "fees"
+    fees.mkdir(parents=True, exist_ok=True)
+    (fees / "clean.json").write_text(json.dumps({
+        "retrieved_at": (NOW - timedelta(days=1)).isoformat(), "differences": [], "errors": {},
+        "fee_changes": {"parsed": True, "changes": []}, "series": {}}))
     return str(tmp_path / "md")
 
 
@@ -275,10 +284,13 @@ def test_capping_is_an_answer_before_the_trade_and_a_refusal_after_it(tmp_path):
     ledger.mkdir(exist_ok=True)
     oversized = rec(proposed_stake=500, recommended_stake=500)
 
+    # The CLI subprocesses below read the REAL config, so the in-process call must too (conftest points the default
+    # at the pilot fixture): otherwise the two sides would be sized by different policies.
+    owner = R.RiskPolicy.load(ROOT, os.path.join(ROOT, "config", "risk_policy.json"))
     pre = P.preflight(oversized, market_data_root=md, ledger_root=str(ledger), root=ROOT,
-                      approval_as_of=NOW)
+                      approval_as_of=NOW, policy=owner)
     assert pre.may_be_shown_as_a_bet, "the pre-trade answer is a SIZE, not a refusal"
-    assert pre.approved_stake == 10 and pre.proposed_stake == 500
+    assert pre.approved_stake == 150 and pre.proposed_stake == 500   # grade B = 2U of $75
 
     as_wanted = tmp_path / "wanted.json"
     as_wanted.write_text(json.dumps([oversized]))
