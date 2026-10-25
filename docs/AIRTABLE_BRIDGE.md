@@ -1,5 +1,7 @@
 # Airtable bridge
 
+> **Deprecated as the operating foundation (2026-10-25).** The GitHub-native path (`scripts/handicap/run_card.py`, `preflight_candidate.py`, `validate_recommendations.py --write`) replaces it for the owner's loop; this document describes the transport that remains for an already-issued approval and for a runtime that cannot run scripts. See [`NFL_OPERATING_POLICY.md`](NFL_OPERATING_POLICY.md) section 8.
+
 > Airtable is transport. GitHub is canonical. The standard a record must satisfy before it reaches the
 > canonical ledger is [`DECISION_STANDARD.md`](DECISION_STANDARD.md).
 

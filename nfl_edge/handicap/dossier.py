@@ -193,6 +193,13 @@ def build_dossier(game: dict, ref: dict, sched_row: dict | None = None) -> dict:
             "off_epa_raw": raw.get("off_epa_play"), "off_epa_adjusted": adj.get("off_epa"), "def_epa_raw": raw.get("def_epa_play"), "def_epa_adjusted": adj.get("def_epa"),
             "reading": "adjusted is the schedule-adjusted rating; a large gap between raw and adjusted means the ranking leans on who was played"}
         d["qb_pressure"][off] = _qb_pressure(game, off, opp, ref)
+        qbp = d["qb_pressure"][off]
+        # SOURCE CONFLICT: the quarterback block and the injury report are different sources. If the injury report lists the starter as
+        # anything but active while the quarterback block calls him Active, the status is CONFLICTED and nothing downstream may price on it.
+        listed = next((p for p in (d["availability"]["by_team"].get(off) or []) if p.get("pos") == "QB" and p.get("player") == qbp.get("qb")), None)
+        if listed and str(qbp.get("qb_status") or "Active").lower() == "active" and str(listed["state"]).lower() != "active":
+            qbp["qb_status"] = "CONFLICT"
+            qbp["conflict"] = f"quarterback block: Active; injury report: {listed['state']} ({listed.get('report')})"
         d["offensive_line"][off] = _ol_injuries(game, off)
         d["team_matchups"][f"{off} PROE / pass-rate context"] = {
             "off_proe_early_neutral": ss.get("off_proe_early_ng"), "adjusted_off_proe": adj.get("off_proe"), "slate_mean_proe": ref.get("off_proe_early_ng"),

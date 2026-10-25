@@ -86,3 +86,12 @@ def test_triage_orders_but_never_removes():
          "team_matchups": {}, "weather": {"material": True}, "rest": {}, "sample": {"A": {"insufficient_sample": True}}}
     t = DS.triage(game, d)
     assert t["score"] > 0 and any("quarterback" in r for r in t["reasons"]) and any("weather" in r for r in t["reasons"]) and any("thin sample" in r for r in t["reasons"])
+
+
+def test_a_quarterback_source_conflict_is_surfaced_not_resolved():
+    game = {"game_id": "g", "kickoff_utc": "2026-10-25T17:00:00+00:00", "home_team": "H", "away_team": "A", "team_profiles": {"H": {}, "A": {}},
+            "quarterbacks": {"H": [{"player": "Q One", "depth_chart_order": 1, "status": "Active", "profile": {}}], "A": []},
+            "injuries": {"records": [{"team": "H", "player": "Q One", "position": "QB", "state": "Out", "espn_report_date": "2026-10-23"}], "summary": {}}}
+    d = DS.build_dossier(game, {}, None)
+    assert d["qb_pressure"]["H"]["qb_status"] == "CONFLICT" and "Out" in d["qb_pressure"]["H"]["conflict"]
+    assert DS.triage(game, d)["score"] >= 3.0

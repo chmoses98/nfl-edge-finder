@@ -1,5 +1,7 @@
 # The decision standard
 
+> **Operating policy:** [`NFL_OPERATING_POLICY.md`](NFL_OPERATING_POLICY.md) is authoritative for the owner's staking (1U = $75, 1U-5U), the RUN NFL loop and the Airtable disposition. Where this document disagrees with it, it is right. The limits table in the risk-policy section below is the superseded PILOT table; the owner's values are in section 1 of the policy.
+
 One operating policy for the last mile: **model → market → context → packet → ChatGPT decision →
 PRE-TRADE PREFLIGHT → recommendation → Airtable → delayed GitHub replay → immutable ledger → execution →
 CLV → fees → P/L → scorecard.**
@@ -723,16 +725,19 @@ caps. Kelly is a question for *after* the handicap layer demonstrates prospectiv
 
 ### The limits
 
-Every limit is a bankroll fraction or a count of units, so the same file is correct at any bankroll. A unit is
-`unit_fraction_of_bankroll × bankroll_snapshot` (currently 0.5%).
+**Since 2026-10-25 the live policy is the owner's** (`config/risk_policy.json`, `owner-2026-10-v1`): 1U = **$75 fixed**, whole-unit stakes
+1U-5U, every limit a count of units, bankroll-fraction guards only when a bankroll is supplied. The pilot table that used to stand here
+(0.5% of bankroll per unit, 2u per position, 4u per game, 3u per correlation group, 12u / 6% per slate) is **superseded**; it survives only as the
+test fixture `tests/fixtures/risk_policy_pilot_2026_v1.json` that the gate-mechanics tests run against.
 
-| limit | pilot value |
-|---|---|
-| max stake per position | 2 units |
-| grade caps | A+/A 2u, A- 1.5u, B+/B 1u, B- /C 0.5u |
-| max exposure per game | 4 units |
-| **max exposure per correlation group** | **3 units** |
-| max slate exposure | the *more binding* of 12 units and 6% of bankroll |
+| limit | owner value (live) | pilot value (superseded) |
+|---|---|---|
+| unit | $75 fixed | 0.5% of bankroll |
+| max stake per position | 5 units ($375) | 2 units |
+| grade caps | A+ 5u, A 4u, A- 3u, B+/B 2u, B-/C 1u | A+/A 2u, A- 1.5u, B+/B 1u, B-/C 0.5u |
+| max exposure per game | 8 units | 4 units |
+| **max exposure per correlation group** | **6 units** | **3 units** |
+| max slate exposure | 25 units (and 10% of bankroll when one is supplied) | the *more binding* of 12 units and 6% of bankroll |
 
 Caps round **down**. A risk cap that rounds up is not a cap.
 

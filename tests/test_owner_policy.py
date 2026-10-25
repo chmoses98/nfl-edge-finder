@@ -115,3 +115,19 @@ def test_the_owner_policy_did_not_loosen_the_portfolio_protection_per_unit():
         assert o <= p, "an aggregate cap grew faster than the single-stake cap"
     assert owner.max_exposure_per_correlation_group_units < owner.max_exposure_per_game_units
     assert owner.max_slate_exposure_units <= 25
+
+
+def test_the_authoritative_document_matches_the_config_and_every_other_workflow_doc_points_to_it():
+    cfg = json.load(open(os.path.join(ROOT, "config", "risk_policy.json")))
+    doc = open(os.path.join(ROOT, "docs", "NFL_OPERATING_POLICY.md")).read()
+    assert f"${cfg['fixed_unit_dollars']}" in doc and "1U to 5U" in doc and "$375" in doc
+    for key in ("max_exposure_per_game_units", "max_exposure_per_correlation_group_units", "max_slate_exposure_units"):
+        assert f"| {cfg[key]}U" in doc.replace("| **", "| ") or f"{cfg[key]}U" in doc
+    for rel in ("RUN_NFL.md", "DECISION_STANDARD.md", "PREFLIGHT.md", "OPERATIONS.md", "AIRTABLE_BRIDGE.md"):
+        assert "NFL_OPERATING_POLICY.md" in open(os.path.join(ROOT, "docs", rel)).read(), rel
+    assert "NFL_OPERATING_POLICY.md" in open(os.path.join(ROOT, "README.md")).read()
+
+
+def test_the_superseded_pilot_values_are_labelled_as_superseded_wherever_they_remain():
+    ds = open(os.path.join(ROOT, "docs", "DECISION_STANDARD.md")).read()
+    assert "superseded" in ds.split("### The limits")[1].split("### Correlation")[0].lower()

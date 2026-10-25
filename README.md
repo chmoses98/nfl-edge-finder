@@ -2,6 +2,8 @@
 
 Free-data NFL analytics, projection, and Kalshi market-pricing research platform for game lines, totals, player props, calibration, and edge research.
 
+**Start here: [`docs/NFL_OPERATING_POLICY.md`](docs/NFL_OPERATING_POLICY.md)** (staking, the RUN NFL loop, what is and is not validated).
+
 **Status (2026-09-04): RESEARCH / MARKET CAPTURE.** Nothing here is validated for real-money use. Automatic trade execution is not authorized and not implemented.
 
 ## What exists

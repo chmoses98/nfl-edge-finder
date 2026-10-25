@@ -45,8 +45,8 @@
     application and detected by `scripts/handicap/verify_append_only.py`, but the server-side ruleset that
     would *prevent* a force-push has not been confirmed applied — this environment cannot read repository
     protection settings. See `docs/OPERATIONS.md` for the exact ruleset the owner must apply.
-15. **The risk policy has never bound on a real bet.** `config/risk_policy.json` is a defensible pilot
-    default, not a calibrated one. Its unit fraction and grade caps were chosen conservatively; whether they
+15. **The risk policy has never bound on a real bet.** (Since 2026-10-25 it is the owner's policy, `owner-2026-10-v1`, $75 units and 1U-5U;
+    the aggregate caps are translations of the pilot protection into those units, see `docs/NFL_OPERATING_POLICY.md`.) It is a defensible default, not a calibrated one. Its unit fraction and grade caps were chosen conservatively; whether they
     are the right ones is unmeasured, and will stay unmeasured until there is a prospective sample.
 16. **Slippage is modelled as zero by default.** `net_executable_ev` takes a `slippage_dollars` term and
     nothing currently estimates it; realised entry slippage is measured after the fact

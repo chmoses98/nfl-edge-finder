@@ -1,5 +1,7 @@
 # RUN NFL
 
+> **Operating policy:** [`NFL_OPERATING_POLICY.md`](NFL_OPERATING_POLICY.md) is authoritative for the owner's staking (1U = $75, 1U-5U), the RUN NFL loop and the Airtable disposition. Where this document disagrees with it, it is right.
+
 > The operating standard this workflow has to satisfy — required fields, the freshness policy, fees, risk
 > limits and the price/P&L vocabulary — is [`DECISION_STANDARD.md`](DECISION_STANDARD.md).
 
@@ -48,8 +50,8 @@ straight to it.
    injuries, roles, weather, key questions, best expressions, correlation groups;
 4. `latest/slate.md` is the triage view across the slate; it is deliberately not a complete scan.
 
-Check `latest/manifest.json` for how old it all is. **No Airtable is involved.** Airtable begins only
-later, and only if a serious wager candidate is deliberately promoted to **PREFLIGHT NFL** (step 4 below).
+Check `latest/manifest.json` for how old it all is. **No Airtable is involved.** Airtable is deprecated as the operating foundation (`NFL_OPERATING_POLICY.md` section 8); the card builder
+(`scripts/handicap/run_card.py`) and the GitHub-native preflight replace the promotion to **PREFLIGHT NFL** (step 4 below) for the owner's loop.
 
 ---
 
