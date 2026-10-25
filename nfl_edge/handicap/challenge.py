@@ -23,7 +23,7 @@ QUESTIONS = (
     ("C2", "Has the market already incorporated the advantage?"),
     ("C3", "Is our reading of the matchup wrong?"),
     ("C4", "Are the underlying matchup statistics opponent-adjusted?"),
-    ("C5", "Is the projected player usage realistic?"),
+    ("C5", "Is the projected player usage realistic, and are the starters resolved?"),
     ("C6", "Does it depend on one unusually specific game script?"),
     ("C7", "Does the price compensate for the uncertainty?"),
     ("C8", "Is another contract a superior expression of this thesis?"),
@@ -51,7 +51,8 @@ def _item(i, status, finding, auto=True):
 
 
 def challenge(thesis: dict, cand: dict, ev: dict, ranked_alternatives: list, *, packet_market: dict | None, player_injury: dict | None,
-              quote_age_min: float | None, mode: str, owner_open_units: float, game_cap_units: float = 8.0) -> dict:
+              quote_age_min: float | None, mode: str, owner_open_units: float, game_cap_units: float = 8.0,
+              unresolved_starters: list | None = None) -> dict:
     """`thesis` is the analyst's thesis record; `cand` the analyst's candidate entry; `ev` the engine's evaluation of it;
     `ranked_alternatives` the engine's ranked evaluations of the OTHER contracts for the same thesis."""
     ch = thesis.get("challenge") or {}
@@ -85,12 +86,15 @@ def challenge(thesis: dict, cand: dict, ev: dict, ranked_alternatives: list, *, 
     items.append(_item("C3", "CLEAR" if (_present(mc) and measured) else "OPEN",
                        mc if (_present(mc) and measured) else "no matchup self-check, or no MEASURED evidence cited", auto=False))
     unadj = [m for m in measured if m.get("opponent_adjusted") is False]
+    adj = [m for m in measured if m.get("opponent_adjusted") is True]
     if not measured:
         items.append(_item("C4", "OPEN", "no measured evidence cited, so nothing can be shown to be opponent-adjusted"))
+    elif adj and not unadj:
+        items.append(_item("C4", "CLEAR", f"{len(adj)} measured item(s) cited, all opponent-adjusted"))
+    elif adj and unadj:
+        items.append(_item("C4", "FLAG", f"{len(adj)} adjusted item(s) lead; raw (unadjusted) statistics cited only as support: " + "; ".join(str(m.get("claim", ""))[:60] for m in unadj[:3])))
     elif unadj:
-        items.append(_item("C4", "FAIL", "raw (unadjusted) statistics cited as evidence: " + "; ".join(str(m.get("claim", ""))[:70] for m in unadj)))
-    elif all(m.get("opponent_adjusted") is True for m in measured):
-        items.append(_item("C4", "CLEAR", f"{len(measured)} measured item(s), all opponent-adjusted"))
+        items.append(_item("C4", "FAIL", "only raw (unadjusted) statistics cited as evidence: " + "; ".join(str(m.get("claim", ""))[:70] for m in unadj)))
     else:
         items.append(_item("C4", "OPEN", "measured evidence does not state whether it is opponent-adjusted"))
 
@@ -108,8 +112,11 @@ def challenge(thesis: dict, cand: dict, ev: dict, ranked_alternatives: list, *, 
             items.append(_item("C5", "OPEN", "usage record incomplete: missing " + ", ".join(miss), auto=False))
         else:
             items.append(_item("C5", "CLEAR", f"availability {st}; usage record complete (opportunity, recent usage, role stability, teammate context)", auto=False))
+    elif unresolved_starters:
+        items.append(_item("C5", "OPEN", "starter availability unresolved: " + "; ".join(unresolved_starters) + ". The inactive list (about 90 minutes before kickoff) resolves it; "
+                                         "a price built on an unresolved starting quarterback is a bet on the report"))
     else:
-        items.append(_item("C5", "NOT_APPLICABLE", "not a player-usage contract"))
+        items.append(_item("C5", "CLEAR", "no player-usage assumption; starting quarterbacks resolved in the dossier"))
 
     # C6
     sc = ev.get("scripts") or {}

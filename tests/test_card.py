@@ -182,11 +182,20 @@ def test_live_card_runs_the_real_preflight_and_only_an_approved_line_is_a_bet(tm
     ledger = tmp_path / "ledger"
     (ledger / "data").mkdir(parents=True)
     r = build_run(tmp_path / "a")
-    card = C.run_card(run=r, theses=[thesis()], schedule_text=schedule_text(), root=ROOT, as_of=AS_OF, mode=C.LIVE, market_data_root=md, handicap_root=str(ledger), draws=20000)
+    from nfl_edge.handicap import bankroll as BK
+    bk = BK.load(AS_OF, env={BK.ENV_CONTEXT: json.dumps({"bankroll": 5000, "observedAt": (AS_OF - timedelta(minutes=5)).isoformat(), "valueType": BK.VALUE_TYPE})})
+    card = C.run_card(run=r, theses=[thesis()], schedule_text=schedule_text(), root=ROOT, as_of=AS_OF, mode=C.LIVE, market_data_root=md, handicap_root=str(ledger),
+                      draws=20000, bankroll=bk)
     line = card["lines"][0]
     assert line["preflight"]["verdict"] == "APPROVED", line["preflight"]
     assert line["status"] == "BET (preflight approved)" and line["stake_dollars"] == line["stake_units"] * 75
     assert line["preflight"]["may_be_shown_as_a_bet"] is True
+    # the same approved line with NO bankroll evidence is a CANDIDATE: stake authorization fails closed, the price work is still shown
+    card2 = C.run_card(run=build_run(tmp_path / "a"), theses=[thesis()], schedule_text=schedule_text(), root=ROOT, as_of=AS_OF, mode=C.LIVE, market_data_root=md,
+                       handicap_root=str(ledger), draws=20000, bankroll=BK.load(AS_OF, env={}))
+    l2 = card2["lines"][0]
+    assert l2["preflight"]["verdict"] == "APPROVED" and l2["status"].startswith("CANDIDATE") and "NO STAKE AUTHORIZATION" in l2["status"]
+    assert card2["bankroll"]["authorizes_stakes"] is False
 
 
 def test_live_card_blocks_a_line_when_the_live_book_has_moved_above_the_ceiling(tmp_path):

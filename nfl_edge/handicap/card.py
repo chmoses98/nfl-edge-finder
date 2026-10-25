@@ -20,6 +20,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
+from nfl_edge.handicap import bankroll as BK
 from nfl_edge.handicap import challenge as CH
 from nfl_edge.handicap import dossier as DS
 from nfl_edge.handicap import expression as EX
@@ -28,8 +29,9 @@ from nfl_edge.handicap import risk as R
 from nfl_edge.handicap import schedule_kickoffs as SK
 from nfl_edge.handicap import schema as S
 from nfl_edge.handicap import staking as ST
+from nfl_edge.handicap import submission as SB
 
-CARD_VERSION = "card-1.0.0"
+CARD_VERSION = "card-2.0.0"
 LIVE, REHEARSAL = "LIVE", "REHEARSAL"
 UNIT = ST.UNIT_DOLLARS
 MAX_CAPTURE_AGE_MIN = 15.0
@@ -188,7 +190,11 @@ def pass_record(*, run: dict, game: dict, row: dict, ev: dict, thesis: dict, as_
 
 def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: datetime, mode: str = LIVE, handicap_root: str | None = None,
              market_data_root: str | None = None, policy: R.RiskPolicy | None = None, fee_schedule=None, replay_segments: dict | None = None,
-             draws: int = FV.DEFAULT_DRAWS) -> dict:
+             draws: int = FV.DEFAULT_DRAWS, submission: dict | None = None, bankroll: dict | None = None, stats=None, snaps=None,
+             live_client=None, fee_observations_root: str | None = None, clock=None) -> dict:
+    """`theses` is the LEGACY input (a bare list, no review records). `submission` is the analyst's reviewed submission (`submission.py`): review records for
+    games plus theses; it is the only input under which a game can end DEEP-REVIEWED. `bankroll` is `bankroll.load(...)`. `live_client` (a read-only Kalshi
+    client) turns the preflight into the LIVE path: each finalist's contract is fetched from the venue just before the gates run."""
     pk = run["packet"]
     season = pk["season"]
     policy = policy or R.RiskPolicy.load(root)
@@ -201,7 +207,10 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
     games_out, dossiers = [], {}
     for g in pk["games"]:
         ko = _ts(g["kickoff_utc"])
-        d = DS.build_dossier(g, ref, DS.schedule_row(schedule_text, g["game_id"]))
+        if submission is not None:
+            d = DS.build_dossier_v2(g, ref, DS.schedule_row(schedule_text, g["game_id"]), shard(run, g["game_id"])["rows"], stats, snaps, pk.get("week"))
+        else:
+            d = DS.build_dossier(g, ref, DS.schedule_row(schedule_text, g["game_id"]))
         dossiers[g["game_id"]] = d
         t = DS.triage(g, d)
         state = G_POST if ko <= as_of else None
@@ -219,6 +228,52 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
             x["state_reason"] = x["state_reason"] or "; ".join(gate["reasons"])
         return _assemble(run, mode, as_of, gate, games_out, [], [], [], dossiers, owner, policy, None, bank_meta, "BLOCKED: " + "; ".join(gate["reasons"]))
 
+    # ---- the analyst's submission: review records decide which games are DEEPLY reviewed and which theses may be priced at all
+    review_info = {}
+    sub_errors, sub_warnings = [], []
+    if submission is not None:
+        theses = list(submission.get("theses") or [])
+        sub_errors = SB.validate_structure(submission)
+        if mode == LIVE and submission.get("packet_sha") != pk.get("packet_sha"):
+            sub_errors.append(f"the submission was written against packet {submission.get('packet_sha')!r}, not the current packet {pk.get('packet_sha')!r}: "
+                              "the analyst's shifts are relative to the market centre in the packet that was read. Re-read the current packet.")
+        elif submission.get("packet_sha") != pk.get("packet_sha"):
+            sub_warnings.append(f"submission packet {submission.get('packet_sha')!r} differs from the current packet {pk.get('packet_sha')!r} (allowed outside LIVE)")
+        by_game_rv = {r.get("game_id"): r for r in (submission.get("reviews") or []) if isinstance(r, dict)}
+        n_theses_by_game: dict = {}
+        for t in theses:
+            n_theses_by_game[t.get("game_id")] = n_theses_by_game.get(t.get("game_id"), 0) + 1
+        for x in games_out:
+            if x["state"]:
+                continue
+            gid, rv, d = x["game_id"], by_game_rv.get(x["game_id"]), dossiers[x["game_id"]]
+            if sub_errors:
+                info = {"disposition": SB.D_NOT_REVIEWED, "why": ["the submission file is invalid: " + "; ".join(sub_errors)[:300]]}
+            elif rv is None:
+                info = {"disposition": SB.D_NOT_REVIEWED, "why": ["no review record for this game. Scanning markets is not a review."]}
+            elif rv.get("verdict") == "INSUFFICIENT_DATA":
+                chk = SB.insufficient_check(rv, d)
+                info = ({"disposition": SB.D_INSUFFICIENT, "why": ["; ".join(chk["missing"])], "reasoning": rv.get("reasoning")} if chk["qualifies"]
+                        else {"disposition": SB.D_NOT_REVIEWED, "why": ["INSUFFICIENT_DATA claimed without the required specifics: " + "; ".join(chk["problems"])]})
+            else:
+                chk = SB.deep_review_check(rv, d)
+                if not chk["qualifies"]:
+                    info = {"disposition": SB.D_NOT_REVIEWED, "why": ["the review record does not meet the deep-review standard: " + "; ".join(chk["problems"])], "check": chk}
+                elif rv.get("verdict") == "REJECTED":
+                    info = {"disposition": SB.D_REJECTED, "why": [str(rv.get("reasoning"))[:400]], "check": chk, "reasoning": rv.get("reasoning"), "thesis_ready": False}
+                elif not n_theses_by_game.get(gid):
+                    info = {"disposition": SB.D_NOT_REVIEWED, "why": ["verdict THESIS but no thesis record was filed for this game"], "check": chk}
+                else:
+                    info = {"disposition": None, "check": chk, "thesis_ready": True, "reasoning": rv.get("reasoning")}
+            review_info[gid] = info
+            x["review"] = {k: v for k, v in info.items() if k != "check"}
+            x["review"]["check_problems"] = (info.get("check") or {}).get("problems")
+
+    def _unresolved(gid):
+        d = dossiers[gid]
+        return [f"{t}: QB {q.get('qb')} is {q.get('qb_status') or q.get('qb_injury')}" for t, q in (d.get("qb_pressure") or {}).items()
+                if q.get("qb_status") not in (None, "Active") or q.get("qb_injury")]
+
     # theses -> expressions -> challenge -> stake
     accepted, thesis_reports, proposals = [], [], []
     for th in theses:
@@ -226,7 +281,24 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
         if gid not in by_id or by_id[gid]["state"] == G_POST:
             thesis_reports.append({"thesis_id": th.get("thesis_id"), "game_id": gid, "outcome": "EXCLUDED", "reason": "game not in the unstarted slate"})
             continue
-        rep = _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig, replay_segments, policy)
+        if submission is not None:
+            info = review_info.get(gid) or {}
+            if not info.get("thesis_ready"):
+                thesis_reports.append({"thesis_id": th.get("thesis_id"), "game_id": gid, "outcome": "NOT_PRICED", "statement": th.get("statement"),
+                                       "pass_reasons": ["not priced: this game has no qualifying deep-review record with verdict THESIS (" + "; ".join(info.get("why") or ["no review"])[:300] + ")"]})
+                continue
+            measured, simulation, problems = SB.resolve_thesis_evidence(th, dossiers[gid])
+            for ls in th.get("ladder_shifts") or []:
+                for i in ls.get("evidence_ids") or []:
+                    if i not in (dossiers[gid].get("evidence_index") or {}):
+                        problems.append(f"ladder_shifts evidence id {i!r} is not in the dossier for {gid}")
+            if problems:
+                thesis_reports.append({"thesis_id": th.get("thesis_id"), "game_id": gid, "outcome": "NOT_PRICED", "statement": th.get("statement"),
+                                       "pass_reasons": ["not priced: thesis cites evidence that does not resolve: " + "; ".join(problems)[:300]]})
+                continue
+            th = dict(th, evidence={"measured": measured, "simulation": simulation})
+        rep = _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig, replay_segments, policy,
+                               unresolved_starters=_unresolved(gid) if submission is not None else None)
         if rep.get("outcome") == "PASS" and rep.get("top_ranked"):
             top = rep["top_ranked"][0]
             g = next(x for x in pk["games"] if x["game_id"] == gid)
@@ -246,7 +318,10 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
     if owner["state"] == "OK" and owner["by_game"]:
         outstanding = R.OutstandingExposure(by_game=dict(owner["by_game"]), total=round(sum(owner["by_game"].values()), 2),
                                             source="owner's unsettled routed wagers (handicap-data)")
-    report = policy.evaluate(proposals, None, outstanding) if proposals else None
+    if bankroll is None and mode == LIVE and submission is not None:
+        bankroll = BK.load(as_of, open_exposure_dollars=sum(owner["by_game"].values()) if owner["state"] == "OK" else None)
+    bank_total = bankroll.get("total_bankroll_estimate") if (bankroll and mode == LIVE) else None
+    report = policy.evaluate(proposals, bank_total, outstanding) if proposals else None
     lines = []
     for rep in accepted:
         sel = rep["selected"]
@@ -263,19 +338,50 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
         sel["record"]["recommended_stake"] = units * UNIT
         sel["record"]["grade"] = UNITS_TO_GRADE[units]
         lines.append(sel)
+    lines.sort(key=lambda s_: (by_id[s_["game_id"]]["kickoff_utc"], s_["recommendation_id"]))
 
-    pre = _preflight(lines, run, as_of, mode, root, market_data_root, handicap_root, policy)
+    pre = _preflight(lines, run, as_of, mode, root, market_data_root, handicap_root, policy, live_client=live_client, bank_total=bank_total,
+                     fee_observations_root=fee_observations_root, clock=clock)
+    live_docs = pre.pop("__evidence_docs__", None)
+    # stake authorization: available cash must cover the lines the preflight approved, in kickoff order
+    auth = {}
+    if mode == LIVE:
+        ok_lines = [l for l in lines if (pre.get(l["recommendation_id"]) or {}).get("verdict") == "APPROVED"]
+        bk = bankroll or {"authorizes_stakes": False, "reasons": ["no bankroll evidence was supplied"]}
+        gate_ = BK.stake_gate(bk, [(pre[l["recommendation_id"]].get("approved_stake") or l["final_units"] * UNIT) for l in ok_lines])
+        for l, okk in zip(ok_lines, gate_["authorized"]):
+            auth[l["recommendation_id"]] = (okk, None if okk else (gate_.get("reason") or "stake not authorized"))
     card_lines = []
     for sel in lines:
         pf = pre.get(sel["recommendation_id"])
-        card_lines.append(_card_line(sel, by_id, pf, mode))
+        a_ok, a_why = auth.get(sel["recommendation_id"], (None, None))
+        card_lines.append(_card_line(sel, by_id, pf, mode, authorized=a_ok, auth_reason=a_why))
         if pf and pf["verdict"] == "BLOCKED":
             by_id[sel["game_id"]]["state"] = G_REVIEWED_PASS
             by_id[sel["game_id"]]["state_reason"] = "preflight BLOCKED: " + "; ".join(pf["blocking_reasons"][:2])
-    reviewed = {r["game_id"] for r in thesis_reports}
+    reviewed = {r["game_id"] for r in thesis_reports if r.get("outcome") != "NOT_PRICED"}
     betting = {l["game_id"] for l in card_lines if l["status"] != "BLOCKED"}
     for x in games_out:
         if x["state"]:
+            if submission is not None and x["state"] == G_REVIEWED_PASS:
+                x["disposition"] = SB.D_REJECTED
+            elif submission is not None:
+                x["disposition"] = x["state"]
+            continue
+        if submission is not None:
+            info = review_info.get(x["game_id"]) or {}
+            if x["game_id"] in betting:
+                line = next(l for l in card_lines if l["game_id"] == x["game_id"] and l["status"] != "BLOCKED")
+                x["disposition"] = SB.D_BET if line["status"].startswith("BET") else SB.D_CANDIDATE
+                x["state"], x["state_reason"] = x["disposition"], "see card: " + line["status"]
+            elif info.get("disposition"):
+                x["disposition"], x["state"] = info["disposition"], info["disposition"]
+                x["state_reason"] = "; ".join(info.get("why") or [])[:420]
+            else:
+                rs = [r for r in thesis_reports if r["game_id"] == x["game_id"] and r.get("outcome") != "NOT_PRICED"]
+                x["disposition"] = x["state"] = SB.D_REJECTED
+                x["state_reason"] = "deeply reviewed; thesis priced and not taken: " + " | ".join(
+                    f"{r['thesis_id']}: {'; '.join(r.get('pass_reasons') or [r.get('reason', 'no expression cleared')])[:260]}" for r in rs)
             continue
         if x["game_id"] in betting:
             x["state"], x["state_reason"] = G_BET, "see card"
@@ -287,10 +393,28 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
             x["state"] = G_NO_THESIS
             x["state_reason"] = ("no analyst thesis was filed for this game; triage rank " + str(x.get("triage_rank")) +
                                  ". Absence of a thesis is a PASS, not an omission: " + ("; ".join(x["triage"]["reasons"]) or "no standout factor"))
-    return _assemble(run, mode, as_of, gate, games_out, card_lines, thesis_reports, accepted, dossiers, owner, policy, report, bank_meta, None, pre)
+    out = _assemble(run, mode, as_of, gate, games_out, card_lines, thesis_reports, accepted, dossiers, owner, policy, report, bank_meta, None, pre)
+    out["review_coverage"] = _review_coverage(games_out, submission, sub_errors, sub_warnings)
+    out["bankroll"] = None if bankroll is None else BK.public_view(bankroll, [l["stake_dollars"] for l in card_lines] or None)
+    out["_bankroll_private"] = bankroll
+    out["_live_evidence"] = live_docs
+    return out
 
 
-def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig, replay_segments, policy) -> dict:
+def _review_coverage(games_out, submission, errors, warnings) -> dict:
+    counts: dict = {}
+    for g in games_out:
+        k = g.get("disposition") or g["state"]
+        counts[k] = counts.get(k, 0) + 1
+    unstarted = [g for g in games_out if g["state"] != G_POST]
+    allowed = set(SB.DISPOSITIONS) | {G_BET, G_REVIEWED_PASS, G_NO_THESIS, G_BLOCKED}
+    return {"submission_supplied": submission is not None, "submission_errors": errors, "submission_warnings": warnings, "counts": counts,
+            "unstarted_games": len(unstarted), "every_game_has_one_terminal_disposition": all((g.get("disposition") or g["state"]) in allowed for g in games_out),
+            "deeply_reviewed_games": sum(1 for g in unstarted if g.get("disposition") in (SB.D_BET, SB.D_CANDIDATE, SB.D_REJECTED)),
+            "not_reviewed_games": sum(1 for g in unstarted if g.get("disposition") in (None, SB.D_NOT_REVIEWED) and submission is not None)}
+
+
+def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig, replay_segments, policy, unresolved_starters=None) -> dict:
     from nfl_edge.execution.fees import load_fee_schedule
     pk = run["packet"]
     game = next(g for g in pk["games"] if g["game_id"] == th["game_id"])
@@ -312,8 +436,14 @@ def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig
         rep["n_evaluated"], rep["n_clearing_floor"] = 0, 0
         return rep
     evals = []
-    if th.get("shift"):
+    if th.get("shift") and all(x is not None for x in list(th["shift"].get("home_margin") or [None]) + list(th["shift"].get("total") or [None])):
         evals += EX.scan_derivable(sh["rows"], gsim, th["shift"], noise, sched, as_of, home, away)
+    else:
+        th = dict(th, shift=None)
+    ladder_shifts = [ls for ls in (th.get("ladder_shifts") or []) if all(isinstance(x, (int, float)) for x in (ls.get("shift") or [None]))]
+    if ladder_shifts:
+        evals += EX.scan_ladders(sh["rows"], ladder_shifts, sched, as_of, home, away)
+        rep["ladder_shifts"] = [{"selector": ls["selector"], "shift": ls["shift"], "basis": ls.get("basis")} for ls in ladder_shifts]
     for c in th.get("candidates", []):
         r = rows.get(c["ticker"])
         if r is None:
@@ -334,7 +464,7 @@ def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig
             evals.append(EX.evaluate_contract(r, side, {"state": "NONE", "reason": "no defensible fair range was supplied"}, sched, as_of, home, away))
     fams = th.get("families")
     if fams:
-        evals = [e for e in evals if e["family"] in fams or e.get("fair_basis", "").startswith("ANALYST")]
+        evals = [e for e in evals if e["family"] in fams or e.get("fair_basis", "").startswith("ANALYST") or e.get("ladder_thesis")]
     excl = set(th.get("exclude_tickers") or [])
     evals = [e for e in evals if e["ticker"] not in excl]
     ranked = EX.rank(evals)
@@ -342,6 +472,9 @@ def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig
     rep["n_clearing_floor"] = sum(1 for e in ranked if e.get("rankable", True) and e.get("executable") and (e.get("net_edge_low") or -1) >= EX.MIN_NET_EDGE)
     best = next((e for e in ranked if e.get("executable") and (e.get("net_edge_low") or -1) >= EX.MIN_NET_EDGE), None)
     rep["top_ranked"] = [_slim(e) for e in ranked[:8]]
+    # like-for-like: the best clearing expression of this thesis in EACH contract family / period (game lines vs player stats vs period markets)
+    rep["by_family"] = [_slim(e) for e in EX.best_by_family(ranked)]
+    rep["n_player_ladder_evals"] = sum(1 for e in ranked if e.get("ladder_thesis"))
     rep["rejected"] += [{"ticker": e["ticker"], "side": e["side"], "name": e["name"], "ask_cents": e["ask_cents"], "reason": EX.reason_rejected(e, best)}
                         for e in ranked[:40] if e is not best]
     if best is None and th.get("shift"):
@@ -367,21 +500,25 @@ def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig
         row = rows[e["ticker"]]
         pm = next((m for m in game.get("markets", []) if m["ticker"] == e["ticker"]), None)
         inj = _player_injury(game, row) if e["family"] == "PLAYER_STAT" else None
-        ch = CH.challenge(th, next((c for c in th.get("candidates", []) if c["ticker"] == e["ticker"]), {}), e, [x for x in ranked if x is not e],
-                          packet_market=pm, player_injury=inj, quote_age_min=quote_age, mode=mode,
+        ch = CH.challenge(th, next((c for c in th.get("candidates", []) if c["ticker"] == e["ticker"]), {"usage": e.get("usage")}), e, [x for x in ranked if x is not e],
+                          packet_market=pm, player_injury=inj, quote_age_min=quote_age, mode=mode, unresolved_starters=unresolved_starters,
                           owner_open_units=owner["by_game"].get(th["game_id"], 0.0) / UNIT if owner["state"] == "OK" else 0.0,
                           game_cap_units=policy.max_exposure_per_game_units)
         tried.append({"ticker": e["ticker"], "side": e["side"], "name": e["name"], "cleared": ch["cleared"], "open": ch["open"], "failed": ch["failed"]})
         if not ch["cleared"]:
             continue
         corro = _corroborations(th, e, row, pm, elig, replay_segments)
-        depth_ok = _depth_ok(pm, e)
+        depth_units = _depth_units(pm, e)
+        depth_ok = depth_units >= 1
         decision = ST.decide(ST.StakeInputs(
             net_edge_low=e["net_edge_low"], fair_low=e["fair_low"], fair_high=e["fair_high"], challenge_clear=True, full_stake_executable=depth_ok,
             price_within_ceiling=(e["ceiling_cents"] is not None and e["ask_cents"] <= e["ceiling_cents"]),
             winning_scripts=(e["scripts"] or {}).get("winning_scripts", 0), script_neutral=bool((e["scripts"] or {}).get("script_neutral")),
             single_script_dependent=bool((e["scripts"] or {}).get("single_script_dependent")), corroborations=tuple(corro["accepted"]),
             family_eligibility=_family_eligibility(elig, e["family"]), model_market_gap=corro.get("model_market_gap")))
+        if decision.units > depth_units >= 1:
+            decision.notes.append(f"stake cut from {decision.units}U to {depth_units}U: displayed depth on the buy side covers {depth_units}U at {DEPTH_COVER}x")
+            decision.units = depth_units
         if decision.units < 1:
             tried[-1]["cleared"] = False
             tried[-1]["stake_blocked"] = decision.blocked
@@ -401,7 +538,7 @@ def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig
 
 
 def _slim(e: dict, full: bool = False) -> dict:
-    keys = ("ticker", "side", "name", "settles", "family", "ask_cents", "bid", "width", "fair_low", "fair_high", "fair_mid", "fair_basis", "net_edge_low", "net_edge_mid",
+    keys = ("ticker", "side", "name", "settles", "family", "period", "ladder_thesis", "ask_cents", "bid", "width", "fair_low", "fair_high", "fair_mid", "fair_basis", "net_edge_low", "net_edge_mid",
             "fee_per_contract", "breakeven_price", "ceiling_cents", "roi_low", "edge_per_sd", "executable", "reject")
     out = {k: e.get(k) for k in keys}
     sc = e.get("scripts") or {}
@@ -418,11 +555,15 @@ def _player_injury(game, row):
     return {"status": "Active"} if row.get("subject") else None
 
 
-def _depth_ok(pm, e) -> bool:
+DEPTH_COVER = 3
+
+
+def _depth_units(pm, e) -> int:
+    """Whole units the displayed book can fill with `DEPTH_COVER`x cover (the preflight then walks the real book for the real size)."""
     if not pm:
-        return False
+        return 0
     depth = pm.get("book_depth_yes") if e["side"] == "NO" else pm.get("book_depth_no")      # depth is on the side that fills our buy
-    return depth is not None and float(depth) >= 3 * 5 * UNIT
+    return 0 if depth is None else min(5, int(float(depth) // (DEPTH_COVER * UNIT)))
 
 
 def _family_eligibility(elig, fam):
@@ -459,26 +600,56 @@ def _corroborations(th, e, row, pm, elig, replay_segments) -> dict:
 
 # ------------------------------------------------------------------------------------------------ preflight
 
-def _preflight(lines, run, as_of, mode, root, market_data_root, handicap_root, policy) -> dict:
+def _preflight(lines, run, as_of, mode, root, market_data_root, handicap_root, policy, live_client=None, bank_total=None,
+               fee_observations_root=None, clock=None) -> dict:
     if not lines:
         return {}
     if mode == REHEARSAL:
         return {l["recommendation_id"]: {"verdict": "NOT_RUN", "reason": "REHEARSAL: the snapshot is replayed as of its own capture time; preflight is meant for the live clock"} for l in lines}
-    if not market_data_root or not os.path.isdir(market_data_root) or not handicap_root or not os.path.isdir(handicap_root):
-        return {l["recommendation_id"]: {"verdict": "NOT_RUN", "reason": "no market-data / handicap-data checkout supplied, so depth, fee and quote gates did not run"} for l in lines}
+    if not handicap_root or not os.path.isdir(handicap_root) or (live_client is None and (not market_data_root or not os.path.isdir(market_data_root))):
+        return {l["recommendation_id"]: {"verdict": "NOT_RUN", "reason": "no market-data / handicap-data checkout (or live client) supplied, so depth, fee and quote gates did not run"} for l in lines}
+    from nfl_edge.handicap import live_evidence as LE
     from nfl_edge.handicap import preflight as P
     cands = [dict(l["record"], decision=S.RECOMMENDED) for l in lines]
-    res = P.preflight_batch(cands, market_data_root=market_data_root, ledger_root=handicap_root, root=root, approval_as_of=as_of, policy=policy)
+    capture_index = book_index = None
+    docs = []
+    decision_at = as_of
+    if live_client is not None:
+        # THE LIVE PATH: ask the venue about each finalist's contract (two public GETs each), THEN stamp the decision instant, then run the gates.
+        for c in cands:
+            try:
+                docs.append(LE.collect(live_client, c["market_ticker"], side=c.get("side") or "YES", kickoff_utc=c.get("kickoff_utc")))
+            except LE.EvidenceError as e:
+                docs.append({"market_ticker": c["market_ticker"], "error": str(e)})
+        good = [d for d in docs if "error" not in d]
+        capture_index, book_index = LE.EvidenceQuoteIndex(good), LE.EvidenceBookIndex(good)
+        decision_at = (clock or (lambda: datetime.now(timezone.utc)))()
+    res = P.preflight_batch(cands, market_data_root=market_data_root, ledger_root=handicap_root, root=root, approval_as_of=decision_at, policy=policy,
+                            bankroll_snapshot=bank_total, capture_index=capture_index, book_index=book_index,
+                            fee_observations_root=fee_observations_root or market_data_root)
     out = {}
     for r in res:
         out[r.candidate_id] = {"verdict": r.verdict, "approved_stake": r.approved_stake, "blocking_reasons": r.blocking_reasons, "warnings": r.warnings,
-                               "may_be_shown_as_a_bet": r.may_be_shown_as_a_bet, "depth": r.depth, "net_ev": r.net_ev}
+                               "may_be_shown_as_a_bet": r.may_be_shown_as_a_bet, "depth": r.depth, "net_ev": r.net_ev, "decision_at": decision_at.isoformat(),
+                               "evidence": "LIVE_TICKER_FETCH" if live_client is not None else "CAPTURE_STREAM"}
+    for c, l in zip(cands, lines):
+        doc = next((d for d in docs if d.get("market_ticker") == c["market_ticker"]), None)
+        pf = out.get(l["recommendation_id"])
+        if pf is not None and doc is not None:
+            pf["live_error"] = doc.get("error")
+            qr = (doc.get("quote_row") or {})
+            from nfl_edge.execution import quotes as Q
+            sp = Q._side_prices(qr) if qr else {}
+            pf["live_ask"] = sp.get("yes_ask") if (c.get("side") or "YES") == "YES" else sp.get("no_ask")
+            pf["live_retrieved_at"] = (doc.get("market") or {}).get("retrieved_at")
+    if docs:
+        out["__evidence_docs__"] = [d for d in docs if "error" not in d]
     return out
 
 
 # ------------------------------------------------------------------------------------------------ the card
 
-def _card_line(sel, by_id, pf, mode) -> dict:
+def _card_line(sel, by_id, pf, mode, authorized=None, auth_reason=None) -> dict:
     ev, rec = sel["evaluation"], sel["record"]
     g = by_id[sel["game_id"]]
     units = sel["final_units"]
@@ -486,6 +657,8 @@ def _card_line(sel, by_id, pf, mode) -> dict:
         status = "REHEARSAL (not executable)"
     elif pf is None or pf.get("verdict") == "NOT_RUN":
         status = "CANDIDATE (preflight not run)"
+    elif pf["verdict"] == "APPROVED" and authorized is False:
+        status = "CANDIDATE (preflight approved; " + str(auth_reason or "stake not authorized")[:200] + ")"
     elif pf["verdict"] == "APPROVED":
         status = "BET (preflight approved)"
     else:
@@ -498,8 +671,9 @@ def _card_line(sel, by_id, pf, mode) -> dict:
     reason = (f"{short} Fair {_cents(ev['fair_low'])}-{_cents(ev['fair_high'])} vs ask {ev['ask_cents']}¢; "
               f"net edge ≥ {ev['net_edge_low'] * 100:.1f}¢ after fees at the low end.")
     return {"game_id": sel["game_id"], "game": f"{g['away']} @ {g['home']}", "kickoff_utc": g["kickoff_utc"], "thesis_id": sel["thesis_id"],
-            "bet": ev["name"], "side": ev["side"], "ticker": ev["ticker"], "settles": ev["settles"], "current_price_cents": ev["ask_cents"],
-            "bet_up_to_cents": ev["ceiling_cents"], "stake_units": units, "stake_dollars": units * UNIT, "reason": reason, "status": status,
+            "bet": ev["name"], "side": ev["side"], "ticker": ev["ticker"], "settles": ev["settles"],
+            "current_price_cents": (round(pf["live_ask"] * 100) if (pf or {}).get("live_ask") is not None else ev["ask_cents"]),
+            "bet_up_to_cents": ev["ceiling_cents"], "price_at_pricing_cents": ev["ask_cents"], "live_ask": (pf or {}).get("live_ask"), "stake_units": units, "stake_dollars": units * UNIT, "reason": reason, "status": status,
             "recommendation_id": sel["recommendation_id"], "preflight": pf, "fair_range": [ev["fair_low"], ev["fair_high"]],
             "stake_tier": sel["stake"]["tier"], "tier_limits": sel["stake"]["unmet_for_next_tier"][:2], "flags": sel["challenge"]["flags"]}
 
@@ -517,6 +691,29 @@ def _assemble(run, mode, as_of, gate, games_out, card_lines, thesis_reports, acc
             "disclaimers": ["Nothing here places a wager. Kalshi account interaction is read-only; the owner places bets.",
                             "Fair values are the analyst's thesis ranges run through a market-centred simulation, not validated model probabilities. "
                             "No model in this repository is TRUSTED or LIMITED; research arms are context only."]}
+
+
+# ------------------------------------------------------------------------------------------------ privacy
+
+def redact_public(card: dict) -> dict:
+    """The card as it may be written where a public repository can see it: no owner position sizes by game, no bankroll amounts (none are on the card to begin
+    with -- `bankroll` carries a state), and only the fact that a game carries an open owner position."""
+    out = dict(card)
+    ox = out.get("owner_open_exposure") or {}
+    out["owner_open_exposure"] = {"state": ox.get("state"), "games_with_open_owner_position": sorted(ox.get("by_game") or {}),
+                                  "note": "amounts withheld: owner fills are not republished by the card"}
+    if out.get("portfolio"):
+        out["portfolio"] = dict(out["portfolio"], outstanding="withheld (owner positions are not republished)")
+    import copy
+    out["theses"] = copy.deepcopy(out.get("theses") or [])
+    for t in out["theses"]:
+        items = ((t.get("selected") or {}).get("challenge") or {}).get("items") or []
+        for it in items:
+            if it.get("id") == "C10" and it.get("status") != "CLEAR":
+                it["finding"] = "an owner position is already open on this game; the stake shown is the room left under the game cap (amount withheld)"
+        for tr in (t.get("selected") or {}).get("portfolio", {}) and [t["selected"]["portfolio"]] or []:
+            tr.pop("outstanding", None)
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ rendering
@@ -537,6 +734,16 @@ def render_markdown(card: dict) -> str:
               "Bets on that game must be placed before it; later games can wait for their inactive lists.", ""]
     if card["data_gate"]["warnings"]:
         L += ["> " + w for w in card["data_gate"]["warnings"]] + [""]
+    bk = card.get("bankroll")
+    if mode == LIVE and bk is not None:
+        L += [("Stake authorization: **OK** (available-cash balance " + str(bk.get("age_hours")) + " h old; covers every line: " + str(bk.get("slate_covered_by_available_cash")) + ")") if bk["authorizes_stakes"]
+              else "Stake authorization: **BLOCKED** — " + "; ".join(bk.get("reasons") or ["no bankroll evidence"]) + ". Lines below are CANDIDATES; nothing is authorized to be bet.", ""]
+    rc = card.get("review_coverage")
+    if rc and rc.get("submission_supplied"):
+        L += ["Review coverage: " + ", ".join(f"{k} {v}" for k, v in sorted(rc["counts"].items())) + f" · {rc['deeply_reviewed_games']} of {rc['unstarted_games']} unstarted games deeply reviewed, "
+              f"{rc['not_reviewed_games']} NOT_REVIEWED. A game is deeply reviewed only when its review record cites the dossier's evidence in every required category.", ""]
+        if rc["submission_errors"]:
+            L += ["> Submission errors: " + "; ".join(rc["submission_errors"]), ""]
     actionable = [l for l in card["lines"] if l["status"] != "BLOCKED"]
     blocked = [l for l in card["lines"] if l["status"] == "BLOCKED"]
     if actionable:
@@ -590,6 +797,10 @@ def render_markdown(card: dict) -> str:
                 L += ["| script | P(script) | P(win \\| script) |", "|---|---|---|"]
                 L += [f"| {m['label']} | {m['p_script']:.0%} | {'n/a' if m['p_win_given_script'] is None else format(m['p_win_given_script'], '.0%')} |" for m in e["script_matrix"]]
                 L.append("")
+        if t.get("by_family"):
+            L += ["Best clearing expression in each contract family (like-for-like, same thesis):", "", "| family | contract | side | ask | fair | net edge (low) |", "|---|---|---|---|---|---|"]
+            L += [f"| {f['family']}{'/' + f['period'] if f.get('period') not in (None, 'FULL') else ''} | {f['name']} | {f['side']} | {f['ask_cents']}¢ | {f['fair_low']:.2f}–{f['fair_high']:.2f} | {f['net_edge_low'] * 100:+.1f}¢ |" for f in t["by_family"]]
+            L.append("")
         if t.get("rejected"):
             L += ["Rejected / not selected (top by rank):", ""]
             L += [f"* {r.get('name', r.get('ticker'))} {r.get('side', '')} {('@' + str(r['ask_cents']) + '¢') if r.get('ask_cents') else ''} — {r['reason']}" for r in t["rejected"][:12]]

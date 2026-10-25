@@ -24,10 +24,17 @@ sys.path.insert(0, ROOT)
 from nfl_edge.handicap import card as C  # noqa: E402
 
 
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--reports-dir", required=True, help="handicap-reports `latest` directory (packet.json, analysis/)")
-    ap.add_argument("--theses", default=None, help="JSON list of analyst theses; none = every game is TRIAGED_NO_THESIS")
+    ap.add_argument("--submission", default=None, help="the analyst's submission (reviews + theses). The ONLY input under which a game can be deeply reviewed")
+    ap.add_argument("--theses", default=None, help="LEGACY: bare JSON list of theses with no review records. REHEARSAL only unless --allow-unreviewed")
+    ap.add_argument("--allow-unreviewed", action="store_true", help="accept --theses in LIVE (they are priced but no game is recorded deeply reviewed)")
+    ap.add_argument("--raw-root", default=None, help="data/raw/nflverse (measured usage for the dossiers)")
+    ap.add_argument("--bankroll-file", default=None, help="local JSON with the router's context shape; default: env KALSHI_BANKROLL_CONTEXT")
+    ap.add_argument("--live-evidence", action="store_true", help="LIVE: fetch each finalist's contract from the venue (read-only public GETs) before the gates")
+    ap.add_argument("--fee-root", default=None, help="checkout holding data/kalshi/fees (sparse market-data) when --market-data is not given")
     ap.add_argument("--schedule-csv", required=True, help="nflverse games.csv (market-data: data/kalshi/capture/schedule_cache.csv)")
     ap.add_argument("--handicap-root", default=None)
     ap.add_argument("--market-data", default=None)
@@ -46,8 +53,29 @@ def main(argv=None) -> int:
     else:
         as_of = datetime.now(timezone.utc)
     theses = json.load(open(a.theses)) if a.theses else []
+    submission = json.load(open(a.submission)) if a.submission else None
+    if theses and submission is None and a.mode == C.LIVE and not a.allow_unreviewed:
+        print("refused: --theses carries no review records; in LIVE mode use --submission (or --allow-unreviewed)", file=sys.stderr)
+        return 2
+    from nfl_edge.handicap import bankroll as BK
+    from nfl_edge.handicap import usage as US
+    owner_exp = None
+    if a.handicap_root and a.mode == C.LIVE:
+        sched_text = open(a.schedule_csv, encoding="utf-8").read()
+        ox = C.owner_open_exposure(a.handicap_root, sched_text, run["packet"]["season"])
+        owner_exp = sum(ox["by_game"].values()) if ox["state"] == "OK" else None
+    bankroll = BK.load(as_of, file_path=a.bankroll_file, open_exposure_dollars=owner_exp) if a.mode == C.LIVE else None
+    stats, snaps = US.load_tables(a.raw_root, run["packet"]["season"]) if a.raw_root else (None, None)
+    client = None
+    if a.live_evidence and a.mode == C.LIVE:
+        from nfl_edge.kalshi import client as KC
+        client = KC.KalshiClient()
     card = C.run_card(run=run, theses=theses, schedule_text=open(a.schedule_csv, encoding="utf-8").read(), root=ROOT, as_of=as_of, mode=a.mode,
-                      handicap_root=a.handicap_root, market_data_root=a.market_data)
+                      handicap_root=a.handicap_root, market_data_root=a.market_data, submission=submission, bankroll=bankroll, stats=stats, snaps=snaps,
+                      live_client=client, fee_observations_root=a.fee_root)
+    live_docs = card.pop("_live_evidence", None)
+    card.pop("_bankroll_private", None)
+    card = C.redact_public(card)
 
     os.makedirs(os.path.join(a.out, "records"), exist_ok=True)
     os.makedirs(os.path.join(a.out, "dossiers"), exist_ok=True)
@@ -55,6 +83,11 @@ def main(argv=None) -> int:
     for gid, d in dossiers.items():
         with open(os.path.join(a.out, "dossiers", f"{gid}.json"), "w") as f:
             json.dump(d, f, indent=1)
+    if live_docs:
+        os.makedirs(os.path.join(a.out, "evidence"), exist_ok=True)
+        for d in live_docs:
+            with open(os.path.join(a.out, "evidence", f"{d['market_ticker']}.json"), "w") as f:
+                json.dump(d, f)
     for t in card["theses"]:
         sel = t.get("selected")
         if sel:

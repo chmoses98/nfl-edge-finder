@@ -27,17 +27,26 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--reports-dir", required=True)
     ap.add_argument("--schedule-csv", default=None, help="nflverse games.csv, for rest days; absent = rest UNAVAILABLE")
+    ap.add_argument("--raw-root", default=None, help="data/raw/nflverse, for measured player usage and opponent-allowed production; absent = UNAVAILABLE (never invented)")
     a = ap.parse_args(argv)
     with open(os.path.join(a.reports_dir, "packet.json")) as f:
         packet = json.load(f)
     sched = open(a.schedule_csv, encoding="utf-8").read() if a.schedule_csv and os.path.exists(a.schedule_csv) else ""
     ref = DS.slate_reference(packet)
+    from nfl_edge.handicap import usage as US
+    stats, snaps = US.load_tables(a.raw_root, packet.get("season")) if a.raw_root else (None, None)
     out = os.path.join(a.reports_dir, "dossiers")
     os.makedirs(out, exist_ok=True)
     now = datetime.now(timezone.utc)
     rows = []
     for g in packet.get("games", []):
-        d = DS.build_dossier(g, ref, DS.schedule_row(sched, g["game_id"]) if sched else None)
+        shard_path = os.path.join(a.reports_dir, "analysis", "games", f"{g['game_id']}.json")
+        if os.path.exists(shard_path):
+            with open(shard_path) as f:
+                shard_rows = json.load(f)["rows"]
+            d = DS.build_dossier_v2(g, ref, DS.schedule_row(sched, g["game_id"]) if sched else None, shard_rows, stats, snaps, packet.get("week"))
+        else:
+            d = DS.build_dossier(g, ref, DS.schedule_row(sched, g["game_id"]) if sched else None)
         t = DS.triage(g, d)
         started = datetime.fromisoformat(g["kickoff_utc"].replace("Z", "+00:00")) <= now
         rows.append({"game_id": g["game_id"], "matchup": f"{g['away_team']} @ {g['home_team']}", "kickoff_utc": g["kickoff_utc"], "started": started, **t})
@@ -56,6 +65,10 @@ def main(argv=None) -> int:
     lines += ["", "Unavailable in every dossier (not captured): " + "; ".join(DS.UNAVAILABLE)]
     with open(os.path.join(out, "index.md"), "w") as f:
         f.write("\n".join(lines) + "\n")
+    with open(os.path.join(out, "submission_template.json"), "w") as f:
+        json.dump(DS.submission_template(packet, [r for r in order if not r["started"]]), f, indent=1)
+    with open(os.path.join(out, "ANALYST_GUIDE.md"), "w") as f:
+        f.write(DS.ANALYST_GUIDE)
     print(f"dossiers: {len(rows)} game(s), {sum(1 for r in rows if not r['started'])} unstarted")
     return 0
 

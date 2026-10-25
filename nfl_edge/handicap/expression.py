@@ -24,6 +24,7 @@ import math
 
 from nfl_edge.execution import fees as F
 from nfl_edge.handicap import fairvalue as FV
+from nfl_edge.handicap import ladder_fair as LF
 
 EXPRESSION_VERSION = "expression-1.0.0"
 MIN_NET_EDGE = 0.02             # per contract at the conservative end of the fair range; the 1U requirement in staking.py
@@ -209,6 +210,47 @@ def risk_reward(e: dict):
     if v is None:
         return None
     return v * (SINGLE_SCRIPT_PENALTY if (e.get("scripts") or {}).get("single_script_dependent") else 1.0)
+
+
+def scan_ladders(rows: list, ladder_shifts: list, schedule, as_of, home: str, away: str) -> list:
+    """Evaluate every rung, BOTH sides, of each ladder the analyst gave a shift for (player statistics, period markets, alternate lines).
+
+    The shift is the analyst's; the centre is the market's own ladder (`ladder_fair.py`). A rung that cannot be derived is simply absent here (it is
+    reported by the caller as such); nothing is invented for it."""
+    ladders = LF.build_ladders(rows)
+    out = []
+    for i, ls in enumerate(ladder_shifts or []):
+        sel, shift = ls["selector"], tuple(float(x) for x in ls["shift"])
+        sc = LF.script_summary(ls.get("script_results"))
+        matched = LF.select(rows, sel)
+        for r in matched:
+            lad = ladders.get(LF.ladder_key(r))
+            fr = LF.fair_range_for_row(r, lad, shift) if lad else {"state": "NOT_DERIVABLE", "reason": "no ladder"}
+            if fr["state"] != "DERIVED":
+                continue
+            fr = dict(fr, basis=f"{fr['basis']}: {ls.get('basis', '')}".strip(": "))
+            for side in ("YES", "NO"):
+                e = evaluate_contract(r, side, fr, schedule, as_of, home, away)
+                e["scripts"] = dict(sc)
+                e["ladder_thesis"] = {"index": i, "selector": sel, "shift": list(shift), "rungs": fr["ladder_rungs"], "spacing": fr["ladder_spacing"]}
+                if ls.get("usage"):
+                    e["usage"] = ls["usage"]
+                out.append(e)
+    return out
+
+
+def best_by_family(ranked: list) -> list:
+    """The best executable, fee-clearing expression in EACH contract family, in rank order: the like-for-like comparison of how one thesis can be expressed."""
+    seen, out = set(), []
+    for e in ranked:
+        if not (e.get("executable") and (e.get("net_edge_low") or -1) >= MIN_NET_EDGE):
+            continue
+        k = (e.get("family"), e.get("period") or "FULL")
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(e)
+    return out
 
 
 def rank(evals: list) -> list:
