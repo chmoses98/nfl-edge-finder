@@ -133,6 +133,11 @@ def iso_ts(s):
     return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).timestamp()
 
 
+def _et_date(ts) -> str:
+    """The game's LOCAL (Eastern) calendar date, the same convention as the schedule's `gameday`."""
+    return datetime.fromtimestamp(float(ts), tz=_ET).date().isoformat() if ts is not None else ""
+
+
 def utc(ts: float) -> datetime:
     return datetime.fromtimestamp(float(ts), tz=timezone.utc)
 
@@ -340,7 +345,7 @@ def build_boards_2026(rows_iter, horizon: str, stats: dict | None = None):
         hz = r.get("horizon")
         lg = ledger.setdefault(gid, {"outcome": {}, "ref": {}})
         if hz == horizon:
-            meta[gid] = {"game_id": gid, "season": int(r["season"]), "week": int(r["week"]), "gameday": str(r.get("kickoff_utc") or "")[:10],
+            meta[gid] = {"game_id": gid, "season": int(r["season"]), "week": int(r["week"]), "gameday": _et_date(iso_ts(r.get("kickoff_utc"))),
                          "home": r.get("home_team"), "away": r.get("away_team"), "kickoff_ts": iso_ts(r.get("kickoff_utc"))}
         if r.get("settlement_status") == "SETTLED" and r.get("settled_yes") is not None:
             lg["outcome"][r["ticker"]] = float(r["settled_yes"])
