@@ -57,13 +57,15 @@ def main(argv=None) -> int:
         if d.get("version_v2"):
             with open(os.path.join(out, f"{g['game_id']}.md"), "w") as f:
                 f.write(DS.brief_markdown(d))
-    order = sorted(rows, key=lambda r: (r["started"], -r["score"]))
+    # REVIEW ORDER IS A DEADLINE ORDER: a game that kicks off first must be reviewed first (the 9:30 a.m. ET international game is its own cluster), and triage breaks ties
+    # inside a kickoff. Triage never removes a game.
+    order = sorted(rows, key=lambda r: (r["started"], r["kickoff_utc"], -r["score"]))
     for i, r in enumerate([x for x in order if not x["started"]], 1):
         r["triage_rank"] = i
     with open(os.path.join(out, "index.json"), "w") as f:
         json.dump({"version": DS.DOSSIER_VERSION, "packet_sha": packet.get("packet_sha"), "built_at": packet.get("built_at"), "games": order,
                    "slate_reference": ref, "note": "Triage ORDERS deep review; it never removes a game. Every game here must end the card in an explicit state."}, f, indent=1)
-    lines = ["# Review order (triage)", "", f"packet `{packet.get('packet_sha')}`, built {packet.get('built_at')}. An ordering for deep review, not a screen and not a signal.", "",
+    lines = ["# Review order (triage)", "", f"packet `{packet.get('packet_sha')}`, built {packet.get('built_at')}. An ordering for deep review (earliest kickoff first, triage score within a kickoff), not a screen and not a signal.", "",
              "| rank | game | kickoff (UTC) | score | why |", "|---|---|---|---|---|"]
     for r in order:
         lines.append(f"| {r.get('triage_rank', '–')} | {r['matchup']}{' (started)' if r['started'] else ''} | {r['kickoff_utc'][5:16].replace('T', ' ')} | {r['score']} | {'; '.join(r['reasons']) or '—'} |")
