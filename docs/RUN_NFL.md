@@ -827,3 +827,11 @@ create a BET state, change an edge, a threshold, a stake or a model probability.
 builds the same game with and without them and requires every decision field to be byte-identical. A missing
 script file or registry yields an explicit UNAVAILABLE section; RUN NFL is unchanged without them (fail open).
 A simulation run written before sim-script-1.0.0 has no script file and is reported as such, never reconstructed.
+
+## The analyst-to-card leg (added 2026-10-25)
+
+`RUN NFL` now also writes, beside the packet, `latest/dossiers/`: one `<game>.md` (readable, every line starts with the evidence id to cite) and `<game>.json` (full detail) for **every** game,
+`submission_template.json` (one review skeleton per unstarted game) and `ANALYST_GUIDE.md`. The analyst reads each game, writes one submission (review per game + theses), and opens an issue titled
+`NFL CARD` whose body (or a later comment, for a long file) holds it in a ```` ```json ```` block. `.github/workflows/nfl-thesis-card.yml` (owner-authored issues only) pins the packet named in the
+submission, prices the theses, re-quotes each finalist from the venue, runs the real preflight, applies bankroll evidence and replies on the issue with the card. Dispositions, the deep-review standard,
+ladder pricing for player/period markets, and stake authorization are specified in `docs/NFL_OPERATING_POLICY.md` section 3. The workflow places nothing.

@@ -182,11 +182,20 @@ def test_live_card_runs_the_real_preflight_and_only_an_approved_line_is_a_bet(tm
     ledger = tmp_path / "ledger"
     (ledger / "data").mkdir(parents=True)
     r = build_run(tmp_path / "a")
-    card = C.run_card(run=r, theses=[thesis()], schedule_text=schedule_text(), root=ROOT, as_of=AS_OF, mode=C.LIVE, market_data_root=md, handicap_root=str(ledger), draws=20000)
+    from nfl_edge.handicap import bankroll as BK
+    bk = BK.load(AS_OF, env={BK.ENV_CONTEXT: json.dumps({"bankroll": 5000, "observedAt": (AS_OF - timedelta(minutes=5)).isoformat(), "valueType": BK.VALUE_TYPE})})
+    card = C.run_card(run=r, theses=[thesis()], schedule_text=schedule_text(), root=ROOT, as_of=AS_OF, mode=C.LIVE, market_data_root=md, handicap_root=str(ledger),
+                      draws=20000, bankroll=bk)
     line = card["lines"][0]
     assert line["preflight"]["verdict"] == "APPROVED", line["preflight"]
     assert line["status"] == "BET (preflight approved)" and line["stake_dollars"] == line["stake_units"] * 75
     assert line["preflight"]["may_be_shown_as_a_bet"] is True
+    # the same approved line with NO bankroll evidence is a CANDIDATE: stake authorization fails closed, the price work is still shown
+    card2 = C.run_card(run=build_run(tmp_path / "a"), theses=[thesis()], schedule_text=schedule_text(), root=ROOT, as_of=AS_OF, mode=C.LIVE, market_data_root=md,
+                       handicap_root=str(ledger), draws=20000, bankroll=BK.load(AS_OF, env={}))
+    l2 = card2["lines"][0]
+    assert l2["preflight"]["verdict"] == "APPROVED" and l2["status"].startswith("CANDIDATE") and "NO STAKE AUTHORIZATION" in l2["status"]
+    assert card2["bankroll"]["authorizes_stakes"] is False
 
 
 def test_live_card_blocks_a_line_when_the_live_book_has_moved_above_the_ceiling(tmp_path):
@@ -226,3 +235,59 @@ def test_a_declared_range_is_the_probability_the_side_bought_wins():
     fy = {"state": "DECLARED", "p_low": round(1 - 0.70, 4), "p_high": round(1 - 0.60, 4), "basis": "x"}
     e = EX.evaluate_contract(row, "NO", fy, __import__("nfl_edge.execution.fees", fromlist=["x"]).load_fee_schedule(ROOT), AS_OF, "BBB", "AAA")
     assert (e["fair_low"], e["fair_high"]) == (0.60, 0.70) and e["ask"] == 0.47
+
+
+# ---- the LIVE path: each finalist is fetched from the venue just before the real gates ------------------------------------
+
+def _live_client(row, side, *, shift=0.0, seconds_old=20):
+    from preflight_fakes import FakeKalshiClient
+
+    class Both(FakeKalshiClient):
+        def orderbook(self, ticker, depth=None):
+            body = super().orderbook(ticker, depth)
+            ask = self.ask
+            body["orderbook_fp"] = {"no_dollars": [[f"{1 - ask:.4f}", "100000"]], "yes_dollars": [[f"{ask:.4f}", "100000"]]}
+            return body
+
+    return Both(ask=min(0.98, max(0.02, row["yes_ask"] + shift)), retrieved_at=AS_OF - timedelta(seconds=seconds_old))
+
+
+def _live_card(tmp_path, shift=0.0, **kw):
+    from nfl_edge.handicap import bankroll as BK
+    first = run(tmp_path / "a", [thesis()], mode=C.LIVE)
+    ln = first["lines"][0]
+    row = next(r for r in json.load(open(tmp_path / "a" / "analysis" / "games" / f"{GAME}.json"))["rows"] if r["ticker"] == ln["ticker"])
+    md = _capture_for(tmp_path, row, ln["side"])
+    ledger = tmp_path / "ledger"
+    (ledger / "data").mkdir(parents=True)
+    bk = BK.load(AS_OF, env={BK.ENV_CONTEXT: json.dumps({"bankroll": 5000, "observedAt": (AS_OF - timedelta(minutes=5)).isoformat(), "valueType": BK.VALUE_TYPE})})
+    card = C.run_card(run=build_run(tmp_path / "a"), theses=[thesis()], schedule_text=schedule_text(), root=ROOT, as_of=AS_OF, mode=C.LIVE, handicap_root=str(ledger),
+                      draws=20000, bankroll=bk, live_client=_live_client(row, ln["side"], shift=shift), fee_observations_root=md, clock=lambda: AS_OF, **kw)
+    return card, ln, row
+
+
+def test_live_evidence_path_fetches_the_venue_and_a_matching_quote_is_a_bet(tmp_path):
+    card, ln, row = _live_card(tmp_path)
+    line = card["lines"][0]
+    assert line["preflight"]["evidence"] == "LIVE_TICKER_FETCH" and line["preflight"]["verdict"] == "APPROVED", line["preflight"]
+    assert line["status"] == "BET (preflight approved)"
+    assert card.get("_live_evidence") and card["_live_evidence"][0]["market_ticker"] == ln["ticker"]
+
+
+def test_live_evidence_path_withdraws_a_line_when_the_venue_has_moved_more_than_the_tolerance(tmp_path):
+    # YES asks up 6c or NO asks down 6c: either way the live ask is 6c from the priced ask
+    card, ln, row = _live_card(tmp_path, shift=0.06)
+    line = card["lines"][0]
+    assert line["status"] == "BLOCKED" and any("REQUOTE" in r or "ceiling" in r.lower() or "above" in r.lower() for r in line["preflight"]["blocking_reasons"]), line["preflight"]
+
+
+def test_a_stale_packet_with_live_requoting_warns_instead_of_blocking_the_whole_slate(tmp_path):
+    r = build_run(tmp_path / "s", cap_age_min=45)
+    stale_no_live = C.run_card(run=r, theses=[thesis()], schedule_text=schedule_text(), root=ROOT, as_of=AS_OF, mode=C.LIVE, draws=20000)
+    assert stale_no_live["data_gate"]["status"] == "BLOCKED"
+    from preflight_fakes import FakeKalshiClient
+    r2 = build_run(tmp_path / "s2", cap_age_min=45)
+    live = C.run_card(run=r2, theses=[thesis()], schedule_text=schedule_text(), root=ROOT, as_of=AS_OF, mode=C.LIVE, draws=20000, live_client=FakeKalshiClient())
+    assert live["data_gate"]["status"] != "BLOCKED" and any("re-quoted" in w for w in live["data_gate"]["warnings"])
+    c9 = [i for t in live["theses"] for i in ((t.get("selected") or {}).get("challenge") or {}).get("items", []) if i["id"] == "C9"]
+    assert all(i["status"] in ("FLAG", "CLEAR") for i in c9)

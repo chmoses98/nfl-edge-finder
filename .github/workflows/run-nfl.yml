@@ -335,7 +335,7 @@ jobs:
         continue-on-error: true
         run: |
           python3 scripts/handicap/build_dossiers.py --reports-dir data/handicap_report \
-            --schedule-csv data/raw/nflverse/schedules/games.csv
+            --schedule-csv data/raw/nflverse/schedules/games.csv --raw-root data/raw/nflverse
 
       # Immutable history lives here, not on the report branch: one artifact per run, traceable through its
       # manifest to the workflow run, both source SHAs, the model version and the packet SHA.
