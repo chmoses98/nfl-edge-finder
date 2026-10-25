@@ -104,7 +104,7 @@ def data_gate(run: dict, as_of: datetime, mode: str, live_requote: bool = False)
         (warns if mode == REHEARSAL else reasons).append(f"capture is {age:.0f} minutes old at {as_of.isoformat()} (limit {MAX_CAPTURE_AGE_MIN:.0f})")
     if pk.get("real_money_status") is None:
         warns.append("packet carries no real_money_status")
-    return {"status": "BLOCKED" if reasons else ("REHEARSAL_STALE_ALLOWED" if warns else "OK"), "reasons": reasons, "warnings": warns,
+    return {"status": "BLOCKED" if reasons else (("LIVE_AGED_PACKET_REQUOTING" if mode == LIVE else "REHEARSAL_STALE_ALLOWED") if warns else "OK"), "reasons": reasons, "warnings": warns,
             "capture_time": cap.isoformat() if cap else None, "capture_age_minutes": None if age is None else round(age, 1),
             "packet_built_at": built.isoformat() if built else None, "packet_sha": pk.get("packet_sha"),
             "coverage": {"games": len(pk.get("games", [])), "rows_total": (mf.get("counts") or {}).get("rows_total"),
@@ -171,6 +171,18 @@ def candidate_record(*, run: dict, game: dict, row: dict, ev: dict, thesis: dict
         "correlation_group": f"{game['game_id']}::{(thesis.get('drivers') or [thesis['thesis_id']])[0]}",
         "correlation_direction": "same", "correlation_strength": "strong (qualitative)", "test_only": mode == REHEARSAL,
     }
+    if ev["family"] == "PLAYER_STAT":
+        # A player prop settles on the player taking the field: the record carries the availability the packet holds for THIS contract and when that was captured.
+        pm = next((m for m in game.get("markets", []) if m["ticker"] == ev["ticker"]), None) or {}
+        rec["availability_state"] = pm.get("availability_state")
+        cc = game["data_freshness"].get("context_capture")
+        try:
+            at = datetime.strptime(str(cc), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            at = None
+        if at is not None:
+            rec["availability_as_of"] = at.isoformat()
+            rec["availability_stale_minutes"] = round((as_of - at).total_seconds() / 60.0, 1)
     return rec
 
 
@@ -391,7 +403,9 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
     for x in games_out:
         if x["state"]:
             if submission is not None and x["state"] == G_REVIEWED_PASS:
-                x["disposition"] = SB.D_REJECTED
+                x["disposition"] = SB.D_PREFLIGHT_BLOCKED if str(x.get("state_reason", "")).startswith("preflight BLOCKED") else SB.D_REJECTED
+                if x["disposition"] == SB.D_PREFLIGHT_BLOCKED:
+                    x["state"] = x["disposition"]
             elif submission is not None:
                 x["disposition"] = x["state"]
             continue
@@ -733,8 +747,8 @@ def redact_public(card: dict) -> dict:
     with -- `bankroll` carries a state), and only the fact that a game carries an open owner position."""
     out = dict(card)
     ox = out.get("owner_open_exposure") or {}
-    out["owner_open_exposure"] = {"state": ox.get("state"), "games_with_open_owner_position": sorted(ox.get("by_game") or {}),
-                                  "note": "amounts withheld: owner fills are not republished by the card"}
+    out["owner_open_exposure"] = {"state": ox.get("state"), "games_with_open_owner_position": len(ox.get("by_game") or {}),
+                                  "note": "positions and amounts withheld: owner fills are not republished by the card"}
     if out.get("portfolio"):
         out["portfolio"] = dict(out["portfolio"], outstanding="withheld (owner positions are not republished)")
     import copy
@@ -743,7 +757,7 @@ def redact_public(card: dict) -> dict:
         items = ((t.get("selected") or {}).get("challenge") or {}).get("items") or []
         for it in items:
             if it.get("id") == "C10" and it.get("status") != "CLEAR":
-                it["finding"] = "an owner position is already open on this game; the stake shown is the room left under the game cap (amount withheld)"
+                it["finding"] = "owner exposure on this game, if any, is counted against the game cap (positions and amounts withheld from public output)"
         for tr in (t.get("selected") or {}).get("portfolio", {}) and [t["selected"]["portfolio"]] or []:
             tr.pop("outstanding", None)
     return out

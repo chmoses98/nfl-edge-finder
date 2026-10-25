@@ -271,7 +271,7 @@ def reason_rejected(e: dict, best: dict | None) -> str:
         return f"fee state {e.get('fee_state')}: net edge unknown"
     if e["net_edge_low"] < MIN_NET_EDGE:
         return (f"net edge at the conservative end is {e['net_edge_low'] * 100:+.1f}c per contract after fees "
-                f"(needs >= {MIN_NET_EDGE * 100:.1f}c); ceiling would be {e.get('ceiling_cents') if e.get('ceiling_cents') is not None else 'n/a'}c vs ask {e['ask_cents']}c")
+                f"(needs >= {MIN_NET_EDGE * 100:.1f}c); ceiling would be {(str(e['ceiling_cents']) + 'c') if e.get('ceiling_cents') is not None else 'n/a'} vs ask {e['ask_cents']}c")
     if best is not None and e is not best:
         return (f"clears the edge floor but ranks below {best['name']} on conservative edge per unit of payoff risk "
                 f"({risk_reward(e) or 0:.3f} vs {risk_reward(best) or 0:.3f}; ROI {(e.get('roi_low') or 0) * 100:.1f}% vs "

@@ -248,7 +248,7 @@ def test_public_view_has_no_amounts():
 def test_redact_public_strips_owner_positions():
     card = {"owner_open_exposure": {"state": "OK", "by_game": {"G1": 225.0}}, "games": [], "theses": [], "portfolio": {"outstanding": {"total": 225}}}
     red = C.redact_public(card)
-    assert "225" not in json.dumps(red) and red["owner_open_exposure"]["games_with_open_owner_position"] == ["G1"]
+    assert "225" not in json.dumps(red) and red["owner_open_exposure"]["games_with_open_owner_position"] == 1
 
 
 # ---------------------------------------------------------------- the issue channel
@@ -318,3 +318,25 @@ def test_compose_reply_covers_all_three_outcomes(tmp_path):
     assert open(tmp_path / "r.md").read().startswith("# card") and "Placed nothing" in open(tmp_path / "r.md").read()
     m.main(["--extract-rc", "0", "--card-rc", "5", "--run-url", "U", "--card", str(tmp_path / "none.md"), "--out", str(tmp_path / "r.md")])
     assert "could not be built" in open(tmp_path / "r.md").read()
+
+
+def test_a_player_prop_record_carries_the_packets_availability_so_the_schema_does_not_refuse_it(tmp_path):
+    from nfl_edge.handicap import schema as S
+    r = build_run(tmp_path, player=True)
+    g = r["packet"]["games"][0]
+    tk = "KXNFLRECYDS-26OCT25AAABBB-AAAWR1-60"
+    pm = next(m for m in g["markets"] if m["ticker"] == tk)
+    pm["availability_state"] = "EXPECTED_ACTIVE"
+    g["data_freshness"]["context_capture"] = (AS_OF - timedelta(minutes=40)).strftime("%Y%m%dT%H%M%SZ")
+    row = next(x for x in C.shard(r, GAME)["rows"] if x["ticker"] == tk)
+    ev = {"ticker": tk, "side": "YES", "family": "PLAYER_STAT", "fair_low": 0.5, "fair_high": 0.6, "fair_mid": 0.55, "ceiling_cents": 60, "fair_basis": "t"}
+    rec = C.candidate_record(run=r, game=g, row=row, ev=ev, thesis=thesis(), units=1, as_of=AS_OF, challenge={}, mode=C.LIVE)
+    assert rec["availability_state"] == "EXPECTED_ACTIVE" and rec["availability_as_of"] and 39 < rec["availability_stale_minutes"] < 41
+    try:
+        S.validate_recommendation(rec)
+    except S.ValidationError as e:
+        assert "availability" not in str(e), e          # any other refusal is not about availability
+    pm["availability_state"] = None
+    rec2 = C.candidate_record(run=r, game=g, row=row, ev=ev, thesis=thesis(), units=1, as_of=AS_OF, challenge={}, mode=C.LIVE)
+    with pytest.raises(S.ValidationError, match="availability_state"):                   # unknown availability is refused, not guessed
+        S.validate_recommendation(rec2)
