@@ -33,7 +33,7 @@ CARD_VERSION = "card-1.0.0"
 LIVE, REHEARSAL = "LIVE", "REHEARSAL"
 UNIT = ST.UNIT_DOLLARS
 MAX_CAPTURE_AGE_MIN = 15.0
-UNITS_TO_GRADE = {1: "B-", 2: "B", 3: "B+", 4: "A", 5: "A+"}
+UNITS_TO_GRADE = {1: "B-", 2: "B", 3: "A-", 4: "A", 5: "A+"}      # each grade's cap in config/risk_policy.json is exactly that many units
 ELIG_KEY = {"GAME_WINNER": "game_winner", "SPREAD": "spread", "TOTAL": "total", "TEAM_TOTAL": "team_total", "BOTH_TEAMS_SCORE_N": "both_teams_score"}
 
 # game states (terminal; every packet game ends in exactly one)
@@ -164,6 +164,26 @@ def candidate_record(*, run: dict, game: dict, row: dict, ev: dict, thesis: dict
     return rec
 
 
+def pass_record(*, run: dict, game: dict, row: dict, ev: dict, thesis: dict, as_of: datetime, reason: str, mode: str) -> dict:
+    """A PASS is a first-class record: the contract that came CLOSEST to a bet for a thesis that was seriously considered and declined, with why.
+    Same immutable-identifier scheme as a recommendation, so a later look can ask whether the passes would have won."""
+    cap = _ts(game["data_freshness"]["ledger_feature_cutoff"])
+    ko = _ts(game["kickoff_utc"])
+    rec = {
+        "recommendation_id": rec_id(run["packet"].get("packet_sha"), thesis["thesis_id"], ev["ticker"], ev["side"] + ":PASS"), "schema_version": S.HANDICAP_SCHEMA_VERSION,
+        "created_at": as_of.isoformat(), "handicap_run_id": run["packet"].get("handicap_run_id"), "packet_sha": run["packet"].get("packet_sha"),
+        "season": game["season"], "week": game["week"], "game_id": game["game_id"], "kickoff_utc": game["kickoff_utc"], "market_ticker": ev["ticker"],
+        "market_family": ev["family"], "side": ev["side"], "threshold": row.get("threshold"), "yes_bid": row.get("yes_bid"), "yes_ask": row.get("yes_ask"),
+        "no_bid": row.get("no_bid"), "no_ask": row.get("no_ask"), "mid": row.get("mid"), "market_timestamp": cap.isoformat(),
+        "minutes_to_kickoff": round((ko - as_of).total_seconds() / 60.0, 1), "support_state": S.SUPPORT_QUALITATIVE_ONLY,
+        "support_reason": "closest contract to a bet for a thesis that was declined",
+        "probability_low": ev.get("fair_low"), "probability_mid": ev.get("fair_mid"), "probability_high": ev.get("fair_high"),
+        "decision": S.PASS, "grade": None, "primary_thesis": f"[{thesis['thesis_id']}] PASS: {reason}",
+        "reasoning_tags": [f"thesis:{thesis['thesis_id']}", f"mode:{mode}", f"card:{CARD_VERSION}"], "test_only": mode == REHEARSAL,
+    }
+    return rec
+
+
 # ------------------------------------------------------------------------------------------------ the run
 
 def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: datetime, mode: str = LIVE, handicap_root: str | None = None,
@@ -207,6 +227,12 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
             thesis_reports.append({"thesis_id": th.get("thesis_id"), "game_id": gid, "outcome": "EXCLUDED", "reason": "game not in the unstarted slate"})
             continue
         rep = _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig, replay_segments, policy)
+        if rep.get("outcome") == "PASS" and rep.get("top_ranked"):
+            top = rep["top_ranked"][0]
+            g = next(x for x in pk["games"] if x["game_id"] == gid)
+            row = next((r for r in shard(run, gid)["rows"] if r["ticker"] == top["ticker"]), None)
+            if row is not None and top.get("fair_low") is not None:
+                rep["pass_record"] = pass_record(run=run, game=g, row=row, ev=top, thesis=th, as_of=as_of, reason="; ".join(rep["pass_reasons"])[:600], mode=mode)
         thesis_reports.append(rep)
         by_id[gid]["theses"].append(th["thesis_id"])
         if rep.get("selected"):
@@ -296,9 +322,9 @@ def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig
         side = c.get("side", "YES")
         fair = c.get("fair")
         if fair:
-            fy = {"state": "DECLARED", "p_low": fair["low"], "p_high": fair["high"], "basis": "ANALYST_DECLARED: " + str(fair.get("basis", "")),
-                  "side_basis": fair.get("for_side", "YES")}
-            if fair.get("for_side", "YES") == "NO":                       # the analyst quoted the NO-side probability: convert to YES
+            # The declared range is the probability that the side BOUGHT wins (what a handicapper naturally states). It is stored on the YES axis.
+            fy = {"state": "DECLARED", "p_low": fair["low"], "p_high": fair["high"], "basis": "ANALYST_DECLARED: " + str(fair.get("basis", ""))}
+            if side == "NO":
                 fy["p_low"], fy["p_high"] = round(1 - fair["high"], 4), round(1 - fair["low"], 4)
             e = EX.evaluate_contract(r, side, fy, sched, as_of, home, away)
             e["scripts"] = {"basis": "ANALYST_DECLARED", "declared": c.get("script_results"), "matrix": [], "winning_scripts": c.get("winning_scripts", 0),
@@ -318,6 +344,18 @@ def _evaluate_thesis(th, run, bank, as_of, mode, root, fee_schedule, owner, elig
     rep["top_ranked"] = [_slim(e) for e in ranked[:8]]
     rep["rejected"] += [{"ticker": e["ticker"], "side": e["side"], "name": e["name"], "ask_cents": e["ask_cents"], "reason": EX.reason_rejected(e, best)}
                         for e in ranked[:40] if e is not best]
+    if best is None and th.get("shift"):
+        # How far from a bet is this thesis? Scale the stated ranges until something clears, so the owner can see whether the gap is a rounding error
+        # or the thesis is simply too small to trade after fees. (A reading aid: the scaled shifts are NOT the analyst's and nothing is staked on them.)
+        for k in (1.5, 2.0, 3.0, 4.0):
+            sc = {"home_margin": [x * k for x in th["shift"]["home_margin"]], "total": [x * k for x in th["shift"]["total"]]}
+            hit = [e for e in EX.rank(EX.scan_derivable(sh["rows"], gsim, sc, noise, sched, as_of, home, away))
+                   if e.get("executable") and (e.get("net_edge_low") or -1) >= EX.MIN_NET_EDGE]
+            if hit:
+                rep["needed_scale"] = {"factor": k, "scaled_shift": sc, "first_to_clear": _slim(hit[0])}
+                break
+        else:
+            rep["needed_scale"] = {"factor": None, "note": "nothing clears even at 4x the stated shift"}
     if best is None:
         rep["pass_reasons"].append("no contract expressing this thesis clears a 2.0c net edge at the conservative end of the fair range after fees "
                                    f"({rep['n_evaluated']} evaluated, {rep['n_clearing_floor']} clear)")
@@ -529,6 +567,14 @@ def render_markdown(card: dict) -> str:
         L.append(f"Evaluated {t.get('n_evaluated')} contract-sides; {t.get('n_clearing_floor')} clear the 2.0¢ conservative net-edge floor. Outcome: **{t['outcome']}**.")
         if t.get("pass_reasons"):
             L += ["", "PASS because: " + " ".join(t["pass_reasons"])]
+        ns = t.get("needed_scale")
+        if ns:
+            if ns.get("factor"):
+                f = ns["first_to_clear"]
+                L += ["", f"How far from a bet: a contract first clears at {ns['factor']}x the stated shift (home margin {ns['scaled_shift']['home_margin']}, total {ns['scaled_shift']['total']}): "
+                          f"{f['name']} ({f['side']}) at {f['ask_cents']}¢. A reading aid, not a position."]
+            else:
+                L += ["", ns["note"] + "."]
         if t.get("selected"):
             s = t["selected"]; e = s["evaluation"]
             L += ["", f"Best expression: **{e['name']}** ({e['side']}) at {e['ask_cents']}¢, fair {e['fair_low']:.2f}–{e['fair_high']:.2f}, ceiling {e['ceiling_cents']}¢, "

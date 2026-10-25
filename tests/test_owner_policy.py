@@ -131,3 +131,11 @@ def test_the_authoritative_document_matches_the_config_and_every_other_workflow_
 def test_the_superseded_pilot_values_are_labelled_as_superseded_wherever_they_remain():
     ds = open(os.path.join(ROOT, "docs", "DECISION_STANDARD.md")).read()
     assert "superseded" in ds.split("### The limits")[1].split("### Correlation")[0].lower()
+
+
+def test_each_stake_tier_maps_to_a_grade_whose_cap_admits_exactly_that_many_units():
+    from nfl_edge.handicap import card as C
+    pol = P()
+    for units in (1, 2, 3, 4, 5):
+        v = pol.evaluate([prop("r", units * 75, grade=C.UNITS_TO_GRADE[units])], None).verdicts[0]
+        assert v.status == R.APPROVED and v.approved_stake == units * 75, (units, v.to_dict())

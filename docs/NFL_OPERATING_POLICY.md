@@ -52,7 +52,7 @@ Kelly and edge-proportional sizing remain **off**. No model here has earned the 
 2. **Game theses and matchup analysis come first.** A bet is the best expression of a football thesis, not a model-market gap.
 3. **History is used now.** The 2025 season (Kalshi top-of-book at ten horizons) and 2026 to date are replayed immediately
    (`docs/research/STRATEGY_REPLAY.md`); there is no waiting period before a hypothesis may be tested. Out-of-sample discipline, not the
-   calendar, decides what counts.
+   calendar, decides what counts. This does **not** relax `PRODUCTION_ELIGIBILITY.md`: a *model's* authority over real money still needs its own prospective evidence (a backtest, however good, never promotes anything). What changed is that hypotheses and strategies are tested on the existing records now instead of waiting for a pilot to accumulate.
 4. **Actual wagers and settlements come from the Kalshi router and the canonical NFL ledger** (`handicap-data`: `imported_wagers`,
    `wager_settlements`), immutable. Nobody reports a win or a loss by hand; the postmortem and the diagnosis rebuild from the ledger
    (`.github/workflows/actual-wagers.yml`, every 6 hours).
@@ -92,14 +92,27 @@ splits (pass, run, neutral-script, early-down, explosive, success, sack), quarte
 defence's QB-hit and sack rates, OL injury lists, rest days, weather and roof, injuries and availability changes, simulated team volume by
 game state and simulated player opportunity **with its uncertainty**.
 
+**Timing on a Sunday.** The conductor refreshes the packet at T-24h, T-6h, T-90m and T-30m of each kickoff cluster. The live card is run
+against the newest packet **after the inactive list** (about 90 minutes before the kickoff of the games it covers), because a Questionable
+player is `OPEN` under C5 until then and the option value of waiting is not spent. The early game (the 9:30 a.m. ET kickoff, 13:30Z) is run
+first and on its own; the 1 p.m., 4 p.m. and night games follow their own inactive lists. A card whose capture is more than 15 minutes old
+at its decision time is BLOCKED, not stale-but-usable.
+
+**Parlays and teasers.** Not produced. Kalshi's multi-leg combo series (`KXMVE*`) exist and 37 of the owner's 199 positions are combos, but the engine can
+neither derive a combo's price nor its legs' correlation, so a combo has no defensible fair value here; and a Stanford Wong teaser is a sportsbook
+product with no Kalshi equivalent. A future optional section needs the executable combo quote, a correlation estimate and the exact settlement
+semantics before any price is shown. On the 2026 ledger the combos cost 4.2% in fees and returned -39% on 37 positions.
+
 ### The thesis record
 
 ```json
 { "thesis_id": "2026_07_NYG_HOU::T1", "game_id": "2026_07_NYG_HOU", "statement": "...", "short_reason": "<= 150 chars for the card",
   "drivers": ["HOU_SIDE", "NYG_SCORING_DOWN"],                         // theses that share a driver share one correlation budget
   "shift": {"home_margin": [0.5, 2.0], "total": [-1.5, 0.5]},          // a RANGE, in points, on the market centre (home = the home team)
-  "candidates": [ {"ticker": "...", "side": "YES|NO", "fair": {"low": 0.70, "high": 0.80, "basis": "...", "for_side": "YES"},
-                   "usage": {...}, "winning_scripts": 5, "major_scripts": 6} ],   // declared fair ranges for contracts the engine cannot derive
+  "candidates": [ {"ticker": "...", "side": "YES|NO", "fair": {"low": 0.70, "high": 0.80, "basis": "..."},   // fair = P(the SIDE YOU BUY wins)
+                   "usage": {"projected_opportunity": "..", "recent_usage": "..", "role_stability": "..", "teammate_context": ".."},   // player props only (C5)
+                   "script_results": {"COMPETITIVE|NORMAL_SCORING": "WIN", "FAVORITE_CONTROL|NORMAL_SCORING": "WIN"},  // required for a declared contract (C6)
+                   "winning_scripts": 5, "major_scripts": 6} ],   // declared fair ranges for contracts the engine cannot derive
   "evidence": {"measured": [{"ref": "...", "claim": "...", "opponent_adjusted": true, "market_unmoved": false}],
                "simulation": [], "hypotheses": []},                    // measured evidence, simulation output and qualitative hypotheses stay apart
   "challenge": {"fail_modes": ["..", ".."], "market_already_priced": "..", "matchup_check": "..", "uncertainties": [".."]},

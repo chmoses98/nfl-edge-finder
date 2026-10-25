@@ -206,3 +206,23 @@ def test_live_card_blocks_a_line_when_the_live_book_has_moved_above_the_ceiling(
     line = card["lines"][0]
     assert line["preflight"]["verdict"] == "BLOCKED" and line["status"] == "BLOCKED" and line["preflight"]["may_be_shown_as_a_bet"] is False
     assert card["games"][0]["state"] == C.G_REVIEWED_PASS
+
+
+def test_a_declined_thesis_leaves_a_valid_immutable_pass_record_on_its_closest_contract(tmp_path):
+    card = run(tmp_path, [thesis(shift_margin=(0.0, 0.0), shift_total=(0.0, 0.0))])
+    assert card["lines"] == []
+    pr = card["theses"][0]["pass_record"]
+    S.validate_recommendation(dict(pr, test_only=False))
+    assert pr["decision"] == S.PASS and pr["primary_thesis"].startswith(f"[{GAME}::T1] PASS") and pr["recommendation_id"].startswith("rec_")
+    again = run(tmp_path / "again", [thesis(shift_margin=(0.0, 0.0), shift_total=(0.0, 0.0))])
+    assert again["theses"][0]["pass_record"]["recommendation_id"] == pr["recommendation_id"]
+
+
+def test_a_declared_range_is_the_probability_the_side_bought_wins():
+    from nfl_edge.handicap import expression as EX
+    row = {"ticker": "KXNFLRECYDS-26OCT25AAABBB-AAAWR1-60", "family": "PLAYER_STAT", "subject": "A Receiver", "threshold": 60.0, "period": "FULL", "yes_ask": 0.55,
+           "yes_bid": 0.53, "no_ask": 0.47, "no_bid": 0.45, "mid": 0.54, "width": 0.02, "executable": True, "yes_meaning": "YES iff A Receiver receiving_yards (FULL) >= 60.0", "stat": "receiving_yards"}
+    # buying NO with a declared 60-70% chance that NO wins  =>  YES axis 30-40%
+    fy = {"state": "DECLARED", "p_low": round(1 - 0.70, 4), "p_high": round(1 - 0.60, 4), "basis": "x"}
+    e = EX.evaluate_contract(row, "NO", fy, __import__("nfl_edge.execution.fees", fromlist=["x"]).load_fee_schedule(ROOT), AS_OF, "BBB", "AAA")
+    assert (e["fair_low"], e["fair_high"]) == (0.60, 0.70) and e["ask"] == 0.47

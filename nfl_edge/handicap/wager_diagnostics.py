@@ -288,12 +288,20 @@ def concentration(facts: list, top: int = 5) -> dict:
         ls = sum(-f["pnl"] for f in losers[:k])
         out[f"top{k}_losers_share_of_gross_losses"] = round(ls / gross_loss, 4) if gross_loss else None
         out[f"net_pnl_without_top{k}_losers"] = round(net + ls, 2)
+    # GAMES only: a parlay has no game, so each ticket is its own cluster and is reported apart rather than ranked beside real games.
     by_game: dict = defaultdict(float)
+    parlay = 0.0
     for f in est:
-        by_game[f["game_key"] or f["episode"]] += f["pnl"]
+        if "KXMVE" in str(f["series"]):
+            parlay += f["pnl"]
+        else:
+            by_game[f["game_key"] or f["episode"]] += f["pnl"]
     worst = sorted(by_game.items(), key=lambda kv: kv[1])[:3]
     out["worst3_games_pnl_total"] = round(sum(v for _, v in worst), 2)
     out["worst3_games_share_of_net_loss"] = round(sum(v for _, v in worst) / net, 4) if net < 0 else None
+    out["worst_game_share_of_net_loss"] = round(worst[0][1] / net, 4) if (worst and net < 0) else None
+    out["parlay_tickets_pnl_total"] = round(parlay, 2)
+    out["parlay_tickets_share_of_net_loss"] = round(parlay / net, 4) if net < 0 else None
     return out
 
 

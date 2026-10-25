@@ -60,6 +60,11 @@ def main(argv=None) -> int:
         if sel:
             with open(os.path.join(a.out, "records", f"{sel['recommendation_id']}.json"), "w") as f:
                 json.dump(sel["record"], f, indent=1)
+    for t in card["theses"]:
+        pr = t.get("pass_record")
+        if pr:
+            with open(os.path.join(a.out, "records", f"{pr['recommendation_id']}.json"), "w") as f:
+                json.dump(pr, f, indent=1)
     with open(os.path.join(a.out, "card.json"), "w") as f:
         json.dump(card, f, indent=1, default=str)
     with open(os.path.join(a.out, "CARD.md"), "w") as f:
