@@ -30,6 +30,7 @@ import math
 from datetime import datetime, timezone
 
 from nfl_edge.settlement.results import ResultBook
+from nfl_edge.settlement.team_game_index import team_game_items
 from nfl_edge.shadow.player_autopsy import IQR_FLOOR, LOG_RATIO_LARGE, TEAM_VOLUME_LOG_RATIO, Z_LARGE, _percentile, team_volume
 
 # 3.1.0 (2026-09-23): a component outside its range is the CAUSE of a miss only when there was a large miss. Under
@@ -107,9 +108,7 @@ def _off(actual, projected, *, abs_tol=None, log_tol=None):
 def _team_attempts_by_passer(book: ResultBook, game_id: str, team: str) -> dict:
     """Pass attempts per passer on one team in one game, from the player rows already in the result book."""
     out = {}
-    for (gid, pid), pr in book.players.items():
-        if gid != game_id or pr.team != team:
-            continue
+    for pid, pr in team_game_items(book, game_id, team):
         a = pr.stats.get("attempts")
         if a:
             out[pid] = float(a)
@@ -118,7 +117,7 @@ def _team_attempts_by_passer(book: ResultBook, game_id: str, team: str) -> dict:
 
 def _team_offense_snaps(book: ResultBook, game_id: str, team: str) -> float | None:
     """The team's offensive snap count in one game: the most snaps any of its players took (a lineman plays them all)."""
-    vals = [pr.offense_snaps for (gid, _), pr in book.players.items() if gid == game_id and pr.team == team and pr.offense_snaps is not None]
+    vals = [pr.offense_snaps for _pid, pr in team_game_items(book, game_id, team) if pr.offense_snaps is not None]
     return float(max(vals)) if vals else None
 
 

@@ -4,7 +4,8 @@ name: Shadow v2 settlement & scorecard
 # play-by-play quarter scores for period markets), appends ONE write-once settlement batch per game to
 # data/shadow/v2/settlements on `market-data`, diagnoses the DATA arm (autopsy v2) and rebuilds the universal
 # scorecard from the whole corpus. The projections are read and never written. Games not yet proven final are
-# deferred, never guessed. docs/SHADOW_V2.md.
+# deferred, never guessed. docs/SHADOW_V2.md. Closes + CLV run and publish FIRST; every driver is bounded per run and
+# resumes where the last run stopped (docs/POSTGAME_SETTLEMENT.md, "Bounded runs").
 #
 # SHADOW / RESEARCH ONLY. INERT UNTIL MERGED (schedule from the default branch only; job guarded).
 
@@ -28,11 +29,22 @@ jobs:
   settle:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # The three drivers stream every game from its own projection files and re-read the whole settlement corpus
-    # for the scorecard; that is bounded in memory but grows in time with the season. 45 minutes was sized for a
-    # run that never got past its fetch step.
-    # 120 = the evidence path (fetch + settle + closes + publish: 34-46 min on 2026-10-01/02) + the derived
-    # rebuild's own 50-minute step limit + its publish, with headroom. The cron is 3-hourly, so it cannot overlap.
+    # THE JOB LIMIT IS NOT RAISED; THE WORK IS PARTITIONED. From 2026-10-23 (run #258) to 2026-10-25 (#269) every
+    # scheduled run ended CANCELLED: the settlement step was still running at minute 120, so the close/CLV step and
+    # every publish after it were skipped, and market-data held closes only through week 4. Measured on run
+    # 40144005725 (the settle log): projection index 15 min (750 files re-indexed because the index only rides with a
+    # publish that never ran), then ~4 minutes PER GAME (each game re-decompressed the ~750 files that hold it; 33
+    # owed games = 2.2 hours), and behind that a whole-corpus scorecard that took 905 s on weeks 1-4 alone.
+    # What this job does instead, in order, each step bounded by its own time budget and its own timeout:
+    #   1. pair_closes (the evidence the owner's CLV and the eligibility scorecards depend on) goes FIRST, at most
+    #      --max-games / --time-budget-minutes of work per run, oldest kickoff first; games already paired are skipped
+    #      by file name, so successive runs drain the backlog. It publishes before anything else starts.
+    #   2. settle_v2 --phase settle: the same bounds, then its own publish.
+    #   3. the whole-corpus scorecard / cross-check (settle_v2 --phase derived) and the research export are DERIVED:
+    #      throttled when nothing new was settled or paired, bounded by the JOB clock (never past minute 108), and
+    #      unable to block or cancel the evidence above.
+    # Evidence path: hard step limits 25 + 30 + 10 + 30 + 10 = 105 minutes even if every step used its whole limit; with
+    # the soft work budgets the drivers enforce (15 + 20 min of group work) it is ~15 + 20 + 4 + 25 + 4 = 68 min.
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -45,29 +57,56 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+      # The derived steps wrap their commands in `timeout` against this instant, so they end (failed or degraded,
+      # never cancelled) with room left for their publish and the health report. 108 of the 120 job minutes.
+      - name: Start the job clock
+        run: echo "JOB_DEADLINE_EPOCH=$(( $(date +%s) + 108 * 60 ))" >> "$GITHUB_ENV"
       # `rosters` is not optional: ids.py builds the crosswalk from players + rosters + ff_playerids and
       # refuses (RosterSourceMissing) when no roster_<season>.parquet was downloaded. Omitting it here is
       # what killed the first manual run with polars' bare "cannot concat empty list".
       - name: Fetch results (schedule, player statistics, snap counts, play-by-play, identities) and market-data
+        id: fetch
+        timeout-minutes: 25
         run: |
           python3 scripts/data/nflverse_download.py --only schedules,stats_player,snap_counts,pbp,players,rosters,ff_playerids --seasons 2025-2026 2>&1 | tail -4
           python3 nfl_edge/data/ids.py 2>&1 | tail -3
           git fetch --depth=1 origin market-data
           rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+      # EVIDENCE FIRST. Canonical close + CLV for every kicked-off game (Parts 2-6): write-once batches per game; a game
+      # without a valid pre-kickoff observation is CLV_CLOSE_MISSING, never inferred. It runs before settlement because
+      # it is the evidence the owner's actual-wager CLV needs and the cheaper of the two (no result tables, no autopsy).
+      # BOUNDED: --max-games games per run, oldest kickoff first, and no new group of games is started once
+      # --time-budget-minutes of group work is spent; the rest is reported as postponed and the next run does it. The
+      # games of a group share ONE pass over the projection files. Live logs, not `| tail -N`: a dead step must still say
+      # where it died. The projection index it builds (data/shadow/v2/projection_index) is published below, with the
+      # closes, so the next run - and the settle step after this one - reuses it instead of re-indexing the archive.
+      - name: Pair every kicked-off projection with its canonical close and compute CLV
+        id: closes
+        timeout-minutes: 30
+        run: |
+          python3 scripts/shadow_v2/pair_closes_v2.py --market-data /tmp/md --out data/shadow/v2 \
+            --max-games 60 --time-budget-minutes 15 --github-output "$GITHUB_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/pair_closes_v2.log"
+      # Published BEFORE settlement starts, and also when the step above was killed part-way (its finished games are
+      # already on disk as write-once batches): the closes can no longer be starved by anything that runs after them.
+      - name: Publish the close and CLV batches and the projection index
+        id: publish_closes
+        if: ${{ !cancelled() && (steps.closes.outputs.status == 'WROTE' || steps.closes.outputs.index_written != '0' || steps.closes.outcome == 'failure') }}
+        timeout-minutes: 10
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
+            --message "shadow v2 closes ${{ steps.closes.outputs.batch_id }} (${{ steps.closes.outputs.written }} records)"
       # Live logs, not `| tail -N`: the first settlement run died with the runner's shutdown signal after 17 minutes
       # and the log held nothing, because tail prints only once the process exits. Each driver's full output is
       # kept under $RUNNER_TEMP and its tail is shown on failure so a dead step still says where it died.
-      - name: Settle every ready game, diagnose, rebuild the scorecard
+      # --phase settle: games and season markets only. The whole-corpus scorecard is a separate, throttled step below.
+      - name: Settle every ready game and diagnose the data arm
         id: settle
+        if: ${{ !cancelled() && steps.fetch.outcome == 'success' }}
+        timeout-minutes: 30
         run: |
           python3 scripts/shadow_v2/settle_v2.py --market-data /tmp/md --out data/shadow/v2 --target-season 2026 \
+            --phase settle --max-games 40 --time-budget-minutes 20 \
             --github-output "$GITHUB_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/settle_v2.log"
-      # Canonical close + CLV for every kicked-off game (Parts 2-6): write-once batches per game; a game without a
-      # valid pre-kickoff observation is CLV_CLOSE_MISSING, never inferred.
-      - name: Pair every kicked-off projection with its canonical close and compute CLV
-        id: closes
-        run: |
-          python3 scripts/shadow_v2/pair_closes_v2.py --market-data /tmp/md --out data/shadow/v2 --github-output "$GITHUB_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/pair_closes_v2.log"
       # THE IMMUTABLE EVIDENCE IS PUBLISHED BEFORE THE DERIVED REBUILD, not with it. The settlement, close and
       # CLV batches are write-once evidence that costs forty minutes of settlement to produce; the research
       # export is derived, rebuildable, the slowest thing in the job, and the part that grows fastest with the
@@ -76,39 +115,75 @@ jobs:
       # because that run's `2026_wk02.research.jsonl.gz` had reached 160.92 MB against GitHub's 100 MB file
       # limit. Two publishes, evidence first, is the same rule the research step's `continue-on-error` already
       # states for the case where it fails outright -- now it holds for running long or pushing too big as well.
+      # The closes were published by the step above; this one carries the settlement and autopsy batches (and anything
+      # the closes publish could not, should it have failed) and runs when either driver failed part-way too.
       - name: Publish the settlement, close and CLV batches, autopsies and scorecard
         id: publish_evidence
-        if: steps.settle.outputs.status == 'WROTE' || steps.closes.outputs.status == 'WROTE' || steps.settle.outputs.index_written != '0'
+        if: ${{ !cancelled() && (steps.settle.outputs.status == 'WROTE' || steps.closes.outputs.status == 'WROTE' || steps.settle.outputs.index_written != '0' || steps.settle.outcome == 'failure' || steps.closes.outcome == 'failure') }}
+        timeout-minutes: 10
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
             --message "shadow v2 settlements ${{ steps.settle.outputs.batch_id }} (${{ steps.settle.outputs.written }} records) + closes ${{ steps.closes.outputs.written }}"
-      # Derived, rebuildable research table + scorecard v3 + weekly report + health gate. Failure here must not
+      # DERIVED 1/2: the universal scorecard, the exchange cross-check and the autopsy summary, rebuilt from the WHOLE
+      # settlement corpus (905 s on weeks 1-4 alone, growing every week). Skipped while the settlement / autopsy / close /
+      # CLV corpus is unchanged and the last build is under 6 hours old (the cross-check can still owe rows: exchange
+      # resolutions arrive after games are settled). Failure here never blocks the evidence, which is already out.
+      - name: Rebuild the scorecard and exchange cross-check from the whole corpus
+        id: scorecard
+        if: ${{ !cancelled() && steps.fetch.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          LEFT=$(( JOB_DEADLINE_EPOCH - $(date +%s) ))
+          if [ "$LEFT" -lt 300 ]; then echo "::warning::less than 5 minutes of the job budget left; the scorecard is rebuilt by the next run"; exit 1; fi
+          timeout "${LEFT}s" python3 scripts/shadow_v2/settle_v2.py --market-data /tmp/md --out data/shadow/v2 --target-season 2026 \
+            --phase derived --derived-min-interval-hours 6 \
+            --github-output "$GITHUB_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/settle_v2_derived.log"
+      - name: Publish the scorecard and exchange cross-check
+        id: publish_scorecard
+        if: ${{ !cancelled() && steps.scorecard.outputs.derived == 'REBUILT' }}
+        timeout-minutes: 15
+        run: |
+          python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
+            --message "shadow v2 scorecard + exchange cross-check (batch ${{ steps.settle.outputs.batch_id }})"
+      # Derived, rebuildable research export + scorecard v3 + weekly report + health gate. Failure here must not
       # block publishing the immutable batches above.
       #
       # BOUNDED. With no limit of its own this step ran into the JOB limit on ~28 consecutive runs between
       # 2026-09-27 and 2026-10-01 (36937919712: evidence published 23:30Z, killed at 00:26Z) -- every run ended
       # TIMED_OUT although its settlement evidence was already published. A step past its limit fails, and
-      # continue-on-error turns that into a DEGRADED run (see "Run health" below), not a dead job.
+      # continue-on-error turns that into a DEGRADED run (see "Run health" below), not a dead job. It is also bounded by
+      # the JOB clock (each command runs under `timeout` against JOB_DEADLINE_EPOCH), so a rebuild that is still going
+      # when the job budget runs out ends as a failed derived step, never as a cancelled run.
+      # THROTTLED: it runs when the scorecard step above rebuilt (new evidence, or the 6-hour age bound), and on a
+      # manual dispatch; an idle 3-hourly run no longer spends 45 minutes re-deriving an unchanged corpus.
       - name: Rebuild the research export, scorecard v3, weekly report and health gate
         id: research
+        if: ${{ !cancelled() && steps.fetch.outcome == 'success' }}
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: 45
         run: |
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] && [ "${{ steps.scorecard.outputs.derived }}" = "SKIPPED_UNCHANGED" ]; then
+            echo "research export skipped: no new settlement, autopsy, close or CLV batch and the last derived build is recent"
+            exit 0
+          fi
+          left() { echo $(( JOB_DEADLINE_EPOCH - $(date +%s) )); }
+          if [ "$(left)" -lt 300 ]; then echo "::warning::less than 5 minutes of the job budget left; the research export is rebuilt by the next run"; exit 1; fi
           WEEK=$(python3 scripts/shadow_v2/active_week.py --market-data /tmp/md)
           echo "active week: $WEEK"
           # The automatic hypothesis registry (GENERATED lines only) lives in the published tree. The export seeds
           # it from /tmp/md/data/shadow/v2/hypotheses/hypotheses.jsonl before appending, so the publish below
           # extends the market-data history rather than replacing it with this week's lines alone.
-          python3 scripts/shadow_v2/research_export_v2.py --market-data /tmp/md --staging data/shadow/v2 --out data/shadow/v2/research --season 2026 --week "$WEEK" \
+          timeout "$(left)s" python3 scripts/shadow_v2/research_export_v2.py --market-data /tmp/md --staging data/shadow/v2 --out data/shadow/v2/research --season 2026 --week "$WEEK" \
             --hypotheses data/shadow/v2/hypotheses/hypotheses.jsonl 2>&1 | tee "$RUNNER_TEMP/research_export_v2.log"
-          python3 scripts/shadow_v2/weekly_report_v2.py --market-data /tmp/md --research data/shadow/v2/research --out data/shadow/v2/reports --season 2026 --week "$WEEK" \
+          timeout "$(left)s" python3 scripts/shadow_v2/weekly_report_v2.py --market-data /tmp/md --research data/shadow/v2/research --out data/shadow/v2/reports --season 2026 --week "$WEEK" \
             --hypotheses data/shadow/v2/hypotheses/hypotheses.jsonl 2>&1 | tee "$RUNNER_TEMP/weekly_report_v2.log"
           # fail-soft: a failed eligibility build must never cost the week its research publication
-          python3 scripts/shadow_v2/eligibility_v2.py --reports data/shadow/v2/reports --market-data /tmp/md --out data/shadow/v2/eligibility 2>&1 | tee "$RUNNER_TEMP/eligibility_v2.log" || echo "::warning::production-eligibility build failed; the previous latest.json stays in force"
+          timeout "$(left)s" python3 scripts/shadow_v2/eligibility_v2.py --reports data/shadow/v2/reports --market-data /tmp/md --out data/shadow/v2/eligibility 2>&1 | tee "$RUNNER_TEMP/eligibility_v2.log" || echo "::warning::production-eligibility build failed; the previous latest.json stays in force"
       - name: Show where a failed driver died
-        if: failure() || steps.research.outcome == 'failure'
+        if: failure() || steps.research.outcome == 'failure' || steps.scorecard.outcome == 'failure'
         run: |
-          for f in settle_v2 pair_closes_v2 research_export_v2 weekly_report_v2 eligibility_v2; do
+          for f in pair_closes_v2 settle_v2 settle_v2_derived research_export_v2 weekly_report_v2 eligibility_v2; do
             if [ -f "$RUNNER_TEMP/$f.log" ]; then echo "::group::$f (last 60 lines)"; tail -60 "$RUNNER_TEMP/$f.log"; echo "::endgroup::"; fi
           done
       # The derived half, in its own commit. The projection index (data/shadow/v2/projection_index, one JSON per
@@ -129,7 +204,8 @@ jobs:
         env:
           SETTLE_STATUS: ${{ steps.settle.outputs.status }}
           CLOSES_STATUS: ${{ steps.closes.outputs.status }}
-          INDEX_WRITTEN: ${{ steps.settle.outputs.index_written }}
+          # the projection index is built (and its files counted) by the closes step, which now runs first
+          INDEX_WRITTEN: ${{ steps.closes.outputs.index_written }}
           EVIDENCE_PUBLISH: ${{ steps.publish_evidence.outcome }}
           RESEARCH: ${{ steps.research.outcome }}
           RESEARCH_PUBLISH: ${{ steps.research_publish.outcome }}

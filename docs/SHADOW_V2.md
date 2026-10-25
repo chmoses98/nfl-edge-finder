@@ -178,7 +178,8 @@ never pass it), in which case the records are `HISTORICAL_RESEARCH` and the scor
 python3 scripts/shadow_v2/board_accounting.py --market-data /tmp/md [--projections data/shadow/v2/projections] [--assume-provisional-capture]
 python3 scripts/shadow_v2/project_slate_v2.py --market-data /tmp/md --out data [--horizon-id <id>] [--snapshot-id <id>] [--limit-games N]
 python3 scripts/shadow_v2/verify_projections.py --root data/shadow/v2/projections --require-rows
-python3 scripts/shadow_v2/settle_v2.py --market-data /tmp/md --out data/shadow/v2 [--game <id>] [--dry-run]
+python3 scripts/shadow_v2/settle_v2.py --market-data /tmp/md --out data/shadow/v2 [--game <id>] [--dry-run] [--phase all|settle|derived] [--max-games N] [--time-budget-minutes M]
+python3 scripts/shadow_v2/pair_closes_v2.py --market-data /tmp/md --out data/shadow/v2 [--game <id>] [--max-games N] [--time-budget-minutes M]   # bounded + resumable: docs/POSTGAME_SETTLEMENT.md
 python3 scripts/research/period_engine_study.py ; python3 scripts/research/player_engine_v2_study.py
 ```
 

@@ -20,6 +20,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -272,12 +273,35 @@ def test_shadow_v2_settle_bounds_the_derived_rebuild_inside_the_job_budget():
     research = next(s for s in job["steps"] if s.get("id") == "research")
     assert research.get("continue-on-error") is True
     step_limit = int(research["timeout-minutes"])
-    # observed evidence path (fetch + settle + closes + publish) peaked at ~46 min; derived publish ~4 min
-    assert 46 + step_limit + 4 + 10 <= int(job["timeout-minutes"]), (
-        "the derived rebuild's own limit must end before the JOB limit can, or the run is TIMED_OUT again")
+    # PINNED DELIBERATELY CHANGED (2026-10-25): the evidence path used to be fetch + settle + closes + publish at
+    # "34-46 min on 2026-10-01/02"; on 2026-10-25 it had grown past the whole job (settle alone ran 106 minutes), so the
+    # job ended CANCELLED with closes never run. The evidence path is now fetch + closes + publish + settle + publish,
+    # each with a SOFT work budget the drivers enforce (--time-budget-minutes) and a HARD step limit. The job limit is
+    # not raised. The derived steps are additionally bounded by the job clock (JOB_DEADLINE_EPOCH, minute 108).
+    by_id = {s.get("id"): s for s in job["steps"] if s.get("id")}
+
+    def budget(step_id):
+        run = by_id[step_id]["run"]
+        m = re.search(r"--time-budget-minutes (\d+)", run)
+        assert m, f"{step_id} has no work budget"
+        return int(m.group(1))
+    fetch_typ = 15                                  # 12-14 min measured on 2026-10-24/25
+    publish_typ = 4                                 # ~2 min measured, with headroom
+    soft_evidence = fetch_typ + budget("closes") + publish_typ + budget("settle") + publish_typ
+    hard_evidence = sum(int(by_id[i]["timeout-minutes"]) for i in ("fetch", "closes", "settle")) + \
+        sum(int(by_id[i]["timeout-minutes"]) for i in ("publish_closes", "publish_evidence"))
+    assert hard_evidence <= int(job["timeout-minutes"]), (
+        "even if every evidence step used its whole hard limit the job limit must not be what ends the run")
+    assert soft_evidence + step_limit + 10 <= int(job["timeout-minutes"]), (
+        "soft evidence path + the derived rebuild's own limit + headroom must fit the job limit")
+    # the research step's own commands run under `timeout` against the job clock, so it cannot be what cancels the run
+    assert "JOB_DEADLINE_EPOCH" in research["run"] and 'timeout "$(left)s"' in research["run"]
+    assert any("JOB_DEADLINE_EPOCH" in (s.get("run") or "") and "108" in (s.get("run") or "") for s in job["steps"])
     names = [s.get("name") for s in job["steps"]]
     assert names.index("Publish the settlement, close and CLV batches, autopsies and scorecard") < \
         names.index("Rebuild the research export, scorecard v3, weekly report and health gate")
+    assert names.index("Pair every kicked-off projection with its canonical close and compute CLV") < \
+        names.index("Settle every ready game and diagnose the data arm"), "the close/CLV evidence runs FIRST"
 
 
 def test_shadow_v2_settle_reports_its_health_on_every_run():

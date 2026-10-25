@@ -203,16 +203,29 @@ def run_settle(mod, monkeypatch, md, out, *extra, book=None):
 
 
 def spy_files(monkeypatch, mod):
-    """Record which projection files each streaming call opened."""
+    """Record which projection files each streaming call opened.
+
+    The per-game and season passes are `iter_projections(files=...)` calls; a GROUP of games is ONE
+    `iter_projections_by_game(files, games)` call: its files are recorded here too, and (files, games) in `mod.group_passes`."""
     opened = []
     real = mod.iter_projections
+    real_group = getattr(mod, "iter_projections_by_game", None)
 
     def wrapped(*a, **k):
         files = list(k.get("files") or [])
         k["files"] = files
         opened.append(files)
         return real(*a, **k)
+
+    def wrapped_group(files, game_ids, **k):
+        files = list(files)
+        opened.append(files)
+        mod.group_passes.append((files, sorted(game_ids)))
+        return real_group(files, game_ids, **k)
+    mod.group_passes = []
     monkeypatch.setattr(mod, "iter_projections", wrapped)
+    if real_group is not None:
+        monkeypatch.setattr(mod, "iter_projections_by_game", wrapped_group)
     return opened
 
 
@@ -346,8 +359,15 @@ def test_the_settle_driver_reads_only_the_files_of_the_games_it_settles_and_skip
     for call in opened:
         names = {os.path.basename(p) for p in call}
         assert not names & {os.path.basename(files["S4.B"])}, "S4 holds only the unfinished game and must never be opened"
-    g2_calls = [c for c in opened if {os.path.basename(p) for p in c} == {os.path.basename(files["S3.B"]), os.path.basename(files["S3.D"])}]
-    assert len(g2_calls) == 1, "one settlement pass over exactly the two files that hold DET @ BUF, and no second pass"
+    # PINNED DELIBERATELY CHANGED (shadow-v2-settle timeout, 2026-10-25): the owed games of a run are streamed as a GROUP
+    # in ONE pass over the union of their files, instead of one pass per game. The former pin ("one pass over exactly
+    # the two files that hold DET @ BUF") is replaced by its stronger form: each file that holds an owed game is
+    # opened exactly once for the whole game phase, and a file that holds no owed game is never opened.
+    assert len(mod.group_passes) == 1, "both owed games share ONE pass"
+    pass_files, pass_games = mod.group_passes[0]
+    assert pass_games == [G1, G2]
+    assert sorted(os.path.basename(p) for p in pass_files) == sorted(os.path.basename(files[k]) for k in ("S1.B", "S1.D", "S2.B", "S3.B", "S3.D"))
+    assert len(pass_files) == len(set(pass_files)), "no file is opened twice by the game phase"
     assert [g for g in s["per_game"] if g["game_id"] == G2][0]["needs_player_tables"] is False, "no PLAYER-engine row: the index says so without a probe"
     assert s["accounting"]["silently_dropped"] == 0
     # second run: both games are settled; their files are not opened again, and nothing is written
@@ -716,8 +736,11 @@ def test_settling_one_game_costs_a_fraction_of_materialising_the_archive(tmp_pat
 def test_the_settle_workflow_keeps_live_logs_and_publishes_the_index():
     doc = yaml.safe_load(open(os.path.join(ROOT, ".github", "workflows", "shadow-v2-settle.yml")))
     steps = {s.get("name"): s for s in doc["jobs"]["settle"]["steps"]}
-    for name in ("Settle every ready game, diagnose, rebuild the scorecard",
+    # PINNED DELIBERATELY CHANGED (shadow-v2-settle timeout, 2026-10-25): the settlement step no longer rebuilds the
+    # scorecard (that is its own throttled "Rebuild the scorecard ..." step), so its name changed with its job.
+    for name in ("Settle every ready game and diagnose the data arm",
                  "Pair every kicked-off projection with its canonical close and compute CLV",
+                 "Rebuild the scorecard and exchange cross-check from the whole corpus",
                  "Rebuild the research export, scorecard v3, weekly report and health gate"):
         run = steps[name]["run"]
         assert "| tail" not in run, f"{name!r} still hides its output until exit"
