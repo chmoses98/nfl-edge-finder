@@ -102,3 +102,19 @@ def kickoffs_for_games(game_keys, from_closes: dict, from_schedule: dict) -> tup
             rep["filled_from_schedule"].append(k)
     rep["filled_from_schedule"] = sorted(set(rep["filled_from_schedule"]))
     return merged, rep
+
+
+def game_ids_from_schedule(text: str, season: int) -> dict:
+    """{canonical game key -> nflverse game_id} for one season, so a ticker's event key can be tied back to the packet's game."""
+    out: dict = {}
+    for row in csv.DictReader(io.StringIO(text)):
+        if str(row.get("season")) != str(season):
+            continue
+        day = (row.get("gameday") or "").strip()
+        away, home = canon_team((row.get("away_team") or "").strip()), canon_team((row.get("home_team") or "").strip())
+        try:
+            d = datetime.strptime(day, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        out[f"{d:%y}{_MONTHS[d.month - 1]}{d.day:02d}{away}{home}"] = row.get("game_id")
+    return out

@@ -1,0 +1,85 @@
+[
+  {
+    "thesis_id": "2026_07_CIN_BAL::T0",
+    "game_id": "2026_07_CIN_BAL",
+    "statement": "BAL starting quarterback availability is contradicted inside the packet (quarterbacks block: Lamar Jackson Active; injuries block: Out), and the market has already repriced the game by 15-20c.",
+    "blocked_reason": "Source conflict on the starting quarterback (depth-chart/QB block says Active, injury report says Out) on a game whose price has moved 15-20c since the first capture. A price built on an unresolved quarterback is a bet on the data error, not on football. Re-run after the inactive list (about 90 minutes before kickoff) and after the QB block is reconciled.",
+    "drivers": ["QB_BAL"]
+  },
+  {
+    "thesis_id": "2026_07_NYG_HOU::T1",
+    "game_id": "2026_07_NYG_HOU",
+    "statement": "NYG's offence is the worst matchup on the slate against HOU's defence, while NYG's secondary is depleted: expect HOU to win by slightly more than the market has it and NYG to score less.",
+    "drivers": ["HOU_SIDE", "NYG_SCORING_DOWN"],
+    "shift": {"home_margin": [0.5, 2.0], "total": [-1.5, 0.5], "basis": "analyst range, points on the market centre (home = HOU). Sized to a fraction of the adjusted matchup gaps, not taken from them: the market has already moved the HOU side 2-4c and the total down 3-7c since the first capture."},
+    "evidence": {
+      "measured": [
+        {"ref": "dossier.team_matchups['NYG offence v HOU defence']", "claim": "NYG offence vs HOU defence, schedule-adjusted: neutral-script -0.12, pass -0.115, run -0.097 EPA/play (worst pairing on the slate)", "opponent_adjusted": true, "market_unmoved": false},
+        {"ref": "dossier.availability", "claim": "NYG out: CB Newsome, S Holland, LB Edmunds, TE T. Johnson; OT Eluemunor and Mbow questionable. HOU out: RB Montgomery, OT Fisher, S Pitre, S Blankenship; WR Dell IR", "opponent_adjusted": true, "market_unmoved": false},
+        {"ref": "dossier.qb_pressure.NYG", "claim": "NYG QB has 20 dropbacks this season: no usable pressured/clean split", "opponent_adjusted": true, "market_unmoved": false}
+      ],
+      "simulation": [{"ref": "game_script_v2.primary_scripts", "claim": "market-centred scripts: favourite controls 33%, competitive 20%"}],
+      "hypotheses": ["HOU's pass rush plus NYG's tackle injuries should raise NYG sack and pressure rates beyond the season averages"]
+    },
+    "challenge": {
+      "fail_modes": ["NYG's defence-and-short-field style keeps the game inside two scores with a backdoor cover", "HOU's own losses (Montgomery, Fisher, Dell) lower its ceiling and the favourite gets conservative", "garbage-time scoring by the trailing team lifts NYG's total late"],
+      "market_already_priced": "Partly: the HOU side has moved toward HOU by 2-4c and the total is down 3-7c since the first capture, so the shift range is deliberately smaller than the matchup gaps; the thesis is only the remainder.",
+      "matchup_check": "Matchup numbers are the schedule-adjusted ratings (ridge-shrunk, recency-weighted), not raw splits, six games each; NYG QB sample is too small to rely on, so the thesis does not use quarterback efficiency.",
+      "uncertainties": ["fair value is the analyst's shift range through a market-centred simulation, not a validated model", "NYG quarterback sample of 20 dropbacks"]
+    },
+    "corroborations": []
+  },
+  {
+    "thesis_id": "2026_07_GB_DET::T1",
+    "game_id": "2026_07_GB_DET",
+    "statement": "Two pass-first offences face depleted pass defences in a closed dome: scoring should exceed the market total.",
+    "drivers": ["SCORING_UP"],
+    "shift": {"home_margin": [-0.5, 0.5], "total": [0.5, 2.5], "basis": "analyst range on the market centre. The total has already risen 3-9c in probability terms since the first capture."},
+    "evidence": {
+      "measured": [
+        {"ref": "dossier.team_matchups['DET offence v GB defence']", "claim": "DET offence vs GB defence, adjusted: pass +0.105 EPA/play, neutral-script +0.063", "opponent_adjusted": true, "market_unmoved": false},
+        {"ref": "dossier.team_matchups['GB offence v DET defence']", "claim": "GB offence vs DET defence, adjusted: pass +0.155 EPA/play, neutral-script +0.082", "opponent_adjusted": true, "market_unmoved": false},
+        {"ref": "dossier.availability", "claim": "DET safeties Branch and Joseph out; GB pass rusher Parsons and LB Franklin out; DET OL Bartch and Mays on IR", "opponent_adjusted": true, "market_unmoved": false}
+      ],
+      "simulation": [],
+      "hypotheses": ["Ford Field's closed roof removes weather as a brake on the passing games"]
+    },
+    "challenge": {
+      "fail_modes": ["DET's depleted interior line stalls drives and the game turns into a field-goal game", "clock-eating rushing offence from GB with a lead", "a defensive or special-teams touchdown swing is noise in either direction"],
+      "market_already_priced": "Substantially: the total has moved up 3-9c across the 52-56 rungs since the first capture and sits at 54, the highest on the slate; the thesis asks whether the market stopped short, which is a thin claim.",
+      "matchup_check": "Both pass-offence gaps are schedule-adjusted ratings over 5-6 games; defensive injuries are post-rating information the ratings do not contain.",
+      "uncertainties": ["fair value is the analyst's shift range through a market-centred simulation, not a validated model"]
+    },
+    "corroborations": []
+  },
+  {
+    "thesis_id": "2026_07_KC_SEA::T1",
+    "game_id": "2026_07_KC_SEA",
+    "statement": "SEA's pass rush meets a KC line missing both starting tackles and a quarterback who loses 0.87 EPA/dropback under pressure: SEA should be a little better than the market has it and the game a little lower-scoring.",
+    "drivers": ["SEA_SIDE", "SCORING_DOWN"],
+    "shift": {"home_margin": [0.0, 1.5], "total": [-1.5, 0.0], "basis": "analyst range on the market centre (home = SEA)."},
+    "evidence": {
+      "measured": [
+        {"ref": "dossier.qb_pressure.KC", "claim": "Mahomes: +0.30 EPA/dropback clean, -0.57 under pressure (165 dropbacks); SEA defence QB-hit rate 0.206 and sack rate 0.074, both above the slate means (0.153, 0.063)", "opponent_adjusted": false, "market_unmoved": false},
+        {"ref": "dossier.team_matchups['KC offence v SEA defence']", "claim": "KC offence vs SEA defence, schedule-adjusted: pass -0.10, neutral-script -0.11 EPA/play", "opponent_adjusted": true, "market_unmoved": false},
+        {"ref": "dossier.offensive_line.KC", "claim": "KC tackles Moore out and Simmons on IR; no OL grade is captured", "opponent_adjusted": true, "market_unmoved": false}
+      ],
+      "simulation": [],
+      "hypotheses": ["a depleted KC tackle group leans on chips and quick throws, which blunts the rush"]
+    },
+    "challenge": {
+      "fail_modes": ["KC's quick-game design neutralises the rush and Mahomes is clean more often than the season rate", "the pressured-EPA split is a 165-dropback sample with few pressured snaps", "SEA's own QB depth chart shows Lock questionable behind Darnold"],
+      "market_already_priced": "Unknown: the side has moved 2-5c toward KC and the total down 1-2.5c since the first capture, so the market is not static, but the pressure-versus-tackle matchup is not something a ratings-based price sees.",
+      "matchup_check": "The pressure split is a raw (unadjusted) quarterback statistic; the adjusted team pairing is cited beside it. No blitz or coverage data exists, so the thesis does not claim the pressure comes from blitzing.",
+      "uncertainties": ["fair value is the analyst's shift range through a market-centred simulation, not a validated model", "pressured sample is small"]
+    },
+    "corroborations": []
+  },
+  {
+    "thesis_id": "2026_07_TB_CAR::T0",
+    "game_id": "2026_07_TB_CAR",
+    "statement": "TB's quarterback is questionable and three TB starters are out; the price depends on the inactive list.",
+    "blocked_reason": "Baker Mayfield (QB, TB) is Questionable. Participation resolves at the inactive list about 90 minutes before the 17:00Z kickoff (about 15:30Z); until then the option value of waiting exceeds any edge, and a player-status-dependent price is not a bet. Re-run at the T-90m horizon.",
+    "drivers": ["QB_TB"]
+  }
+]
