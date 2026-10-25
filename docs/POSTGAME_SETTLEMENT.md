@@ -223,6 +223,48 @@ so recomputing the same evidence at a different time is a no-op rather than a co
 Manifests carry counts, the batch sha256, hashes over the prediction ids and content hashes, the game's result
 evidence, the kickoff and its source, the ledger snapshots consumed, and the result-source provenance.
 
+## Bounded runs: the close/CLV evidence cannot be starved (shadow-v2-settle)
+
+`shadow-v2-settle.yml` ended CANCELLED on every scheduled run from 2026-10-23 to 2026-10-25 (#258-#269) because its
+settlement step was still running at the 120-minute job limit, so the close/CLV step and every publish after it were
+skipped and market-data held closes only through week 4. Measured on run 40144005725 (its settle log), then on a local
+slice of the real market-data branch:
+
+| cost | measured | cause |
+|---|---|---|
+| projection index | 15 min | 750 projection files re-indexed every run: the index is only published by the publish steps that never ran |
+| each owed game | ~4 min (434-row games included) | a snapshot file holds EVERY game on the board; each game re-decompressed the ~750 files that hold it. Local slice: 103 s per game over 150 files, 174 s for 15 games in one pass |
+| each autopsy | 57 ms (settlement of the same row: 0.17 ms); `2026_04_ATL_NO` = 111,644 rows + 44,324 autopsies = 23 min, local `2026_06_SEA_DEN` (36,114 + 14,769) = 919 s | the autopsy walked every player row the book holds (two seasons) three times per record to total one team's game. `nfl_edge/settlement/team_game_index.py` indexes (game, team) once: same values, same order, 0.7 ms per autopsy |
+| season-pass in `pair_closes_v2` | 17 min of a run with nothing new to pair (2026-10-06) | every row of every file holding any season-scoped row was `json.loads`ed only to be discarded (34.6 s vs 7.4 s to read 12 files) |
+| whole-corpus scorecard + cross-check | 905 s on weeks 1-4 (3.24 M settlement rows) | rebuilt from scratch on every run, before the step's outputs were written |
+| research export | 50 min (its limit) every run since 2026-10-05 | derived; not changed here beyond throttling and the job clock |
+
+What changed, and what did not:
+
+* **Order.** Close + CLV (`pair_closes_v2.py`) runs FIRST and is published before settlement starts; settlement
+  (`settle_v2.py --phase settle`) is published next; only then the throttled scorecard (`--phase derived`) and the
+  research export. Every step after the first has `!cancelled()` so one failing evidence step does not skip the other.
+* **Bounded work, oldest kickoff first.** `--max-games N` and `--time-budget-minutes M` (and `--max-group-rows`, the
+  rows one group may hold in memory) make a run attempt at most that much; the first group is always attempted so a
+  single large game cannot be starved; everything else is reported as `games_postponed` and the next 3-hourly run
+  continues, because a game that holds its immutable batch (both the close and the CLV batch, for closes) is skipped
+  by file name. Nothing is cached anywhere else, so there is nothing to corrupt: resuming is just running again.
+* **One pass per group, same bytes.** The games of a group are streamed together (`iter_projections_by_game`): each
+  game receives exactly the rows, in exactly the order, a stand-alone stream would give it, so batches are
+  byte-identical to the one-game-at-a-time implementation (`tests/test_bounded_postgame_runs.py`).
+* **Outputs before the slow tail.** The step outputs the publish gate reads (`status`, `written`, `batch_id`,
+  `index_written`) are written as soon as the games are done, before the season pass / scorecard, and again at the end.
+* **Idempotent.** A second run (or a full run after bounded ones) creates no file and changes no byte of any existing
+  write-once file; a conflict is still a hard error. No record, schema or scoring logic changed.
+* **Throttled derived work.** `--phase derived --derived-min-interval-hours 6` skips the whole-corpus rebuild while the
+  settlement / autopsy / close / CLV batch listing is unchanged and the last build (`scorecards/derived_state.json`)
+  is younger than six hours (the exchange cross-check can still owe rows after games settle, hence the age bound).
+  The research export follows the same verdict and is bounded by the job clock (`JOB_DEADLINE_EPOCH`, minute 108).
+* **Index.** Missing projection-index entries are built in a process pool (`NFL_INDEX_WORKERS`, default min(4, CPUs)).
+
+Resuming by hand: `python3 scripts/shadow_v2/pair_closes_v2.py --market-data /tmp/md --out data/shadow/v2 --max-games 10`
+then the same for `settle_v2.py --phase settle`; rerun until `games_postponed` is empty. `--game <id>` still forces a game.
+
 ## The exchange's own settlements are a cross-check, never the truth
 
 The pinned settlement snapshot is compared with our proven settlements per ticker, written to a separate

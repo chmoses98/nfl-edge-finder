@@ -15,6 +15,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 from nfl_edge.projection.record import VOLATILE_FIELDS, content_hash
@@ -282,7 +283,7 @@ def iter_projection_files(roots, *, day_lo: str | None = None, day_hi: str | Non
 
 def iter_projections(roots=None, *, day_lo: str | None = None, day_hi: str | None = None, game_ids=None, arms=None,
                      season: int | None = None, week: int | None = None, has_probability: bool | None = None,
-                     files=None, stats: ScanStats | None = None, dedupe: bool = True):
+                     files=None, stats: ScanStats | None = None, dedupe: bool = True, line_filter=None):
     """Yield projection rows one at a time, straight from gzip, filtering while streaming.
 
     Filters: `game_ids`, `season`, `week` (record fields), `arms` and `day_lo` / `day_hi` (file name and
@@ -290,6 +291,11 @@ def iter_projections(roots=None, *, day_lo: str | None = None, day_hi: str | Non
     to read (in that order) instead of walking the roots -- the projection index supplies it so a game's
     stream opens only the files that hold the game. Rows are de-duplicated by record_id, first occurrence wins,
     exactly as read_projections() did; only the ids of yielded rows are retained, never the rows.
+
+    `line_filter(line: bytes) -> bool` is an optional FAST REJECT on the raw line, applied before json.loads and
+    counted as prefiltered. It must only ever return False for a line the caller would have discarded after
+    parsing anyway (see may_lack_game): the parsed row still decides, so the filter can cost time, never rows.
+    A pass over files that merely CONTAIN a few season-scoped rows then stops parsing every game row beside them.
     """
     if files is None:
         files = iter_projection_files(roots, day_lo=day_lo, day_hi=day_hi, arms=arms)
@@ -305,6 +311,9 @@ def iter_projections(roots=None, *, day_lo: str | None = None, day_hi: str | Non
                     continue
                 st.rows_read += 1
                 if groups and not _passes_prefilter(line, groups):
+                    st.rows_prefiltered_out += 1
+                    continue
+                if line_filter is not None and not line_filter(line):
                     st.rows_prefiltered_out += 1
                     continue
                 r = json.loads(line)
@@ -329,6 +338,84 @@ def iter_projections(roots=None, *, day_lo: str | None = None, day_hi: str | Non
                     seen.add(rid)
                 st.rows_yielded += 1
                 yield r
+
+
+_NO_GAME_TOKENS = (b'"game_id":null', b'"game_id": null', b'"game_id":""', b'"game_id": ""')
+
+
+_NO_KICKOFF_TOKENS = (b'"kickoff_utc":null', b'"kickoff_utc": null', b'"kickoff_utc":""', b'"kickoff_utc": ""')
+
+
+def may_lack_game(line: bytes) -> bool:
+    """False only when the line certainly has a non-empty top-level game_id: it names `game_id` and never as
+    null / "". A record that omits the key altogether also passes, because the parsed row decides."""
+    if b'"game_id"' not in line:
+        return True
+    return any(t in line for t in _NO_GAME_TOKENS)
+
+
+def may_lack_game_or_kickoff(line: bytes) -> bool:
+    """False only when the line certainly has both a game_id and a kickoff_utc (see may_lack_game)."""
+    if may_lack_game(line):
+        return True
+    if b'"kickoff_utc"' not in line:
+        return True
+    return any(t in line for t in _NO_KICKOFF_TOKENS)
+
+
+def game_prefilter(game_ids):
+    """One compiled byte pattern that matches a line naming ANY of `game_ids` as a `game_id` value, in both
+    separator styles. A fast reject like _prefilter_groups, but a single regex search per line: the any()-over-
+    tokens form costs time proportional to the number of games (32 games made a pass 9x slower than 1 game),
+    which is what made settling a whole slate cost more than settling its games one by one."""
+    ids = sorted(set(game_ids))
+    if not ids:
+        return None
+    alt = b"|".join(re.escape(g.encode()) for g in ids)
+    return re.compile(rb'"game_id": ?"(?:' + alt + rb')"')
+
+
+def iter_projections_by_game(files, game_ids, *, has_probability: bool | None = None, stats: ScanStats | None = None):
+    """(game_id, row) for the rows of ANY of `game_ids`, in ONE pass over `files`.
+
+    The per-game stream opens every file that holds its game. A snapshot file holds every game on the board, so a
+    slate of N games re-decompressed the same files N times (measured 4 minutes per game at ~750 files, 33 games
+    owed: more than two hours before the first scorecard). This reads each file once. For every game the rows
+    arrive in exactly the order a stand-alone iter_projections(files=files, game_ids=[game]) would yield them
+    (file order, then line order) and the same first-occurrence-wins de-duplication applies per game, so a
+    driver that routes each row to its game's planner writes byte-identical batches. Only the keys of yielded
+    rows are retained, never the rows.
+    """
+    want = set(game_ids)
+    rx = game_prefilter(want)
+    st = stats if stats is not None else ScanStats()
+    seen = set()
+    for path in files:
+        st.files_scanned += 1
+        with gzip.open(path, "rb") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                st.rows_read += 1
+                if rx is None or rx.search(line) is None:
+                    st.rows_prefiltered_out += 1
+                    continue
+                r = json.loads(line)
+                st.rows_parsed += 1
+                gid = r.get("game_id")
+                if gid not in want:
+                    st.rows_filtered_out += 1
+                    continue
+                if has_probability is not None and (r.get("p_yes") is None) == bool(has_probability):
+                    st.rows_filtered_out += 1
+                    continue
+                key = (gid, r["record_id"])
+                if key in seen:
+                    st.rows_duplicate += 1
+                    continue
+                seen.add(key)
+                st.rows_yielded += 1
+                yield gid, r
 
 
 def read_projections(roots, *, day_lo: str | None = None, day_hi: str | None = None, game_ids=None, arms=None) -> list:
@@ -402,21 +489,56 @@ def build_file_index(path: str, *, sha: str | None = None) -> dict:
             "games": dict(sorted(games.items())), "no_game": no_game}
 
 
+def _build_index_job(job):
+    path, sha = job
+    return build_file_index(path, sha=sha)
+
+
+def _index_workers(workers: int | None) -> int:
+    if workers is None:
+        try:
+            workers = int(os.environ.get("NFL_INDEX_WORKERS", "0"))
+        except ValueError:
+            workers = 0
+    return max(1, workers or min(4, os.cpu_count() or 1))
+
+
+def _build_indexes(jobs: list, workers: int | None = None) -> list:
+    """build_file_index over (path, sha) jobs, in order; in a process pool when there is enough to be worth one."""
+    n = _index_workers(workers)
+    if n <= 1 or len(jobs) < 4:
+        return [_build_index_job(j) for j in jobs]
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+    # spawn, not fork: the parent may hold threads (a fork of a multi-threaded process can deadlock), and the
+    # workers need only this module
+    with ProcessPoolExecutor(max_workers=n, mp_context=multiprocessing.get_context("spawn")) as pool:
+        return list(pool.map(_build_index_job, jobs, chunksize=1))
+
+
 class ProjectionIndex:
     """Which projection files hold which games, built once per run and cached per file by content hash."""
 
     def __init__(self, roots, *, index_roots=(), write_root: str | None = None, day_lo: str | None = None,
-                 day_hi: str | None = None, arms=None):
+                 day_hi: str | None = None, arms=None, workers: int | None = None):
         self.roots = [roots] if isinstance(roots, str) else list(roots)
         self.index_roots = [r for r in ([write_root] + list(index_roots or ())) if r]
         self.write_root = write_root
         self.entries: dict = {}                                 # projection path -> index entry, in read order
         self.built, self.reused, self.written = 0, 0, 0
+        paths, shas, cached = [], [], []
         for path in iter_projection_files(self.roots, day_lo=day_lo, day_hi=day_hi, arms=arms):
             sha = _sha(path)
-            entry = self._cached(path, sha)
+            paths.append(path), shas.append(sha), cached.append(self._cached(path, sha))
+        todo = [i for i, e in enumerate(cached) if e is None]
+        # Files with no cached entry are parsed in parallel: a run that has not been able to publish its index
+        # (the run that most needs it) re-indexes hundreds of ~230 MB files, which is pure CPU and took 15 minutes
+        # on one core. Order, content and the files written are identical to the sequential build.
+        fresh = dict(zip(todo, _build_indexes([(paths[i], shas[i]) for i in todo], workers)))
+        for i, path in enumerate(paths):
+            entry = cached[i]
             if entry is None:
-                entry = build_file_index(path, sha=sha)
+                entry = fresh[i]
                 self.built += 1
                 if self.write_root:
                     ip = index_file_path(self.write_root, path)

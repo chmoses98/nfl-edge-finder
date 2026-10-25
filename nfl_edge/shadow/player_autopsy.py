@@ -31,6 +31,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 from nfl_edge.settlement.results import ResultBook
+from nfl_edge.settlement.team_game_index import team_game_items
 
 # 1.1.0 (2026-10-01): the representative row must have been GENERATED before kickoff, not merely carry a pregame
 # quote (see `generated_at` below), and ties are broken by the latest pre-kickoff generation instead of by the
@@ -144,7 +145,7 @@ def team_volume(book: ResultBook, game_id: str, team: str, column: str) -> dict 
     if g is None or g.season is None or g.week is None or not column:
         return None
     def team_total(gid):
-        vals = [p.stats.get(column) for (gg, _pid), p in book.players.items() if gg == gid and p.team == team and p.has_stats_row]
+        vals = [p.stats.get(column) for _pid, p in team_game_items(book, gid, team) if p.has_stats_row]
         vals = [v for v in vals if v is not None]
         return sum(vals) if vals else None
     actual = team_total(game_id)

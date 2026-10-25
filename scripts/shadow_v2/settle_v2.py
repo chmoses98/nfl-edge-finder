@@ -2,7 +2,8 @@
 """Settle every frozen shadow-v2 projection of every FINAL game, build the universal scorecard and the autopsy v2.
 
     python3 scripts/shadow_v2/settle_v2.py --market-data /tmp/md --projections data/shadow/v2/projections \
-        --out data/shadow/v2 --target-season 2026 [--game <id>] [--dry-run]
+        --out data/shadow/v2 --target-season 2026 [--game <id>] [--dry-run] \
+        [--phase all|settle|derived] [--max-games N] [--time-budget-minutes M] [--derived-min-interval-hours H]
 
 Reads the published projections (never rewrites them), proves results from nflverse (schedule finals with the
 postgame-tables attestation, player statistics, snap counts, play-by-play quarter scores), and appends ONE
@@ -28,10 +29,20 @@ the first log line. The work is now ordered the other way round:
 
 Every probability-carrying record examined is accounted for: dispatched, season-scoped, unreachable (with the
 missing key named) -- and `silently_dropped` is computed from those counts and must be zero.
+
+BOUNDED, RESUMABLE, IDEMPOTENT (docs/POSTGAME_SETTLEMENT.md, "Bounded runs"). The owed games are taken oldest kickoff
+first, at most --max-games per run and no new group once --time-budget-minutes is spent; the rest is reported as
+postponed and the next run, which skips every game that now holds a batch, continues. The games of a group are streamed
+in ONE pass over the projection files (each game still sees exactly the rows a stand-alone stream would give it, so
+the batches are byte-identical). --phase settle stops after the games and the season markets; --phase derived is the
+whole-corpus scorecard / exchange cross-check / autopsy summary on its own, skipped while nothing changed
+(--derived-min-interval-hours). The step outputs are written before the whole-corpus rebuild starts.
 """
 from __future__ import annotations
 
 import argparse
+import glob
+import hashlib
 import json
 import os
 import resource
@@ -45,10 +56,12 @@ sys.path.insert(0, ROOT)
 
 from nfl_edge.engines.player import autopsy_v2 as AU                                     # noqa: E402
 from nfl_edge.evaluation import scorecard_v2 as SC                                       # noqa: E402
-from nfl_edge.projection.store import INDEX_DIRNAME, ProjectionIndex, ScanStats, SidecarCache, iter_projections  # noqa: E402
+from nfl_edge.projection.store import (INDEX_DIRNAME, ProjectionIndex, ScanStats, SidecarCache, iter_projections,  # noqa: E402
+                                       iter_projections_by_game, may_lack_game)
 from nfl_edge.settlement import crosscheck as XC                                         # noqa: E402
 from nfl_edge.settlement import reachability as RE                                       # noqa: E402
 from nfl_edge.settlement import season_settlement as SS                                  # noqa: E402
+from nfl_edge.settlement import work_plan as WP                                          # noqa: E402
 from nfl_edge.settlement import settle_v2 as S2                                          # noqa: E402
 from nfl_edge.settlement.nflverse_results import build_result_book                       # noqa: E402
 from nfl_edge.settlement.period_results import PeriodBook                                # noqa: E402
@@ -144,6 +157,144 @@ class Accounting:
                 "silently_dropped": self.silently_dropped()}
 
 
+DERIVED_STATE_FILE = "derived_state.json"
+
+
+def corpus_signature(*corpora) -> str:
+    """What the whole-corpus rebuilds would read, from LISTINGS ONLY: every batch file's relative name and size across
+    all roots. It changes exactly when a settlement / autopsy batch appears (or one changes), and costs a directory
+    walk instead of 3.2 million rows."""
+    seen = set()
+    for c in corpora:
+        for root in c.read_roots:
+            if not os.path.isdir(root):
+                continue
+            for path in glob.glob(os.path.join(root, "*", f"*.{c.suffix}.jsonl.gz")):
+                seen.add((c.suffix, os.path.relpath(path, root), os.path.getsize(path)))
+    h = hashlib.sha256()
+    for item in sorted(seen):
+        h.update(repr(item).encode())
+    return h.hexdigest()[:20]
+
+
+def _read_derived_state(*dirs):
+    for d in dirs:
+        p = os.path.join(d, DERIVED_STATE_FILE)
+        if os.path.exists(p):
+            try:
+                return json.load(open(p))
+            except (OSError, ValueError):
+                continue
+    return None
+
+
+def derived_decision(state, signature: str, now: datetime, min_interval_hours: float):
+    """(rebuild?, reason). Throttle OFF (<= 0) always rebuilds, which is the behaviour before this existed. Otherwise
+    the rebuild is skipped only while BOTH hold: the settlement/autopsy corpus is the one the last build read, and
+    that build is younger than the interval. The age bound is not a courtesy: the exchange cross-check reads
+    resolutions that arrive after the games are settled, so an unchanged corpus can still owe new cross-check rows."""
+    if min_interval_hours <= 0:
+        return True, "throttle off: rebuilt on every run"
+    if not state or not state.get("signature") or not state.get("built_at"):
+        return True, "no previous derived build is recorded"
+    if state["signature"] != signature:
+        return True, "the settlement/autopsy corpus changed since the last derived build"
+    try:
+        built = datetime.fromisoformat(str(state["built_at"]).replace("Z", "+00:00"))
+        age_h = (now - built).total_seconds() / 3600.0
+    except ValueError:
+        return True, "the last derived build's timestamp is unreadable"
+    if age_h >= min_interval_hours:
+        return True, f"the last derived build is {age_h:.1f}h old (limit {min_interval_hours:g}h)"
+    return False, (f"nothing new was settled since the derived build {age_h:.1f}h ago and it is younger than "
+                   f"{min_interval_hours:g}h; the published scorecard stands")
+
+
+def rebuild_derived(a, now, batch, corpus, au_corpus, md) -> dict:
+    """The scorecard, exchange cross-check and autopsy summary, rebuilt from the WHOLE corpus (published + staged),
+    one game directory at a time.
+
+    EXCHANGE CROSS-CHECK: read only from what the pipeline already captured (daily discovery's settled bucket
+    and the historical backfill), so it costs no API calls. The derived football settlement is never replaced
+    by the exchange value: this is a check on our reading of the contract, and a disagreement is a hard
+    research-quality warning that the whole family may have been priced on a wrong reading.
+
+    MEASURED (2026-10-25, 3.24 M settlement rows = 2026 weeks 1-4): 905 s on one core, and it grows with every week
+    settled. It is DERIVED -- rebuildable from the corpus -- so it is its own phase (--phase derived), runs after the
+    evidence is published, and is throttled (--derived-min-interval-hours) when nothing new was settled.
+    """
+    sc_dir = os.path.join(a.out, "scorecards")
+    # what the downstream rebuilds (scorecard, cross-check, research) read: settlements and autopsies, and the close /
+    # CLV batches the research export joins to them
+    close_corpus = ST.EvaluationCorpus(os.path.join(a.out, "closes"), read_roots=[os.path.join(md, "closes")], suffix="closes_v2")
+    clv_corpus = ST.EvaluationCorpus(os.path.join(a.out, "clv"), read_roots=[os.path.join(md, "clv")], suffix="clv_v2")
+    signature = corpus_signature(corpus, au_corpus, close_corpus, clv_corpus)
+    rebuild, reason = derived_decision(_read_derived_state(sc_dir, os.path.join(md, "scorecards")), signature, now,
+                                       a.derived_min_interval_hours)
+    if not rebuild:
+        log(f"derived rebuild skipped: {reason}")
+        if a.github_output:
+            with open(a.github_output, "a") as f:
+                f.write("derived=SKIPPED_UNCHANGED\n")
+        return {"status": "SKIPPED_UNCHANGED", "reason": reason, "signature": signature}
+    log(f"derived rebuild: {reason}")
+    xres = XC.ExchangeResults(a.market_data)
+    log(f"exchange results: {xres.summary()['tickers']} tickers from {len(xres.sources_scanned)} source(s) (rss {_rss_mb():.0f} MB)")
+    acc = SC.ScorecardAccumulator()
+    xsum_acc = XC.SummaryAccumulator()
+    xc_corpus = ST.EvaluationCorpus(os.path.join(a.out, "crosscheck"), read_roots=[os.path.join(md, "crosscheck")], suffix=CROSSCHECK_SUFFIX)
+    xc_planners: dict = {}
+    corpus_rows = 0
+    for gdir in corpus.games():
+        for row, _ in corpus.iter_rows(gdir):
+            corpus_rows += 1
+            acc.add(row, game=gdir)
+            # The cross-check is stamped with the evidence lifecycle it belongs to before it is offered to the
+            # corpus: a terminal verdict is one immutable identity per prediction, while "the exchange has not
+            # resolved this yet" is a provisional observation filed under its own evidence vintage. Without that
+            # distinction the later, truthful AGREE contradicted the earlier EXCHANGE_MISSING and the corpus
+            # refused the whole batch (see nfl_edge/settlement/crosscheck.py).
+            xrow = XC.versioned(XC.crosscheck_rows([row], xres)[0], now=now)
+            xsum_acc.add(xrow)
+            xkey = row.get("game_id") or "SEASON"           # season settlement rows cross-check under one directory
+            xp = xc_planners.get(xkey)
+            if xp is None:
+                xp = xc_planners[xkey] = xc_corpus.planner(xkey)
+            xp.offer(xrow)
+        acc.end_game()
+        for xkey in [k for k in list(xc_planners) if k != "SEASON"]:
+            _write_crosschecks(xc_corpus, xc_planners.pop(xkey), xkey, batch, dry_run=a.dry_run)
+    for xkey, xp in xc_planners.items():
+        _write_crosschecks(xc_corpus, xp, xkey, batch, dry_run=a.dry_run)
+    scorecard = acc.finish(reread=lambda g: (row for row, _ in corpus.iter_rows(g)))
+    xsum = xsum_acc.finish()
+    log(f"exchange cross-check: {xsum['n']} rows, {xsum['by_evidence_tier']}, {xsum['by_agreement']}, "
+        f"disagreements {xsum['n_disagreements']}"
+        f"{' in ' + ', '.join(xsum['families_with_disagreement']) if xsum['families_with_disagreement'] else ''}")
+    for d in xsum["disagreements"][:10]:
+        log(f"  ::warning::SETTLEMENT DISAGREEMENT {d['ticker']}: derived {d['derived_settled_yes']} vs exchange {d['exchange_payout']}")
+    au_acc = AU.SummaryAccumulator()
+    for gdir in au_corpus.games():
+        for row, _ in au_corpus.iter_rows(gdir):
+            au_acc.add(row)
+    if not a.dry_run:
+        os.makedirs(sc_dir, exist_ok=True)
+        json.dump(xsum, open(os.path.join(sc_dir, "exchange_crosscheck.json"), "w"), indent=1, default=str)
+        json.dump(scorecard, open(os.path.join(sc_dir, "scorecard_v2.json"), "w"), indent=1, default=str)
+        open(os.path.join(sc_dir, "SCORECARD_V2.md"), "w").write(SC.render(scorecard))
+        json.dump(au_acc.finish(), open(os.path.join(sc_dir, "autopsy_v2_summary.json"), "w"), indent=1, default=str)
+        json.dump({"signature": signature, "built_at": now.isoformat(), "corpus_rows": corpus_rows},
+                  open(os.path.join(sc_dir, DERIVED_STATE_FILE), "w"), indent=1)
+    if a.github_output:
+        with open(a.github_output, "a") as f:
+            f.write("derived=REBUILT\n")
+    return {"status": "REBUILT", "reason": reason, "signature": signature, "corpus_rows": corpus_rows,
+            "exchange_crosscheck": {k: xsum[k] for k in ("n", "by_agreement", "by_evidence_tier", "provisional",
+                                                         "terminal", "comparable", "agreement_rate",
+                                                         "n_disagreements", "families_with_disagreement")},
+            "exchange_sources": xres.summary()}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--market-data", required=True)
@@ -156,12 +307,33 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--now", default="")
     ap.add_argument("--github-output", default="")
+    ap.add_argument("--phase", choices=("all", "settle", "derived"), default="all",
+                    help="settle: games + season markets only (the evidence); derived: the whole-corpus scorecard / "
+                         "cross-check / autopsy summary only; all (default): both, evidence outputs first")
+    ap.add_argument("--max-games", type=int, default=0,
+                    help="settle at most this many ready games per run, oldest kickoff first (0: no cap); the rest wait for the next run")
+    ap.add_argument("--time-budget-minutes", type=float, default=0.0,
+                    help="stop STARTING game groups once this much wall clock is spent or the next group is estimated not to fit (0: unbounded)")
+    ap.add_argument("--max-group-rows", type=int, default=WP.DEFAULT_MAX_GROUP_ROWS,
+                    help="probability rows held in memory by one group of games streamed together")
+    ap.add_argument("--derived-min-interval-hours", type=float, default=0.0,
+                    help="skip the whole-corpus rebuild while the settlement/autopsy corpus is unchanged and the last build is younger than this (0: always rebuild)")
     a = ap.parse_args(argv)
     t0 = time.time()
     now = datetime.fromisoformat(a.now.replace("Z", "+00:00")) if a.now else datetime.now(timezone.utc)
     md = os.path.join(a.market_data, "data", "shadow", "v2")
     roots = a.projections or [os.path.join(md, "projections")]
     acct = Accounting()
+    corpus = ST.EvaluationCorpus(os.path.join(a.out, "settlements"), read_roots=[os.path.join(md, "settlements")], suffix=SUFFIX)
+    au_corpus = ST.EvaluationCorpus(os.path.join(a.out, "autopsy"), read_roots=[os.path.join(md, "autopsy")], suffix=AUTOPSY_SUFFIX)
+    batch = ST.batch_id(now)
+
+    if a.phase == "derived":
+        # Nothing here reads a result book or a projection: the rebuild is a function of the corpus on disk.
+        derived = rebuild_derived(a, now, batch, corpus, au_corpus, md)
+        log(json.dumps({"phase": "derived", "batch_id": batch, **{k: v for k, v in derived.items() if k != "signature"},
+                        "perf": {"seconds": round(time.time() - t0, 1), "max_rss_mb": round(_rss_mb(), 1)}}, indent=1, default=str))
+        return 0
 
     # ---- 1. results
     book = build_result_book(ROOT, [a.target_season - 1, a.target_season], min_hours_after_kickoff=a.min_hours_after_kickoff)
@@ -184,9 +356,6 @@ def main(argv=None):
         f"{isum['rows_total']} rows over {isum['games']} games, {isum['no_game_rows']} rows without a game "
         f"({isum['no_game_probability_rows']} with a probability) from {roots} (rss {_rss_mb():.0f} MB)")
 
-    corpus = ST.EvaluationCorpus(os.path.join(a.out, "settlements"), read_roots=[os.path.join(md, "settlements")], suffix=SUFFIX)
-    au_corpus = ST.EvaluationCorpus(os.path.join(a.out, "autopsy"), read_roots=[os.path.join(md, "autopsy")], suffix=AUTOPSY_SUFFIX)
-    batch = ST.batch_id(now)
     sidecars = SidecarCache(roots)
 
     # ---- 3. candidate games: FINAL in the result book, holding projections, not already settled under this version
@@ -212,14 +381,30 @@ def main(argv=None):
     # read the same season's games, and rebuilding it per record would be quadratic in the board.
     season_ledgers = {s: SS.SeasonLedger(book.games, s) for s in sorted({g.season for g in book.games.values() if g.season})}
 
-    # ---- 4. one game at a time
+    # ---- 4. the owed games, OLDEST KICKOFF FIRST, streamed a GROUP at a time (one pass over the files per group).
+    #
+    # BOUNDED AND RESUMABLE. A run settles at most --max-games games and stops STARTING groups when --time-budget-
+    # minutes is spent; what it does not reach is reported as postponed and the next scheduled run, which skips
+    # every game that now holds a batch (step 3), picks up the remainder. Each game's batch is written as soon as
+    # its group finishes, so a run that is killed later still leaves every finished game's evidence on disk.
+    # Within a group the projection files are decompressed ONCE for all of its games (measured: ~4 minutes per
+    # game when each game re-streamed the same ~750 files); each game still sees exactly the rows, in exactly the
+    # order, a stand-alone stream of that game would have given it, so the batches are byte-identical.
     ready, deferred, written, au_written, season_rows_from_games = [], {}, 0, 0, []
     per_game = []
-    for gid in examine:
-        t_game = time.time()
+    ready_info = {}
+    no_probability_games = []
+    for gid in (examine if forced else WP.oldest_first(index.games(), examine)):
         files = index.files_for_game(gid)
         if not files:
             deferred[gid] = "NO_PROJECTIONS: the index holds no file with this game"
+            continue
+        if not forced and not (index.game(gid) or {}).get("prob"):
+            # No row of this game carries a probability (the index counted them), so a pass over its files could
+            # dispatch nothing and would write no batch - and a game that never gets a batch is "owed" again on every
+            # run. Two such week-1 games (2026_01_NE_SEA, 2026_01_SF_LA) sorted first and re-streamed their ~750 files
+            # on each run for nothing. Reported, never silent; a --game forces the examination as before.
+            no_probability_games.append(gid)
             continue
         # does this game's settlement need the player tables? Only a dispatchable, non-season, probability-carrying
         # PLAYER-engine record does, and the index counted exactly those when it parsed the file.
@@ -228,61 +413,86 @@ def main(argv=None):
         if state != READY:
             deferred[gid] = f"{state}: {reason}"
             continue
-        ready.append(gid)
-        # one pass -- settle, plan against the corpus index, keep only what is new
-        planner, au_planner = corpus.planner(gid), au_corpus.planner(gid)
-        n_prob, n_disp, n_au, n_season_deferred, gstat = 0, 0, 0, 0, Counter()
-        for r in iter_projections(files=files, game_ids=[gid], has_probability=True, stats=acct.scan):
-            n_prob += 1
-            rr = RE.reachability(r)
-            if rr["state"] != RE.DISPATCHABLE:
-                acct.note_unreachable(r, rr)
+        ready_info[gid] = {"files": files, "needs_players": needs_players}
+    owed = list(ready_info)
+    budget = WP.Budget(a.time_budget_minutes)      # counted from here: the index above is cached after the first run
+    groups = WP.partition(owed, index.games(), max_rows=a.max_group_rows, row_key="prob")
+    selection = WP.select_groups(groups, index.games(), budget, max_games=a.max_games, row_key="prob")
+    log(f"owed: {len(owed)} game(s) ready, {len(deferred)} deferred; {len(groups)} group(s) of at most {a.max_group_rows} rows; "
+        f"cap {a.max_games or 'none'} game(s), budget {a.time_budget_minutes or 'none'} min")
+
+    def feed(run, r):
+        """One probability-carrying record of one game: exactly the body of the former per-game loop."""
+        run["n_prob"] += 1
+        rr = RE.reachability(r)
+        if rr["state"] != RE.DISPATCHABLE:
+            acct.note_unreachable(r, rr)
+            return
+        if rr["scope"] == RE.SEASON:
+            season_rows_from_games.append(r)           # examined (and counted) in the season pass below
+            run["n_season_deferred"] += 1
+            return
+        s = S2.settle_projection(r, book, pbook, season_ledger=season_ledgers)
+        row = settlement_row(r, s, now)
+        run["n_disp"] += 1
+        run["gstat"][row["settlement_status"]] += 1
+        run["planner"].offer(row)
+        # autopsy v2: ONE AUTOPSY PER ELIGIBLE PREDICTION (every DATA-arm record with a probability, AU.AUTOPSY_ARMS:
+        # v2, v3 and v4), keyed by prediction_id; MARKET_PLAYER_DIST and the HYBRID_* arms are excluded because a
+        # causal diagnosis of a ladder-implied price would be manufactured, not measured. The sidecar is fetched
+        # for this snapshot only.
+        if r.get("model_arm") in AU.AUTOPSY_ARMS:
+            side_car = sidecars.get(r.get("snapshot_id")) or {}
+            full_ctx = (side_car.get("player_contexts") or {}).get((r.get("player_context") or {}).get("player_context_id"))
+            d = AU.diagnose({**r, "team": (r.get("feature_lineage") or {}).get("team")}, book, now=now, context=full_ctx)
+            run["au_planner"].offer({"prediction_id": r["record_id"], "evaluation_version": AU.AUTOPSY_VERSION,
+                                     "evaluated_at": now.isoformat(), "model_arm": r.get("model_arm"),
+                                     "horizon_label": r.get("horizon_label"), "snapshot_id": r.get("snapshot_id"),
+                                     "autopsy_denominator": f"one per eligible data-arm prediction ({' / '.join(AU.AUTOPSY_ARMS)}, every horizon)", **d})
+            run["n_au"] += 1
+
+    for group in selection:
+        t_group = time.time()
+        runs = {gid: {"planner": corpus.planner(gid), "au_planner": au_corpus.planner(gid), "n_prob": 0, "n_disp": 0,
+                      "n_au": 0, "n_season_deferred": 0, "gstat": Counter()} for gid in group}
+        group_files = index.files_for_games(group)
+        for gid, r in iter_projections_by_game(group_files, group, has_probability=True, stats=acct.scan):
+            feed(runs[gid], r)
+        for gid in group:
+            run = runs[gid]
+            ready.append(gid)
+            planner, au_planner = run["planner"], run["au_planner"]
+            n_prob, n_disp, n_au, gstat = run["n_prob"], run["n_disp"], run["n_au"], run["gstat"]
+            acct.examined += n_prob - run["n_season_deferred"]
+            acct.game_dispatched += n_disp
+            acct.by_status.update(gstat)
+            if n_disp == 0:
+                per_game.append({"game_id": gid, "probability_rows": n_prob, "dispatched": 0})
                 continue
-            if rr["scope"] == RE.SEASON:
-                season_rows_from_games.append(r)       # examined (and counted) in the season pass below
-                n_season_deferred += 1
-                continue
-            s = S2.settle_projection(r, book, pbook, season_ledger=season_ledgers)
-            row = settlement_row(r, s, now)
-            n_disp += 1
-            gstat[row["settlement_status"]] += 1
-            planner.offer(row)
-            # autopsy v2: ONE AUTOPSY PER ELIGIBLE PREDICTION (every DATA-arm record with a probability, AU.AUTOPSY_ARMS:
-            # v2, v3 and v4), keyed by prediction_id; MARKET_PLAYER_DIST and the HYBRID_* arms are excluded because a
-            # causal diagnosis of a ladder-implied price would be manufactured, not measured. The sidecar is fetched
-            # for this snapshot only.
-            if r.get("model_arm") in AU.AUTOPSY_ARMS:
-                side_car = sidecars.get(r.get("snapshot_id")) or {}
-                full_ctx = (side_car.get("player_contexts") or {}).get((r.get("player_context") or {}).get("player_context_id"))
-                d = AU.diagnose({**r, "team": (r.get("feature_lineage") or {}).get("team")}, book, now=now, context=full_ctx)
-                au_planner.offer({"prediction_id": r["record_id"], "evaluation_version": AU.AUTOPSY_VERSION,
-                                  "evaluated_at": now.isoformat(), "model_arm": r.get("model_arm"),
-                                  "horizon_label": r.get("horizon_label"), "snapshot_id": r.get("snapshot_id"),
-                                  "autopsy_denominator": f"one per eligible data-arm prediction ({' / '.join(AU.AUTOPSY_ARMS)}, every horizon)", **d})
-                n_au += 1
-        acct.examined += n_prob - n_season_deferred
-        acct.game_dispatched += n_disp
-        acct.by_status.update(gstat)
-        if n_disp == 0:
-            per_game.append({"game_id": gid, "probability_rows": n_prob, "dispatched": 0})
-            continue
-        if planner.conflicts:
-            raise ST.EvaluationConflict(planner.conflicts)
-        pc, ac = planner.counts(), au_planner.counts()
-        log(f"  {gid}: {n_disp} rows -> new {pc['new']}, unchanged {pc['unchanged']}, conflicts {pc['conflicts']}; "
-            f"autopsies {n_au} -> new {ac['new']}, unchanged {ac['unchanged']} (rss {_rss_mb():.0f} MB)")
-        if not a.dry_run:
-            man = corpus.write_batch(gid, [], evaluation_version=S2.SETTLE_VERSION, batch=batch, plan=planner.plan())
-            written += man.get("written", 0)
-        if n_au and not a.dry_run:
-            if au_planner.conflicts:
-                raise ST.EvaluationConflict(au_planner.conflicts)
-            man = au_corpus.write_batch(gid, [], evaluation_version=AU.AUTOPSY_VERSION, batch=batch, plan=au_planner.plan())
-            au_written += man.get("written", 0)
-        per_game.append({"game_id": gid, "probability_rows": n_prob, "dispatched": n_disp, "by_status": dict(gstat),
-                         "settlement": pc, "autopsy": ac, "files": len(files), "needs_player_tables": needs_players,
-                         "seconds": round(time.time() - t_game, 1)})
-        del planner, au_planner
+            if planner.conflicts:
+                raise ST.EvaluationConflict(planner.conflicts)
+            pc, ac = planner.counts(), au_planner.counts()
+            log(f"  {gid}: {n_disp} rows -> new {pc['new']}, unchanged {pc['unchanged']}, conflicts {pc['conflicts']}; "
+                f"autopsies {n_au} -> new {ac['new']}, unchanged {ac['unchanged']} (rss {_rss_mb():.0f} MB)")
+            if not a.dry_run:
+                man = corpus.write_batch(gid, [], evaluation_version=S2.SETTLE_VERSION, batch=batch, plan=planner.plan())
+                written += man.get("written", 0)
+            if n_au and not a.dry_run:
+                if au_planner.conflicts:
+                    raise ST.EvaluationConflict(au_planner.conflicts)
+                man = au_corpus.write_batch(gid, [], evaluation_version=AU.AUTOPSY_VERSION, batch=batch, plan=au_planner.plan())
+                au_written += man.get("written", 0)
+            per_game.append({"game_id": gid, "probability_rows": n_prob, "dispatched": n_disp, "by_status": dict(gstat),
+                             "settlement": pc, "autopsy": ac, "files": len(ready_info[gid]["files"]),
+                             "needs_player_tables": ready_info[gid]["needs_players"], "group_size": len(group),
+                             "seconds": round(time.time() - t_group, 1)})
+        log(f"group of {len(group)} game(s) done in {time.time() - t_group:.0f}s over {len(group_files)} file(s); "
+            f"{budget.elapsed() / 60:.1f} min of the run used")
+        del runs
+    postponed = list(selection.postponed)
+    if postponed:
+        log(f"::notice::{len(postponed)} ready game(s) postponed to the next run ({selection.reason}): {postponed[:6]}"
+            f"{' ...' if len(postponed) > 6 else ''}")
 
     # ---- 5. SEASON-SCOPED records: dispatched through the same settlement engine, bucketed by season instead of
     # by game. They settle late (a division needs a complete postseason bracket) but they are examined every run
@@ -291,11 +501,16 @@ def main(argv=None):
     season_planners: dict = {}
     season_files = index.files_with_no_game_rows(prob_only=True)
 
+    # The game rows that share these files belong to their game passes. They used to be json-parsed here only to be
+    # counted and dropped (every row of every file that holds ANY season-scoped row: 17 minutes of the former
+    # closes run, growing with the archive). A raw-line reject now skips them, and the informational count is read
+    # from the index, which counted the same rows (probability-carrying rows with a game) when it parsed the file.
+    acct.season_pass_game_rows += sum(g["prob"] for pth in season_files for g in index.entries[pth]["games"].values())
+
     def season_stream():
-        for r in iter_projections(files=season_files, has_probability=True, stats=acct.scan):
+        for r in iter_projections(files=season_files, has_probability=True, stats=acct.scan, line_filter=may_lack_game):
             if r.get("game_id"):
-                acct.season_pass_game_rows += 1
-                continue
+                continue                                  # a game row the line filter could not rule out (already counted)
             yield r
         yield from season_rows_from_games
 
@@ -356,78 +571,40 @@ def main(argv=None):
     if acct.silently_dropped() != 0:
         raise RuntimeError(f"accounting does not reconcile: {acct.to_dict()}")
 
-    # ---- 6. scorecard + exchange cross-check from the WHOLE corpus (published + staged), one game directory at a time.
-    # EXCHANGE CROSS-CHECK: read only from what the pipeline already captured (daily discovery's settled bucket
-    # and the historical backfill), so it costs no API calls. The derived football settlement is never replaced
-    # by the exchange value: this is a check on our reading of the contract, and a disagreement is a hard
-    # research-quality warning that the whole family may have been priced on a wrong reading.
-    xres = XC.ExchangeResults(a.market_data)
-    log(f"exchange results: {xres.summary()['tickers']} tickers from {len(xres.sources_scanned)} source(s) (rss {_rss_mb():.0f} MB)")
-    acc = SC.ScorecardAccumulator()
-    xsum_acc = XC.SummaryAccumulator()
-    xc_corpus = ST.EvaluationCorpus(os.path.join(a.out, "crosscheck"), read_roots=[os.path.join(md, "crosscheck")], suffix=CROSSCHECK_SUFFIX)
-    xc_planners: dict = {}
-    corpus_rows = 0
-    for gdir in corpus.games():
-        for row, _ in corpus.iter_rows(gdir):
-            corpus_rows += 1
-            acc.add(row, game=gdir)
-            # The cross-check is stamped with the evidence lifecycle it belongs to before it is offered to the
-            # corpus: a terminal verdict is one immutable identity per prediction, while "the exchange has not
-            # resolved this yet" is a provisional observation filed under its own evidence vintage. Without that
-            # distinction the later, truthful AGREE contradicted the earlier EXCHANGE_MISSING and the corpus
-            # refused the whole batch (see nfl_edge/settlement/crosscheck.py).
-            xrow = XC.versioned(XC.crosscheck_rows([row], xres)[0], now=now)
-            xsum_acc.add(xrow)
-            xkey = row.get("game_id") or "SEASON"           # season settlement rows cross-check under one directory
-            xp = xc_planners.get(xkey)
-            if xp is None:
-                xp = xc_planners[xkey] = xc_corpus.planner(xkey)
-            xp.offer(xrow)
-        acc.end_game()
-        for xkey in [k for k in list(xc_planners) if k != "SEASON"]:
-            _write_crosschecks(xc_corpus, xc_planners.pop(xkey), xkey, batch, dry_run=a.dry_run)
-    for xkey, xp in xc_planners.items():
-        _write_crosschecks(xc_corpus, xp, xkey, batch, dry_run=a.dry_run)
-    scorecard = acc.finish(reread=lambda g: (row for row, _ in corpus.iter_rows(g)))
-    xsum = xsum_acc.finish()
-    log(f"exchange cross-check: {xsum['n']} rows, {xsum['by_evidence_tier']}, {xsum['by_agreement']}, "
-        f"disagreements {xsum['n_disagreements']}"
-        f"{' in ' + ', '.join(xsum['families_with_disagreement']) if xsum['families_with_disagreement'] else ''}")
-    for d in xsum["disagreements"][:10]:
-        log(f"  ::warning::SETTLEMENT DISAGREEMENT {d['ticker']}: derived {d['derived_settled_yes']} vs exchange {d['exchange_payout']}")
-    au_acc = AU.SummaryAccumulator()
-    for gdir in au_corpus.games():
-        for row, _ in au_corpus.iter_rows(gdir):
-            au_acc.add(row)
-    sc_dir = os.path.join(a.out, "scorecards")
-    if not a.dry_run:
-        os.makedirs(sc_dir, exist_ok=True)
-        json.dump(xsum, open(os.path.join(sc_dir, "exchange_crosscheck.json"), "w"), indent=1, default=str)
-        json.dump(scorecard, open(os.path.join(sc_dir, "scorecard_v2.json"), "w"), indent=1, default=str)
-        open(os.path.join(sc_dir, "SCORECARD_V2.md"), "w").write(SC.render(scorecard))
-        json.dump(au_acc.finish(), open(os.path.join(sc_dir, "autopsy_v2_summary.json"), "w"), indent=1, default=str)
+    # The evidence is on disk. Say so NOW: the step outputs the publish gate reads must not depend on whether the
+    # whole-corpus rebuild below ever finishes (on 2026-10-25 it was the part that ran past the job limit).
+    def write_outputs(extra=""):
+        if a.github_output:
+            with open(a.github_output, "a") as f:
+                f.write(f"status={'WROTE' if written else 'NOTHING_TO_DO'}\nwritten={written}\nbatch_id={batch}\ngames_ready={len(ready)}\n"
+                        f"games_deferred={len(deferred)}\ngames_skipped_settled={len(skipped_settled)}\nindex_written={isum['index_files_written']}\n"
+                        f"games_postponed={len(postponed)}\n{extra}")
 
     summary = {"batch_id": batch, "settle_version": S2.SETTLE_VERSION, "games_ready": ready, "games_deferred": deferred,
                "games_skipped_already_settled": skipped_settled, "games_not_final_with_projections": not_final_with_projections,
+               "games_postponed": postponed, "postponed_reason": selection.reason,
+               "games_without_probability_rows": no_probability_games,
                "candidates": len(candidates), "examined": len(examine), "written": written, "autopsies_written": au_written,
-               "by_status": dict(acct.by_status), "corpus_rows": corpus_rows, "dry_run": a.dry_run,
+               "by_status": dict(acct.by_status), "dry_run": a.dry_run, "phase": a.phase,
                "season_settle_version": SS.SEASON_SETTLE_VERSION,
                "dispatch": {"game_scoped": acct.game_dispatched, "season_scoped": acct.season_dispatched,
                             "unreachable": acct.unreachable, "unreachable_detail": acct.unreachable_detail,
                             "silently_dropped": acct.silently_dropped()},
                "season_new_by_evidence_tier": dict(season_tiers),
-               "accounting": acct.to_dict(), "index": isum, "sidecars": sidecars.stats(), "per_game": per_game,
-               "exchange_crosscheck": {k: xsum[k] for k in ("n", "by_agreement", "by_evidence_tier", "provisional",
-                                                            "terminal", "comparable", "agreement_rate",
-                                                            "n_disagreements", "families_with_disagreement")},
-               "exchange_sources": xres.summary(),
-               "perf": {"seconds": round(time.time() - t0, 1), "max_rss_mb": round(_rss_mb(), 1)}}
+               "accounting": acct.to_dict(), "index": isum, "sidecars": sidecars.stats(), "per_game": per_game}
+    if a.phase == "settle":
+        summary["perf"] = {"seconds": round(time.time() - t0, 1), "max_rss_mb": round(_rss_mb(), 1)}
+        log(json.dumps(summary, indent=1, default=str))
+        write_outputs()
+        return 0
+    write_outputs()          # phase "all": evidence outputs first, then the rebuild
+
+    # ---- 6. scorecard + exchange cross-check from the WHOLE corpus (see rebuild_derived)
+    derived = rebuild_derived(a, now, batch, corpus, au_corpus, md)
+    summary.update(corpus_rows=derived.get("corpus_rows"), derived=derived["status"], derived_reason=derived["reason"],
+                   exchange_crosscheck=derived.get("exchange_crosscheck"), exchange_sources=derived.get("exchange_sources"),
+                   perf={"seconds": round(time.time() - t0, 1), "max_rss_mb": round(_rss_mb(), 1)})
     log(json.dumps(summary, indent=1, default=str))
-    if a.github_output:
-        with open(a.github_output, "a") as f:
-            f.write(f"status={'WROTE' if written else 'NOTHING_TO_DO'}\nwritten={written}\nbatch_id={batch}\ngames_ready={len(ready)}\n"
-                    f"games_deferred={len(deferred)}\ngames_skipped_settled={len(skipped_settled)}\nindex_written={isum['index_files_written']}\n")
     return 0
 
 
