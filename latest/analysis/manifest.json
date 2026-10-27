@@ -1,0 +1,813 @@
+{
+ "schema_version": "analysis-1.0.0",
+ "packet_schema_version": "1.2.0",
+ "packet_sha": "c58c3593e272b3bc2b3b",
+ "handicap_run_id": "20261027T050325Z",
+ "built_at": "2026-10-27T05:03:25.682854+00:00",
+ "season": 2026,
+ "week": 8,
+ "real_money_status": "NOT VALIDATED -- this packet recommends nothing and authorises nothing",
+ "coverage_contract": "RUN NFL examines every executable Kalshi contract for every requested unstarted NFL game. UNSUPPORTED_MODEL is a statement about one model, never a reason to hide a contract. Every listed contract terminates in exactly one analysis state, in one of four buckets: A validated model view, B coherent/Shadow research view, C manual handicap from the packet's own football and context data, D explicit PASS with a named reason.",
+ "models": {
+  "incumbent": {
+   "model_version": "shadow-0.4.0",
+   "ledger": "20261027T042733Z.shadow-0.4.0.observations.jsonl.gz",
+   "ledger_run_id": "20261027T042733Z",
+   "market_snapshot_run_id": "20261027T042733Z"
+  },
+  "coherent_simulation": {
+   "run_id": "20261027T042733Z",
+   "sim_version": "sim-1.1.0",
+   "origin": "RUN_NFL_FROZEN_BUNDLE",
+   "workflow_run_id": "40448909474",
+   "cutoff": "2026-10-27T04:42:09+00:00",
+   "generated_at": "2026-10-27T05:02:29.374182+00:00",
+   "market_observed_at": "2026-10-27T04:24:48.669101+00:00",
+   "bundle_train_seasons": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+   ],
+   "weights": "/home/runner/work/nfl-edge-finder/nfl-edge-finder/research/simulation_engine/reconciliation_weights.json",
+   "sources": {
+    "depth_chart_vintage": "2026-10-26T14:07:44Z",
+    "roster_week": 8,
+    "injury_vintage": {
+     "resolved": true,
+     "snapshot_path": "data/raw/nflverse/_vintages/injuries/injuries_2026/631d190448b05b97.parquet",
+     "sha256": "631d190448b05b9795649f3a757a0b675c65e9c10923b9219f0cd71c99cd206b",
+     "retrieved_at": "2026-10-27T04:21:14.538347+00:00",
+     "reason": "selected",
+     "rows_for_week": 0,
+     "designations": {}
+    },
+    "sleeper_run": "20261027T042022Z",
+    "priors_fit_seasons": [
+     2016,
+     2017,
+     2018,
+     2019,
+     2020,
+     2021,
+     2022,
+     2023,
+     2024,
+     2025
+    ],
+    "priors_version": "sim-priors-1.0.0",
+    "history_games": 7383,
+    "latest_history_game": "2026_07_TB_CAR"
+   }
+  },
+  "shadow_v2": {
+   "snapshot_id": "20261026T234438Z",
+   "arms": [
+    "BOARD_V2",
+    "DATA_PLAYER_DIST",
+    "DATA_PLAYER_V3",
+    "DATA_PLAYER_V4",
+    "DATA_PLAYER_V5",
+    "HYBRID_PLAYER_DIST",
+    "HYBRID_PLAYER_V3",
+    "HYBRID_PLAYER_V4",
+    "HYBRID_PLAYER_V5",
+    "MARKET_PLAYER_DIST"
+   ],
+   "arms_missing": [],
+   "rows_joined": 1457,
+   "refused_row_count": 0,
+   "provenance": {
+    "v2p0": {
+     "model_arm": "BOARD_V2",
+     "engine": "JOINT",
+     "engine_version": "joint-engine-1.0.0",
+     "distribution_version": "period-residual-bank-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p1": {
+     "model_arm": "BOARD_V2",
+     "engine": "PERIOD",
+     "engine_version": "period-engine-2.0.0",
+     "distribution_version": "period-residual-bank-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p2": {
+     "model_arm": "DATA_PLAYER_V3",
+     "engine": "PLAYER",
+     "engine_version": "data-player-dist-3.0.0",
+     "distribution_version": "lattice-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p3": {
+     "model_arm": "DATA_PLAYER_DIST",
+     "engine": "PLAYER",
+     "engine_version": "data-player-dist-2.0.0",
+     "distribution_version": "lattice-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p4": {
+     "model_arm": "DATA_PLAYER_V4",
+     "engine": "PLAYER",
+     "engine_version": "data-player-dist-4.0.0",
+     "distribution_version": "lattice-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p5": {
+     "model_arm": "DATA_PLAYER_V5",
+     "engine": "PLAYER",
+     "engine_version": "data-player-dist-5.0.0",
+     "distribution_version": "lattice-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p6": {
+     "model_arm": "HYBRID_PLAYER_DIST",
+     "engine": "PLAYER",
+     "engine_version": "hybrid-player-dist-1.0.0",
+     "distribution_version": "lattice-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p7": {
+     "model_arm": "HYBRID_PLAYER_V3",
+     "engine": "PLAYER",
+     "engine_version": "hybrid-player-dist-2.0.0",
+     "distribution_version": "lattice-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p8": {
+     "model_arm": "HYBRID_PLAYER_V4",
+     "engine": "PLAYER",
+     "engine_version": "hybrid-player-dist-4.0.0",
+     "distribution_version": "lattice-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p9": {
+     "model_arm": "HYBRID_PLAYER_V5",
+     "engine": "PLAYER",
+     "engine_version": "hybrid-player-dist-5.0.0",
+     "distribution_version": "lattice-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p10": {
+     "model_arm": "MARKET_PLAYER_DIST",
+     "engine": "PLAYER",
+     "engine_version": "market-player-dist-1.0.0",
+     "distribution_version": "lattice-1.0.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p11": {
+     "model_arm": "BOARD_V2",
+     "engine": "GAME",
+     "engine_version": "game-engine-2.0.0",
+     "distribution_version": "game_env-0.2.0",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p12": {
+     "model_arm": "BOARD_V2",
+     "engine": "NONE",
+     "engine_version": "none",
+     "distribution_version": "none",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p13": {
+     "model_arm": "BOARD_V2",
+     "engine": "PERIOD",
+     "engine_version": "none",
+     "distribution_version": "none",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    },
+    "v2p14": {
+     "model_arm": "BOARD_V2",
+     "engine": "GAME",
+     "engine_version": "none",
+     "distribution_version": "none",
+     "model_version": "shadow-v2-1.0.0",
+     "evidence_class": "PROSPECTIVE_FROZEN",
+     "horizon_label": "CYCLE",
+     "schema_version": "projection-2.3.0",
+     "snapshot_id": "20261026T234438Z",
+     "data_cutoff": "2026-10-26T23:44:38.303520+00:00"
+    }
+   },
+   "primary_arm_basis": "BOARD_V2 owns every non-player family; DATA_PLAYER_V3 is the player arm that is an independent football view of the statistic (DATA_PLAYER_DIST, its defective predecessor, is primary only on snapshots written before v3 and is DISABLED). MARKET_PLAYER_DIST is reconstructed FROM the Kalshi ladder and the HYBRID arms blend the two: they are reported, flagged `market_derived`, and never promoted into the primary slot. Being primary says nothing about authority: every arm answer carries its production-eligibility status, and on the current evidence the MARKET is the better player-prop distribution.",
+   "authority": "RESEARCH ONLY -- a Shadow v2 projection is not validated and authorises nothing"
+  }
+ },
+ "counts": {
+  "games": 14,
+  "rows_total": 1740,
+  "packet_markets_listed": 1740,
+  "duplicate_tickers": 0,
+  "unique_tickers": 1740
+ },
+ "coverage_matrix": {
+  "columns": [
+   "listed",
+   "executable",
+   "incumbent_priced",
+   "coherent_sim",
+   "shadow_v2",
+   "manual_research",
+   "research_required",
+   "rules_blocked",
+   "identity_blocked",
+   "non_football",
+   "post_kickoff",
+   "silently_omitted"
+  ],
+  "by_family": {
+   "BOTH_TEAMS_SCORE_N|FULL": {
+    "listed": 4,
+    "executable": 0,
+    "incumbent_priced": 4,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 0,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "BOTH_TEAMS_SCORE|1Q": {
+    "listed": 1,
+    "executable": 0,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 1,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "BOTH_TEAMS_SCORE|2Q": {
+    "listed": 1,
+    "executable": 0,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 1,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "BOTH_TEAMS_SCORE|3Q": {
+    "listed": 1,
+    "executable": 0,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 1,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "BOTH_TEAMS_SCORE|4Q": {
+    "listed": 1,
+    "executable": 0,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 1,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "FIRST_TD_SCORER|FULL": {
+    "listed": 26,
+    "executable": 26,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 26,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "FIRST_TD_TEAM|FULL": {
+    "listed": 27,
+    "executable": 3,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 27,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "GAME_EVENT|FULL": {
+    "listed": 4,
+    "executable": 2,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 0,
+    "research_required": 4,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "GAME_WINNER|FULL": {
+    "listed": 28,
+    "executable": 28,
+    "incumbent_priced": 28,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 0,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "HALF_FULL_RESULT|1H": {
+    "listed": 9,
+    "executable": 9,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 9,
+    "manual_research": 0,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "PLAYER_STAT|FULL": {
+    "listed": 317,
+    "executable": 271,
+    "incumbent_priced": 283,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 26,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 8,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "RACE_TO_N|FULL": {
+    "listed": 15,
+    "executable": 3,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 15,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "SPREAD|FULL": {
+    "listed": 356,
+    "executable": 356,
+    "incumbent_priced": 356,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 0,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "TEAM_STAT|FULL": {
+    "listed": 20,
+    "executable": 0,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 20,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "TEAM_TOTAL|1H": {
+    "listed": 280,
+    "executable": 253,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 240,
+    "manual_research": 40,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "TEAM_TOTAL|FULL": {
+    "listed": 377,
+    "executable": 375,
+    "incumbent_priced": 377,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 0,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "TOTAL|FULL": {
+    "listed": 266,
+    "executable": 266,
+    "incumbent_priced": 266,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 0,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   },
+   "WIN_MARGIN_BUCKET|FULL": {
+    "listed": 7,
+    "executable": 7,
+    "incumbent_priced": 0,
+    "coherent_sim": 0,
+    "shadow_v2": 0,
+    "manual_research": 7,
+    "research_required": 0,
+    "rules_blocked": 0,
+    "identity_blocked": 0,
+    "non_football": 0,
+    "post_kickoff": 0,
+    "silently_omitted": 0
+   }
+  },
+  "totals": {
+   "listed": 1740,
+   "executable": 1599,
+   "incumbent_priced": 1314,
+   "coherent_sim": 0,
+   "shadow_v2": 249,
+   "manual_research": 165,
+   "research_required": 4,
+   "rules_blocked": 0,
+   "identity_blocked": 8,
+   "non_football": 0,
+   "post_kickoff": 0,
+   "silently_omitted": 0
+  },
+  "buckets": {
+   "A": {
+    "n": 1314,
+    "meaning": "validated/production model view available"
+   },
+   "B": {
+    "n": 249,
+    "meaning": "coherent / Shadow research model view available"
+   },
+   "C": {
+    "n": 165,
+    "meaning": "no automated pricing authority; handicap from the football and context data in this packet"
+   },
+   "D": {
+    "n": 12,
+    "meaning": "cannot defensibly price -- explicit PASS / RESEARCH REQUIRED, with a reason"
+   },
+   "-": {
+    "n": 0,
+    "meaning": "outside the pregame window (kickoff has passed)"
+   },
+   "!": {
+    "n": 0,
+    "meaning": "INVARIANT VIOLATION -- a listed contract with no analysis state"
+   }
+  },
+  "invariant": "silently_omitted must be 0: every listed contract carries exactly one analysis state"
+ },
+ "games": [
+  {
+   "game_id": "2026_08_ARI_DAL",
+   "path": "games/2026_08_ARI_DAL.json",
+   "rows": 96,
+   "sha256": "3cacb5cf4783e014fa38a3308fc600aa7932ef92d74ab2736106ea26f2f30d0a",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 76,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_ATL_TB",
+   "path": "games/2026_08_ATL_TB.json",
+   "rows": 93,
+   "sha256": "60006614813b4c5a752bddac5064810bde0d578142b03473f14148c04fa7b8be",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 73,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_BAL_BUF",
+   "path": "games/2026_08_BAL_BUF.json",
+   "rows": 92,
+   "sha256": "b16aeb82164c057dc3ccc793d3b949a21b794e0fb590bf58015356e510810ab7",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 72,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_CAR_GB",
+   "path": "games/2026_08_CAR_GB.json",
+   "rows": 526,
+   "sha256": "a6f5a4f2104562e0a409b097178401188dc2d2f340d5f18dce1eb8eacfe8daf1",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 360,
+    "B": 29,
+    "C": 125,
+    "D": 12,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_CHI_SEA",
+   "path": "games/2026_08_CHI_SEA.json",
+   "rows": 93,
+   "sha256": "a13fcc88820e0e8161e5c79bbb4f38ecd2cdb64a9194875ba4ef1a96b729b4d5",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 73,
+    "B": 0,
+    "C": 20,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_CLE_PIT",
+   "path": "games/2026_08_CLE_PIT.json",
+   "rows": 93,
+   "sha256": "6b20d6c64dc5830fbdfcfdb1b36cd45dbd5327ea7f5696d4a94d0327977c0fba",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 73,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_IND_JAX",
+   "path": "games/2026_08_IND_JAX.json",
+   "rows": 95,
+   "sha256": "3e74d045f2d5800a11d0a3109f322611c23ee997012afbd7b4dcc5067368668c",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 75,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_KC_DEN",
+   "path": "games/2026_08_KC_DEN.json",
+   "rows": 91,
+   "sha256": "d37ac10afcf262ccfb419055c4186b978dd62ef9e384c66b015a255d8a0ebce6",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 71,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_LAC_LA",
+   "path": "games/2026_08_LAC_LA.json",
+   "rows": 94,
+   "sha256": "4cad0d3b509d91b16986b226316297589083fae92d1f4611a17ccb3c1e767900",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 74,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_LV_NYJ",
+   "path": "games/2026_08_LV_NYJ.json",
+   "rows": 93,
+   "sha256": "cda9ac419cf7594b53e24275e4a8fc3e07a3e27afd2a1fc5c977bb8e978cf09d",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 73,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_MIN_DET",
+   "path": "games/2026_08_MIN_DET.json",
+   "rows": 92,
+   "sha256": "7d96c6161066d0a527df2e2254c3d8fda1293f278cced0dd7058fe32b29733ac",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 72,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_NE_MIA",
+   "path": "games/2026_08_NE_MIA.json",
+   "rows": 95,
+   "sha256": "8886e916498be63d73931e0f1b8f04b1cfd17bc742150005ebbdbeace210ca31",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 75,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_PHI_WAS",
+   "path": "games/2026_08_PHI_WAS.json",
+   "rows": 93,
+   "sha256": "950407cb172f5eb460ae238d4bd5b42fe8f9365fd035638fb352fe0bad02892c",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 73,
+    "B": 0,
+    "C": 20,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  },
+  {
+   "game_id": "2026_08_TEN_CIN",
+   "path": "games/2026_08_TEN_CIN.json",
+   "rows": 94,
+   "sha256": "d4312c7be9997f836c6292b0a60d29913c04fac405ae6773273894bccf8a9941",
+   "silently_omitted": 0,
+   "buckets": {
+    "A": 74,
+    "B": 20,
+    "C": 0,
+    "D": 0,
+    "-": 0,
+    "!": 0
+   }
+  }
+ ],
+ "invariants": {
+  "rows_total_equals_packet_markets_listed": true,
+  "no_duplicate_tickers": true,
+  "zero_silently_omitted": true,
+  "duplicate_ticker_examples": [],
+  "note": "Every listed contract of the packet appears in exactly one shard, exactly once. A shard whose sha256 or row count disagrees with its manifest entry is a partial publication, which `verify()` detects by identity rather than by arithmetic."
+ },
+ "how_to_read": [
+  "1. Read manifest.json: `coverage_matrix` says what was scanned and `invariants` says whether the scan is complete. `zero_silently_omitted` must be true.",
+  "2. Open analysis/games/<game_id>.json for each game you handicap. Every executable contract of that game is one row.",
+  "3. On each row, `bucket` is A (validated model), B (coherent/Shadow research), C (handicap by hand from this packet) or D (explicit PASS, reason on the row).",
+  "4. `incumbent.model_probability` is the only probability with production authority, and even that authorises no bet. `shadow_v2.p_yes` and `coherent_simulation.p_football` are research."
+ ]
+}

@@ -1,0 +1,325 @@
+{
+ "report_status": "SUCCESS",
+ "schema_version": "1.0.0",
+ "built_at": "2026-10-27T05:03:25.447865+00:00",
+ "trigger": "rollover",
+ "handicap_run_id": "20261027T050325Z",
+ "packet_sha": "c58c3593e272b3bc2b3b",
+ "packet_schema_version": "1.2.0",
+ "season": 2026,
+ "week": 8,
+ "season_type": "REG",
+ "slate_id": "2026-REG-08",
+ "slate_label": "2026 regular season week 8",
+ "week_resolution": {
+  "status": "PINNED",
+  "season": 2026,
+  "week": 8,
+  "season_type": "REG",
+  "slate_id": "2026-REG-08",
+  "label": "2026 regular season week 8",
+  "schedule_source": "/home/runner/work/nfl-edge-finder/nfl-edge-finder/data/raw/nflverse/schedules/games.csv",
+  "first_kickoff_utc": "2026-10-30T00:15:00+00:00",
+  "last_kickoff_utc": "2026-11-03T01:15:00+00:00",
+  "minutes_to_first_kickoff": 4031.6,
+  "games_scheduled": 14,
+  "reason": "season/week pinned by the caller"
+ },
+ "model_version": "shadow-0.4.0",
+ "vintages": {
+  "shadow_pricing": {
+   "ledger_file": "20261027T042733Z.shadow-0.4.0.observations.jsonl.gz",
+   "ledger_run_id": "20261027T042733Z",
+   "written_at": "2026-10-27T05:02:27.168195+00:00",
+   "age_min": 1.0,
+   "observations": 97896,
+   "snapshot_run_id": "20261027T042733Z"
+  },
+  "kalshi_capture": {
+   "snapshot_run_id": "20261027T042733Z",
+   "queried_at": "2026-10-27T04:27:33+00:00",
+   "age_min": 35.9,
+   "basis": "ledger manifest snapshot_run_id -- the capture manifest's finished_at, i.e. when the Kalshi poll completed; not the time since a price last moved",
+   "age_reference": "PRICING_INPUT_FREEZE",
+   "age_reference_at": "2026-10-27T04:42:09+00:00",
+   "age_at_freeze_min": 14.6,
+   "gate_age_min": 14.6,
+   "newest_in_tree": {
+    "run_id": "20261027T042341Z",
+    "captured_at": "2026-10-27T04:27:33.760632+00:00",
+    "age_min": 35.9,
+    "quotes_files": 6248
+   }
+  },
+  "context": {
+   "run_id": "20261027T042022Z",
+   "captured_at": "2026-10-27T04:20:22+00:00",
+   "age_min": 43.1,
+   "captures_used": [
+    "20261027T015743Z",
+    "20261027T042022Z"
+   ],
+   "fresh_capture_this_run": "20261027T042022Z",
+   "fresh_capture_sources": [
+    "espn_injuries",
+    "schedule",
+    "sleeper_players",
+    "sleeper_state",
+    "weather_games"
+   ]
+  },
+  "simulation": {
+   "status": "ALIGNED",
+   "run_id": "20261027T042733Z",
+   "sim_version": "sim-1.1.0",
+   "market_observed_at": "2026-10-27T04:24:48.669101+00:00",
+   "generated_at": "2026-10-27T05:02:29.374182+00:00",
+   "age_min": 38.6,
+   "lag_vs_ledger_capture_min": 2.7,
+   "warn_lag_min": 120.0,
+   "note": "informational only: the simulation is read from market-data as published, not re-run by this build; LAGS_LEDGER means its player distributions predate the market (and any injury/inactive news) the ledger priced",
+   "initial_simulation_run_id": "20261014T135345Z",
+   "final_selected_simulation_run_id": "20261027T042733Z",
+   "simulation_changed_during_build": true,
+   "freshness": {
+    "target_lag_min": 180.0,
+    "selection": {
+     "market_stamp": "20261027T042733Z",
+     "info_cutoff": "2026-10-27T04:42:09+00:00",
+     "candidates": 111,
+     "eligible": 111,
+     "refused": {
+      "MARKET_AFTER_LEDGER": 0,
+      "INPUTS_AFTER_CUTOFF": 0,
+      "NO_PROVABLE_CUTOFF": 0
+     },
+     "rule": "sim-selection-2.0.0",
+     "selected": "20261027T042733Z",
+     "selected_cutoff": "2026-10-27T04:42:09+00:00",
+     "selected_origin": "RUN_NFL_FROZEN_BUNDLE"
+    },
+    "usable_as_current": true,
+    "run_id": "20261027T042733Z",
+    "origin": "RUN_NFL_FROZEN_BUNDLE",
+    "market_observed_at": "2026-10-27T04:24:48.669101+00:00",
+    "input_cutoff": "2026-10-27T04:42:09+00:00",
+    "board_observed_at": "2026-10-27T04:24:39.411373+00:00",
+    "lag_min": 0.0,
+    "state": "SIM_CURRENT",
+    "reason": "the simulation priced this packet's own board"
+   }
+  },
+  "team_profile_basis": "current_season",
+  "qb_profile_basis": 2026
+ },
+ "sources": {
+  "main_sha": "88635f2067a132cd079b4adf6089c91a5fadba1b",
+  "market_data_sha": "9d891431a0c07295b60e7378c5de93685a3160a2",
+  "workflow": "RUN NFL decision horizons",
+  "workflow_run_id": "40448909474",
+  "workflow_run_attempt": "1",
+  "workflow_run_url": "https://github.com/chmoses98/nfl-edge-finder/actions/runs/40448909474"
+ },
+ "counts": {
+  "games": 14,
+  "markets_listed": 1740,
+  "markets_supported": 1314,
+  "shadow_v2_projected": 1317,
+  "blocking_data_issues": 0,
+  "new_or_changed_injuries": 5,
+  "weather_concerns": 0
+ },
+ "coverage": {
+  "totals": {
+   "listed": 1740,
+   "executable": 1599,
+   "incumbent_priced": 1314,
+   "coherent_sim": 0,
+   "shadow_v2": 249,
+   "manual_research": 165,
+   "research_required": 4,
+   "rules_blocked": 0,
+   "identity_blocked": 8,
+   "non_football": 0,
+   "post_kickoff": 0,
+   "silently_omitted": 0
+  },
+  "buckets": {
+   "A": 1314,
+   "B": 249,
+   "C": 165,
+   "D": 12,
+   "-": 0,
+   "!": 0
+  },
+  "contract": "RUN NFL examines every executable Kalshi contract for every requested unstarted NFL game. UNSUPPORTED_MODEL is a statement about one model, never a reason to hide a contract. Every listed contract terminates in exactly one analysis state, in one of four buckets: A validated model view, B coherent/Shadow research view, C manual handicap from the packet's own football and context data, D explicit PASS with a named reason.",
+  "analysis_artifact": "analysis/manifest.json"
+ },
+ "freshness_policy": {
+  "max_ledger_age_min": 45.0,
+  "max_capture_age_min": 30.0,
+  "capture_age_measured_at": "PRICING_INPUT_FREEZE",
+  "max_context_age_min": null,
+  "required_context_run_id": "20261027T042022Z",
+  "note": "Enforced before publication. A gate that could not reach its evidence refuses; it never resolves to 'probably fine'."
+ },
+ "blocking_data_issues": [],
+ "kickoffs": [
+  {
+   "game_id": "2026_08_CAR_GB",
+   "kickoff_utc": "2026-10-30T00:15:00+00:00",
+   "minutes_to_kickoff": 4031.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_CAR_GB.md"
+  },
+  {
+   "game_id": "2026_08_ARI_DAL",
+   "kickoff_utc": "2026-11-01T18:00:00+00:00",
+   "minutes_to_kickoff": 7976.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_ARI_DAL.md"
+  },
+  {
+   "game_id": "2026_08_ATL_TB",
+   "kickoff_utc": "2026-11-01T18:00:00+00:00",
+   "minutes_to_kickoff": 7976.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_ATL_TB.md"
+  },
+  {
+   "game_id": "2026_08_BAL_BUF",
+   "kickoff_utc": "2026-11-01T18:00:00+00:00",
+   "minutes_to_kickoff": 7976.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_BAL_BUF.md"
+  },
+  {
+   "game_id": "2026_08_CLE_PIT",
+   "kickoff_utc": "2026-11-01T18:00:00+00:00",
+   "minutes_to_kickoff": 7976.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_CLE_PIT.md"
+  },
+  {
+   "game_id": "2026_08_IND_JAX",
+   "kickoff_utc": "2026-11-01T18:00:00+00:00",
+   "minutes_to_kickoff": 7976.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_IND_JAX.md"
+  },
+  {
+   "game_id": "2026_08_LV_NYJ",
+   "kickoff_utc": "2026-11-01T18:00:00+00:00",
+   "minutes_to_kickoff": 7976.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_LV_NYJ.md"
+  },
+  {
+   "game_id": "2026_08_MIN_DET",
+   "kickoff_utc": "2026-11-01T18:00:00+00:00",
+   "minutes_to_kickoff": 7976.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_MIN_DET.md"
+  },
+  {
+   "game_id": "2026_08_TEN_CIN",
+   "kickoff_utc": "2026-11-01T18:00:00+00:00",
+   "minutes_to_kickoff": 7976.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_TEN_CIN.md"
+  },
+  {
+   "game_id": "2026_08_LAC_LA",
+   "kickoff_utc": "2026-11-01T21:05:00+00:00",
+   "minutes_to_kickoff": 8161.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_LAC_LA.md"
+  },
+  {
+   "game_id": "2026_08_KC_DEN",
+   "kickoff_utc": "2026-11-01T21:25:00+00:00",
+   "minutes_to_kickoff": 8181.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_KC_DEN.md"
+  },
+  {
+   "game_id": "2026_08_NE_MIA",
+   "kickoff_utc": "2026-11-01T21:25:00+00:00",
+   "minutes_to_kickoff": 8181.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_NE_MIA.md"
+  },
+  {
+   "game_id": "2026_08_PHI_WAS",
+   "kickoff_utc": "2026-11-02T01:20:00+00:00",
+   "minutes_to_kickoff": 8416.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_PHI_WAS.md"
+  },
+  {
+   "game_id": "2026_08_CHI_SEA",
+   "kickoff_utc": "2026-11-03T01:15:00+00:00",
+   "minutes_to_kickoff": 9851.6,
+   "game_state": "PREGAME",
+   "file": "games/2026_08_CHI_SEA.md"
+  }
+ ],
+ "minutes_to_first_kickoff": 4031.6,
+ "focus_game_id": null,
+ "focus_game_file": null,
+ "horizon_ids": [],
+ "artifact_name": "run-nfl-2026-w08-40448909474",
+ "files": {
+  "slate": "slate.md",
+  "packet": "packet.json",
+  "manifest": "manifest.json",
+  "games": [
+   "games/2026_08_CAR_GB.md",
+   "games/2026_08_ARI_DAL.md",
+   "games/2026_08_ATL_TB.md",
+   "games/2026_08_BAL_BUF.md",
+   "games/2026_08_CLE_PIT.md",
+   "games/2026_08_IND_JAX.md",
+   "games/2026_08_LV_NYJ.md",
+   "games/2026_08_MIN_DET.md",
+   "games/2026_08_TEN_CIN.md",
+   "games/2026_08_LAC_LA.md",
+   "games/2026_08_KC_DEN.md",
+   "games/2026_08_NE_MIA.md",
+   "games/2026_08_PHI_WAS.md",
+   "games/2026_08_CHI_SEA.md"
+  ],
+  "analysis_manifest": "analysis/manifest.json",
+  "analysis_games": [
+   "analysis/games/2026_08_CAR_GB.json",
+   "analysis/games/2026_08_ARI_DAL.json",
+   "analysis/games/2026_08_ATL_TB.json",
+   "analysis/games/2026_08_BAL_BUF.json",
+   "analysis/games/2026_08_CLE_PIT.json",
+   "analysis/games/2026_08_IND_JAX.json",
+   "analysis/games/2026_08_LV_NYJ.json",
+   "analysis/games/2026_08_MIN_DET.json",
+   "analysis/games/2026_08_TEN_CIN.json",
+   "analysis/games/2026_08_LAC_LA.json",
+   "analysis/games/2026_08_KC_DEN.json",
+   "analysis/games/2026_08_NE_MIA.json",
+   "analysis/games/2026_08_PHI_WAS.json",
+   "analysis/games/2026_08_CHI_SEA.json"
+  ]
+ },
+ "real_money_status": "NOT VALIDATED -- this packet recommends nothing and authorises nothing",
+ "airtable": "NOT CONTACTED -- report generation neither reads nor writes Airtable",
+ "note": "Evidence only. Model/market differences are labelled DISAGREEMENT ONLY -- REQUIRES HANDICAP and are never edges, selections or recommendations.",
+ "latency": {
+  "latency_version": "publication-latency-1.0.0",
+  "reporting_only": true,
+  "snapshot_frozen_at": "2026-10-27T04:27:33+00:00",
+  "components": {
+   "kalshi_capture_queried_at": "2026-10-27T04:27:33+00:00",
+   "context_frozen_at": "2026-10-27T04:22:44.179382+00:00"
+  },
+  "packet_built_at": "2026-10-27T05:05:53.331145+00:00",
+  "publish_side_measured_at": "PACKET_BUILD (publication is ~15s later; state/horizons.json records it)",
+  "horizons": []
+ }
+}
