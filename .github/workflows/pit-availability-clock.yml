@@ -61,4 +61,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CHAINED: ${{ github.event_name == 'workflow_dispatch' && inputs.reason == 'chain' && '--chained' || '' }}
-        run: python3 scripts/ops/pit_availability_clock.py --store /tmp/pit_md_clock $CHAINED | tee -a "$GITHUB_STEP_SUMMARY"
+        # pipefail: the job must go red if the clock itself fails (tee would otherwise report success)
+        run: |
+          set -o pipefail
+          python3 scripts/ops/pit_availability_clock.py --store /tmp/pit_md_clock $CHAINED | tee -a "$GITHUB_STEP_SUMMARY"
