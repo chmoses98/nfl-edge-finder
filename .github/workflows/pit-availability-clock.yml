@@ -1,0 +1,64 @@
+name: NFL PIT availability capture clock
+# The PRIMARY trigger of the PIT availability capture (research only). GitHub's scheduler is not a clock here: from
+# 2026-10-20 to 10-28 it never created 36% of the capture's cron events (Sunday 10-25 11:47-13:47 and Monday 10-26
+# 21:47-22:47 had none), created the report-day ones 2.2-5.5 h late, and never created 67% of the watchdog's own.
+#
+# One long-lived job keeps time itself (scripts/ops/pit_availability_clock.py): for every capture slot inside its
+# ~5.7 h life it dispatches pit-availability-nfl.yml 25 min before the slot with not_before=<slot> (the run takes its
+# runner early, waits for the slot, then gates and captures), re-checks the PUBLISHED store from slot+20 min and
+# re-dispatches within the watchdog's bounds (window open, nothing in flight, <= 3 attempts). Before ending it starts
+# its successor when the next lane has a slot to serve, so one lane spans a capture day; the crons below only (re)start
+# a lane, and a run with nothing to do exits in seconds. The per-slot crons and pit-availability-watchdog.yml remain
+# independent fallbacks.
+#
+# It never captures, publishes, backfills or writes anything: every capture goes through the one capture workflow,
+# its single concurrency group and its Slot gate, so duplicate triggers cannot yield two captures for one slot, and
+# every capture keeps its real retrieval time (pit-availability-health reports late or missing slots as gaps).
+on:
+  schedule:
+    - cron: '5 5-23 * * 0'        # Sunday: before 11:47 and all day (restarts a broken chain)
+    - cron: '5 14-23 * * 1'       # Monday night window 21:47-00:47
+    - cron: '5 19-23 * * 2'       # Tuesday evening, ahead of Wednesday 02:17
+    - cron: '5 */2 * * 3,4,5,6'   # Wednesday-Saturday report days (and Thursday night)
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'why this lane was started ("chain" when a lane hands over)'
+        required: false
+        default: 'manual'
+  pull_request:
+    paths:
+      - '.github/workflows/pit-availability-clock.yml'
+      - 'scripts/ops/pit_availability_clock.py'
+      - 'scripts/ops/pit_availability_health.py'
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch' && format('PIT capture clock · {0}', inputs.reason)
+  || github.event_name == 'schedule' && 'PIT capture clock · schedule'
+  || format('PIT capture clock · {0}', github.event.pull_request.title) }}
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  # one lane: a second start waits (pending) and serves whatever the running lane has not reached
+  group: pit-availability-clock-${{ github.event_name == 'pull_request' && github.head_ref || 'lane' }}
+  cancel-in-progress: false
+jobs:
+  lane:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Plan only (pull request; dispatches nothing)
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/ops/pit_availability_clock.py --plan-only
+      - name: Keep time for the capture slots
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHAINED: ${{ github.event_name == 'workflow_dispatch' && inputs.reason == 'chain' && '--chained' || '' }}
+        run: python3 scripts/ops/pit_availability_clock.py --store /tmp/pit_md_clock $CHAINED | tee -a "$GITHUB_STEP_SUMMARY"

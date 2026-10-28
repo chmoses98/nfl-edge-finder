@@ -20,6 +20,10 @@ from pathlib import Path
 PREFIX = "data/pit_availability/nfl/runs/"
 # First deployment: PR #137, merged on 2026-10-12 at 04:30:52 UTC.
 ACTIVATED = datetime(2026, 10, 12, 4, 30, 52, tzinfo=timezone.utc)
+# 00:47 UTC slot after each night game (Sunday, Monday, Thursday), owed from this date on. From 2026-11-01 (US
+# standard time) those games kick off ~01:15-01:20 UTC, so their ~T-90m inactive lists appear ~23:45-23:50 UTC, after
+# the 23:47 slot; without 00:47 the roster evidence after the list (the [T-240m, T+30m] window) would never be read.
+NIGHT_SLOT_FROM = datetime(2026, 10, 29, 0, 0, tzinfo=timezone.utc)
 GOOD_INJURY = {"UNCHANGED", "NEW_CONTENT"}
 GOOD_DEPTH = {"UNCHANGED", "DIGESTED"}
 GOOD_ESPN = {"CAPTURED"}
@@ -32,6 +36,10 @@ DISPATCH_GRACE_MIN = 12          # give the primary and backup crons this long b
 PREGAME_DISPATCH_MIN = 60
 REPORT_DISPATCH_MIN = 180
 MAX_DISPATCH_PER_SLOT = 3        # bounded retries (publication failures); then the slot stays a visible gap
+# The health job FAILS (an alert someone should act on) only for gaps among the slots due in the last ALERT_HOURS; the
+# full LOOKBACK window is still reported slot by slot. Four 6-hourly health runs see every gap, so none is missed, and a
+# gap that was already alerted on does not keep the job red for a week.
+ALERT_HOURS = 26
 
 
 def _utc(value: str) -> datetime:
@@ -56,6 +64,8 @@ def scheduled_slots(now: datetime, activated: datetime = ACTIVATED) -> list[date
             times += [(h, 47) for h in range(11, 24)]
         if wd in (0, 3):  # Monday/Thursday pregame
             times += [(h, 47) for h in (21, 22, 23)]
+        if wd in (0, 1, 4) and day >= NIGHT_SLOT_FROM:  # 00:47 after the Sunday / Monday / Thursday night game
+            times += [(0, 47)]
         for h, m in times:
             slot = day.replace(hour=h, minute=m)
             if activated <= slot <= now:
@@ -122,9 +132,11 @@ def assess(now: datetime, summary: dict | None, *, grace_minutes: int = 90,
 
 
 def is_pregame_slot(slot: datetime) -> bool:
-    """Slots whose purpose is the ~T-90m inactive-list roster window (Sun 11-23, Mon/Thu 21-23 UTC)."""
+    """Slots whose purpose is the ~T-90m inactive-list roster window (Sun 11-23, Mon/Thu 21-23, and 00:47 UTC
+    Mon/Tue/Fri after the night games)."""
     wd = slot.weekday()
-    return (wd == 6 and 11 <= slot.hour <= 23) or (wd in (0, 3) and slot.hour in (21, 22, 23))
+    return ((wd == 6 and 11 <= slot.hour <= 23) or (wd in (0, 3) and slot.hour in (21, 22, 23))
+            or (wd in (0, 1, 4) and slot.hour == 0 and slot.minute == 47))
 
 
 def run_time(summary: dict) -> datetime | None:
@@ -147,6 +159,24 @@ def match_runs(slots: list[datetime], summaries: list[dict]) -> dict:
     return matched
 
 
+def _published_late_into_next_slot(slot: datetime, until: datetime | None, runs: list[dict],
+                                   published: list[datetime]) -> bool:
+    """A run created inside [slot, until) that waited (for a runner or the concurrency group) past `until` and then
+    published: its capture is real but belongs to the later slot's interval, so this slot is still a gap, caused by
+    queueing rather than by a publication failure. Needs `updatedAt` (gh run list) to bound when the run finished."""
+    if until is None:
+        return False
+    for r in runs or []:
+        try:
+            created, updated = run_anchor(r), _utc(r["updatedAt"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if r.get("event") in ("schedule", "workflow_dispatch") and r.get("conclusion") == "success" \
+                and slot <= created < until and any(until <= p <= updated + timedelta(minutes=1) for p in published):
+            return True
+    return False
+
+
 def classify_workflow_runs(slot: datetime, runs: list[dict], until: datetime | None = None) -> str:
     """What GitHub says happened for an unmatched slot. `runs` = [{event, conclusion, status, createdAt}, ...]
     for the capture workflow on main (schedule / workflow_dispatch only). A run created at or after `until` (the next
@@ -156,7 +186,7 @@ def classify_workflow_runs(slot: datetime, runs: list[dict], until: datetime | N
         if r.get("event") not in ("schedule", "workflow_dispatch"):
             continue
         try:
-            t = _utc(r["createdAt"])
+            t = run_anchor(r)
         except (KeyError, ValueError, TypeError):
             continue
         end = slot + timedelta(hours=MAX_MATCH_HOURS)
@@ -171,6 +201,11 @@ def classify_workflow_runs(slot: datetime, runs: list[dict], until: datetime | N
     if any(r.get("status") != "completed" for r in near):
         return "RUN_IN_PROGRESS"
     return "RAN_SUCCESS_NO_PUBLICATION"
+
+
+def upcoming_slots(now: datetime, until: datetime) -> list[datetime]:
+    """Capture slots strictly after `now` and at or before `until` (the same schedule as `scheduled_slots`)."""
+    return [x for x in scheduled_slots(until, activated=now) if x > now]
 
 
 def latest_slot(now: datetime, activated: datetime = ACTIVATED) -> datetime | None:
@@ -218,12 +253,39 @@ def watchdog_decision(now: datetime, summaries: list[dict], runs: list[dict]) ->
         return {**base, "action": "NONE", "reason": "IN_FLIGHT"}
     def _after(r):
         try:
-            return _utc(r["createdAt"]) >= slot
+            return run_anchor(r) >= slot and "clock:" not in (r.get("displayTitle") or "")
         except (KeyError, ValueError, TypeError):
             return False
     if sum(1 for r in cap if r.get("event") == "workflow_dispatch" and _after(r)) >= MAX_DISPATCH_PER_SLOT:
         return {**base, "action": "NONE", "reason": "ATTEMPTS_EXHAUSTED"}
     return {**base, "action": "DISPATCH", "reason": "slot dropped; window open"}
+
+
+def run_anchor(r: dict) -> datetime:
+    """When a capture run belongs: its creation time, or -- for a clock dispatch, created LEAD minutes before its slot
+    and told to wait (`not_before`) -- the slot named in its title ("clock:YYYY-MM-DDTHH:MM"). Raises on bad input."""
+    created = _utc(r["createdAt"])
+    title = r.get("displayTitle") or ""
+    i = title.find("clock:")
+    if i >= 0:
+        try:
+            slot = datetime.strptime(title[i + 6:i + 22], "%Y-%m-%dT%H:%M").replace(tzinfo=timezone.utc)
+            return max(created, slot)
+        except ValueError:
+            pass
+    return created
+
+
+def run_span(r: dict) -> tuple[datetime, datetime]:
+    """[anchor - 1 min, end]: a published capture inside it was produced by this run. `end` is the run's last update
+    (gh `updatedAt`) when known, else anchor + 30 min."""
+    anchor = run_anchor(r)
+    end = anchor + timedelta(minutes=30)
+    try:
+        end = max(end, _utc(r["updatedAt"]) + timedelta(minutes=1))
+    except (KeyError, ValueError, TypeError):
+        pass
+    return anchor - timedelta(minutes=1), end
 
 
 def trigger_for(summary: dict, runs: list[dict] | None) -> str:
@@ -232,18 +294,19 @@ def trigger_for(summary: dict, runs: list[dict] | None) -> str:
     best = None
     for r in runs or []:
         try:
-            c = _utc(r["createdAt"])
+            lo, hi = run_span(r)
         except (KeyError, ValueError, TypeError):
             continue
-        if r.get("event") in ("schedule", "workflow_dispatch") and t and c - timedelta(minutes=1) <= t <= c + timedelta(minutes=30):
-            if best is None or c > best[0]:
-                best = (c, r)
+        if r.get("event") in ("schedule", "workflow_dispatch") and t and lo <= t <= hi:
+            if best is None or lo > best[0]:
+                best = (lo, r)
     if best is None:
         return "unknown"
     r = best[1]
     if r["event"] == "schedule":
         return "schedule"
-    return "watchdog" if "watchdog:" in (r.get("displayTitle") or "") else "manual"
+    title = r.get("displayTitle") or ""
+    return "clock" if "clock" in title else ("watchdog" if "watchdog:" in title else "manual")
 
 
 def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | None = None,
@@ -261,16 +324,17 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
     window = [x for x in due if x >= lo]
     matched = match_runs(due, summaries)
     trig = {sl: trigger_for(sm, runs) for sl, sm in matched.items()}
+    all_runs = list(runs or [])
     if runs is not None:
         # A workflow run that produced a published capture is accounted for by that slot; it must not also be read
         # as "a run happened" for another slot whose window it merely falls inside.
         pub = [run_time(sm) for sm in matched.values()]
         def _accounted(r):
             try:
-                t = _utc(r["createdAt"])
+                lo, hi = run_span(r)
             except (KeyError, ValueError, TypeError):
                 return False
-            return any(timedelta(minutes=-1) <= (p - t) <= timedelta(minutes=30) for p in pub)
+            return any(lo <= p <= hi for p in pub)
         runs = [r for r in runs if not _accounted(r)]
     allowed = {"nflverse_injuries": GOOD_INJURY, "nflverse_depth_charts": GOOD_DEPTH,
                "espn_injuries": GOOD_ESPN, "espn_event_rosters": GOOD_ROSTER}
@@ -281,7 +345,12 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
         sm = matched.get(slot)
         if sm is None:
             nxt = next((x for x in all_slots if x > slot), None)
-            cause = classify_workflow_runs(slot, runs, nxt) if runs is not None else "UNKNOWN_CAUSE"
+            if runs is None:
+                cause = "UNKNOWN_CAUSE"
+            elif _published_late_into_next_slot(slot, nxt, all_runs, [run_time(x) for x in matched.values()]):
+                cause = "RAN_LATE_PUBLISHED_IN_NEXT_SLOT"
+            else:
+                cause = classify_workflow_runs(slot, runs, nxt)
             verdict, late, bad = f"MISSING:{cause}", None, []
         else:
             late = round((run_time(sm) - slot).total_seconds() / 60.0, 1)
@@ -298,6 +367,8 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
             gaps["event_roster"].append(slot.isoformat())
     ok = bool(window) and set(counts) <= {"COVERED"}
     status = "NOT_DUE" if not window else ("COVERAGE_OK" if ok else "COVERAGE_GAPS")
+    recent_lo = now - timedelta(hours=ALERT_HOURS)
+    recent_gaps = [x for x in slots_out if x["verdict"] != "COVERED" and _utc(x["slot_utc"]) >= recent_lo]
     by_trigger: dict[str, int] = {}
     for x in slots_out:
         if x["trigger"]:
@@ -306,7 +377,8 @@ def assess_coverage(now: datetime, summaries: list[dict], *, runs: list[dict] | 
                    "published_any": sum(1 for x in slots_out if x["minutes_late"] is not None),
                    "published_by_trigger": by_trigger}
     return {"status": status, "lookback_hours": lookback_hours, "slot_counts": counts, "gaps": gaps,
-            "reliability": reliability,
+            "reliability": reliability, "alert_hours": ALERT_HOURS,
+            "recent_gaps": [{"slot_utc": x["slot_utc"], "verdict": x["verdict"]} for x in recent_gaps],
             "slots": slots_out, "availability_certified": False,
             "note": "A missing, late, failed or empty-roster capture is a gap, never evidence a player was available."}
 
@@ -360,7 +432,8 @@ def main(argv=None) -> int:
     ap.add_argument("--now", help="offset-aware ISO 8601 for replay only")
     ap.add_argument("--grace-minutes", type=int, default=90)
     ap.add_argument("--store", help="read summaries from a checked-out store dir (data/pit_availability/nfl) instead of --ref")
-    ap.add_argument("--runs-json", help="`gh run list --json event,conclusion,status,createdAt` output for the capture workflow")
+    ap.add_argument("--runs-json", help="`gh run list --json event,conclusion,status,createdAt,updatedAt,displayTitle` "
+                                        "output for the capture workflow")
     ap.add_argument("--lookback-hours", type=int, default=168)
     ap.add_argument("--mode", choices=("health", "gate", "watchdog"), default="health")
     ap.add_argument("--event", default="schedule", help="gate mode: triggering event name")
@@ -379,9 +452,14 @@ def main(argv=None) -> int:
         result = assess(now, latest, grace_minutes=a.grace_minutes)
         cov = assess_coverage(now, sums, runs=runs, lookback_hours=a.lookback_hours, grace_minutes=a.grace_minutes)
         result["coverage"] = cov
-        if result["status"] == "CAPTURE_RECORDED" and cov["status"] == "COVERAGE_GAPS":
+        if result["status"] == "CAPTURE_RECORDED" and cov["recent_gaps"]:
             result["status"] = "COVERAGE_GAPS"
-            result["reason"] = f"latest capture recorded, but slot gaps in last {a.lookback_hours}h: {cov['slot_counts']}"
+            result["reason"] = (f"{len(cov['recent_gaps'])} slot gap(s) due in the last {ALERT_HOURS}h: "
+                                f"{[g['slot_utc'][:16] + ' ' + g['verdict'] for g in cov['recent_gaps']]}; "
+                                f"{a.lookback_hours}h: {cov['slot_counts']}")
+        elif result["status"] == "CAPTURE_RECORDED" and cov["status"] == "COVERAGE_GAPS":
+            result["reason"] = (f"latest capture recorded; no gap in the last {ALERT_HOURS}h "
+                                f"(older gaps in the {a.lookback_hours}h report: {cov['slot_counts']})")
     except (RuntimeError, ValueError, OSError, json.JSONDecodeError) as exc:
         result = {"status": "STORE_UNREADABLE", "reason": str(exc), "owed_utc": None}
     print(json.dumps(result, sort_keys=True, indent=2))

@@ -45,7 +45,7 @@ jobs:
         run: |
           bash scripts/pit_availability/checkout_store.sh /tmp/pit_md
           gh run list --workflow pit-availability-nfl.yml --branch main --limit 100 \
-            --json event,conclusion,status,createdAt,displayTitle > /tmp/pit_runs.json
+            --json event,conclusion,status,createdAt,updatedAt,displayTitle > /tmp/pit_runs.json
           python3 scripts/ops/pit_availability_health.py --mode watchdog --store /tmp/pit_md/data/pit_availability/nfl \
             --runs-json /tmp/pit_runs.json --summary "$GITHUB_STEP_SUMMARY"
         env:

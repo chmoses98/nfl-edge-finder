@@ -160,6 +160,25 @@ Cadence: Wednesday to Saturday at 02/08/14/20 UTC (practice reports, then Friday
 hourly on Sunday from 11 to 23 UTC, and Monday and Thursday at 21–23 UTC (T-90m windows). A pull_request run is a
 dry run.
 
+Scheduling (2026-10-28). GitHub's cron proved no clock for this capture: from 10-20 to 10-28 it never created 36% of
+the capture's cron events (Sunday 10-25 11:47-13:47 and Monday 10-26 21:47-22:47 had none), created the report-day ones
+2.2-5.5 h late, and never created 67% of the watchdog's own events; jobs also waited for a runner (median 2 min, p90 34,
+max 92). The primary trigger is therefore `.github/workflows/pit-availability-clock.yml`
+(`scripts/ops/pit_availability_clock.py`): one long-lived, self-chaining job that dispatches the capture 25 min before
+each slot with `not_before=<slot>`; the capture run takes its runner early, waits for the slot, then runs the unchanged
+Slot gate and capture. The lane re-checks the published store from slot+20 min and re-dispatches within the watchdog's
+bounds. The per-slot crons and the cron watchdog remain fallbacks. Every capture still goes through the one capture
+workflow, its single concurrency group and its gate, and keeps its real retrieval time; nothing is backfilled.
+
+From 2026-10-29 there is also a 00:47 UTC slot on Monday, Tuesday and Friday: from 2026-11-01 (US standard time) the
+Sunday, Monday and Thursday night games kick off about 01:15-01:20 UTC, so their ~T-90m inactive lists appear after the
+23:47 slot. Without it, no capture would see those games' rosters after the list.
+
+`scripts/ops/pit_availability_health.py` reports the last 168 h slot by slot and fails (alerts) only for gaps among the
+slots due in the last 26 h, so each gap is alerted on by about four 6-hourly runs instead of keeping the job red for a
+week. A run that waited past the next slot before publishing is reported as `MISSING:RAN_LATE_PUBLISHED_IN_NEXT_SLOT`
+(queueing), not as a publication failure.
+
 Coverage limits of this cadence (known, not yet addressed):
 
 * The T-240m..T+30m roster window is only reached on Sunday, Monday and Thursday. Saturday games (late season),

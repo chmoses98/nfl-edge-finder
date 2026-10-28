@@ -16,15 +16,22 @@ name: PIT availability capture (NFL, research only)
 # workflow for a dropped slot while its window is open. The "Slot gate" step makes the redundancy idempotent: a run
 # whose latest slot already has a PUBLISHED capture is skipped. A late run is never skipped, and nothing is backfilled:
 # every capture carries our real retrieval time, and a missed or late slot stays a coverage gap in the health guard.
+# 2026-10-28: the crons proved no clock (10-20..28: 36% of capture cron events never created, report-day ones created
+# 2.2-5.5 h late, 67% of the watchdog's never created), so the PRIMARY trigger is now pit-availability-clock.yml: a
+# self-clocked lane that dispatches this workflow 25 min before each slot with `not_before=<slot>`; the run takes its
+# runner early, waits here until the slot, then gates and captures. The crons and the watchdog remain as fallbacks.
+# 00:47 UTC Mon/Tue/Fri: the night games kick off ~01:15-01:20 UTC from 2026-11-01, after the 23:47 slot's T-90 list.
 on:
   schedule:
     - cron: '17 2,8,14,20 * * 3,4,5,6'
     - cron: '47 11-23 * * 0'
     - cron: '47 21,22,23 * * 1,4'
+    - cron: '47 0 * * 1,2,5'
     # backups (+12 min)
     - cron: '29 2,8,14,20 * * 3,4,5,6'
     - cron: '59 11-23 * * 0'
     - cron: '59 21,22,23 * * 1,4'
+    - cron: '59 0 * * 1,2,5'
   workflow_dispatch:
     inputs:
       reason:
@@ -35,6 +42,10 @@ on:
         description: 'capture even if the latest slot is already covered'
         required: false
         default: 'false'
+      not_before:
+        description: 'UTC ISO time (the clock sets the slot): wait until then before gating and capturing (max 50 min)'
+        required: false
+        default: ''
   pull_request:
     paths:
       - '.github/workflows/pit-availability-nfl.yml'
@@ -61,7 +72,7 @@ concurrency:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 75   # up to 50 min waiting for a clock dispatch's not_before, then the usual <= 20 min run
     env:
       DRY: ${{ github.event_name == 'pull_request' && '1' || '0' }}
       STORE: ${{ github.event_name == 'pull_request' && '/tmp/dry_pit/nfl' || 'data/pit_availability/nfl' }}
@@ -76,6 +87,21 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Wait for the slot (clock dispatches arrive ~25 min early so the runner queue is absorbed before the slot)
+        if: github.event_name == 'workflow_dispatch' && inputs.not_before != ''
+        env:
+          NOT_BEFORE: ${{ inputs.not_before }}
+        run: |
+          python3 - <<'PY'
+          import os, time
+          from datetime import datetime, timezone
+          t = datetime.fromisoformat(os.environ["NOT_BEFORE"].replace("Z", "+00:00")).astimezone(timezone.utc)
+          left = (t - datetime.now(timezone.utc)).total_seconds()
+          if left > 50 * 60:
+              raise SystemExit(f"not_before {t.isoformat()} is {left / 60:.0f} min away (max 50): refusing to hold the lane")
+          print(f"waiting {max(left, 0) / 60:.1f} min for the slot {t.isoformat()}")
+          time.sleep(max(left, 0))
+          PY
       - name: Check out the published store (sparse, read-only) and verify it
         run: |
           bash scripts/pit_availability/checkout_store.sh /tmp/pit_md
