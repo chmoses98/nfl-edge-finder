@@ -171,5 +171,6 @@ def test_clock_workflow_is_one_uncancelled_lane_that_only_dispatches_on_main():
     timeout = int(wf.split("timeout-minutes:")[1].split()[0])
     assert timeout >= C.LIFETIME_MIN + 10
     assert "--plan-only" in wf and "github.ref == 'refs/heads/main'" in wf
+    assert "set -o pipefail" in wf  # a failing clock must not be reported green through `| tee`
     for p in ("pit-availability-health.yml", "pit-availability-watchdog.yml"):
         assert "createdAt,updatedAt,displayTitle" in (REPO / ".github/workflows" / p).read_text()
