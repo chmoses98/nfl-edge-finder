@@ -1,8 +1,8 @@
 ## NFL projection scorecard — last 7 days
 
-Generated 2026-10-28T20:51:55Z. Research only; nothing here is a betting signal.
+Generated 2026-10-29T19:26:38Z. Research only; nothing here is a betting signal.
 
-Archived pregame forecasts: 4426 across 27 games. Settled: 2441 (void/DNP 179, stat corrections 0).
+Archived pregame forecasts: 5453 across 41 games. Settled: 2441 (void/DNP 179, stat corrections 0).
 
 | Stat | Model | n (games) | MAE | Bias | CRPS | 80% range caught | vs incumbent (CRPS) |
 |---|---|---|---|---|---|---|---|
@@ -82,3 +82,5 @@ Pooled relative bias (family-n weighted): new_team_first4 +25.2% (n=37); backup 
 **DNP (void) rate by pre-game participation call**: CONFIRMED_ACTIVE 0.0% (n=64); CONFIRMED_OUT 100.0% (n=43); LIKELY_ACTIVE 1.8% (n=735); LIKELY_OUT 100.0% (n=4); UNCERTAIN 18.0% (n=61)
 
 **Settled by gate status**: PASS n=768 MAE=8.568; REVIEW n=68 MAE=10.378
+
+**Availability capture** (last run): mean coverage 1.0, participation calls {'LIKELY_ACTIVE': 219, 'LIKELY_OUT': 2, 'UNCERTAIN': 1}
