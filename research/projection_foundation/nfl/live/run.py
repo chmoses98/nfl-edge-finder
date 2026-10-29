@@ -283,7 +283,6 @@ def main(argv=None) -> int:
     ap.add_argument("--no-incumbent", action="store_true")
     ap.add_argument("--offline-espn", default=None)
     ap.add_argument("--offline-sleeper", default=None)
-    ap.add_argument("--keep-dated-season", action="store_true")
     ap.add_argument("--replay-depth", action="store_true", help="REPLAY ONLY: read the dt-stamped depth-chart file as of --now")
     ap.add_argument("--summary-out", default=None)
     ap.add_argument("--github-output", default=None)
