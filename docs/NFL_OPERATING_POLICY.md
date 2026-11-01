@@ -5,7 +5,7 @@
 the other needs fixing. Those documents keep their mechanics (gates, fee arithmetic, ledger rules); they no longer own the staking
 numbers, the Airtable assumptions or the operating loop.
 
-Owner: the person who places the bets. Effective 2026-10-25. Replaces the `pilot-2026-v1` settings (0.5%-of-bankroll units, 2U per
+Owner: the person who places the bets. Staking updated 2026-11-01. Replaces the `pilot-2026-v1` settings (0.5%-of-bankroll units, 2U per
 position, the "6-8 week pilot" and the Airtable operating foundation), which were never the owner's preferences.
 
 ---
@@ -18,11 +18,11 @@ position, the "6-8 week pilot" and the Airtable operating foundation), which wer
 | Permitted stakes | whole units, **1U to 5U** ($75 to $375) |
 | Maximum single stake | **5U = $375** |
 | Bets per game | zero is a valid answer; nothing obliges a number of bets or a bet on every game |
-| Correlated bets | assessed as **combined exposure** (one budget per game thesis / correlation group) |
+| Correlated bets | **5U maximum combined exposure** per game thesis / correlation group, including existing positions |
 | Larger stakes | allowed for a defensible, highly confident recommendation; see the evidence ladder (section 4) |
 | Model-market disagreement | **never** a reason for an aggressive stake |
 
-Enforced in `config/risk_policy.json` (`owner-2026-10-v1`) and `nfl_edge/handicap/risk.py`, pinned by `tests/test_owner_policy.py`
+Enforced in `config/risk_policy.json` (`owner-2026-11-thesis-only-v1`) and `nfl_edge/handicap/risk.py`, pinned by `tests/test_owner_policy.py`
 and the source hashes in `tests/test_incumbent_unchanged.py`:
 
 | limit | value | note |
@@ -30,18 +30,24 @@ and the source hashes in `tests/test_incumbent_unchanged.py`:
 | fixed unit | $75 | `fixed_unit_dollars`; independent of any bankroll |
 | stake increment / minimum | 1U / 1U | a position that cannot be 1U is **rejected**, not taken at a token size |
 | per position | 5U | was 2U in the pilot |
-| per game (combined) | 8U | pilot: 4U (2x the position cap); now 1.6x it, so a bigger stake never loosens game protection |
-| per correlation group | 6U | pilot: 3U (1.5x); now 1.2x. Kept **tighter** than the game cap on purpose |
-| per slate | 25U ($1,875) | pilot: 12U (6x); now 5x. When a bankroll is supplied the **more binding** of this and 10% of bankroll |
+| per game (combined) | None | Independent theses within the same game are not restricted by a game-wide aggregate |
+| per correlation group | 5U ($375) | Multiple tickets on the same thesis **share** this budget across runs, including outstanding exposure |
+| per slate | None | No arbitrary full-slate unit or bankroll-percentage cap; exposure still tracked |
 | per position vs bankroll | 3% | applies **only** when a bankroll snapshot is supplied; otherwise the report says `NOT_EVALUATED` instead of assuming one |
 | grade caps | A+ 5U, A 4U, A- 3U, B+/B 2U, B-/C 1U | ceilings, not targets; the evidence ladder decides what a candidate reaches |
 
-The aggregate caps (8 / 6 / 25U) are **not the owner's words**: the owner gave the 1U-5U range. The three aggregate caps are this
-policy's translation of the old protection into the new units, sized so that each is a smaller multiple of the single-stake cap than
-the pilot's was, and so that the 2026 season's actual weekly outlay (about 12U to 54U gross, much of it recycled capital) is not
-mistaken for simultaneous risk. They are config values; change them in one reviewed edit if the owner wants different ones. Nothing else
-in the safety stack moved: quote and book freshness stay at 15 minutes, the full-position depth walk, side-correct executable ask,
-fee-schedule verification (45 days), net-EV > 0 after fees, cumulative exposure across runs, fail-closed on missing evidence.
+The owner explicitly distinguishes correlation concentration from the number of independent opportunities. The
+previous 8U per-game and 25U per-slate limits (including the 10%-of-bankroll slate limit) are removed. A position
+may carry 1U–5U, and all positions sharing a common football thesis or driver share a strict **5U** combined
+budget, counting outstanding positions across earlier runs. Separate theses in one game do not consume each
+other's correlation budget. Every proposed bet still needs an identifiable correlation group; otherwise
+its risk cannot be evaluated reliably. Total dollar exposure remains recorded and displayed rather than
+silently treated as zero or as a substitute for a cap.
+
+Nothing else in the safety stack moved: quote and book freshness (15 minutes), full-position depth walk,
+side-correct executable ask, fee-schedule verification (45 days), net-EV > 0 after fees, bankroll-aware
+single-position safeguards, and available-cash authorization remain. No fractional units are allowed. A
+proposed bet that does not justify a full 1U is a PASS or LEAN, never a 0.5U wager.
 
 Kelly and edge-proportional sizing remain **off**. No model here has earned the calibration they would need.
 
@@ -71,7 +77,7 @@ C theses         the analyst writes a thesis per game that deserves one (schema 
 D scripts        nine scripts (favourite controls / competitive / underdog outperforms x low / normal / high scoring), from the same draws as the fair value
 E expression     every derivable contract, both sides, on one footing, plus declared contracts; ranked by conservative edge per unit of payoff risk
 F challenge      ten questions; any OPEN or FAIL means PASS
-G staking        evidence ladder -> risk policy (game / group / slate caps incl. the owner's open positions) -> preflight (depth, fees, quote age)
+G staking        evidence ladder -> risk policy (position + correlated-thesis cap incl. existing exposure) -> preflight (depth, fees, quote age)
 H card           Game | Bet | Current price | Bet up to | Stake | Reason, then every game's terminal state, then what was rejected and why
 ```
 
