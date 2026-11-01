@@ -32,7 +32,8 @@ analyst's own confidence.
 Caps that apply at every tier: a model-market disagreement above 10 points on the contract caps it at 1U (on every family the
 repository has scored, the market won where the football-only model disagreed by more than 0.10); a fair range wider than 0.20 steps
 the tier down by one; a candidate that shares a thesis driver with an accepted candidate shares that driver's budget (risk policy
-correlation-group cap); and the risk policy's own game/slate/bankroll caps are applied afterwards by `risk.RiskPolicy`.
+5U correlation-group cap); the policy no longer imposes separate full-game or full-slate budgets, but retains
+bankroll safeguards, executable depth, and existing-position accounting.
 """
 from __future__ import annotations
 
