@@ -6,7 +6,7 @@
     Step D  scripts          nine scripts from the SAME draws as the fair value, with the contract's result in each
     Step E  expression       every derivable full-game contract, both sides, plus declared contracts, ranked on one footing
     Step F  challenge        ten questions; OPEN or FAIL means PASS
-    Step G  staking          evidence ladder (1U-5U) -> risk policy (game / correlation group / slate caps) -> preflight when evidence is present
+    Step G  staking          evidence ladder (1U-5U) -> risk policy (individual + correlated-thesis caps) -> preflight when evidence is present
     Step H  card             Game | Bet | Current Price | Bet Up To | Stake | Reason, then everything not bet and why
 
 The card READS and COMPUTES. It places nothing, writes nothing to Kalshi, and writes nothing to the ledger unless the caller runs the
@@ -342,7 +342,7 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
                                         correlation_group=sel["record"]["correlation_group"], grade=UNITS_TO_GRADE[sel["stake_units"]]))
             accepted.append(rep)
 
-    # portfolio caps (with the owner's real open exposure folded in)
+    # portfolio limits (with the owner's real open exposure reported for bankroll review)
     outstanding = None
     if owner["state"] == "OK" and owner["by_game"]:
         outstanding = R.OutstandingExposure(by_game=dict(owner["by_game"]), total=round(sum(owner["by_game"].values()), 2),
@@ -757,7 +757,7 @@ def redact_public(card: dict) -> dict:
         items = ((t.get("selected") or {}).get("challenge") or {}).get("items") or []
         for it in items:
             if it.get("id") == "C10" and it.get("status") != "CLEAR":
-                it["finding"] = "owner exposure on this game, if any, is counted against the game cap (positions and amounts withheld from public output)"
+                it["finding"] = "owner exposure on this game is tracked; identified correlated positions consume their shared thesis budget (amounts withheld)"
         for tr in (t.get("selected") or {}).get("portfolio", {}) and [t["selected"]["portfolio"]] or []:
             tr.pop("outstanding", None)
     return out
