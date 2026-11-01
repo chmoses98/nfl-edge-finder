@@ -1,8 +1,8 @@
 ## NFL projection scorecard — season to date
 
-Generated 2026-10-31T17:43:30Z. Research only; nothing here is a betting signal.
+Generated 2026-11-01T15:10:01Z. Research only; nothing here is a betting signal.
 
-Archived pregame forecasts: 6541 across 41 games. Settled: 2515 (void/DNP 185, stat corrections 0).
+Archived pregame forecasts: 7461 across 41 games. Settled: 2515 (void/DNP 185, stat corrections 0).
 
 | Stat | Model | n (games) | MAE | Bias | CRPS | 80% range caught | vs incumbent (CRPS) |
 |---|---|---|---|---|---|---|---|
@@ -106,4 +106,4 @@ Pooled relative bias (family-n weighted): new_team_first4 +13.6% (n=63); backup 
 
 **Settled by gate status**: PASS n=1504 MAE=8.127; REVIEW n=182 MAE=7.661
 
-**Availability capture** (last run): mean coverage 1.0, participation calls {'LIKELY_ACTIVE': 166, 'UNCERTAIN': 31, 'CONFIRMED_OUT': 7}
+**Availability capture** (last run): mean coverage 1.0, participation calls {'LIKELY_ACTIVE': 168, 'UNCERTAIN': 30, 'CONFIRMED_OUT': 7}
