@@ -1,18 +1,18 @@
 {
-  "policy_id": "owner-2026-10-v1",
-  "description": "Owner staking policy. 1 unit = $75 fixed. Permitted stakes are whole units from 1U to 5U ($75 to $375). A game may receive zero bets and nothing obliges a minimum number of bets. Limits are counts of units (dollars follow from the fixed unit); bankroll-fraction guards apply only when a bankroll snapshot is supplied. Authoritative explanation: docs/NFL_OPERATING_POLICY.md.",
+  "policy_id": "owner-2026-11-thesis-only-v1",
+  "description": "Owner NFL betting policy: $75 fixed unit, whole 1U-5U positions, 5U maximum combined exposure for one correlated game thesis. Independent theses may be bet in the same game or across the slate without automatic per-game/slate caps. Independent analysis, live executable prices, fees, liquidity, current bankroll and position checks still apply.",
   "status": "ACTIVE",
   "supersedes": "pilot-2026-v1",
-  "rationale": "The owner's stated preferences replace the PILOT settings (0.5% of bankroll per unit, 2U per position). The aggregate exposure, correlation-group and slate limits are KEPT and re-expressed in the owner's units so that a larger permitted single stake cannot silently loosen portfolio protection: they scale with the 2.5x increase in the maximum single stake (2U -> 5U) only as far as the 2026 ledger shows the desk actually operates (see docs/research/ACTUAL_WAGER_DIAGNOSIS_2026-10-25.md). Sizing remains flat in units with evidence-tier caps (nfl_edge/handicap/staking.py); it is NOT Kelly and NOT proportional to model-market disagreement, because no model in this repository has earned that authority (docs/PRODUCTION_ELIGIBILITY.md).",
+  "rationale": "The owner explicitly rejected per-slate and per-game caps as conflating unrelated bets with multiple exposures to one thesis. Remove both aggregate limits; preserve individual stake caps, mandatory correlation grouping, and all non-slate execution, bankroll and price safeguards. Correlated bets from the same thesis share a combined 5U budget.",
   "fixed_unit_dollars": 75,
   "stake_increment_units": 1,
   "min_stake_units": 1,
   "unit_fraction_of_bankroll": 0.005,
   "max_stake_per_position_units": 5,
-  "max_exposure_per_game_units": 8,
-  "max_exposure_per_correlation_group_units": 6,
-  "max_slate_exposure_units": 25,
-  "max_slate_exposure_fraction_of_bankroll": 0.1,
+  "max_exposure_per_game_units": null,
+  "max_exposure_per_correlation_group_units": 5,
+  "max_slate_exposure_units": null,
+  "max_slate_exposure_fraction_of_bankroll": null,
   "bankroll_max_stake_fraction": 0.03,
   "grade_caps_units": {
     "A+": 5,
@@ -26,10 +26,10 @@
   "round_stakes_to_dollars": true,
   "min_stake_dollars": 1,
   "notes": [
-    "unit_fraction_of_bankroll is retained only as the fallback for a policy file that sets no fixed unit; with fixed_unit_dollars present it is not read.",
-    "max_exposure_per_correlation_group_units (6) is deliberately TIGHTER than the per-game cap (8): correlated positions in one game are one bet wearing several tickets, and combined exposure is assessed per group.",
-    "The slate cap is the MORE BINDING of the unit count (25U = $1,875) and, when a bankroll is supplied, the bankroll fraction (10%). bankroll_max_stake_fraction (3%) likewise only binds when a bankroll is supplied; without one the report states 'NOT_EVALUATED' rather than assuming a bankroll.",
-    "Grade caps are ceilings, not targets. The evidence-tier ladder in nfl_edge/handicap/staking.py decides which tier a candidate actually reaches, and 4U-5U need evidence no model in this repository currently has.",
-    "Exposure is measured in dollars staked, which for a Kalshi long is the maximum loss."
+    "No fixed per-game or slate exposure cap: multiple independent, positively valued theses must not cannibalize each other's budget.",
+    "One game thesis or correlated driver has a 5U ($375) combined cap across tickets and runs. Every recommendation needs a correlation group.",
+    "The existing 3%-of-bankroll cap per position still applies if bankroll is available; any proposed amount below 1U after caps is rejected, never recommended as a fractional unit.",
+    "Staking evidence ladder, executable quote and depth, fees, and available-cash authorization remain unchanged.",
+    "All outstanding stakes are counted and reported; total exposure is observable even though no slate ceiling is imposed."
   ]
 }

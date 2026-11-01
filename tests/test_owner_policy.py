@@ -1,7 +1,7 @@
 """The OWNER staking policy (docs/NFL_OPERATING_POLICY.md), tested against the REAL config/risk_policy.json.
 
 1 unit = $75, whole-unit stakes of 1U-5U, max 5U ($375), a game may get zero bets, correlated bets share a budget,
-and none of the older safety limits (freshness windows, depth, fees, exposure caps) were loosened to get here.
+no slate or per-game caps, and a maximum 5U shared budget per correlated thesis. Price, liquidity and bankroll guards still apply.
 """
 import json
 import os
@@ -39,9 +39,10 @@ def test_the_limit_block_states_dollars_and_bankroll_guard_state():
     rep = P().evaluate([], None)
     assert rep.unit_dollars == 75
     assert rep.limits["max_stake_per_position"] == 375
-    assert rep.limits["max_exposure_per_game"] == 600
-    assert rep.limits["max_exposure_per_correlation_group"] == 450
-    assert rep.limits["max_slate_exposure"] == 1875
+    assert rep.limits["max_exposure_per_game"] is None
+    assert rep.limits["max_exposure_per_correlation_group"] == 375
+    assert rep.limits["max_slate_exposure"] is None
+    assert rep.limits["slate_binding_limit"] is None
     assert rep.limits["bankroll_guards"].startswith("NOT_EVALUATED")
 
 
@@ -66,21 +67,32 @@ def test_a_game_with_no_proposals_needs_no_bet():
 
 def test_correlated_positions_share_one_budget():
     g = "2026_07_AAA_BBB::SCORING_UP"
-    rep = P().evaluate([prop("a", 375, group=g), prop("b", 375, group=g)], None)
+    rep = P().evaluate([prop("a", 225, group=g), prop("b", 225, group=g)], None)
     stakes = sorted(v.approved_stake for v in rep.verdicts)
-    assert stakes == [75, 375]                      # 6U group cap = 450 total
-    assert rep.exposure_by_correlation_group[g] == 450
+    assert stakes == [150, 225]                    # total stays at 5U = $375
+    assert rep.exposure_by_correlation_group[g] == 375
 
 
-def test_game_and_slate_caps_bind_in_units():
+def test_independent_theses_are_not_blocked_by_game_or_slate_caps():
     pol = P()
-    rep = pol.evaluate([prop("a", 375, game="G1", group="x"), prop("b", 375, game="G1", group="y"),
-                        prop("c", 375, game="G1", group="z")], None)
-    assert rep.exposure_by_game["G1"] == 600        # 8U per game
-    many = [prop(f"r{i}", 375, game=f"G{i}", group=f"g{i}") for i in range(8)]
+    same_game = [prop(f"r{i}", 375, game="G1", group=f"G1::different-thesis-{i}") for i in range(3)]
+    rep = pol.evaluate(same_game, None)
+    assert rep.exposure_by_game["G1"] == 1125    # 15U, no same-game cap
+    assert all(v.status == R.APPROVED for v in rep.verdicts)
+    many = [prop(f"r{i}", 375, game=f"G{i}", group=f"G{i}::independent") for i in range(8)]
     rep = pol.evaluate(many, None)
-    assert rep.total_exposure == 1875               # 25U slate cap; the eighth is squeezed, not the first
-    assert sum(1 for v in rep.verdicts if v.status == R.REJECTED) >= 1 or rep.total_exposure <= 1875
+    assert rep.total_exposure == 3000            # 40U, no slate cap
+    assert all(v.status == R.APPROVED for v in rep.verdicts)
+
+
+def test_outstanding_exposure_still_consumes_the_shared_thesis_budget():
+    g = "G1::SHARED"
+    outstanding = R.OutstandingExposure(by_game={"G1": 225}, by_correlation_group={g: 225},
+                                        total=225, source="fixture")
+    rep = P().evaluate([prop("new", 225, game="G1", group=g)], None, outstanding=outstanding)
+    v = rep.verdicts[0]
+    assert v.status == R.CAPPED and v.approved_stake == 150
+    assert rep.exposure_by_correlation_group[g] == 375
 
 
 def test_a_bankroll_when_supplied_adds_a_guard_and_never_removes_one():
@@ -104,25 +116,22 @@ def test_a_policy_without_a_fixed_unit_still_demands_a_bankroll():
     assert legacy.max_stake_per_position_units == 2.0     # the pilot file is unchanged, just no longer the live policy
 
 
-def test_the_owner_policy_did_not_loosen_the_portfolio_protection_per_unit():
-    """Per-game/group/slate caps are larger in dollars only because a unit is larger; per position they are no looser."""
-    owner, pilot = P(), R.RiskPolicy.load(ROOT, PILOT)
-    def ratios(p):
-        pos = p.max_stake_per_position_units
-        return (p.max_exposure_per_game_units / pos, p.max_exposure_per_correlation_group_units / pos,
-                p.max_slate_exposure_units / pos)
-    for o, p in zip(ratios(owner), ratios(pilot)):
-        assert o <= p, "an aggregate cap grew faster than the single-stake cap"
-    assert owner.max_exposure_per_correlation_group_units < owner.max_exposure_per_game_units
-    assert owner.max_slate_exposure_units <= 25
+def test_only_correlated_thesis_budget_remains_an_aggregate_cap():
+    pol = P()
+    assert pol.max_exposure_per_game_units is None
+    assert pol.max_slate_exposure_units is None
+    assert pol.max_slate_exposure_fraction_of_bankroll is None
+    assert pol.max_exposure_per_correlation_group_units == 5
+    assert pol.max_stake_per_position_units == 5
 
 
 def test_the_authoritative_document_matches_the_config_and_every_other_workflow_doc_points_to_it():
     cfg = json.load(open(os.path.join(ROOT, "config", "risk_policy.json")))
     doc = open(os.path.join(ROOT, "docs", "NFL_OPERATING_POLICY.md")).read()
     assert f"${cfg['fixed_unit_dollars']}" in doc and "1U to 5U" in doc and "$375" in doc
-    for key in ("max_exposure_per_game_units", "max_exposure_per_correlation_group_units", "max_slate_exposure_units"):
-        assert f"| {cfg[key]}U" in doc.replace("| **", "| ") or f"{cfg[key]}U" in doc
+    assert "per correlation group | 5U" in doc
+    assert "per slate | None" in doc
+    assert "per game (combined) | None" in doc
     for rel in ("RUN_NFL.md", "DECISION_STANDARD.md", "PREFLIGHT.md", "OPERATIONS.md", "AIRTABLE_BRIDGE.md"):
         assert "NFL_OPERATING_POLICY.md" in open(os.path.join(ROOT, "docs", rel)).read(), rel
     assert "NFL_OPERATING_POLICY.md" in open(os.path.join(ROOT, "README.md")).read()

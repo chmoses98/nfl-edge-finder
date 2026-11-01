@@ -216,9 +216,9 @@ class RiskPolicy:
     status: str = "PILOT"
     unit_fraction_of_bankroll: float = 0.005
     max_stake_per_position_units: float = 2.0
-    max_exposure_per_game_units: float = 4.0
+    max_exposure_per_game_units: float | None = 4.0
     max_exposure_per_correlation_group_units: float = 3.0
-    max_slate_exposure_units: float = 12.0
+    max_slate_exposure_units: float | None = 12.0
     max_slate_exposure_fraction_of_bankroll: float | None = 0.06
     grade_caps_units: dict = field(default_factory=dict)
     round_stakes_to_dollars: bool = True
@@ -249,18 +249,22 @@ class RiskPolicy:
             return float(self.fixed_unit_dollars)
         return float(bankroll) * float(self.unit_fraction_of_bankroll)
 
-    def _slate_cap(self, unit: float, bankroll: float) -> tuple[float, str]:
-        """The MORE BINDING of the unit-count cap and the bankroll-fraction cap.
+    def _slate_cap(self, unit: float, bankroll: float | None) -> tuple[float | None, str | None]:
+        """Only apply a slate cap if this policy explicitly configures one.
 
-        Two expressions of the same limit exist because a unit count is easier to reason about and a bankroll
-        fraction is what actually protects the account. Taking the minimum means editing one can only ever
-        tighten the policy, never quietly loosen it through the other.
+        The owner's NFL policy sets both slate limits to None. Legacy/pilot
+        policies retain their original unit and bankroll-based slate caps.
         """
-        by_units = self.max_slate_exposure_units * unit
-        if self.max_slate_exposure_fraction_of_bankroll is None or bankroll is None:
-            # No bankroll known (only possible with a fixed unit): the unit-count cap still binds in full.
+        by_units = (float(self.max_slate_exposure_units) * unit
+                    if self.max_slate_exposure_units is not None else None)
+        by_fraction = (float(bankroll) * float(self.max_slate_exposure_fraction_of_bankroll)
+                       if bankroll is not None and self.max_slate_exposure_fraction_of_bankroll is not None else None)
+        if by_units is None and by_fraction is None:
+            return None, None
+        if by_units is None:
+            return by_fraction, "max_slate_exposure_fraction_of_bankroll"
+        if by_fraction is None:
             return by_units, "max_slate_exposure_units"
-        by_fraction = float(bankroll) * float(self.max_slate_exposure_fraction_of_bankroll)
         return ((by_units, "max_slate_exposure_units") if by_units <= by_fraction
                 else (by_fraction, "max_slate_exposure_fraction_of_bankroll"))
 
@@ -281,7 +285,7 @@ class RiskPolicy:
     # ---- the decision ---------------------------------------------------------------------------
     def evaluate(self, proposals: list, bankroll_snapshot: float,
                  outstanding: "OutstandingExposure | None" = None) -> PortfolioReport:
-        """Cap every proposal against position, grade, game, correlation-group and slate limits.
+        """Cap every proposal against configured position, grade, game, group and slate limits.
 
         `outstanding` is what the book ALREADY carries -- from earlier handicap runs, earlier Airtable rows,
         amendments, unfilled approvals and unsettled fills. Every aggregate budget starts partly consumed by
@@ -293,7 +297,7 @@ class RiskPolicy:
         unavoidable in a greedy allocator; making it deterministic and stated is the honest version.
         """
         if bankroll_snapshot is None and self.fixed_unit_dollars is not None:
-            bankroll = None            # unit-count limits bind in full; bankroll-fraction guards are NOT evaluated
+            bankroll = None            # no bankroll-fraction guards are evaluated without a snapshot
         elif bankroll_snapshot is None or float(bankroll_snapshot) <= 0:
             raise RiskPolicyError(
                 "bankroll_snapshot must be a positive number; portfolio limits are fractions of a bankroll "
@@ -309,10 +313,11 @@ class RiskPolicy:
                                     "NOT_EVALUATED: no bankroll snapshot supplied; unit-count limits bind in full"),
                 "unit_dollars": round(unit, 4),
                 "max_stake_per_position": round(self.max_stake_per_position_units * unit, 2),
-                "max_exposure_per_game": round(self.max_exposure_per_game_units * unit, 2),
+                "max_exposure_per_game": (round(self.max_exposure_per_game_units * unit, 2)
+                                          if self.max_exposure_per_game_units is not None else None),
                 "max_exposure_per_correlation_group":
                     round(self.max_exposure_per_correlation_group_units * unit, 2),
-                "max_slate_exposure": round(slate_cap, 2),
+                "max_slate_exposure": round(slate_cap, 2) if slate_cap is not None else None,
                 "slate_binding_limit": slate_limit_name,
             })
 
@@ -360,7 +365,7 @@ class RiskPolicy:
                     continue
                 tighten(float(gc) * unit, "grade_caps_units", f"grade {p.grade} cap {gc}u")
 
-            if p.game_id:
+            if p.game_id and self.max_exposure_per_game_units is not None:
                 used = game_used.get(p.game_id, 0.0)
                 room = self.max_exposure_per_game_units * unit - used
                 tighten(max(room, 0.0), "max_exposure_per_game_units",
@@ -375,8 +380,9 @@ class RiskPolicy:
                         f"{self.max_exposure_per_correlation_group_units}u "
                         f"({used:.2f} already committed)")
 
-            tighten(max(slate_cap - total_used, 0.0), slate_limit_name,
-                    f"slate aggregate cap ({slate_limit_name}, {total_used:.2f} already committed)")
+            if slate_cap is not None:
+                tighten(max(slate_cap - total_used, 0.0), slate_limit_name,
+                        f"slate aggregate cap ({slate_limit_name}, {total_used:.2f} already committed)")
 
             allowed = self._round(allowed)
 
