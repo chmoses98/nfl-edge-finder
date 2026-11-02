@@ -87,3 +87,21 @@ def test_sparse_publish_retries_a_push_race_and_keeps_the_other_writer(tmp_path)
     assert marker.exists(), "the race was never staged"
     tree = set(git("ls-tree", "-r", "--name-only", "market-data", cwd=origin).stdout.split())
     assert {"data/kalshi/capture/racer.jsonl", "data/shadow_pure/nfl/projections/run1.jsonl.gz"} <= tree
+
+
+def test_capture_publish_sparse_does_not_materialize_shadow_history(tmp_path):
+    """Capture is the busiest producer; it must not check out unrelated ~100k paths."""
+    origin, repo, _other = _setup(tmp_path)
+    capture = repo / "data" / "kalshi" / "capture"
+    capture.mkdir(parents=True, exist_ok=True)
+    (capture / "newrun.manifest.json").write_text('{"complete": true}\\n')
+    r = subprocess.run([sys.executable, PUBLISHER, "--src", "data/kalshi/capture",
+                        "--message", "capture", "--sparse"],
+                       cwd=repo, text=True, capture_output=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    wt = tmp_path / "_market_data_wt"
+    assert (wt / "data" / "kalshi" / "capture" / "newrun.manifest.json").exists()
+    assert not (wt / "data" / "shadow_pure").exists(), "publisher checked out unrelated historical blobs"
+    tree = set(git("ls-tree", "-r", "--name-only", "market-data", cwd=origin).stdout.split())
+    assert "data/shadow_pure/nfl/manifests/a.manifest.json" in tree, "sparse commit must preserve other trees"
+    assert "data/kalshi/capture/newrun.manifest.json" in tree
