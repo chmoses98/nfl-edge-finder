@@ -61,6 +61,13 @@ jobs:
       # never cancelled) with room left for their publish and the health report. 108 of the 120 job minutes.
       - name: Start the job clock
         run: echo "JOB_DEADLINE_EPOCH=$(( $(date +%s) + 108 * 60 ))" >> "$GITHUB_ENV"
+      # ~52 GB market-data worktree: room first (scripts/ci/free_runner_disk.sh), exactly as run-nfl, shadow-price and
+      # shadow-v2-project do. This workflow was the one that did not. Run 41513363507 failed in the fetch step below with
+      # "error: unable to write file data/shadow/v2/projections/..." and "No space left on device", so the close/CLV step and
+      # everything after it was SKIPPED (the seven runs before it on 2026-11-02 also ended "failure"; only this one's log was
+      # read). Frees only unused preinstalled toolchains; never fails the job; never touches the Python toolcache.
+      - name: Free runner disk for the market-data worktree
+        run: bash scripts/ci/free_runner_disk.sh
       # `rosters` is not optional: ids.py builds the crosswalk from players + rosters + ff_playerids and
       # refuses (RosterSourceMissing) when no roster_<season>.parquet was downloaded. Omitting it here is
       # what killed the first manual run with polars' bare "cannot concat empty list".
