@@ -50,6 +50,24 @@ straight to it.
    injuries, roles, weather, key questions, best expressions, correlation groups;
 4. `latest/slate.md` is the triage view across the slate; it is deliberately not a complete scan.
 
+**READ-TIME FRESHNESS (mandatory, before quoting any model probability).** The path named `latest/`
+means *last successful build*, **not** a currently fresh build. It can remain unchanged for days when
+Kalshi capture/publishing fails. Before using its probabilities as current research, inspect
+`latest/manifest.json` using the ACTUAL decision clock. The following command fails with status 2 if the
+report is older than 120 minutes, the underlying Kalshi capture is older than 90 minutes, either timestamp
+is missing, or the report was not successful:
+
+```bash
+python3 scripts/handicap/check_published_freshness.py --manifest /tmp/hr/latest/manifest.json
+```
+
+A stale report is historical evidence **only**: do not silently quote its model estimates or cached
+market prices as current, and do not call it a fresh RUN NFL handicap. Independently research any
+unstarted game using current sources and disclose which inputs could not be refreshed; do not
+manufacture a price or an edge. A CURRENT_RESEARCH response also is **not** a verified executable
+quote: independently re-resolve Kalshi bid/ask, liquidity and fees at decision time for every bet.
+Record the exact report build, underlying capture and decision quote times in the final betting card.
+
 Check `latest/manifest.json` for how old it all is. **No Airtable is involved.** Airtable is deprecated as the operating foundation (`NFL_OPERATING_POLICY.md` section 8); the card builder
 (`scripts/handicap/run_card.py`) and the GitHub-native preflight replace the promotion to **PREFLIGHT NFL** (step 4 below) for the owner's loop.
 
