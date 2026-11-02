@@ -191,6 +191,24 @@ def test_fast_implied_lines_reads_the_fifty_percent_crossing():
     assert -3.5 < s < 0.5 and 41 < t < 47
 
 
+def test_total_ladder_centre_uses_the_continuity_corrected_strike():
+    """Kalshi total rung N settles total >= N, i.e. total > N-0.5 (floor_strike).  The 50% crossing must be read on
+    the floor_strike axis -- the same axis the spread ladder already uses -- or the centre is biased +0.5 points,
+    which moves every total and team-total ladder the simulation prices (+0.25 points per team)."""
+    from math import erf, sqrt
+    # integer total T = round(X), X ~ N(44.5, 10): symmetric about 44.5, so P(T > 44.5) = 0.5 exactly
+    def p_ge(n):  # P(T >= n) = P(X >= n - 0.5)
+        return 0.5 * (1 - erf((n - 0.5 - 44.5) / (10 * sqrt(2))))
+    rows = [{"family": "TOTAL", "period": "FULL", "threshold": float(n), "floor_strike": n - 0.5,
+             "yes_bid": p_ge(n) - 0.005, "yes_ask": p_ge(n) + 0.005} for n in range(30, 60)]
+    _, t, _ = fast_implied_lines(rows, "H", "A")
+    assert abs(t - 44.5) < 0.1, t
+    # rows that predate the floor_strike field fall back to threshold - 0.5, never to the raw threshold
+    legacy = [{k: v for k, v in r.items() if k != "floor_strike"} for r in rows]
+    _, t2, _ = fast_implied_lines(legacy, "H", "A")
+    assert abs(t2 - t) < 1e-9
+
+
 def test_priority_is_not_boosted_by_raw_incumbent_disagreement():
     from nfl_edge.handicap import packet as P
     base = {"game_id": "g", "kickoff_utc": None, "injuries": {"records": []}, "weather": {}, "largest_moves": [], "markets": [],
