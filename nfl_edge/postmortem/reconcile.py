@@ -60,6 +60,11 @@ class ContractRecord:
         return hashlib.sha256(json.dumps(self.to_dict(), sort_keys=True, default=str).encode()).hexdigest()
 
 
+#: Every spelling of "the exchange told us which order / fills this was" the router or a destination ledger uses. Any one present
+#: clears MISSING_ORDER_FILL_DETAIL; none present keeps the flag (the ids are never inferred).
+ORDER_FILL_KEYS = ("order_id", "kalshi_order_id", "fill_ids", "kalshi_fill_ids", "fill_id")
+
+
 def canonical_settlement(settlement: dict | None, amendments: list) -> dict:
     """Latest amendment wins for the canonical figure; the as-filed figure is always kept beside it."""
     if not settlement:
@@ -109,7 +114,7 @@ def reconcile(wagers: list, settlements: list, amendments: list, *, recommendati
         t, side = w.get("market_ticker"), w.get("side")
         ont = classify_ticker(t, legs=legs_by_ticker.get(t))
         flags = list(ont.flags)
-        if not (w.get("order_id") or w.get("kalshi_order_id") or w.get("fill_ids")):
+        if not any(w.get(k) for k in ORDER_FILL_KEYS):
             flags.append("MISSING_ORDER_FILL_DETAIL")
         fee, price, contracts = num(w.get("fees_paid")), num(w.get("actual_price")), num(w.get("contracts"))
         if w.get("fees_are_estimated"):

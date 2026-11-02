@@ -171,10 +171,15 @@ def challenge(thesis: dict, cand: dict, ev: dict, ranked_alternatives: list, *, 
         items.append(_item("C9", "CLEAR", f"capture {quote_age_min:.0f} min old; book two-sided, width {float(ev.get('width') or 0) * 100:.0f}c. The depth walk for the staked size is done by preflight"))
 
     # C10
-    if owner_open_units >= game_cap_units:
+    # The owner's 2026-11-01 policy has NO per-game cap (`max_exposure_per_game_units` is None; risk.py already handles that).
+    # Comparing against None crashed run_card for every thesis that reached this item (postmortem 2026-11-02): with no cap,
+    # open exposure is a FLAG for review, never a FAIL, and the thesis-group limit plus the >5U/game flag still apply.
+    if game_cap_units is not None and owner_open_units >= game_cap_units:
         items.append(_item("C10", "FAIL", f"{owner_open_units:.1f}U already open on this game (game cap {game_cap_units:g}U)"))
     elif owner_open_units > 0:
-        items.append(_item("C10", "FLAG", f"{owner_open_units:.1f}U already open on this game; the stake below is the room left under the game cap, counted together"))
+        items.append(_item("C10", "FLAG", f"{owner_open_units:.1f}U already open on this game; " + (
+            "the stake below is the room left under the game cap, counted together" if game_cap_units is not None else
+            "no per-game cap by policy: the 5U thesis-group limit applies and >5U on the game is flagged for review")))
     else:
         items.append(_item("C10", "CLEAR", "no open owner position on this game in the ledger"))
 
