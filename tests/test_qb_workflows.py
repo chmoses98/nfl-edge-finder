@@ -66,3 +66,15 @@ def test_run_nfl_reports_coverage_without_touching_the_pinned_packet_or_failing_
     assert up["with"]["name"].startswith("qb-coverage-") and "handicap_report" not in up["with"]["path"]
     names = [s.get("name") for s in steps(doc, "report")]
     assert names.index("Report confirmed-starter quarterback coverage") > names.index("Build the handicap packet")
+
+
+def test_every_script_the_quarterback_workflows_call_exists():
+    """The generic workflow-parse test skips workflows that call scripts through a checkout prefix (`code/scripts/...`); check them here."""
+    for name in ("nfl-qb-confirm.yml", "nfl-thesis-card.yml", "run-nfl.yml"):
+        text, _ = load(name)
+        called = set(re.findall(r"(?:code/)?(scripts/[A-Za-z0-9_/]+\.(?:py|sh))", text))
+        assert called, name
+        for rel in called:
+            assert os.path.exists(os.path.join(ROOT, rel)), f"{name} calls a missing script: {rel}"
+    assert os.path.exists(os.path.join(ROOT, "scripts", "handicap", "qb_confirm_append.py"))
+    assert os.path.exists(os.path.join(ROOT, "scripts", "handicap", "qb_coverage.py"))
