@@ -1,0 +1,132 @@
+{
+ "exposure": {
+  "n_day_flags": 2,
+  "n_game_flags": 2,
+  "n_group_flags": 2,
+  "policy": "flags only; no cap"
+ },
+ "items": [
+  {
+   "id": "1",
+   "note": "reconcile.py; missing evidence is a MISSING_* flag; combos without legs are COMBO_UNDECODED",
+   "status": "DONE",
+   "title": "Immutable per-contract reconciliation"
+  },
+  {
+   "id": "1b",
+   "note": "no real (non-test) recommendation exists on handicap-data for these fills; they are owner-selected, not model picks",
+   "status": "UNRESOLVED",
+   "title": "Recommendation / model attribution for the window"
+  },
+  {
+   "id": "1c",
+   "note": "the routed wager rows carry no exchange order or fill ids (router-side change; see PR note)",
+   "status": "UNRESOLVED",
+   "title": "Order id / fill ids per fill"
+  },
+  {
+   "id": "2",
+   "note": "fairvalue.py; None whenever calibration or fee is missing",
+   "status": "DONE",
+   "title": "Fee-inclusive break-even, calibrated fair probability, bet-up-to"
+  },
+  {
+   "id": "2b",
+   "note": "guards.py is restriction-only; wiring into pinned gates.py/preflight.py needs owner authorization",
+   "status": "DONE_NOT_WIRED",
+   "title": "PIT guards (projection, injuries, confirmed QB, quote, kickoff, price provenance)"
+  },
+  {
+   "id": "3",
+   "note": "exposure.py; flags only, no cap, per NFL_OPERATING_POLICY",
+   "status": "DONE",
+   "title": "Correlation groups + game/daily exposure flags (>5U, >15U)"
+  },
+  {
+   "id": "4",
+   "note": "research/postmortem_2026-11-02/distribution_eval.json",
+   "status": "DONE",
+   "title": "Key-number distributions + held-out evaluation"
+  },
+  {
+   "id": "4b",
+   "note": "no held-out gain over market-only; do not activate",
+   "status": "NOT_DEMONSTRATED",
+   "title": "Matchup evidence (EPA, pace, ST) improves on the closing market"
+  },
+  {
+   "id": "4c",
+   "note": "no point-in-time injury history before the 2026 availability_pit capture",
+   "status": "UNRESOLVED",
+   "title": "Injury / confirmed-QB history for the distribution model"
+  },
+  {
+   "id": "5",
+   "note": "loss_eval.py; closes for the window are not published, so most losses are INSUFFICIENT_EVIDENCE",
+   "status": "DONE_PARTIAL",
+   "title": "Loss classification"
+  },
+  {
+   "id": "5b",
+   "note": "shadow-v2-settle.yml has been cancelled at its job limit (docs/research/ACTUAL_WAGER_DIAGNOSIS_2026-10-25.md)",
+   "status": "UNRESOLVED",
+   "title": "Closing prices for weeks 5-8"
+  },
+  {
+   "id": "6",
+   "note": "see kalshi-bet-router / nba-edge-finder PRs",
+   "status": "OTHER_REPO",
+   "title": "NBA router PR #48"
+  }
+ ],
+ "loss_evaluation": {
+  "category_counts": {
+   "BAD_EXPRESSION": 1,
+   "INSUFFICIENT_EVIDENCE": 23
+  },
+  "close_coverage": {
+   "n_settled_single": 42,
+   "n_with_close": 0,
+   "n_without_close": 42
+  },
+  "family_claims_allowed": {
+   "GAME_WINNER": false,
+   "PLAYER_STAT": false,
+   "SPREAD": false,
+   "TEAM_TOTAL": false
+  },
+  "min_n_for_family_claim": 100,
+  "n_losses": 24
+ },
+ "reconciliation": {
+  "amended": 0,
+  "flag_counts": {
+   "AVAILABILITY_NOT_APPLICABLE_TO_COMBO": 3,
+   "COMBO_REPORTED_SEPARATELY": 2,
+   "MISSING_AVAILABILITY_EVIDENCE": 43,
+   "MISSING_CLOSE": 43,
+   "MISSING_COMBO_LEGS": 2,
+   "MISSING_KICKOFF": 43,
+   "MISSING_ORDER_FILL_DETAIL": 46,
+   "MISSING_RECOMMENDATION": 46,
+   "MISSING_SETTLEMENT": 1,
+   "SERIES_NOT_IN_TAXONOMY": 1
+  },
+  "kinds": {
+   "COMBO_UNDECODED": 2,
+   "SINGLE": 43,
+   "UNCLASSIFIED": 1
+  },
+  "n_records": 46,
+  "recommendation_states": {
+   "NO_RECOMMENDATION_ON_RECORD": 46
+  },
+  "settled": 45,
+  "version": "postmortem-reconcile-1.0.0"
+ },
+ "version": "postmortem-1.0.0",
+ "window": [
+  "2026-10-22",
+  "2026-11-01"
+ ]
+}
