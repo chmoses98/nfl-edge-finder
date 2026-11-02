@@ -145,6 +145,22 @@ def test_existing_exposure_is_flagged_and_a_full_game_cap_fails():
     assert "C10" in call(ev(), open_units=8.0)["failed"]
 
 
+def test_none_game_cap_never_crashes_and_only_flags_open_exposure():
+    """Owner policy removed per-game hard cap; C10 must not TypeError or block bets."""
+    args = dict(packet_market=None, player_injury=None, quote_age_min=3.0, mode="LIVE",
+                game_cap_units=None)
+    for units in (0.0, 2.0, 8.0, 16.0):
+        r = CH.challenge(th(), {}, ev(), [], owner_open_units=units, **args)
+        item = next(i for i in r["items"] if i["id"] == "C10")
+        assert item["status"] == ("CLEAR" if units == 0 else "FLAG")
+        assert "C10" not in r["failed"]
+    # A numeric cap, when explicitly configured, must remain enforceable.
+    assert next(i for i in CH.challenge(
+        th(), {}, ev(), [], owner_open_units=8, game_cap_units=8,
+        packet_market=None, player_injury=None, quote_age_min=3.0, mode="LIVE",
+    )["items"] if i["id"] == "C10")["status"] == "FAIL"
+
+
 def test_missing_adjusted_evidence_blocks():
     t = th(evidence={"measured": []})
     r = call(ev(), thesis=t)
