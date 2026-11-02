@@ -41,8 +41,10 @@ def _row(ticker, fam, subject, thr, p, per="FULL", stat=None, meaning="", width=
             "analysis_state": "MODEL_PRICED", "incumbent": {"support_state": "UNSUPPORTED_MODEL", "model_probability": None}}
 
 
-def build_run(tmp_path, *, cap_age_min=5.0, kick=KICK, invariants_ok=True, player=False):
-    """Writes packet.json + analysis/manifest.json + analysis/games/<id>.json under tmp_path and returns the loaded run."""
+def build_run(tmp_path, *, cap_age_min=5.0, kick=KICK, invariants_ok=True, player=False, pit=True):
+    """`pit=True` (default) gives the packet a real context-capture timestamp and supplies CONFIRMED quarterbacks for both
+    teams, the point-in-time evidence the postmortem-2026-11-02 gates require; `pit=False` is the fixture WITHOUT them.
+    Writes packet.json + analysis/manifest.json + analysis/games/<id>.json under tmp_path and returns the loaded run."""
     bank, _ = FV.bank_from_schedule(schedule_text(), 2026)
     gs = FV.GameSim(bank, "BBB", "AAA", CENTER[0], CENTER[1])
     sim = gs.draw(0, 0)
@@ -67,7 +69,7 @@ def build_run(tmp_path, *, cap_age_min=5.0, kick=KICK, invariants_ok=True, playe
     cap = AS_OF - timedelta(minutes=cap_age_min)
     markets = [{"ticker": r["ticker"], "movement": {"total_move_since_first_capture": 0.0}, "book_depth_yes": 500000.0, "book_depth_no": 500000.0} for r in rows]
     game = {"game_id": GAME, "season": 2026, "week": 7, "kickoff_utc": kick.isoformat(), "home_team": "BBB", "away_team": "AAA", "venue": "X", "roof": "dome", "surface": "turf",
-            "neutral_site": False, "data_freshness": {"ledger_feature_cutoff": cap.isoformat(), "context_capture": "c1", "packet_built_at": cap.isoformat()},
+            "neutral_site": False, "data_freshness": {"ledger_feature_cutoff": cap.isoformat(), "context_capture": cap.strftime("%Y%m%dT%H%M%SZ") if pit else "c1", "packet_built_at": cap.isoformat()},
             "market_implied": {"implied_home_margin_median": CENTER[0], "implied_total_median": CENTER[1], "win_probability": {"AAA": 0.6, "BBB": 0.4}},
             "model_view": {"model_spread": 3.0}, "team_profiles": {}, "quarterbacks": {}, "offensive_line": {}, "injuries": {"records": [], "summary": {}},
             "weather": {"material": False}, "simulation": {"center": {"spread_home": CENTER[0], "total": CENTER[1]}}, "markets": markets,
@@ -81,7 +83,11 @@ def build_run(tmp_path, *, cap_age_min=5.0, kick=KICK, invariants_ok=True, playe
     json.dump(manifest, open(os.path.join(tmp_path, "analysis", "manifest.json"), "w"))
     json.dump({"game_id": GAME, "home_team": "BBB", "away_team": "AAA", "rows": rows}, open(os.path.join(tmp_path, "analysis", "games", f"{GAME}.json"), "w"))
     from nfl_edge.handicap import card as C
-    return C.load_reports(str(tmp_path))
+    run = C.load_reports(str(tmp_path))
+    if pit:
+        conf = (cap - timedelta(minutes=1)).isoformat()
+        run["qb_confirmations"] = {t: {"status": "CONFIRMED_STARTER", "confirmed_at": conf, "source": "test_fixture_inactive_list"} for t in ("AAA", "BBB")}
+    return run
 
 
 def thesis(shift_margin=(2.0, 4.0), shift_total=(-0.5, 0.5), **kw):

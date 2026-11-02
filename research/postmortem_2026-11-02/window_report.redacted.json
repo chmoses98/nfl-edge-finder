@@ -20,7 +20,7 @@
   },
   {
    "id": "1c",
-   "note": "the routed wager rows carry no exchange order or fill ids (router-side change; see PR note)",
+   "note": "the routed wager rows carry no exchange order or fill ids yet (router-side change); reconcile.py now accepts order_id / kalshi_order_id / fill_ids / kalshi_fill_ids the moment they appear",
    "status": "UNRESOLVED",
    "title": "Order id / fill ids per fill"
   },
@@ -32,14 +32,20 @@
   },
   {
    "id": "2b",
-   "note": "guards.py is restriction-only; wiring into pinned gates.py/preflight.py needs owner authorization",
-   "status": "DONE_NOT_WIRED",
+   "note": "gates.G_PIT via integration.py; restriction-only. Game-level lines are BLOCKED QB_UNKNOWN until run_card.py --qb-confirmations supplies a confirmation with a time (a depth chart is never a confirmation)",
+   "status": "WIRED_PENDING_MERGE",
    "title": "PIT guards (projection, injuries, confirmed QB, quote, kickoff, price provenance)"
   },
   {
+   "id": "2c",
+   "note": "gates.G_ORDER_CEILING; can only FAIL a too-high ceiling. Calibrated bet-up-to stays None (MISSING_CALIBRATION): no held-out cells exist for thesis-conditioned fair values",
+   "status": "WIRED_PENDING_MERGE",
+   "title": "Whole-order fee-inclusive ceiling check"
+  },
+  {
    "id": "3",
-   "note": "exposure.py; flags only, no cap, per NFL_OPERATING_POLICY",
-   "status": "DONE",
+   "note": "card.exposure_flags and PreflightResult.exposure_flags at 1U=$75 ($375/game, $1,125/day); flags only, no cap, per NFL_OPERATING_POLICY",
+   "status": "WIRED_PENDING_MERGE",
    "title": "Correlation groups + game/daily exposure flags (>5U, >15U)"
   },
   {
@@ -68,9 +74,15 @@
   },
   {
    "id": "5b",
-   "note": "shadow-v2-settle.yml has been cancelled at its job limit (docs/research/ACTUAL_WAGER_DIAGNOSIS_2026-10-25.md)",
-   "status": "UNRESOLVED",
+   "note": "run 41513363507 died in the market-data fetch step with No space left on device, skipping close/CLV; shadow-v2-settle.yml lacked the free_runner_disk.sh step its sibling workflows have. Added; unverified until the workflow is dispatched (needs owner approval)",
+   "status": "FIX_PROPOSED_NOT_DISPATCHED",
    "title": "Closing prices for weeks 5-8"
+  },
+  {
+   "id": "7",
+   "note": "challenge.py C10 compared open exposure to a None cap (owner policy 2026-11-01); 18 of the 20 clean-main test failures",
+   "status": "FIXED",
+   "title": "RUN NFL card crashed with no per-game cap"
   },
   {
    "id": "6",

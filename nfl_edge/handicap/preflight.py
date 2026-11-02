@@ -116,6 +116,9 @@ class PreflightResult:
     # about the moment the answer was handed over, not about the decision, so it must never appear in the
     # gate report the importer replays.
     issuance: dict | None = None
+    # Postmortem 2026-11-02: FLAGS (never caps) when this approved slate plus the owner's open book exceeds 5U ($375) in a
+    # game or 15U ($1,125) in a day at the fixed $75 unit. Informational; it can neither approve nor block a candidate.
+    exposure_flags: dict | None = None
 
     @property
     def may_be_shown_as_a_bet(self) -> bool:
@@ -308,7 +311,25 @@ def preflight_batch(candidates: list, *, market_data_root: str | None, ledger_ro
                         age_minutes=ages.get(original.get("recommendation_id")),
                         age_basis=age_basis,
                         max_request_age_minutes=max_request_age_minutes))
+    _attach_exposure_flags(out, outstanding)
     return out
+
+
+def _attach_exposure_flags(results: list, outstanding: dict) -> None:
+    """Exposure FLAGS over what this batch approved plus what the book already carries. Flags only; see integration.exposure_flags."""
+    from nfl_edge.postmortem import integration as PM
+    approved = [r for r in results if r.may_be_shown_as_a_bet and r.approved_record]
+    if not approved:
+        return
+    unit = PM.UNIT_DOLLARS
+    positions = [{"ticker": r.approved_record.get("market_ticker"), "side": r.approved_record.get("side"), "stake": r.approved_stake,
+                  "game_id": r.approved_record.get("game_id"), "game_date": str(r.approved_record.get("kickoff_utc") or "")[:10] or None}
+                 for r in approved]
+    dates = {p["game_id"]: p["game_date"] for p in positions}
+    open_units = {g: float(v) / unit for g, v in ((outstanding or {}).get("by_game") or {}).items()}
+    flags = PM.exposure_flags(positions, open_units_by_game=open_units, game_dates=dates)
+    for r in results:
+        r.exposure_flags = flags
 
 
 def preflight(candidate: dict, **kw) -> PreflightResult:

@@ -35,6 +35,8 @@ def main(argv=None) -> int:
     ap.add_argument("--bankroll-file", default=None, help="local JSON with the router's context shape; default: env KALSHI_BANKROLL_CONTEXT")
     ap.add_argument("--live-evidence", action="store_true", help="LIVE: fetch each finalist's contract from the venue (read-only public GETs) before the gates")
     ap.add_argument("--fee-root", default=None, help="checkout holding data/kalshi/fees (sparse market-data) when --market-data is not given")
+    ap.add_argument("--qb-confirmations", default=None, help="JSON {TEAM: {status: CONFIRMED_STARTER, confirmed_at: ISO, source: ...}} from the inactive list / team announcement. "
+                    "Without it every game-level score market is blocked QB_UNKNOWN by the point-in-time gate (fail closed; a depth chart is never treated as a confirmation)")
     ap.add_argument("--schedule-csv", required=True, help="nflverse games.csv (market-data: data/kalshi/capture/schedule_cache.csv)")
     ap.add_argument("--handicap-root", default=None)
     ap.add_argument("--market-data", default=None)
@@ -44,6 +46,12 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
 
     run = C.load_reports(a.reports_dir)
+    if a.qb_confirmations:
+        qbc = json.load(open(a.qb_confirmations))
+        if not isinstance(qbc, dict):
+            print("refused: --qb-confirmations must be a JSON object keyed by team", file=sys.stderr)
+            return 2
+        run["qb_confirmations"] = qbc
     cap = C._ts(run["packet"]["games"][0]["data_freshness"]["ledger_feature_cutoff"])
     if a.as_of:
         as_of = C._ts(a.as_of)

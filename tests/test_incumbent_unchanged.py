@@ -35,14 +35,19 @@ SOURCE_PINS = {
     # NOT a gate -- it reads a wall clock, so recording it in the gate report would break the replay.
     # It is now made at TWO stages (formation, and immediately before the outbound Airtable write), because
     # an approval that exists only in the worker's memory has authorised nothing: see `deliver`.
-    "nfl_edge/handicap/gates.py": "2821835860e32f3e",            # the real-money gates
+    # DELIBERATE, REVIEWED EDIT (PR #232, 2026-11-02, owner-approved on the PR): `gates.py` gained TWO restriction-only gates,
+    # `game_level_pit_evidence` and `order_size_fee_inclusive_ceiling` (logic in nfl_edge/postmortem/integration.py); `preflight.py`
+    # gained `PreflightResult.exposure_flags` (flags at the fixed $75 unit: >$375/game, >$1,125/day; never a cap). No threshold, fee,
+    # depth, net-EV, quote-age or risk rule moved; tests/test_preflight_no_weakening.py asserts it. Records written before
+    # `pit_evidence` existed are NOT re-judged. Pins: gates 2821835860e32f3e -> a0d03cb7af6bab98, preflight b32665e82cf0b994 -> a606567c3bfdb841.
+    "nfl_edge/handicap/gates.py": "a0d03cb7af6bab98",            # the real-money gates
     # DELIBERATE, REVIEWED EDIT (2026-11-01 owner clarification): correlation-group caps remain
     # but per-game and per-slate caps may be absent. The active policy has 5U per thesis,
     # no arbitrary game/slate cap. Pilot policy still enforces its original caps.
     # No quote freshness, depth, fee or net-EV preflight checks were changed.
     "nfl_edge/handicap/risk.py": "54fb66955d79705b",             # the risk policy engine
     "nfl_edge/handicap/schema.py": "1ea7b6c31b15d03e",           # recommendation schema, availability rules, ceilings
-    "nfl_edge/handicap/preflight.py": "b32665e82cf0b994",        # the pre-trade check
+    "nfl_edge/handicap/preflight.py": "a606567c3bfdb841",        # the pre-trade check
     "config/risk_policy.json": "0008d977658bed31",               # owner-2026-11-thesis-only-v1; pilot fixture unchanged
     # the frozen Week-1 code lineage (research/FREEZE_WEEK1_2026.json), byte-identical to main
     "nfl_edge/shadow/ledger.py": "26949b1807296331",

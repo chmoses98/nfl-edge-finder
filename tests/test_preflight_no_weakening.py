@@ -122,13 +122,18 @@ def test_the_request_expiry_window_is_unchanged():
 EXPECTED_GATES = {
     G.G_DECISION_TIME, G.G_PRE_KICKOFF, G.G_QUOTE_FRESHNESS, G.G_CEILING, G.G_IDENTITY,
     G.G_AVAILABILITY, G.G_DEPTH, G.G_FEE_SCHEDULE, G.G_NET_EV, G.G_RISK,
+    # DELIBERATE, OWNER-APPROVED ADDITION (PR #232, 2026-11-02): two RESTRICTION-ONLY gates. They can turn an approval into a
+    # block, never the reverse, and are NOT_APPLICABLE on every record written before `pit_evidence` existed (so replaying
+    # history cannot change a historical verdict - asserted below).
+    G.G_PIT, G.G_ORDER_CEILING,
 }
 
 
-def test_no_gate_was_removed_and_exactly_one_was_added():
+def test_no_gate_was_removed_and_only_the_reviewed_ones_were_added():
     names = {v for k, v in vars(G).items() if k.startswith("G_") and isinstance(v, str)}
     assert names == EXPECTED_GATES
     assert G.G_PRE_KICKOFF == "decision_before_kickoff"
+    assert (G.G_PIT, G.G_ORDER_CEILING) == ("game_level_pit_evidence", "order_size_fee_inclusive_ceiling")
 
 
 def test_unavailable_still_blocks_exactly_as_fail_does():
