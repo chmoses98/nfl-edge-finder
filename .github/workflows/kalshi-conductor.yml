@@ -66,13 +66,15 @@ jobs:
           PASS=0
           while [ $(date +%s) -lt $END ]; do
             T0=$(date +%s)
-            git fetch --depth=1 origin market-data || true
+            # Only fetch Git trees; a normal fetch downloads the tens-of-GB historical blob pack.
+            git fetch --depth=1 --filter=blob:none origin market-data || { echo "::error::cannot fetch market-data without downloading its huge blob history"; exit 1; }
             mkdir -p data/kalshi/capture
             git show origin/market-data:data/kalshi/capture/state.json > data/kalshi/capture/state.json 2>/dev/null || echo '{"fingerprints":{},"trades_cursor_ts":null,"last_daily_run":null}' > data/kalshi/capture/state.json
             git show origin/market-data:data/kalshi/capture/schedule_cache.csv > data/kalshi/capture/schedule_cache.csv 2>/dev/null || true
             git show origin/market-data:data/kalshi/capture/provisional_series.json > data/kalshi/capture/provisional_series.json 2>/dev/null || rm -f data/kalshi/capture/provisional_series.json
             python3 scripts/kalshi/capture.py || echo "::warning::capture pass $PASS returned non-zero (partial)"
-            python3 scripts/ci/publish_market_data.py --src data/kalshi/capture --message "kalshi capture $(date -u +'%Y-%m-%dT%H:%M:%SZ') (conductor pass $PASS)" || echo "::warning::publish failed on pass $PASS"
+            # Sparse checkout contains only the capture subtree, never all 100k+ market-data files.
+            python3 scripts/ci/publish_market_data.py --src data/kalshi/capture --sparse --message "kalshi capture $(date -u +'%Y-%m-%dT%H:%M:%SZ') (conductor pass $PASS)" || { echo "::error::capture publish failed on pass $PASS; refusing to continue without a fresh market-data snapshot"; exit 1; }
             rm -rf data/kalshi/capture/2* 
             PASS=$((PASS+1))
             ELAPSED=$(( $(date +%s) - T0 ))
