@@ -34,6 +34,14 @@ def test_unit_and_flag_thresholds_are_the_owners_numbers():
     assert PM.GAME_FLAG_DOLLARS == 375.0 and PM.DAILY_FLAG_DOLLARS == 1125.0
 
 
+def test_an_individual_bet_is_capped_at_5u_which_is_375_dollars_by_the_owner_policy():
+    """Owner 2026-11-02: 1U = $75, maximum 5U per individual bet. The cap already lives in the owner risk policy (risk.py clamps to it and
+    discloses the clamp); this pins it so a policy edit cannot silently raise it. Combined exposure above 5U/game or 15U/day is only FLAGGED."""
+    pol = json.load(open(os.path.join(ROOT, "config", "risk_policy.json")))
+    assert pol["max_stake_per_position_units"] == 5 and pol["fixed_unit_dollars"] == 75
+    assert pol["max_stake_per_position_units"] * pol["fixed_unit_dollars"] == 375
+
+
 # ------------------------------------------------------------------------------------------------ exposure flags
 SF = [{"ticker": "KXNFLSPREAD-26OCT26SFATL-SF3", "side": "YES", "stake": 225.0, "game_id": "g1", "game_date": "2026-10-26"},
       {"ticker": "KXNFLSPREAD-26OCT26SFATL-SF7", "side": "YES", "stake": 175.0, "game_id": "g1", "game_date": "2026-10-26"}]
@@ -223,9 +231,10 @@ def _run_entry_point(tmp_path, name, *extra):
 
 
 def test_run_nfl_entry_point_with_confirmed_qbs_is_still_a_bet_and_carries_the_new_evidence(tmp_path):
+    from card_fixtures import qb_records
+    from nfl_edge.postmortem import qb_confirmations as QBC
     qb = tmp_path / "qb.json"
-    conf = (AS_OF - timedelta(minutes=6)).isoformat()
-    qb.write_text(json.dumps({t: {"status": "CONFIRMED_STARTER", "confirmed_at": conf, "source": "inactive_list"} for t in ("AAA", "BBB")}))
+    qb.write_text(json.dumps({"schema": QBC.SCHEMA, "records": qb_records(AS_OF, minutes_before_cap=6)}))
     _live_inputs(tmp_path)
     card, md = _run_entry_point(tmp_path, "out_ok", "--qb-confirmations", str(qb))
     line = card["lines"][0]
@@ -289,6 +298,7 @@ WIRING_PINS = {
     "nfl_edge/postmortem/exposure.py": "PIN_EXPOSURE",
     "nfl_edge/postmortem/common.py": "PIN_COMMON",
     "nfl_edge/postmortem/ontology.py": "PIN_ONTOLOGY",
+    "nfl_edge/postmortem/qb_confirmations.py": "PIN_QB_CONFIRMATIONS",
 }
 
 

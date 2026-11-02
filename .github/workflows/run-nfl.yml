@@ -348,6 +348,33 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
+      # CONFIRMED-STARTER COVERAGE (docs/QB_CONFIRMATIONS.md). The card only evaluates a game-level score market when BOTH quarterbacks are
+      # confirmed by a record from a source that names the starter; this tells the analyst, before they write a submission, which games
+      # those are. Informational and fail-soft: it never edits the packet (which is hash-pinned), never fails the run, and writes only to
+      # the step summary and its own small artifact. No confirmation source supplied = every game reported as blocked, which is the truth.
+      - name: Report confirmed-starter quarterback coverage
+        id: qbcov
+        if: steps.build.outputs.report_status == 'SUCCESS'
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/qbcov"
+          if git fetch --depth=1 origin qb-confirmations 2>/dev/null; then
+            rm -rf /tmp/qb && git worktree add -f /tmp/qb FETCH_HEAD
+            CONF=/tmp/qb/qb_confirmations
+          else
+            CONF=""
+          fi
+          python3 scripts/handicap/qb_coverage.py --packet data/handicap_report/packet.json ${CONF:+--confirmations "$CONF"} \
+            --out "$RUNNER_TEMP/qbcov/qb_coverage.json" --summary-md "$GITHUB_STEP_SUMMARY"
+      - name: Upload the quarterback coverage
+        if: steps.qbcov.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qb-coverage-${{ steps.week.outputs.season }}-w${{ steps.week.outputs.week_padded }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/qbcov/qb_coverage.json
+          retention-days: 30
+          if-no-files-found: ignore
+
       - name: Mark the decision horizons captured
         if: steps.build.outputs.report_status == 'SUCCESS' && inputs.horizon_ids != ''
         run: |

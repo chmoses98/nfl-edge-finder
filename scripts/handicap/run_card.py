@@ -35,8 +35,10 @@ def main(argv=None) -> int:
     ap.add_argument("--bankroll-file", default=None, help="local JSON with the router's context shape; default: env KALSHI_BANKROLL_CONTEXT")
     ap.add_argument("--live-evidence", action="store_true", help="LIVE: fetch each finalist's contract from the venue (read-only public GETs) before the gates")
     ap.add_argument("--fee-root", default=None, help="checkout holding data/kalshi/fees (sparse market-data) when --market-data is not given")
-    ap.add_argument("--qb-confirmations", default=None, help="JSON {TEAM: {status: CONFIRMED_STARTER, confirmed_at: ISO, source: ...}} from the inactive list / team announcement. "
-                    "Without it every game-level score market is blocked QB_UNKNOWN by the point-in-time gate (fail closed; a depth chart is never treated as a confirmation)")
+    ap.add_argument("--qb-confirmations", default=None, help="validated confirmed-starter records: a .json document {schema: nfl-qb-confirmations.v1, records: [...]}, a .jsonl "
+                    "ledger, or a directory of .jsonl (the append-only ledger on handicap-data: qb_confirmations/). Only records from sources that NAME the starter, observed "
+                    "before the decision and before kickoff and not stale, confirm a quarterback. Without it (or for any game without both quarterbacks confirmed) every "
+                    "game-level score market is blocked QB_UNKNOWN / QB_NOT_CONFIRMED by the point-in-time gate (fail closed; a depth chart, roster or inactive list is never a confirmation)")
     ap.add_argument("--schedule-csv", required=True, help="nflverse games.csv (market-data: data/kalshi/capture/schedule_cache.csv)")
     ap.add_argument("--handicap-root", default=None)
     ap.add_argument("--market-data", default=None)
@@ -46,12 +48,6 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
 
     run = C.load_reports(a.reports_dir)
-    if a.qb_confirmations:
-        qbc = json.load(open(a.qb_confirmations))
-        if not isinstance(qbc, dict):
-            print("refused: --qb-confirmations must be a JSON object keyed by team", file=sys.stderr)
-            return 2
-        run["qb_confirmations"] = qbc
     cap = C._ts(run["packet"]["games"][0]["data_freshness"]["ledger_feature_cutoff"])
     if a.as_of:
         as_of = C._ts(a.as_of)
@@ -60,6 +56,22 @@ def main(argv=None) -> int:
         as_of = cap + timedelta(minutes=4)
     else:
         as_of = datetime.now(timezone.utc)
+    from nfl_edge.postmortem import qb_confirmations as QBC
+    qb_records, qb_rejected = [], []
+    if a.qb_confirmations:
+        try:
+            qb_records, qb_rejected = QBC.load_records_file(a.qb_confirmations)
+        except (OSError, ValueError) as exc:
+            print(f"refused: --qb-confirmations is unreadable or the wrong schema: {exc}", file=sys.stderr)
+            return 2
+    qb_games = run["packet"]["games"]
+    run["qb_confirmations"] = QBC.resolve_slate(qb_records, qb_games, as_of=as_of)
+    qb_cov = QBC.coverage(run["qb_confirmations"], qb_games, as_of=as_of)
+    qb_cov["records_valid"], qb_cov["records_rejected"] = len(qb_records), len(qb_rejected)
+    qb_cov["rejections_by_code"] = {}
+    for r in qb_rejected:
+        qb_cov["rejections_by_code"][r["code"]] = qb_cov["rejections_by_code"].get(r["code"], 0) + 1
+    qb_cov["source_supplied"] = bool(a.qb_confirmations)
     theses = json.load(open(a.theses)) if a.theses else []
     submission = json.load(open(a.submission)) if a.submission else None
     if theses and submission is None and a.mode == C.LIVE and not a.allow_unreviewed:
@@ -106,6 +118,8 @@ def main(argv=None) -> int:
         if pr:
             with open(os.path.join(a.out, "records", f"{pr['recommendation_id']}.json"), "w") as f:
                 json.dump(pr, f, indent=1)
+    with open(os.path.join(a.out, "qb_coverage.json"), "w") as f:
+        json.dump(qb_cov, f, indent=1)
     with open(os.path.join(a.out, "card.json"), "w") as f:
         json.dump(card, f, indent=1, default=str)
     with open(os.path.join(a.out, "CARD.md"), "w") as f:
@@ -115,7 +129,8 @@ def main(argv=None) -> int:
     for g in card["games"]:
         states[g["state"]] = states.get(g["state"], 0) + 1
     print(f"card {card['mode']} as of {card['as_of']}: gate {card['data_gate']['status']}, games {len(card['games'])} {states}, "
-          f"theses {len(card['theses'])}, lines {len(card['lines'])}")
+          f"theses {len(card['theses'])}, lines {len(card['lines'])}; QB confirmed both sides in {qb_cov['games_both_qbs_confirmed']}/{qb_cov['games']} games "
+          f"({qb_cov['records_valid']} valid, {qb_cov['records_rejected']} rejected records)")
     return 0 if not card["blocked"] else 5
 
 

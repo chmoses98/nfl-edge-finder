@@ -5,7 +5,9 @@
 #
 # Status on this branch (local, Python 3.13; the PR's CI on Python 3.11 is the authority): all 20 now pass, 0 tests fail, and the
 # set of failures that are NEW relative to origin/main is empty. They were fixed, not hidden:
-#   * 18 CRASH rows  -> challenge.py C10 no longer compares against a None cap (a real RUN NFL production crash, not a test problem)
+#   * 18 CRASH rows  -> challenge.py C10 no longer compares against a None cap (a real RUN NFL production crash, not a test problem).
+#                       The fix is hotfix PR #233's (branch fix/nfl-null-game-cap-crash-only, merged INTO this branch; this PR carries no
+#                       second copy of it). If #233 lands first, this branch's diff to challenge.py disappears.
 #   * 2 STALE_PIN rows -> test_postgame_workflow.SCIENTIFIC_PINS re-synced to the owner-reviewed risk.py pin (risk.py itself is unchanged)
 #
 # node id | cause

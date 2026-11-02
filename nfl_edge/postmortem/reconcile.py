@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 
 from nfl_edge.handicap import attribution as ATTR
 
-from .common import UNIT_DOLLARS, num, parse_ts
+from .common import num, parse_ts
 from .ontology import COMBO_UNDECODED, SINGLE, classify_ticker
 
 RECONCILE_VERSION = "postmortem-reconcile-1.0.0"
@@ -49,10 +49,14 @@ class ContractRecord:
     close: dict
     clv: dict
     flags: tuple = field(default_factory=tuple)
+    #: Router execution evidence (digests + first/last fill time) when a sidecar row exists for this wager; {} otherwise.
+    execution: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         d = {k: getattr(self, k) for k in self.__dataclass_fields__}
         d["flags"] = list(self.flags)
+        if not d["execution"]:
+            del d["execution"]          # absent evidence leaves the record (and its sha256) exactly as it was before this field existed
         return d
 
     @property
@@ -63,6 +67,24 @@ class ContractRecord:
 #: Every spelling of "the exchange told us which order / fills this was" the router or a destination ledger uses. Any one present
 #: clears MISSING_ORDER_FILL_DETAIL; none present keeps the flag (the ids are never inferred).
 ORDER_FILL_KEYS = ("order_id", "kalshi_order_id", "fill_ids", "kalshi_fill_ids", "fill_id")
+
+#: What a "close" is. A TRUE close is the exchange's own final pregame price (e.g. the last candlestick before the market closed
+#: or kickoff). Everything this pipeline has today is a periodic CAPTURE of the order book taken before kickoff: a PROXY, however
+#: recent. A proxy is never reported as a true close and a CLV computed from one is labelled as such.
+TRUE_CLOSE = "TRUE_CLOSE"
+CAPTURE_PROXY = "CAPTURE_PROXY"
+TRUE_CLOSE_SOURCES = frozenset({"EXCHANGE_CLOSE_CANDLE"})
+
+
+def close_kind(close: dict | None) -> str | None:
+    if not close:
+        return None
+    return TRUE_CLOSE if close.get("source") in TRUE_CLOSE_SOURCES else CAPTURE_PROXY
+
+#: Sidecar fields from the router's execution evidence (kalshi_router.execution_evidence, schema router_execution_evidence.v1). Digests only:
+#: this repository is public, so raw order/fill ids never appear here, and a digest cannot be inverted.
+EXECUTION_EVIDENCE_FIELDS = ("order_id_digest", "fill_id_digests", "fill_count", "first_fill_ts", "last_fill_ts", "execution_action", "all_taker")
+EXECUTION_EVIDENCE_SCHEMA = "router_execution_evidence.v1"
 
 
 def canonical_settlement(settlement: dict | None, amendments: list) -> dict:
@@ -95,15 +117,17 @@ def _clv(side: str, price, contracts, fee, close: dict | None) -> dict:
     mid = (bid + ask) / 2.0
     clv = mid - price
     net = None if fee is None or not contracts else clv - fee / contracts
-    return {"state": "OK", "close_mid_side": mid, "clv": clv, "clv_net_of_fee": net,
-            "close_quality": close.get("quality") or close.get("close_quality"), "close_captured_at": close.get("captured_at")}
+    return {"state": "OK", "close_mid_side": mid, "clv": clv, "clv_net_of_fee": net, "close_kind": close_kind(close),
+            "close_quality": close.get("quality") or close.get("close_quality"), "close_captured_at": close.get("captured_at"),
+            "close_age_seconds": close.get("close_age_seconds")}
 
 
 def reconcile(wagers: list, settlements: list, amendments: list, *, recommendations: list | None = None,
               closes: dict | None = None, availability: dict | None = None, kickoffs: dict | None = None,
-              legs_by_ticker: dict | None = None) -> list:
+              legs_by_ticker: dict | None = None, execution_evidence: dict | None = None) -> list:
     """``availability``: {game_key: {projection_as_of, injuries_as_of, qb:{TEAM:{status,confirmed_at}}}}.
-    ``kickoffs``: {game_key: iso}. Returns ContractRecord list in ledger order."""
+    ``kickoffs``: {game_key: iso}. ``execution_evidence``: {source_bet_key: router sidecar row} (optional; absence changes nothing).
+    Returns ContractRecord list in ledger order."""
     recs = ATTR.real_recommendations(recommendations or [])
     settle_by_key = {s.get("source_bet_key"): s for s in settlements}
     closes, availability, kickoffs, legs_by_ticker = closes or {}, availability or {}, kickoffs or {}, legs_by_ticker or {}
@@ -114,7 +138,13 @@ def reconcile(wagers: list, settlements: list, amendments: list, *, recommendati
         t, side = w.get("market_ticker"), w.get("side")
         ont = classify_ticker(t, legs=legs_by_ticker.get(t))
         flags = list(ont.flags)
-        if not any(w.get(k) for k in ORDER_FILL_KEYS):
+        execution = {}
+        ee = (execution_evidence or {}).get(w.get("source_bet_key"))
+        if isinstance(ee, dict) and ee.get("schema_version") == EXECUTION_EVIDENCE_SCHEMA and ee.get("source_bet_key") == w.get("source_bet_key"):
+            execution = {k: ee.get(k) for k in EXECUTION_EVIDENCE_FIELDS if k in ee}
+            execution["evidence_flags"] = list(ee.get("flags") or [])
+        has_ids = any(w.get(k) for k in ORDER_FILL_KEYS) or bool(execution.get("order_id_digest") and execution.get("fill_id_digests"))
+        if not has_ids:
             flags.append("MISSING_ORDER_FILL_DETAIL")
         fee, price, contracts = num(w.get("fees_paid")), num(w.get("actual_price")), num(w.get("contracts"))
         if w.get("fees_are_estimated"):
@@ -160,7 +190,8 @@ def reconcile(wagers: list, settlements: list, amendments: list, *, recommendati
             source_bet_key=w.get("source_bet_key"), ticker=t, side=side, kind=ont.kind, family=ont.family, period=ont.period,
             game_key=ont.game_key, executed_at=w.get("executed_at"), price=price, contracts=contracts, stake=num(w.get("stake")),
             fees_paid=fee, fee_state=w.get("fee_state"), recommendation=rec, availability=av, settlement=st,
-            close={"present": bool(close), "pregame_execution": pre}, clv=clv, flags=tuple(sorted(set(flags)))))
+            close={"present": bool(close), "pregame_execution": pre, "kind": close_kind(close)}, clv=clv, flags=tuple(sorted(set(flags))),
+            execution=execution))
     return out
 
 

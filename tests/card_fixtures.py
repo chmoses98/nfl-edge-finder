@@ -85,8 +85,7 @@ def build_run(tmp_path, *, cap_age_min=5.0, kick=KICK, invariants_ok=True, playe
     from nfl_edge.handicap import card as C
     run = C.load_reports(str(tmp_path))
     if pit:
-        conf = (cap - timedelta(minutes=1)).isoformat()
-        run["qb_confirmations"] = {t: {"status": "CONFIRMED_STARTER", "confirmed_at": conf, "source": "test_fixture_inactive_list"} for t in ("AAA", "BBB")}
+        run["qb_confirmations"] = {GAME: qb_rows(cap, kick)}
     return run
 
 
@@ -97,3 +96,19 @@ def thesis(shift_margin=(2.0, 4.0), shift_total=(-0.5, 0.5), **kw):
          "challenge": {"fail_modes": ["a", "b"], "market_already_priced": "the price has not moved", "matchup_check": "adjusted ratings, 6 games", "uncertainties": ["range"]}}
     t.update(kw)
     return t
+
+
+def qb_records(cap, game_id=None, teams=("AAA", "BBB"), source_type="HEAD_COACH_STATEMENT_ON_RECORD", minutes_before_cap=1):
+    """Validated-shape confirmation records (nfl-qb-confirmations.v1) for a fixture game: observed shortly before the packet cut."""
+    obs = (cap - timedelta(minutes=minutes_before_cap)).isoformat()
+    return [{"record_id": f"qbc-fixture-{t}", "game_id": game_id or GAME, "team": t, "qb_player_id": f"00-QB{t}", "status": "CONFIRMED_STARTER",
+             "source_type": source_type, "source_ref": "https://example.org/fixture", "observed_at": obs, "captured_at": obs,
+             "captured_by": "test_fixture"} for t in teams]
+
+
+def qb_rows(cap, kick, as_of=None, game_id=None, teams=("AAA", "BBB"), **kw):
+    """The resolved {team: row} the gate reads, produced by the real validator + resolver (never hand-built)."""
+    from nfl_edge.postmortem import qb_confirmations as QBC
+    valid, rejected = QBC.validate_records(qb_records(cap, game_id, teams, **kw))
+    assert not rejected, rejected
+    return QBC.resolve_game(valid, game_id=game_id or GAME, teams=teams, kickoff=kick, as_of=as_of or (cap + timedelta(minutes=4)))

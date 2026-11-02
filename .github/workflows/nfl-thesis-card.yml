@@ -93,6 +93,18 @@ jobs:
             data/kalshi/capture/schedule_cache.csv
           sparse-checkout-cone-mode: false
 
+      # The confirmed-starter ledger (append-only, written by nfl-qb-confirm.yml). Optional: when the branch or the file is absent the card
+      # runs with NO confirmation source and every game-level score market stays blocked QB_UNKNOWN (fail closed). Never an error.
+      - name: Fetch the confirmed-starter ledger (qb-confirmations), if any
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${REPO}.git" qb-confirmations >/dev/null 2>&1; then
+            git -C code fetch --depth=1 origin qb-confirmations && git -C code worktree add -f ../qb FETCH_HEAD && echo "qb ledger: $(ls qb/qb_confirmations 2>/dev/null | wc -l) file(s)"
+          else
+            echo "::notice::no qb-confirmations branch: no confirmed starters are available, game-level score markets stay blocked QB_UNKNOWN"
+          fi
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -153,6 +165,7 @@ jobs:
           set +e
           EXTRA=""
           [ "$MODE" = "LIVE" ] && EXTRA="--live-evidence"
+          if [ -d qb/qb_confirmations ]; then EXTRA="$EXTRA --qb-confirmations qb/qb_confirmations"; fi
           python3 code/scripts/handicap/run_card.py --reports-dir "$REPORTS" --submission "$RUNNER_TEMP/submission.json" \
             --schedule-csv md/data/kalshi/capture/schedule_cache.csv --handicap-root hd --fee-root md --mode "$MODE" $EXTRA --out out 2>&1 | tail -20
           echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"

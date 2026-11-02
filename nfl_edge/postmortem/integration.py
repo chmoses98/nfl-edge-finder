@@ -8,10 +8,13 @@ What this can do:   turn an APPROVED candidate into a BLOCKED one, and add flags
 What this cannot:   add a candidate, raise a stake, raise a ceiling, re-rank anything, or supply a missing fact.
 
 Honesty rules (each is tested):
-* A quarterback is CONFIRMED only when the run supplies a confirmation (``run["qb_confirmations"]``, e.g. from the
-  inactive list) with a time. A depth chart that lists a QB as active is NOT a confirmation and is never relabelled as one.
-  With no confirmation supplied, game-level score markets are blocked ``QB_UNKNOWN:<team>``. That is the intended,
-  fail-closed behaviour until a confirmation source is wired; it is reported, not hidden.
+* A quarterback is CONFIRMED only when ``qb_confirmations.py`` resolves a validated record from an allowlisted source that
+  NAMES the starter (team announcement, head-coach statement on record, official lineup) observed before the decision and
+  before kickoff and not stale (``run["qb_confirmations"]`` is {game_id: {team: row}}). A depth chart, active roster,
+  inactive list or injury-report status is NOT a confirmation and can never become one. A team with no usable record blocks
+  game-level score markets ``QB_UNKNOWN:<team>``; a conflicting, stale or withdrawn one blocks ``QB_NOT_CONFIRMED:<team>``.
+  Games whose both quarterbacks are confirmed are evaluated normally; every other game stays blocked, and props and other
+  non-score markets are never blocked by this logic.
 * The ceiling check compares the record's ``bet_up_to_probability`` with a whole-order, fee-inclusive bound derived from
   the analyst's DECLARED fair range. That range is uncalibrated, so the bound is labelled ``ANALYST_DECLARED_UNCALIBRATED``;
   a CALIBRATED bet-up-to is reported as ``None`` (MISSING_CALIBRATION) because no held-out calibration cells exist for
@@ -68,12 +71,15 @@ def build_pit_evidence(*, run: dict, game: dict, ev: dict) -> dict:
     except (TypeError, ValueError):
         pass
     teams = [game.get("home_team"), game.get("away_team")]
-    supplied = run.get("qb_confirmations") or {}
+    # ``run["qb_confirmations"]`` is {game_id: {team: row}} RESOLVED by qb_confirmations.resolve_slate from validated,
+    # allowlisted, timestamped records (scripts/handicap/run_card.py). The old team-keyed shape carried no provenance and is gone.
+    supplied = (run.get("qb_confirmations") or {}).get(game.get("game_id")) or {}
     qb = {}
     for t in teams:
         row = supplied.get(t)
         if isinstance(row, dict):
-            qb[t] = {"status": row.get("status"), "confirmed_at": row.get("confirmed_at"), "source": row.get("source")}
+            qb[t] = {"status": row.get("status"), "confirmed_at": row.get("confirmed_at"), "source": row.get("source"),
+                     "record_id": row.get("record_id"), "qb_player_id": row.get("qb_player_id"), "reason": row.get("reason")}
     return {
         "schema": PIT_SCHEMA,
         "integration_version": INTEGRATION_VERSION,
