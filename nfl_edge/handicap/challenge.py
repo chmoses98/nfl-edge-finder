@@ -171,10 +171,16 @@ def challenge(thesis: dict, cand: dict, ev: dict, ranked_alternatives: list, *, 
         items.append(_item("C9", "CLEAR", f"capture {quote_age_min:.0f} min old; book two-sided, width {float(ev.get('width') or 0) * 100:.0f}c. The depth walk for the staked size is done by preflight"))
 
     # C10
-    if owner_open_units >= game_cap_units:
+    # A None game cap is intentional: exposure has no per-game ceiling by owner policy.
+    # Comparing a float to None previously crashed every challenge that reached C10.
+    if game_cap_units is not None and owner_open_units >= game_cap_units:
         items.append(_item("C10", "FAIL", f"{owner_open_units:.1f}U already open on this game (game cap {game_cap_units:g}U)"))
     elif owner_open_units > 0:
-        items.append(_item("C10", "FLAG", f"{owner_open_units:.1f}U already open on this game; the stake below is the room left under the game cap, counted together"))
+        msg = (f"{owner_open_units:.1f}U already open on this game; "
+               + ("the stake below is the room left under the game cap, counted together"
+                  if game_cap_units is not None else
+                  "no per-game cap applies; review correlated thesis exposure"))
+        items.append(_item("C10", "FLAG", msg))
     else:
         items.append(_item("C10", "CLEAR", "no open owner position on this game in the ledger"))
 
