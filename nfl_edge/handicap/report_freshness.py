@@ -211,3 +211,44 @@ def simulation_vintage(sim_sources: dict | None, cap_vintage: dict | None, now: 
             "note": ("informational only: the simulation is read from market-data as published, not re-run by "
                      "this build; LAGS_LEDGER means its player distributions predate the market (and any "
                      "injury/inactive news) the ledger priced")}
+
+
+# A report's embedded freshness measurements refer to its OWN build time. Readers must
+# independently evaluate the absolute timestamps at decision time: a successful report
+# published five days ago still says SUCCESS and SIM_CURRENT for its old board.
+def published_report_status(manifest: dict, now: datetime, *, max_report_age_min: float = 120.0,
+                            max_market_age_min: float = 90.0) -> dict:
+    """Classify an already published report at the current clock, not at its build clock.
+
+    CURRENT_RESEARCH is not an executable quote or approval to place a bet. A live
+    decision must separately re-resolve the ticker's bid/ask, liquidity and fees.
+    """
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    built = _iso_dt((manifest or {}).get("built_at"))
+    cap = ((manifest or {}).get("vintages") or {}).get("kalshi_capture") or {}
+    observed = _iso_dt(cap.get("queried_at"))
+    problems = []
+
+    def age_in_minutes(stamp, label, limit):
+        if stamp is None:
+            problems.append(f"{label} timestamp missing or invalid")
+            return None
+        age = (now - stamp).total_seconds() / 60.0
+        if age < 0:
+            problems.append(f"{label} timestamp is in the future")
+        elif age > limit:
+            problems.append(f"{label} is {age:.1f} minutes old (maximum {limit:g})")
+        return round(age, 1)
+
+    report_age = age_in_minutes(built, "published report", max_report_age_min)
+    market_age = age_in_minutes(observed, "Kalshi capture", max_market_age_min)
+    if (manifest or {}).get("report_status") != "SUCCESS":
+        problems.append("report has no SUCCESS status")
+    return {"status": "STALE_RESEARCH" if problems else "CURRENT_RESEARCH",
+            "can_use_as_current_research": not problems,
+            "report_built_at": built.isoformat() if built else None,
+            "market_queried_at": observed.isoformat() if observed else None,
+            "report_age_min": report_age, "market_age_min": market_age,
+            "problems": problems,
+            "note": "Even CURRENT_RESEARCH is not an executable Kalshi quote; re-quote every recommended contract."}

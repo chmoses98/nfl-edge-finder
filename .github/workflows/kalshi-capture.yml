@@ -35,7 +35,8 @@ jobs:
           python-version: '3.11'
       - name: Restore capture state from market-data branch
         run: |
-          git fetch --depth=1 origin market-data || true
+          # Blobless: do not download the huge market-data history just to read capture state.
+          git fetch --depth=1 --filter=blob:none origin market-data || true
           if git rev-parse --verify origin/market-data >/dev/null 2>&1; then
             mkdir -p data/kalshi/capture
             git show origin/market-data:data/kalshi/capture/state.json > data/kalshi/capture/state.json 2>/dev/null || echo '{"fingerprints":{},"trades_cursor_ts":null,"last_daily_run":null}' > data/kalshi/capture/state.json
@@ -56,7 +57,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          python3 scripts/ci/publish_market_data.py --src data/kalshi/capture --message "kalshi capture $(date -u +'%Y-%m-%dT%H:%M:%SZ') (${{ github.event_name }})"
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/capture --sparse --message "kalshi capture $(date -u +'%Y-%m-%dT%H:%M:%SZ') (${{ github.event_name }})"
       - name: Surface partial capture
         if: steps.capture.outcome != 'success'
         run: echo "::warning::capture reported PARTIAL universe or error (see manifest)"; exit 1
