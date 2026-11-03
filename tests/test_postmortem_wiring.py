@@ -88,7 +88,7 @@ def test_flags_never_change_a_stake():
 # ------------------------------------------------------------------------------------------------ PIT gate (unit)
 def _rec(**over):
     pit = {"projection_as_of": (NOW - timedelta(minutes=10)).isoformat(), "injuries_as_of": (NOW - timedelta(minutes=10)).isoformat(),
-           "qb": {t: {"status": "CONFIRMED_STARTER", "confirmed_at": (NOW - timedelta(minutes=20)).isoformat(), "source": "inactives"} for t in ("AAA", "BBB")},
+           "qb": {t: {"status": "CONFIRMED_STARTER", "confirmed_at": (NOW - timedelta(minutes=20)).isoformat(), "source": "HEAD_COACH_STATEMENT_ON_RECORD"} for t in ("AAA", "BBB")},
            "teams": ["BBB", "AAA"]}
     pit.update(over.pop("pit", {}))
     rec = {"market_ticker": "KXNFLSPREAD-26OCT25AAABBB-BBB3", "side": "YES", "kickoff_utc": KO.isoformat(), "pit_evidence": pit}
@@ -194,7 +194,9 @@ def test_records_with_pit_evidence_are_judged_and_fail_closed_with_nothing_suppl
 
 
 def test_player_markets_keep_their_own_availability_gate():
-    rec = {"decision": "RECOMMENDED", "created_at": NOW.isoformat(), "market_ticker": "KXNFLRECYDS-26OCT25AAABBB-AAAWR1-60", "market_family": "PLAYER_STAT",
+    # 2026-11-03 (PR #241): the fixture is a RUSHING prop. A receiving-yards prop is QB_INDIRECT in the QB-dependency table and IS now judged by
+    # G_PIT on its own team's quarterback (tests/test_qb_dependency.py); props that do not depend on the quarterback keep only their own gate.
+    rec = {"decision": "RECOMMENDED", "created_at": NOW.isoformat(), "market_ticker": "KXNFLRSHYDS-26OCT25AAABBB-AAARB1-60", "market_family": "PLAYER_STAT",
            "side": "YES", "kickoff_utc": KO.isoformat(), "pit_evidence": {"teams": ["BBB", "AAA"], "qb": {}}}
     rep = G.evaluate_gates(rec, _bare_ctx())
     assert rep.gates[G.G_PIT].status == G.NOT_APPLICABLE
@@ -299,6 +301,7 @@ WIRING_PINS = {
     "nfl_edge/postmortem/common.py": "PIN_COMMON",
     "nfl_edge/postmortem/ontology.py": "PIN_ONTOLOGY",
     "nfl_edge/postmortem/qb_confirmations.py": "PIN_QB_CONFIRMATIONS",
+    "nfl_edge/postmortem/qb_dependency.py": "PIN_QB_DEPENDENCY",
 }
 
 

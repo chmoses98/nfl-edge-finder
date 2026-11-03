@@ -116,7 +116,7 @@ def test_no_record_means_absent_so_the_gate_says_qb_unknown():
 
 
 def test_a_confirmation_older_than_the_freshness_window_is_stale_and_unknown():
-    row = resolve(valid(rec(observed=NOW - timedelta(minutes=Q.CONFIRMATION_MAX_AGE_MIN + 1))))
+    row = resolve(valid(rec(observed=NOW - timedelta(minutes=Q.MAX_AGE_AT_DECISION_MIN + 1))))
     assert row["status"] == Q.UNKNOWN and row["reason"] == "STALE_CONFIRMATION" and row["confirmed_at"] is None
 
 
@@ -198,15 +198,30 @@ def test_the_gate_sees_only_resolved_rows_and_a_depth_chart_stays_unconfirmed():
     out = guard_candidate({"ticker": "KXNFLSPREAD-26NOV08SFATL-SF3", "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
                            "projection_as_of": NOW, "injuries_as_of": NOW, "qb": pit["qb"], "teams": pit["teams"],
                            "quote": {"price": 0.5, "captured_at": NOW, "kind": "EXECUTABLE_ASK", "depth": 100}, "contracts": 10})
-    assert out["blocks"] == ["QB_NOT_CONFIRMED:ATL"]
+    # 2026-11-03 (PR #241): a non-confirmed row now also carries its reason code (QB_REASON:<team>:<code>); the block itself is unchanged.
+    assert [b for b in out["blocks"] if not b.startswith("QB_REASON:")] == ["QB_NOT_CONFIRMED:ATL"]
+    assert "QB_REASON:ATL:NOT_CONFIRMED_BY_ANY_ACCEPTED_SOURCE" in out["blocks"]
+    assert out["qb_provenance"]["ATL"]["source"] == "DEPTH_CHART" and out["qb_provenance"]["ATL"]["as_of"] == NOW.isoformat()
 
 
-def test_props_are_not_blocked_by_the_game_level_quarterback_rule():
+def _prop_guard(ticker, qb=None):
     from nfl_edge.postmortem.guards import guard_candidate
-    out = guard_candidate({"ticker": "KXNFLRECYDS-26NOV08SFATL-SFWR1-60", "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
-                           "projection_as_of": NOW, "injuries_as_of": NOW, "qb": {}, "teams": ["ATL", "SF"],
-                           "quote": {"price": 0.5, "captured_at": NOW, "kind": "EXECUTABLE_ASK", "depth": 100}, "contracts": 10})
-    assert not any(b.startswith("QB_") for b in out["blocks"])
+    return guard_candidate({"ticker": ticker, "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
+                            "projection_as_of": NOW, "injuries_as_of": NOW, "qb": qb or {}, "teams": ["ATL", "SF"],
+                            "quote": {"price": 0.5, "captured_at": NOW, "kind": "EXECUTABLE_ASK", "depth": 100}, "contracts": 10})
+
+
+def test_unrelated_props_are_not_blocked_by_the_quarterback_rule():
+    # 2026-11-03 (PR #241): this test used to assert that EVERY prop is untouched (including a receiving-yards prop). The QB-dependency table
+    # (nfl_edge/postmortem/qb_dependency.py) now gates quarterback passing props and pass-catcher props; props that do not depend on the
+    # quarterback (rushing volume, kicker, defender) are still never blocked by it. tests/test_qb_dependency.py covers the full table.
+    for t in ("KXNFLRSHYDS-26NOV08SFATL-SFRB1-60", "KXNFLFG-26NOV08SFATL-SFK1-2", "KXNFLTKL-26NOV08SFATL-ATLLB1-8"):
+        assert not any(b.startswith("QB_") for b in _prop_guard(t)["blocks"]), t
+
+
+def test_a_pass_catcher_prop_needs_only_its_own_teams_quarterback():
+    out = _prop_guard("KXNFLRECYDS-26NOV08SFATL-SFWR1-60")
+    assert "QB_UNKNOWN:SF" in out["blocks"] and not any(b.endswith(":ATL") for b in out["blocks"])
 
 
 # ------------------------------------------------------------------------------------------------ the intake script

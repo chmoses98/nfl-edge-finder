@@ -567,7 +567,9 @@ SCIENTIFIC_PINS = {
     # left on the pre-2026-11-01 hash e7af977ea69a524b, which is why test_J / test_J3 failed on main); gates.py 2821835860e32f3e -> a0d03cb7af6bab98 (two restriction-only gates).
     # DELIBERATE, REVIEWED EDIT (owner staking policy; same reason as tests/test_incumbent_unchanged.py): fixed unit, whole-unit stakes, optional bankroll guards.
     "nfl_edge/handicap/risk.py": "54fb66955d79705b",                 # the risk policy engine
-    "nfl_edge/handicap/gates.py": "a0d03cb7af6bab98",                # the real-money gates
+    # PR #241 (2026-11-03): gates.py a0d03cb7af6bab98 -> 07e095f5192bbe6c (step 9 asks integration.pit_applies; QB-dependent PLAYER markets are now judged by
+    # G_PIT; restriction-only; same reason as tests/test_incumbent_unchanged.py).
+    "nfl_edge/handicap/gates.py": "07e095f5192bbe6c",                # the real-money gates
     "nfl_edge/settlement/settle.py": "1f24b396ae07569a",             # settlement
     "nfl_edge/settlement/semantics.py": "e877fba94b93a122",          # contract value vs event probability
     # DELIBERATE, REVIEWED EDIT (2026-09-23): the closing-centre bank is bounded to games played before the

@@ -1,8 +1,22 @@
 # Confirmed-starter quarterbacks (point-in-time gate input)
 
-The card's `game_level_pit_evidence` gate blocks every game-level score market (game winner, spread, total, team total, 1Q/1H, plus every other market that settles on the score: winning-margin bucket, both-teams-score-N, race-to-N, period both-teams-score / period TD / half-full-time)
-unless **both** quarterbacks of the game are `CONFIRMED_STARTER` with a time. This is the only way a quarterback becomes confirmed.
-Player props are not touched by this rule.
+The card's `game_level_pit_evidence` gate decides, per market, whether the quarterbacks must be confirmed, using an **explicit table**
+(`nfl_edge/postmortem/qb_dependency.py`, tested by `tests/test_qb_dependency.py`): every family the classifier, packet, derived-fair-value set
+and schema recognise has an entry, and **anything not in the table is `QB_GATED`** (unknown fails closed). A quarterback becomes confirmed
+only through the record rules below.
+
+## Which markets need which quarterbacks
+
+| classification | requirement | families |
+|---|---|---|
+| `QB_GATED` | **both** teams' QBs `CONFIRMED_STARTER` | game winner, spread, total, team total and every alternate rung; 1H/2H/quarter winner, spread, total, team total, both-teams-score, period TD, half/full-time; winning-margin bucket; both-teams-score-N; race-to-N; total TD count; first-TD team and time; team stats (yards, first downs, TD, FG, sacks, turnovers); game stats (TD, FG, sacks, turnovers, longest reception/TD, shortest TD); game events (overtime, safety, lead changes, 2-pt, 4th-down, comeback, scoreless quarter, non-QB pass, defensive TD, ...); combos and parlays; a quarterback's passing yards/TDs/attempts/completions/interceptions; fantasy points (position unknown); head-to-head passing, receiving and fantasy; game leaders in anything but rushing; any season/week/event-scoped contract (outside RUN NFL's single-game scope); **any family or statistic not in the table** |
+| `QB_INDIRECT` | the **player's own team's** QB `CONFIRMED_STARTER` (both when the team cannot be read from the ticker) | receptions, receiving yards, rush+rec yards, longest reception, anytime / 2+ / first / next touchdown scorer. Rationale: the projection layer already treats these as quarterback-dependent and abstains when the QB is uncertain (`context/qb_resolution.is_qb_dependent`); a ticker has no position, so a scorer prop is treated as pass-catcher exposed. The opponent's QB is second-order and not required |
+| `NOT_GATED` | none (the player-availability gate and every other gate still apply) | running-back rushing yards/attempts, longest rush, defender tackles/sacks, kicker field goals, longest field goal, head-to-head rushing, rushing-yards/TD game leader |
+
+Known residual gap: a quarterback's *rushing* prop is indistinguishable from a running back's in a ticker and is `NOT_GATED`.
+Known card limitations seen while testing (not changed here): period both-teams-score and period-TD series have no fee-schedule entry, so the card
+cannot price them (net edge unknown) and they never become a line; a `FIRST_TD_SCORER` record is refused by the schema before any QB rule because the
+card only writes the availability state for `PLAYER_STAT`.
 
 ## What counts
 
@@ -61,15 +75,26 @@ first use. Re-submitting the same assertion is a no-op. A change of mind is a ne
 Refused (nothing written): bad status/source, a depth chart claiming `CONFIRMED_STARTER`, naive or garbled timestamps, observed
 after captured, observed in the future, game/team not in the packet, capture at or after kickoff.
 
-## How a record is used
+## How a record is used (game-specific validity)
 
-At the card's decision time `T` and the game's kickoff `K`:
+At the card's decision time `T` and the game's kickoff `K`, for one `game_id` and one of that game's two teams:
 
-1. only records **captured** at or before `T` and before `K` are visible;
-2. the **latest observation** for the team and game decides, so a later `OUT` / `EXPECTED_UNCONFIRMED` withdraws a confirmation;
-3. two `CONFIRMED_STARTER` records for different quarterbacks **conflict** (`UNKNOWN`) unless the later one `supersedes` the earlier;
-4. a confirmation older than `CONFIRMATION_MAX_AGE_MIN` (48 h, owner-adjustable) is **stale** (`UNKNOWN`);
-5. a team with no usable record is absent -> `QB_UNKNOWN:<team>`; otherwise `QB_NOT_CONFIRMED:<team>`.
+1. only records for **that game_id and that team**, **captured** at or before `T` and before `K` (hence observed before both), are visible; a
+   record for another game, or for a team that is not playing, confirms nothing; history is judged at the stated `T`, never at the wall clock;
+2. only the allow-listed sources can confirm (never a depth chart, roster, inactive list, injury report or model; the gate re-checks the source);
+3. the **latest observation** decides, so a later `OUT` / `EXPECTED_UNCONFIRMED` / `UNKNOWN` **withdraws** a confirmation
+   (`WITHDRAWN_BY_LATER_OUT` / `WITHDRAWN_BY_LATER_RECORD`); on an exact observed-time tie the restrictive record wins;
+4. two `CONFIRMED_STARTER` records for different quarterbacks **conflict** (`CONFLICTING_CONFIRMATIONS`, `UNKNOWN`) unless the later one `supersedes` the earlier;
+5. **two freshness clocks**, both must hold (owner-adjustable constants in `qb_confirmations.py`, both only ever block):
+   * `MAX_AGE_AT_DECISION_MIN` = **24 h**: observed no more than 24 h before `T`, else `STALE_CONFIRMATION`;
+   * `MAX_LEAD_BEFORE_KICKOFF_MIN` = **48 h**: observed inside the last 48 h before `K`, else `OBSERVED_TOO_EARLY_BEFORE_KICKOFF`.
+   Why: a starter can change through the final injury-report week (designations are final the Friday before a Sunday game; official inactives
+   come about 90 minutes before kickoff). A statement older than two days predates the news that can still change it, and one older than a day
+   at the decision has had a full news cycle to go stale. This replaces the old blanket 48 h age, which let a Thursday statement stand for a
+   Sunday decision. A same-day re-confirmation (a coach's Saturday/Sunday statement, the team's lineup) is the way to a bet; the intake script takes it;
+6. a team with no visible record is absent -> `QB_UNKNOWN:<team>` (nothing to cite); otherwise `QB_NOT_CONFIRMED:<team>` plus
+   `QB_REASON:<team>:<reason>`, and the gate evidence and the stored record carry the provenance (`record_id`, `source`, `source_ref`,
+   `observed_at`, `captured_at`, `as_of`, `kickoff_utc`, `game_id`, `team`, the windows, conflicting / withdrawn record ids).
 
 ## Where it is wired
 

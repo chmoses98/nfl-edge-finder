@@ -6,38 +6,74 @@ What was not enforced for spreads, alternates, 1Q/1H/team totals and totals is t
 the injury snapshot and the QUARTERBACK status were fresh, point-in-time, and confirmed. Those are added here, plus a
 price-provenance check (a captured mid is not an executable ask).
 
-NOT WIRED into handicap/gates.py or preflight.py in this change: both are hash-pinned real-money sources
-(tests/test_incumbent_unchanged.py). Wiring is a one-line call to ``guard_candidate`` plus a deliberate pin update and
-needs the owner's explicit authorization (see the PR). Until then these verdicts are advisory evidence in reports.
+WIRED into handicap/gates.py (G_PIT) through integration.pit_gate / pit_applies, owner-approved on PR #232. Which markets need which
+quarterbacks is decided by the explicit table in qb_dependency.py (PR #241); what counts as a valid confirmation for a game is decided by
+qb_confirmations.resolve_team and re-checked here (_qb_blocks), so a row that arrives by any other road is judged again.
 
 Every time argument is explicit: there is no wall-clock default, and naive timestamps are refused (None).
 """
 from __future__ import annotations
 
 from .common import MAX_INJURY_AGE_MIN, MAX_PROJECTION_AGE_MIN, MAX_QUOTE_AGE_MIN, num, parse_ts
+from . import qb_confirmations as QBC
+from . import qb_dependency as QD
 from .ontology import classify_ticker
 
 EXECUTABLE_KINDS = ("EXECUTABLE_ASK",)
 CAPTURED_ONLY_KINDS = ("CAPTURED_MID", "CAPTURED_LAST", "CAPTURED_BID", "CLOSE_MID", "MODEL_IMPLIED")
 QB_CONFIRMED = "CONFIRMED_STARTER"
 
-#: Game-level families whose outcome is DETERMINED BY THE SCORE (full game or a period), so who plays quarterback moves them exactly as it
-#: moves a total. The card derives BOTH_TEAMS_SCORE_N itself (handicap/fairvalue.DERIVABLE) and an analyst can name the others, so this set
-#: must cover everything of that kind the card can emit, not just the four families the first version listed. Player props and
-#: non-score game markets (first-TD scorer, team stats, game events) are deliberately NOT here: unknown QB blocks game-level score lines only.
-QB_GATED_FAMILIES = ("GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL",
-                     "WIN_MARGIN_BUCKET", "BOTH_TEAMS_SCORE_N", "RACE_TO_N",
-                     "PERIOD_OTHER")        # ontology's bucket for period BTTS / period TD / half-full-time (all settle on the score)
+#: Compat view: the family NAMES whose table entry is QB_GATED. The gate no longer consults a list of gated families: it asks
+#: ``qb_dependency.requirement`` (every recognised family has an explicit entry; anything unrecognised is gated). See qb_dependency.py.
+QB_GATED_FAMILIES = QD.gated_family_names()
 
 
 def _age_min(decision, then):
     return None if decision is None or then is None else (decision - then).total_seconds() / 60.0
 
 
+def _qb_blocks(team, row, *, dec, ko, game_id, max_age, max_lead) -> list:
+    """Every reason one team's quarterback row does not establish a CONFIRMED starter for THIS game at THIS decision. Defence in depth: the
+    resolver already applies these rules, but a row that arrives by any other road (a hand-built dict, an old record) is re-judged here."""
+    if not row or not isinstance(row, dict):
+        return [f"QB_UNKNOWN:{team}"]
+    out = []
+    if row.get("status") != QB_CONFIRMED:
+        out.append(f"QB_NOT_CONFIRMED:{team}")
+        if row.get("reason"):
+            out.append(f"QB_REASON:{team}:{row['reason']}")
+        return out
+    if row.get("source") not in QBC.CONFIRMING_SOURCE_TYPES:
+        out.append(f"QB_SOURCE_NOT_ACCEPTED:{team}")          # a depth chart / roster / injury report / model, or no source at all
+    if game_id is not None and row.get("game_id") != game_id:
+        out.append(f"QB_WRONG_GAME:{team}")                   # a confirmation for another game (or one that does not say which) is not this game's
+    if row.get("team") is not None and row.get("team") != team:
+        out.append(f"QB_WRONG_TEAM:{team}")
+    ct = parse_ts(row.get("confirmed_at"))
+    if ct is None:
+        out.append(f"QB_CONFIRMATION_TIME_MISSING:{team}")
+    else:
+        if dec is not None:
+            if ct > dec:
+                out.append(f"QB_CONFIRMED_AFTER_DECISION:{team}")
+            elif (dec - ct).total_seconds() / 60.0 > max_age:
+                out.append(f"QB_CONFIRMATION_STALE:{team}")
+        if ko is not None:
+            if ct >= ko:
+                out.append(f"QB_CONFIRMED_AT_OR_AFTER_KICKOFF:{team}")
+            elif (ko - ct).total_seconds() / 60.0 > max_lead:
+                out.append(f"QB_CONFIRMATION_TOO_EARLY_BEFORE_KICKOFF:{team}")
+    return out
+
+
 def guard_candidate(c: dict, *, max_projection_age_min=MAX_PROJECTION_AGE_MIN, max_injury_age_min=MAX_INJURY_AGE_MIN,
-                    max_quote_age_min=MAX_QUOTE_AGE_MIN, require_qb_for=QB_GATED_FAMILIES) -> dict:
-    """c keys: ticker, side, decision_time, kickoff_utc, projection_as_of, injuries_as_of, qb {TEAM: {status, confirmed_at}},
-    teams [home, away], quote {price, captured_at, kind, depth}, contracts. Returns {actionable, blocks[], warnings[]}."""
+                    max_quote_age_min=MAX_QUOTE_AGE_MIN, max_qb_age_min=QBC.MAX_AGE_AT_DECISION_MIN,
+                    max_qb_lead_min=QBC.MAX_LEAD_BEFORE_KICKOFF_MIN, require_qb_for=()) -> dict:
+    """c keys: ticker, family (optional: the record's market_family), game_id (optional), side, decision_time, kickoff_utc, projection_as_of,
+    injuries_as_of, qb {TEAM: row}, teams [home, away], quote {price, captured_at, kind, depth}, contracts.
+    Returns {actionable, blocks[], warnings[], qb_requirement, qb_provenance}.
+
+    ``require_qb_for`` can only ADD ontology families to the table's requirement (it can never switch the check off)."""
     blocks, warns = [], []
     ont = classify_ticker(c.get("ticker"))
     dec, ko = parse_ts(c.get("decision_time")), parse_ts(c.get("kickoff_utc"))
@@ -70,25 +106,23 @@ def guard_candidate(c: dict, *, max_projection_age_min=MAX_PROJECTION_AGE_MIN, m
         elif age > max_injury_age_min:
             blocks.append("STALE_INJURIES")
 
-    # --- confirmed quarterbacks for both teams (score-based markets)
-    if ont.family in require_qb_for:
+    # --- confirmed quarterbacks (table-driven: qb_dependency.requirement; unknown family -> gated)
+    teams = list(c.get("teams") or [])
+    req = QD.requirement(c.get("ticker"), family=c.get("family"), teams=teams)
+    extra = ont.family in require_qb_for
+    need_qb = req.requires_confirmation or extra
+    qb_prov = {}
+    if need_qb:
         qb = c.get("qb") or {}
-        teams = list(c.get("teams") or [])
         if len(teams) != 2:
             blocks.append("MISSING_TEAMS_FOR_QB_CHECK")
-        for team in teams:
+        required = list(req.teams_required) if (req.requires_confirmation and req.teams_required) else teams
+        for team in required:
             row = qb.get(team)
-            if not row:
-                blocks.append(f"QB_UNKNOWN:{team}")
-                continue
-            if row.get("status") != QB_CONFIRMED:
-                blocks.append(f"QB_NOT_CONFIRMED:{team}")
-                continue
-            ct = parse_ts(row.get("confirmed_at"))
-            if ct is None:
-                blocks.append(f"QB_CONFIRMATION_TIME_MISSING:{team}")
-            elif dec is not None and ct > dec:
-                blocks.append(f"QB_CONFIRMED_AFTER_DECISION:{team}")
+            blocks.extend(_qb_blocks(team, row, dec=dec, ko=ko, game_id=c.get("game_id"), max_age=max_qb_age_min, max_lead=max_qb_lead_min))
+            if isinstance(row, dict):
+                qb_prov[team] = {k: row.get(k) for k in ("status", "reason", "source", "source_ref", "record_id", "qb_player_id", "observed_at",
+                                                         "captured_at", "confirmed_at", "as_of", "kickoff_utc", "game_id")}
 
     # --- quote freshness and provenance
     q = c.get("quote") or {}
@@ -115,7 +149,8 @@ def guard_candidate(c: dict, *, max_projection_age_min=MAX_PROJECTION_AGE_MIN, m
             blocks.append("PRICE_NOT_EXECUTABLE")   # captured is evidence about the market; only an ask is a price you can pay
         else:
             blocks.append("PRICE_PROVENANCE_UNKNOWN")
-    return {"ticker": c.get("ticker"), "actionable": not blocks, "blocks": sorted(set(blocks)), "warnings": warns}
+    return {"ticker": c.get("ticker"), "actionable": not blocks, "blocks": sorted(set(blocks)), "warnings": warns,
+            "qb_requirement": req.to_dict(), "qb_provenance": qb_prov}
 
 
 def guard_candidates(cands: list, **kw) -> list:

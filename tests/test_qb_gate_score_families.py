@@ -49,12 +49,15 @@ def test_every_score_determined_family_requires_both_quarterbacks(ticker):
 
 @pytest.mark.parametrize("ticker", SCORE_TICKERS)
 def test_confirmed_quarterbacks_still_let_the_family_through(ticker):
-    qb = {t: {"status": "CONFIRMED_STARTER", "confirmed_at": DEC - timedelta(minutes=20)} for t in ("AAA", "BBB")}
-    assert GD.guard_candidate(_cand(ticker, qb))["actionable"], ticker
+    # 2026-11-03 (PR #241): a confirmed row now has to name an accepted source (the guard re-judges it); the old fixture had none.
+    from test_qb_dependency import both
+    assert GD.guard_candidate(_cand(ticker, both()))["actionable"], ticker
 
 
-@pytest.mark.parametrize("ticker", ["KXNFLRECYDS-26OCT25AAABBB-AAAWR1-60", "KXNFLANYTD-26OCT25AAABBB-AAAWR1"])
-def test_player_props_are_never_qb_blocked(ticker):
+@pytest.mark.parametrize("ticker", ["KXNFLRSHYDS-26OCT25AAABBB-AAARB1-60", "KXNFLFG-26OCT25AAABBB-AAAK1-2"])
+def test_unrelated_player_props_are_never_qb_blocked(ticker):
+    # 2026-11-03 (PR #241): receiving / anytime-TD props are QB_INDIRECT and now need their own team's quarterback (tests/test_qb_dependency.py);
+    # props unrelated to the quarterback (rushing volume, kicker) are still never blocked by it.
     assert not [b for b in GD.guard_candidate(_cand(ticker))["blocks"] if b.startswith("QB_")]
 
 

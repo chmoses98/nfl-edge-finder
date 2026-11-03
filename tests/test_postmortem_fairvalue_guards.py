@@ -77,7 +77,8 @@ KO = "2026-10-25T17:00:00+00:00"
 def cand(**over):
     c = {"ticker": "KXNFLSPREAD-26OCT25SFATL-SF3", "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
          "projection_as_of": "2026-10-25T15:00:00+00:00", "injuries_as_of": "2026-10-25T15:30:00+00:00", "teams": ["SF", "ATL"],
-         "qb": {t: {"status": GD.QB_CONFIRMED, "confirmed_at": "2026-10-25T15:45:00+00:00"} for t in ("SF", "ATL")},
+         # 2026-11-03 (PR #241): a confirmed row must now name an accepted source (the guard re-judges it); the fixture had none.
+         "qb": {t: {"status": GD.QB_CONFIRMED, "confirmed_at": "2026-10-25T15:45:00+00:00", "source": "HEAD_COACH_STATEMENT_ON_RECORD"} for t in ("SF", "ATL")},
          "quote": {"price": 0.5, "captured_at": "2026-10-25T15:55:00+00:00", "kind": "EXECUTABLE_ASK", "depth": 500}, "contracts": 100}
     c.update(over)
     return c
