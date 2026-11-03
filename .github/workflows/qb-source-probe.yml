@@ -1,0 +1,25 @@
+name: QB source probe
+
+# REPORT ONLY. Asks the public sources we could use for a confirmed-starter feed whether they answer and which JSON key paths
+# look like a starter designation for a quarterback (scripts/handicap/qb_source_probe.py). It writes NO confirmation, commits
+# nothing, uploads no artifact; the job summary carries key-path counts only. Needed because the sandboxes this project is
+# built in cannot reach ESPN, Sleeper or nfl.com, so those payloads have never been inspected. A human reads the result and
+# decides whether an adapter is justified (docs/QB_CONFIRMATIONS.md). INERT UNTIL MERGED (dispatch needs the default branch).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe the candidate sources
+        run: python3 scripts/handicap/qb_source_probe.py --summary "$GITHUB_STEP_SUMMARY"

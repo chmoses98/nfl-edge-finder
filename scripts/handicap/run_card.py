@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.handicap import card as C  # noqa: E402
+from nfl_edge.postmortem import decision_evidence as DE  # noqa: E402
 
 
 
@@ -120,6 +121,14 @@ def main(argv=None) -> int:
                 json.dump(pr, f, indent=1)
     with open(os.path.join(a.out, "qb_coverage.json"), "w") as f:
         json.dump(qb_cov, f, indent=1)
+    # Decision-time evidence for the router's execution-evidence join: digests of the recommendation / model-run ids and the
+    # model as-of, beside card.json. Additive and inert (nothing reads it during a run); an incomplete record is skipped and
+    # counted, never completed (nfl_edge/postmortem/decision_evidence.py).
+    selected = [t["selected"]["record"] for t in card["theses"] if t.get("selected")]
+    ev = DE.candidates_from_records(selected)
+    DE.write_candidates(os.path.join(a.out, "decision_candidates.jsonl"), ev["candidates"])
+    with open(os.path.join(a.out, "decision_candidates_skipped.json"), "w") as f:
+        json.dump(ev["skipped"], f, indent=1)
     with open(os.path.join(a.out, "card.json"), "w") as f:
         json.dump(card, f, indent=1, default=str)
     with open(os.path.join(a.out, "CARD.md"), "w") as f:

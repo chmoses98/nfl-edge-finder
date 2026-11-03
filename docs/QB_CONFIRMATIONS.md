@@ -27,6 +27,25 @@ are **human-attested**: someone records what a named source said and when. The v
 conflicts; it cannot check that the source said it. Until someone records a confirmation, every game is blocked `QB_UNKNOWN`, and
 RUN NFL says so.
 
+## Why there is still no automated adapter (2026-11-03 research, stated exactly)
+
+Reachability was tested from the build sandbox, whose egress policy allows GitHub-hosted data only:
+
+| candidate | reachable from the sandbox | what it would provide | counts as confirmation? |
+|---|---|---|---|
+| nflverse `depth_charts_<season>.csv` (GitHub release) | yes (HTTP 200) | weekly depth-chart rows | **no** - a depth chart, rejected by rule |
+| nflverse `injuries_<season>.csv` (GitHub release) | yes (HTTP 200) | `report_status`, practice status | **no** - an injury report, rejected by rule |
+| ESPN site / core API | no (`CONNECT tunnel failed, response 403`) | unknown: pregame payload shape never inspected | undetermined |
+| Sleeper `players/nfl` | no (403) | depth-chart order, active flag | **no** - rejected by rule even if reachable |
+| nfl.com game center / api.nfl.com | no (403) | unknown | undetermined |
+
+Nothing that was reachable names a starter, and for the rest the payload shape has not been seen. Writing a parser for an
+unseen payload would be inventing a schema, so none was written. `scripts/handicap/qb_source_probe.py` (workflow
+`qb-source-probe.yml`, dispatchable only after merge) asks the unreachable sources, from a GitHub runner, whether any field
+looks like a starter designation, and reports key paths and counts only. If it finds one, an adapter is justified and must
+still obey the rules above: names the starter, observed before kickoff, with source reference and timestamps. Until then the
+human-attested intake below is the only path, and unknown stays `QB_UNKNOWN`.
+
 ## Recording one
 
 Actions -> **NFL QB confirm** (owner only), or locally:
