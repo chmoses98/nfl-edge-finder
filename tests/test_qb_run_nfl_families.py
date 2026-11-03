@@ -3,15 +3,14 @@
 a BET only when the quarterback requirement of its family is met.
 """
 import json
-import pathlib
 from datetime import timedelta
 
 import pytest
 
 import test_card as T
-from card_fixtures import AS_OF, GAME, KICK, _row, build_run, qb_records, schedule_text, thesis
+from card_fixtures import AS_OF, GAME, _row, build_run, qb_records, schedule_text, thesis
 from nfl_edge.postmortem import qb_confirmations as QBC
-from test_postmortem_wiring import ROOT, _run_entry_point
+from test_postmortem_wiring import _run_entry_point
 
 pytestmark = pytest.mark.owner_policy
 

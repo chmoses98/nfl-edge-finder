@@ -48,6 +48,10 @@ def test_the_same_prop_is_a_bet_when_his_own_team_confirms_him_as_the_starter_an
     assert line["status"] == BET, _reasons(card)
     assert line["stake_dollars"] <= 375
     assert card["lines"][0]["preflight"]["gates"]["game_level_pit_evidence"]["status"] == "PASS"
+    # the owner's sizing and review policy is untouched by the new gate: 1U = $75, at most 5U a bet, exposure FLAGS (not caps) at $375 / game and $1,125 / day
+    assert line["stake_dollars"] == line["stake_units"] * 75 and line["stake_units"] <= 5
+    ef = card["exposure_flags"]
+    assert ef["unit_dollars"] == 75.0 and ef["game_flag_dollars"] == 375.0 and ef["daily_flag_dollars"] == 1125.0 and "flags only" in ef["policy_note"]
 
 
 def test_the_opposing_teams_confirmation_does_not_help_a_quarterbacks_own_prop(tmp_path):

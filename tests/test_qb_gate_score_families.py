@@ -6,7 +6,6 @@ Those settle on the score exactly like a total does, so with an unknown quarterb
 spread was blocked QB_UNKNOWN. Player props and non-score markets stay untouched (owner: unknown QB blocks only game-level lines).
 """
 import json
-import pathlib
 from datetime import timedelta
 
 import numpy as np
