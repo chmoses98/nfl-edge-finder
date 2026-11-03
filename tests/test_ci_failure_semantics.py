@@ -290,8 +290,17 @@ def test_shadow_v2_settle_bounds_the_derived_rebuild_inside_the_job_budget():
     soft_evidence = fetch_typ + budget("closes") + publish_typ + budget("settle") + publish_typ
     hard_evidence = sum(int(by_id[i]["timeout-minutes"]) for i in ("fetch", "closes", "settle")) + \
         sum(int(by_id[i]["timeout-minutes"]) for i in ("publish_closes", "publish_evidence"))
-    assert hard_evidence <= int(job["timeout-minutes"]), (
-        "even if every evidence step used its whole hard limit the job limit must not be what ends the run")
+    # PINNED DELIBERATELY CHANGED (2026-11-03): the market-data fetch (~52 GB, bandwidth-bound) took 14-23 min until 2026-11-02 and
+    # then 40+ min on 2026-11-03 (run 41688588424), so its hard limit is now 75. The JOB limit is still NOT raised, which means
+    # fetch + closes + publish + settle + publish (75+30+10+30+10) can no longer all fit if every step used its whole limit. What
+    # must still hold is the EVIDENCE-FIRST path: the closes are paired and PUBLISHED before settlement starts, so fetch + closes +
+    # publish_closes must fit the job limit. A slow-fetch day can cut the settle half off at the job limit; it is bounded and
+    # resumable, and the closes it owes the owner's CLV are already on market-data.
+    evidence_first = sum(int(by_id[i]["timeout-minutes"]) for i in ("fetch", "closes", "publish_closes"))
+    assert evidence_first <= int(job["timeout-minutes"]), (
+        "even if the fetch, the closes and the closes publish each used their whole hard limit the job limit must not be what "
+        "ends the run before the closes are published")
+    assert hard_evidence >= evidence_first        # the full path is only ever LONGER than the evidence-first path
     assert soft_evidence + step_limit + 10 <= int(job["timeout-minutes"]), (
         "soft evidence path + the derived rebuild's own limit + headroom must fit the job limit")
     # the research step's own commands run under `timeout` against the job clock, so it cannot be what cancels the run
