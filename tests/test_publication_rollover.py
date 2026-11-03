@@ -246,7 +246,7 @@ def test_the_horizon_workflow_feeds_the_gate_the_published_manifest():
 
 
 # ===================================================================== 2. runner disk
-@pytest.mark.parametrize("wf", ["run-nfl.yml", "shadow-price.yml"])
+@pytest.mark.parametrize("wf", ["run-nfl.yml", "shadow-price.yml", "shadow-v2-settle.yml"])    # settle added 2026-11-02: its fetch step died "No space left on device" (run 41513363507), skipping every close/CLV step
 def test_the_publication_writers_free_disk_before_the_market_data_worktree(wf):
     y = open(os.path.join(ROOT, ".github", "workflows", wf)).read()
     free, fetch = y.find("bash scripts/ci/free_runner_disk.sh"), y.find("git fetch --depth=1 origin market-data")
