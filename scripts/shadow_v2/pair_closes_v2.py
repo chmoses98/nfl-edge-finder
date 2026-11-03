@@ -89,6 +89,10 @@ def main(argv=None):
                     help="pair at most this many kicked-off games per run, oldest kickoff first (0: no cap); the rest wait for the next run")
     ap.add_argument("--time-budget-minutes", type=float, default=0.0,
                     help="stop STARTING game groups once this much wall clock is spent or the next group is estimated not to fit (0: unbounded)")
+    ap.add_argument("--no-season-pass", action="store_true",
+                    help="skip the season-market CLOSE_NOT_APPLICABLE pass (it is not week-scoped: a windowed recovery that holds only a "
+                         "few days of projection files must not write a SEASON batch from a partial view)")
+    ap.add_argument("--summary-json", default="", help="write the run summary (without the per-row detail) to this file")
     ap.add_argument("--max-group-rows", type=int, default=WP.DEFAULT_MAX_GROUP_ROWS_CLOSES,
                     help="projection rows held in memory by one group of games streamed together")
     a = ap.parse_args(argv)
@@ -214,7 +218,10 @@ def main(argv=None):
                     man = corpus.write_batch(gid, [], evaluation_version=ver, batch=batch, plan=planner.plan())
                     summary[key] += man.get("written", 0)
             summary["games_paired"].append({"game_id": gid, "records": g["n_rows"], "closes": g["n_close"], "clv": g["n_clv"],
-                                            "files": len(index.files_for_game(gid)), "close_plan": cp.counts(), "clv_plan": vp.counts(),
+                                            "files": len(index.files_for_game(gid)),
+                                            "first_file_day": (os.path.basename(os.path.dirname(index.files_for_game(gid)[0])) if index.files_for_game(gid) else None),
+                                            "tickers_by_quality": dict(Counter(c["close_quality"] for c in cache.values())),
+                                            "kickoff_utc": games[gid].get("kickoff_utc"), "close_plan": cp.counts(), "clv_plan": vp.counts(),
                                             "capture_files_read": idx.stats.get("files_read"), "group_size": len(group),
                                             "seconds": round(time.time() - t_group, 1)})
             log(f"  {gid}: {g['n_rows']} records, closes {g['n_close']} (new {cp.counts()['new']}, unchanged {cp.counts()['unchanged']}), "
@@ -251,7 +258,7 @@ def main(argv=None):
     # reject skips are exactly the ones this pass `continue`s over; the informational count of them comes from
     # the index.
     n_na_other = 0
-    season_pass_files = index.files_with_no_game_rows()
+    season_pass_files = [] if a.no_season_pass else index.files_with_no_game_rows()
     summary["rows_season_pass_game_rows"] += sum(g["n"] for p in season_pass_files for g in index.entries[p]["games"].values())
     for r in iter_projections(files=season_pass_files, stats=scan, line_filter=may_lack_game_or_kickoff):
         if r.get("game_id") and r.get("kickoff_utc"):
@@ -265,7 +272,7 @@ def main(argv=None):
     summary["rows_no_game_not_season"] = n_na_other
     if na_planner.conflicts:
         raise ST.EvaluationConflict(na_planner.conflicts)
-    if n_na and not a.dry_run:
+    if n_na and not a.dry_run and not a.no_season_pass:
         man = close_corpus.write_batch("SEASON", [], evaluation_version=CL.CLOSE_RULE_VERSION, batch=batch, plan=na_planner.plan())
         summary["written_closes"] += man.get("written", 0)
     summary["close_status"]["CLOSE_NOT_APPLICABLE_SEASON"] = n_na
@@ -276,6 +283,9 @@ def main(argv=None):
                    perf={"seconds": round(time.time() - t0, 1), "max_rss_mb": round(_rss_mb(), 1)}, dry_run=a.dry_run)
     log(json.dumps({k: v for k, v in summary.items() if k != "games_paired"}, indent=1, default=str))
     write_outputs()
+    if a.summary_json:
+        with open(a.summary_json, "w") as f:
+            json.dump(summary, f, indent=1, default=str)
     return 0
 
 
