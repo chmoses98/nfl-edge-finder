@@ -21,13 +21,21 @@ EXECUTABLE_KINDS = ("EXECUTABLE_ASK",)
 CAPTURED_ONLY_KINDS = ("CAPTURED_MID", "CAPTURED_LAST", "CAPTURED_BID", "CLOSE_MID", "MODEL_IMPLIED")
 QB_CONFIRMED = "CONFIRMED_STARTER"
 
+#: Game-level families whose outcome is DETERMINED BY THE SCORE (full game or a period), so who plays quarterback moves them exactly as it
+#: moves a total. The card derives BOTH_TEAMS_SCORE_N itself (handicap/fairvalue.DERIVABLE) and an analyst can name the others, so this set
+#: must cover everything of that kind the card can emit, not just the four families the first version listed. Player props and
+#: non-score game markets (first-TD scorer, team stats, game events) are deliberately NOT here: unknown QB blocks game-level score lines only.
+QB_GATED_FAMILIES = ("GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL",
+                     "WIN_MARGIN_BUCKET", "BOTH_TEAMS_SCORE_N", "RACE_TO_N",
+                     "PERIOD_OTHER")        # ontology's bucket for period BTTS / period TD / half-full-time (all settle on the score)
+
 
 def _age_min(decision, then):
     return None if decision is None or then is None else (decision - then).total_seconds() / 60.0
 
 
 def guard_candidate(c: dict, *, max_projection_age_min=MAX_PROJECTION_AGE_MIN, max_injury_age_min=MAX_INJURY_AGE_MIN,
-                    max_quote_age_min=MAX_QUOTE_AGE_MIN, require_qb_for=("GAME_WINNER", "SPREAD", "TOTAL", "TEAM_TOTAL")) -> dict:
+                    max_quote_age_min=MAX_QUOTE_AGE_MIN, require_qb_for=QB_GATED_FAMILIES) -> dict:
     """c keys: ticker, side, decision_time, kickoff_utc, projection_as_of, injuries_as_of, qb {TEAM: {status, confirmed_at}},
     teams [home, away], quote {price, captured_at, kind, depth}, contracts. Returns {actionable, blocks[], warnings[]}."""
     blocks, warns = [], []

@@ -1,6 +1,6 @@
 # Confirmed-starter quarterbacks (point-in-time gate input)
 
-The card's `game_level_pit_evidence` gate blocks every game-level score market (game winner, spread, total, team total, 1Q/1H)
+The card's `game_level_pit_evidence` gate blocks every game-level score market (game winner, spread, total, team total, 1Q/1H, plus every other market that settles on the score: winning-margin bucket, both-teams-score-N, race-to-N, period both-teams-score / period TD / half-full-time)
 unless **both** quarterbacks of the game are `CONFIRMED_STARTER` with a time. This is the only way a quarterback becomes confirmed.
 Player props are not touched by this rule.
 

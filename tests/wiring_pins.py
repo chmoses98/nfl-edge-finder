@@ -9,7 +9,7 @@ with the reason. sha256 first 16 hex chars, same convention as the other pin tab
 PINS = {
     "nfl_edge/handicap/card.py": "a38a435e5769cd29",
     "nfl_edge/postmortem/integration.py": "bf33982d4d706fdb",
-    "nfl_edge/postmortem/guards.py": "ef34b47c5a316b55",
+    "nfl_edge/postmortem/guards.py": "00493f0918bc50e4",
     "nfl_edge/postmortem/fairvalue.py": "bc31bf425852e365",
     "nfl_edge/postmortem/exposure.py": "2a6119d4262018c3",
     "nfl_edge/postmortem/common.py": "3801603049d43c8f",
