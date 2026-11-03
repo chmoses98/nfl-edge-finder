@@ -1,0 +1,103 @@
+name: Shadow v2 closes recovery (date-bounded)
+
+# Recovers the canonical close (TRUE_CLOSE / earlier-quote PROXY / MISSING, provenance preserved) of every kicked-off game of
+# the requested NFL weeks onto `market-data` WITHOUT fetching the ~52 GB branch. shadow-v2-settle timed out because its fetch
+# step checks the whole branch out (capture quotes ~18 GB, trades ~12.6 GB, books ~4.3 GB, projections ~16 GB) to pair a few
+# games; weeks 5-8 never got a close. A close needs only the quote files of the 14 days before kickoff, those days' manifests,
+# the open-set chain (30 MB), and the projection snapshots from the game's first listing through its kickoff day.
+# nfl_edge/shadow/closes_recovery.py plans that set from the schedule; the fetch is a blobless depth-1 partial clone + a
+# non-cone sparse checkout, so only the planned blobs cross the wire. Per week: a verified checkpoint on the branch
+# (data/shadow/v2/recovery/closes_weeks/<season>_wkNN.json, write-once, digested) skips the week; games are paired in
+# chunks, each chunk audited and published as one commit; the checkpoint is published last, only when every game of the
+# fully kicked-off week is accounted for. Nothing is ever overwritten: a different record already on the branch fails the run.
+# THE JOB LIMIT IS NOT RAISED; THE WORK IS PARTITIONED (one week at a time, resumable, budgeted).
+#
+# SHADOW / RESEARCH ONLY. Runs from the default branch only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      weeks:
+        description: 'NFL weeks to recover, e.g. 5-8 or 5,7. Completed (checkpointed) weeks are skipped.'
+        type: string
+        default: '5-8'
+      season:
+        description: 'Season.'
+        type: string
+        default: '2026'
+      dry_run:
+        description: 'Fetch the window and pair the closes but write NOTHING to market-data and mark NOTHING recovered (measures the fetch). Default: false.'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+concurrency:
+  group: shadow-v2-closes-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -q numpy pandas polars scipy pyarrow
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Free runner disk
+        run: bash scripts/ci/free_runner_disk.sh
+      - name: Schedule (kickoff times bound every window)
+        run: python3 scripts/data/nflverse_download.py --only schedules --seasons ${{ inputs.season }}-${{ inputs.season }} 2>&1 | tail -3
+      - name: Plan the windows (tree metadata only, no blobs)
+        run: |
+          python3 scripts/shadow_v2/recover_closes_v2.py plan --weeks "${{ inputs.weeks }}" --season "${{ inputs.season }}" 2>&1 | tee "$RUNNER_TEMP/plan.log"
+      # No cap raised: the step limit sits under the job limit and the driver stops STARTING a week or chunk it cannot finish
+      # (--time-budget-minutes); the next dispatch resumes from the checkpoints.
+      - name: Recover the closes (partial clone + sparse checkout; per-week checkpoint)
+        id: recover
+        timeout-minutes: 100
+        run: |
+          WORK=/mnt/md-window
+          sudo mkdir -p "$WORK" && sudo chown "$(id -u):$(id -g)" "$WORK"
+          df -h / /mnt | tail -2
+          DRY=""; if [ "${{ inputs.dry_run }}" = "true" ]; then DRY="--dry-run"; fi
+          python3 scripts/shadow_v2/recover_closes_v2.py run --weeks "${{ inputs.weeks }}" --season "${{ inputs.season }}" \
+            --workdir "$WORK/tree" --stage "$WORK/stage" --report-dir "$RUNNER_TEMP/recovery" \
+            --time-budget-minutes 90 $DRY
+      - name: Disk and object store after the fetch
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          du -sh .git /mnt/md-window/tree 2>/dev/null || true
+          git count-objects -vH || true
+          df -h / /mnt | tail -2
+      - name: Close coverage of what this run published (true close vs proxy vs missing)
+        if: ${{ !cancelled() && !inputs.dry_run }}
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import json, os
+          p = os.path.join(os.environ["RUNNER_TEMP"], "recovery", "recovery_report.json")
+          rep = json.load(open(p))
+          for w in rep["weeks"]:
+              print(w["week"], w.get("status"), w.get("tickers_by_kind_recovered"), w.get("rows_by_kind_recovered"))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: closes-recovery-report-${{ github.run_id }}
+          path: ${{ runner.temp }}/recovery
+          if-no-files-found: ignore
