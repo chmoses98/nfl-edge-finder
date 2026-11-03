@@ -427,7 +427,9 @@ def publish_week(*, repo: str, stage: str, subdirs: list[str], game_ids: list[st
             os.makedirs(os.path.dirname(os.path.join(wt, rel)), exist_ok=True)
             shutil.copy2(full, os.path.join(wt, rel))
         git("add", "-A", "--", *subdirs, cwd=wt)
-        git("commit", "-q", "-m", message, cwd=wt)
+        ident = [] if git("config", "user.name", cwd=repo, check=False).stdout.strip() else \
+            ["-c", "user.name=github-actions[bot]", "-c", "user.email=github-actions[bot]@users.noreply.github.com"]
+        git(*ident, "commit", "-q", "-m", message, cwd=wt)
         r = git("push", "-q", "origin", f"HEAD:refs/heads/{branch}", cwd=wt, check=False)
         if r.returncode == 0:
             res = {"status": "PUBLISHED", "attempts": attempt, "commit": git("rev-parse", "HEAD", cwd=wt).stdout.strip()}
