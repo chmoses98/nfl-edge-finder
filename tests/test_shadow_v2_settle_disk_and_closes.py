@@ -159,3 +159,22 @@ def test_coverage_reads_gzip_batches_from_disk(tmp_path):
     rep = cc.coverage(cc.iter_rows(str(tmp_path)))
     assert rep["weeks"]["07"]["records"] == 2 and rep["weeks"]["07"]["TRUE_CLOSE"] == 1
     assert "| 07 |" in cc.markdown(rep)
+
+
+# ------------------------------------------------------------------------------------------ fetch time budget
+def test_the_market_data_fetch_has_room_and_the_closes_are_published_before_the_job_limit():
+    """The ~52 GB fetch is bandwidth-bound: 14.5, ~22 and then 40+ min (run 41688588424 was killed at 40 with nothing logged).
+
+    The job limit is deliberately not raised (workflow header), so the property that must hold is evidence-first: the fetch, the
+    closes step and the closes publish fit the job limit, and the closes publish BEFORE settlement starts.
+    """
+    import yaml
+    doc = yaml.safe_load(open(WORKFLOW))
+    job = doc["jobs"]["settle"]
+    steps = {s.get("id"): s for s in job["steps"] if s.get("id")}
+    assert steps["fetch"]["timeout-minutes"] >= 75
+    assert job["timeout-minutes"] == 120                                   # not raised
+    evidence_first = sum(steps[i]["timeout-minutes"] for i in ("fetch", "closes", "publish_closes"))
+    assert evidence_first <= job["timeout-minutes"], evidence_first
+    order = [s.get("id") for s in job["steps"] if s.get("id")]
+    assert order.index("publish_closes") < order.index("settle")           # closes are out before settlement starts
