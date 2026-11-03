@@ -477,8 +477,14 @@ def test_every_evidence_driver_is_bounded_per_run_and_the_job_limit_still_holds(
         assert driver in run and "--max-games" in run and "--time-budget-minutes" in run, f"{sid} must bound its own work"
         assert "| tail" not in run and "tee" in run, "live logs"
     assert "--phase settle" in by["settle"]["run"], "the whole-corpus scorecard is not part of the evidence step"
-    hard = sum(int(by[i]["timeout-minutes"]) for i in ("fetch", "closes", "publish_closes", "settle", "publish_evidence"))
-    assert hard <= 120, f"hard limits of the evidence path sum to {hard} minutes"
+    # PINNED DELIBERATELY CHANGED (2026-11-03): the ~52 GB market-data fetch is bandwidth-bound and went from 14-23 min to 40+ min
+    # (run 41688588424 was killed at 40 with nothing logged), so its hard limit is now 75. The JOB limit is NOT raised. What has to
+    # hold is the evidence-first path: fetch + closes + publish_closes fit the job limit, and the closes publish BEFORE settlement
+    # starts (test_close_and_clv_evidence_runs_first_and_is_published_before_settlement_starts). The settle half is bounded and
+    # resumable, so a slow-fetch day can end it at the job limit without losing the closes.
+    first = sum(int(by[i]["timeout-minutes"]) for i in ("fetch", "closes", "publish_closes"))
+    assert first <= 120, f"hard limits of the evidence-first path (fetch + closes + closes publish) sum to {first} minutes"
+    assert 120 == int(wf()["jobs"]["settle"]["timeout-minutes"]), "the job limit is not raised"
     soft = lambda sid: int(__import__("re").search(r"--time-budget-minutes (\d+)", by[sid]["run"]).group(1))  # noqa: E731
     assert 15 + soft("closes") + 4 + soft("settle") + 4 + int(by["research"]["timeout-minutes"]) + 10 <= 120
 
