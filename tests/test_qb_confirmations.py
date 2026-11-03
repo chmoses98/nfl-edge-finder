@@ -195,7 +195,7 @@ def test_the_gate_sees_only_resolved_rows_and_a_depth_chart_stays_unconfirmed():
     pit = PM.build_pit_evidence(run=run, game=game, ev={"fair_basis": "x"})
     assert pit["qb"]["SF"]["status"] == Q.CONFIRMED_STARTER and pit["qb"]["ATL"]["status"] == Q.EXPECTED_UNCONFIRMED
     from nfl_edge.postmortem.guards import guard_candidate
-    out = guard_candidate({"ticker": "KXNFLSPREAD-26NOV08SFATL-SF3", "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
+    out = guard_candidate({"ticker": "KXNFLSPREAD-26NOV08SFATL-SF3", "game_id": GAME, "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
                            "projection_as_of": NOW, "injuries_as_of": NOW, "qb": pit["qb"], "teams": pit["teams"],
                            "quote": {"price": 0.5, "captured_at": NOW, "kind": "EXECUTABLE_ASK", "depth": 100}, "contracts": 10})
     # 2026-11-03 (PR #241): a non-confirmed row now also carries its reason code (QB_REASON:<team>:<code>); the block itself is unchanged.
@@ -204,9 +204,11 @@ def test_the_gate_sees_only_resolved_rows_and_a_depth_chart_stays_unconfirmed():
     assert out["qb_provenance"]["ATL"]["source"] == "DEPTH_CHART" and out["qb_provenance"]["ATL"]["as_of"] == NOW.isoformat()
 
 
-def _prop_guard(ticker, qb=None):
+def _prop_guard(ticker, qb=None, verified=True):
     from nfl_edge.postmortem.guards import guard_candidate
-    return guard_candidate({"ticker": ticker, "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
+    from test_qb_dependency import auto_ident
+    # 2026-11-03: a contract about one named player is judged only with a VERIFIED identity (nfl_edge/postmortem/player_identity.py)
+    return guard_candidate({"ticker": ticker, "game_id": GAME, "player": auto_ident(ticker, ("ATL", "SF"), as_of=NOW) if verified else None, "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
                             "projection_as_of": NOW, "injuries_as_of": NOW, "qb": qb or {}, "teams": ["ATL", "SF"],
                             "quote": {"price": 0.5, "captured_at": NOW, "kind": "EXECUTABLE_ASK", "depth": 100}, "contracts": 10})
 

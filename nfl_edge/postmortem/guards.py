@@ -45,10 +45,14 @@ def _qb_blocks(team, row, *, dec, ko, game_id, max_age, max_lead) -> list:
         return out
     if row.get("source") not in QBC.CONFIRMING_SOURCE_TYPES:
         out.append(f"QB_SOURCE_NOT_ACCEPTED:{team}")          # a depth chart / roster / injury report / model, or no source at all
-    if game_id is not None and row.get("game_id") != game_id:
+    if game_id is None:
+        out.append(f"QB_GAME_UNKNOWN:{team}")                   # the contract's own game is unknown: no confirmation can be matched to it
+    elif row.get("game_id") != game_id:
         out.append(f"QB_WRONG_GAME:{team}")                   # a confirmation for another game (or one that does not say which) is not this game's
-    if row.get("team") is not None and row.get("team") != team:
-        out.append(f"QB_WRONG_TEAM:{team}")
+    if row.get("team") != team:
+        out.append(f"QB_WRONG_TEAM:{team}")                   # another team's quarterback, or a row that does not say whose (2026-11-03: was only checked when present)
+    if not (isinstance(row.get("qb_player_id"), str) and row["qb_player_id"].strip()):
+        out.append(f"QB_PLAYER_NOT_NAMED:{team}")             # a confirmation that does not name the quarterback confirms nothing
     ct = parse_ts(row.get("confirmed_at"))
     if ct is None:
         out.append(f"QB_CONFIRMATION_TIME_MISSING:{team}")
@@ -108,7 +112,9 @@ def guard_candidate(c: dict, *, max_projection_age_min=MAX_PROJECTION_AGE_MIN, m
 
     # --- confirmed quarterbacks (table-driven: qb_dependency.requirement; unknown family -> gated)
     teams = list(c.get("teams") or [])
-    req = QD.requirement(c.get("ticker"), family=c.get("family"), teams=teams)
+    req = QD.requirement(c.get("ticker"), family=c.get("family"), teams=teams, player=c.get("player"), decision_time=dec)
+    if req.identity_block:
+        blocks.append(f"PLAYER_IDENTITY_UNVERIFIED:{req.identity_block}")   # player-scoped contract whose player / position is not verified
     extra = ont.family in require_qb_for
     need_qb = req.requires_confirmation or extra
     qb_prov = {}
@@ -120,6 +126,9 @@ def guard_candidate(c: dict, *, max_projection_age_min=MAX_PROJECTION_AGE_MIN, m
         for team in required:
             row = qb.get(team)
             blocks.extend(_qb_blocks(team, row, dec=dec, ko=ko, game_id=c.get("game_id"), max_age=max_qb_age_min, max_lead=max_qb_lead_min))
+            if req.starter_player_id and team == req.starter_team and isinstance(row, dict) and row.get("status") == QB_CONFIRMED \
+                    and row.get("qb_player_id") != req.starter_player_id:
+                blocks.append(f"QB_PLAYER_NOT_CONFIRMED_STARTER:{team}")   # the confirmed starter is somebody else: this player is a backup
             if isinstance(row, dict):
                 qb_prov[team] = {k: row.get(k) for k in ("status", "reason", "source", "source_ref", "record_id", "qb_player_id", "observed_at",
                                                          "captured_at", "confirmed_at", "as_of", "kickoff_utc", "game_id")}

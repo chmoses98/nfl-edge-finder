@@ -40,6 +40,10 @@ def main(argv=None) -> int:
                     "ledger, or a directory of .jsonl (the append-only ledger on handicap-data: qb_confirmations/). Only records from sources that NAME the starter, observed "
                     "before the decision and before kickoff, for THIS game and team, within 24 h of the decision and 48 h of kickoff, and not withdrawn or in conflict, confirm a quarterback. Without it (or for any game without both quarterbacks confirmed) every "
                     "market whose family depends on the quarterback (nfl_edge/postmortem/qb_dependency.py: score-determined lines, team/game stats, events, QB passing props; pass-catcher props need their own team's QB) is blocked QB_UNKNOWN / QB_NOT_CONFIRMED by the point-in-time gate (fail closed; a depth chart, roster or inactive list is never a confirmation)")
+    ap.add_argument("--player-identity-root", default=None, help="data/raw/nflverse holding players/players.parquet, weekly_rosters/roster_weekly_<season>.parquet and "
+                    "ff_playerids/db_playerids.csv (default: --raw-root). A contract about ONE named player is judged only after the player's identity and POSITION are VERIFIED "
+                    "from these tables (nfl_edge/postmortem/player_identity.py): a quarterback's own rushing/receiving/touchdown prop needs his team's quarterback confirmed AND to be "
+                    "him; a player whose identity or position cannot be verified is blocked (PLAYER_IDENTITY_UNVERIFIED), never opened")
     ap.add_argument("--schedule-csv", required=True, help="nflverse games.csv (market-data: data/kalshi/capture/schedule_cache.csv)")
     ap.add_argument("--handicap-root", default=None)
     ap.add_argument("--market-data", default=None)
@@ -75,6 +79,10 @@ def main(argv=None) -> int:
     qb_cov["source_supplied"] = bool(a.qb_confirmations)
     from nfl_edge.postmortem import qb_dependency as QD
     qb_cov["qb_dependency_table_version"] = QD.TABLE_VERSION
+    from nfl_edge.postmortem import player_identity as PI
+    run["decision_time"] = as_of.isoformat()
+    run["player_identity_book"] = PI.load_book(a.player_identity_root or a.raw_root, run["packet"].get("season"))
+    qb_cov["player_identity"] = run["player_identity_book"].summary()
     theses = json.load(open(a.theses)) if a.theses else []
     submission = json.load(open(a.submission)) if a.submission else None
     if theses and submission is None and a.mode == C.LIVE and not a.allow_unreviewed:

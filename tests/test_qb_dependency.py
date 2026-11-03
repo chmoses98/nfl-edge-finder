@@ -14,6 +14,7 @@ from nfl_edge.handicap import packet as PK
 from nfl_edge.handicap import schema as S
 from nfl_edge.kalshi import classifier as K
 from nfl_edge.postmortem import guards as GD
+from nfl_edge.postmortem import player_identity as PI
 from nfl_edge.postmortem import ontology as ONT
 from nfl_edge.postmortem import qb_confirmations as QBC
 from nfl_edge.postmortem import qb_dependency as QD
@@ -25,7 +26,7 @@ KO = AS_OF + timedelta(hours=4)
 GATED, INDIRECT, NOT_GATED = QD.QB_GATED, QD.QB_INDIRECT, QD.NOT_GATED
 
 
-def confirmed(team, *, game_id=None, minutes_before_decision=20, **over):
+def confirmed(team, *, game_id=GAME, minutes_before_decision=20, **over):
     """A resolved CONFIRMED_STARTER row the way the resolver produces it (source, provenance, game_id, clocks)."""
     obs = (DEC - timedelta(minutes=minutes_before_decision)).isoformat()
     row = {"status": "CONFIRMED_STARTER", "confirmed_at": obs, "observed_at": obs, "captured_at": obs, "source": "HEAD_COACH_STATEMENT_ON_RECORD",
@@ -35,9 +36,38 @@ def confirmed(team, *, game_id=None, minutes_before_decision=20, **over):
     return row
 
 
-def cand(ticker, qb=None, *, family=None, game_id=None, teams=("AAA", "BBB")):
+# ---------------------------------------------------------------------------------------------------------------- verified player identity helpers
+def ident(team, pos, gsis=None, *, teams=("AAA", "BBB"), as_of=DEC, **over):
+    """A VERIFIED identity block produced by the real verifier from an inline players table (never hand-built)."""
+    g = gsis or f"00-P{team}"
+    book = PI.book_from_rows(players=[{"gsis_id": g, "position": pos, "latest_team": team, "display_name": "P"}], season=2026)
+    r = PI.verify(book, player_id=g, game_teams=list(teams), game_week=7, as_of=as_of)
+    assert r["verified"], r
+    return r | over
+
+
+def auto_ident(ticker, teams=("AAA", "BBB"), as_of=DEC):
+    """The identity a market on ``ticker`` would carry if its player were looked up correctly: position from the series, team from the subject."""
+    if not ticker or not QD.is_player_scoped(ticker):
+        return None
+    team = QD.own_team(ticker, list(teams)) or teams[0]
+    series = ticker.split("-")[0]
+    if "PASS" in series:
+        return ident(team, "QB", f"00-{team}", teams=teams, as_of=as_of)
+    pos = "RB" if "RSH" in series else "K" if "FG" in series else "LB" if ("TKL" in series or "SACK" in series) else "WR"
+    return ident(team, pos, teams=teams, as_of=as_of)
+
+
+def req(ticker, *, family=None, teams=None, player="auto", decision_time=DEC):
+    if player == "auto":
+        player = auto_ident(ticker, tuple(teams)) if teams and len(teams) == 2 else None
+    return QD.requirement(ticker, family=family, teams=teams, player=player, decision_time=decision_time)
+
+
+def cand(ticker, qb=None, *, family=None, game_id=GAME, teams=("AAA", "BBB"), player="auto"):
     return {"ticker": ticker, "family": family, "game_id": game_id, "side": "YES", "decision_time": DEC, "kickoff_utc": KO,
             "projection_as_of": DEC - timedelta(minutes=5), "injuries_as_of": DEC - timedelta(minutes=5), "qb": qb or {}, "teams": list(teams),
+            "player": auto_ident(ticker, teams) if player == "auto" else player,
             "quote": {"price": 0.5, "captured_at": DEC - timedelta(minutes=1), "kind": "EXECUTABLE_ASK", "depth": 1000}, "contracts": 10}
 
 
@@ -70,7 +100,7 @@ def test_every_period_family_the_classifier_derives_has_an_entry():
         assert QD.lookup(fam, None)[1] != QD.RULE_UNCLASSIFIED, fam
         series = f"KXNFL1H{'' if kind == 'WINNER' else kind}"
         assert K.PERIOD_RE.match(series)
-        assert QD.requirement(f"{series}-26OCT25AAABBB-AAA", teams=["AAA", "BBB"]).classification == GATED, series
+        assert req(f"{series}-26OCT25AAABBB-AAA", teams=["AAA", "BBB"]).classification == GATED, series
 
 
 def test_every_dynamic_family_the_classifier_can_assign_has_an_entry():
@@ -101,12 +131,12 @@ def test_the_table_only_uses_the_three_classifications_and_gives_a_reason_for_ea
 
 def test_unknown_families_statistics_tickers_and_empty_input_fail_closed():
     for t in ("KXNFLBRANDNEWSERIES-26OCT25AAABBB-X", "KXZZZ-26OCT25AAABBB-X", "KXMVECROSSCATEGORY-26OCT25-ABC", "KXNFLNOVELPROP-26OCT25AAABBB-AAAWR1-5"):
-        r = QD.requirement(t, teams=["AAA", "BBB"])
+        r = req(t, teams=["AAA", "BBB"])
         assert r.classification == GATED and r.requires_confirmation and r.teams_required == ("AAA", "BBB"), (t, r)
     for none in (None, "", "   "):
-        r = QD.requirement(none, teams=["AAA", "BBB"])
+        r = req(none, teams=["AAA", "BBB"])
         assert r.classification == GATED and r.rule == QD.RULE_NO_TICKER
-    r = QD.requirement(None, family="NEVER_HEARD_OF_IT", teams=["AAA", "BBB"])
+    r = req(None, family="NEVER_HEARD_OF_IT", teams=["AAA", "BBB"])
     assert r.classification == GATED
     assert QD.lookup("PLAYER_STAT", "brand_new_stat")[0] == GATED and QD.lookup("PLAYER_STAT", "brand_new_stat")[1] == QD.RULE_UNCLASSIFIED
     assert QD.lookup("TOTALLY_NEW_FAMILY")[0] == GATED
@@ -114,10 +144,10 @@ def test_unknown_families_statistics_tickers_and_empty_input_fail_closed():
 
 def test_the_records_own_family_can_only_tighten_never_loosen():
     # the ticker says kicker (NOT_GATED); a record that calls itself a total is still gated
-    assert QD.requirement("KXNFLFG-26OCT25AAABBB-AAAK1-2", teams=["AAA", "BBB"]).classification == NOT_GATED
-    assert QD.requirement("KXNFLFG-26OCT25AAABBB-AAAK1-2", family="TOTAL", teams=["AAA", "BBB"]).classification == GATED
+    assert req("KXNFLFG-26OCT25AAABBB-AAAK1-2", teams=["AAA", "BBB"]).classification == NOT_GATED
+    assert req("KXNFLFG-26OCT25AAABBB-AAAK1-2", family="TOTAL", teams=["AAA", "BBB"]).classification == GATED
     # the record says SPREAD, the ticker says anytime-TD: strictest wins
-    assert QD.requirement("KXNFLANYTD-26OCT25AAABBB-AAAWR1", family="SPREAD", teams=["AAA", "BBB"]).classification == GATED
+    assert req("KXNFLANYTD-26OCT25AAABBB-AAAWR1", family="SPREAD", teams=["AAA", "BBB"]).classification == GATED
 
 
 # ---------------------------------------------------------------------------------------------------------------- the classification itself
@@ -169,13 +199,12 @@ TABLE = [
     ("KXNFLLONGREC-26OCT25AAABBB-AAAWR1-30", INDIRECT, ("AAA",)), ("KXNFLANYTD-26OCT25AAABBB-BBBWR1", INDIRECT, ("BBB",)),
     ("KXNFLTD-26OCT25AAABBB-AAARB1", INDIRECT, ("AAA",)), ("KXNFL2TD-26OCT25AAABBB-AAARB1", INDIRECT, ("AAA",)),
     ("KXNFLFIRSTTD-26OCT25AAABBB-AAAWR1", INDIRECT, ("AAA",)), ("KXNFLNEXTTD-26OCT25AAABBB-BBBWR1", INDIRECT, ("BBB",)),
-    ("KXNFLFIRSTTD-26OCT25AAABBB-NONE", INDIRECT, BOTH_T),            # no player, no team: both required
     # NOT_GATED: unrelated to the quarterback
     ("KXNFLRSHYDS-26OCT25AAABBB-AAARB1-70", NOT_GATED, ()), ("KXNFLRSHATT-26OCT25AAABBB-AAARB1-15", NOT_GATED, ()),
     ("KXNFLLONGRSH-26OCT25AAABBB-AAARB1-20", NOT_GATED, ()), ("KXNFLSACK-26OCT25AAABBB-BBBDE1-1", NOT_GATED, ()),
     ("KXNFLTKL-26OCT25AAABBB-BBBLB1-8", NOT_GATED, ()), ("KXNFLFG-26OCT25AAABBB-AAAK1-2", NOT_GATED, ()),
-    ("KXNFLLONGFG-26OCT25AAABBB-50", NOT_GATED, ()), ("KXNFLLONGESTFG-26OCT25AAABBB-50", NOT_GATED, ()), ("KXNFLRSHYDSH2H-26OCT25AAABBB-X", NOT_GATED, ()),
-    ("KXNFLMOSTRSHYDS-26OCT25AAABBB-AAARB1", NOT_GATED, ()),
+    ("KXNFLLONGFG-26OCT25AAABBB-50", NOT_GATED, ()), ("KXNFLLONGESTFG-26OCT25AAABBB-50", NOT_GATED, ()), ("KXNFLRSHYDSH2H-26OCT25AAABBB-X", GATED, BOTH_T),            # 2026-11-03: either player may be a QB
+    ("KXNFLMOSTRSHYDS-26OCT25AAABBB-AAARB1", GATED, BOTH_T),         # 2026-11-03: the game's rushing leader can be a QB; field spans both teams
     # season / week / event scope: not a RUN NFL single-game contract, cannot be satisfied by a game confirmation
     ("KXSB-27-KC", GATED, BOTH_T), ("KXNFLWINS-27IND-9", GATED, BOTH_T), ("KXNFLMVP-27-X", GATED, BOTH_T), ("KXNFLDRAFTPICK-27-X", GATED, BOTH_T),
     ("KXNFLWEEKMOSTPASSYDS-26W7-X", GATED, BOTH_T),
@@ -184,7 +213,7 @@ TABLE = [
 
 @pytest.mark.parametrize("ticker,cls,teams_required", TABLE, ids=[t[0] for t in TABLE])
 def test_classification_of_each_family(ticker, cls, teams_required):
-    r = QD.requirement(ticker, teams=["AAA", "BBB"])
+    r = req(ticker, teams=["AAA", "BBB"])
     assert r.classification == cls, (ticker, r)
     assert r.teams_required == teams_required, (ticker, r)
     assert r.requires_confirmation is (cls != NOT_GATED)
@@ -193,14 +222,18 @@ def test_classification_of_each_family(ticker, cls, teams_required):
 
 def test_a_pass_catchers_team_is_read_through_kalshi_codes_for_jacksonville_and_the_rams():
     # nflverse JAX / LA appear as JAC / LAR in Kalshi tickers
-    assert QD.requirement("KXNFLRECYDS-26OCT25LARJAC-JACWR1-60", teams=["LA", "JAX"]).teams_required == ("JAX",)
-    assert QD.requirement("KXNFLRECYDS-26OCT25LARJAC-LARWR1-60", teams=["LA", "JAX"]).teams_required == ("LA",)
-    assert QD.requirement("KXNFLRECYDS-26OCT25LACLAR-LACWR1-60", teams=["LAC", "LA"]).teams_required == ("LAC",)
+    assert req("KXNFLRECYDS-26OCT25LARJAC-JACWR1-60", teams=["LA", "JAX"]).teams_required == ("JAX",)
+    assert req("KXNFLRECYDS-26OCT25LARJAC-LARWR1-60", teams=["LA", "JAX"]).teams_required == ("LA",)
+    assert req("KXNFLRECYDS-26OCT25LACLAR-LACWR1-60", teams=["LAC", "LA"]).teams_required == ("LAC",)
 
 
-def test_an_indirect_prop_whose_team_cannot_be_read_requires_both_quarterbacks():
-    assert QD.requirement("KXNFLRECYDS-26OCT25AAABBB-WR1-60", teams=["AAA", "BBB"]).teams_required == ("AAA", "BBB")
-    assert QD.requirement("KXNFLRECYDS-26OCT25AAABBB-AAAWR1-60", teams=[]).teams_required == ()      # no teams at all: the guard blocks MISSING_TEAMS
+def test_an_indirect_prop_whose_player_is_not_verified_is_blocked_and_one_whose_team_the_ticker_hides_uses_the_verified_team():
+    # 2026-11-03: the team now comes from the VERIFIED identity (table), not the ticker; an unverified player is blocked outright
+    r = req("KXNFLRECYDS-26OCT25AAABBB-WR1-60", teams=["AAA", "BBB"], player=None)
+    assert r.identity_block and r.teams_required == ("AAA", "BBB") and r.requires_confirmation
+    r = req("KXNFLRECYDS-26OCT25AAABBB-WR1-60", teams=["AAA", "BBB"], player=ident("BBB", "WR"))
+    assert r.teams_required == ("BBB",) and r.identity_block is None
+    assert req("KXNFLRECYDS-26OCT25AAABBB-AAAWR1-60", teams=[], player=None).teams_required == ()      # no teams at all: the guard blocks MISSING_TEAMS
 
 
 # ---------------------------------------------------------------------------------------------------------------- the guard, per family
@@ -232,7 +265,7 @@ def test_gated_family_with_only_one_quarterback_confirmed_is_blocked(ticker):
 
 @pytest.mark.parametrize("ticker", INDIRECT_TICKERS)
 def test_indirect_family_needs_only_its_own_teams_quarterback(ticker):
-    own = QD.requirement(ticker, teams=["AAA", "BBB"]).teams_required
+    own = req(ticker, teams=["AAA", "BBB"]).teams_required
     assert len(own) == 1
     assert not GD.guard_candidate(cand(ticker, {own[0]: confirmed(own[0])}))["blocks"], ticker
     blocked = GD.guard_candidate(cand(ticker))
@@ -269,10 +302,10 @@ def test_the_compat_gated_family_names_cover_every_score_family():
 
 
 # ---------------------------------------------------------------------------------------------------------------- the real gate (gates.evaluate_gates)
-def _rec(ticker, family, qb=None, teams=("AAA", "BBB")):
+def _rec(ticker, family, qb=None, teams=("AAA", "BBB"), player="auto"):
     return {"decision": "RECOMMENDED", "created_at": DEC.isoformat(), "market_ticker": ticker, "market_family": family, "side": "YES",
             "kickoff_utc": KO.isoformat(), "game_id": "G1",
-            "pit_evidence": {"teams": list(teams), "game_id": "G1", "qb": qb or {}, "projection_as_of": (DEC - timedelta(minutes=5)).isoformat(),
+            "pit_evidence": {"teams": list(teams), "game_id": "G1", "qb": qb or {}, "player_identity": auto_ident(ticker, teams) if player == "auto" else player, "projection_as_of": (DEC - timedelta(minutes=5)).isoformat(),
                              "injuries_as_of": (DEC - timedelta(minutes=5)).isoformat()}}
 
 
@@ -315,7 +348,7 @@ def test_old_records_without_pit_evidence_are_still_not_rejudged():
 
 
 def test_the_table_is_serialisable_and_versioned():
-    d = QD.requirement("KXNFLRECYDS-26OCT25AAABBB-AAAWR1-60", teams=["AAA", "BBB"]).to_dict()
+    d = req("KXNFLRECYDS-26OCT25AAABBB-AAAWR1-60", teams=["AAA", "BBB"]).to_dict()
     json.dumps(d)
     assert d["table_version"] == QD.TABLE_VERSION and d["classification"] == INDIRECT and d["scope"] == QD.SCOPE_OWN
 

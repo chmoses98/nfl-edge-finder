@@ -18,7 +18,29 @@ pytestmark = pytest.mark.owner_policy
 BET = "BET (preflight approved)"
 
 
-def _tree(tmp, ticker, family, *, subject=None, stat=None, thr=None, per="FULL", p=0.45):
+def write_identity_tables(tmp, players):
+    """data/raw/nflverse/players/players.parquet for the run (the repository's own player table): rows (gsis_id, position, latest_team, display_name)."""
+    import polars as pl
+    d = tmp / "raw" / "players"
+    d.mkdir(parents=True, exist_ok=True)
+    rows = list(players)
+    pl.DataFrame({"gsis_id": [r[0] for r in rows], "display_name": [r[3] for r in rows], "position": [r[1] for r in rows],
+                  "latest_team": [r[2] for r in rows]}, schema={"gsis_id": pl.Utf8, "display_name": pl.Utf8, "position": pl.Utf8, "latest_team": pl.Utf8}
+                 ).write_parquet(d / "players.parquet")
+    return str(tmp / "raw")
+
+
+#: position by statistic for the cases below; the QB passing stats name the quarterback the confirmation fixtures name (00-QB<team>)
+def _default_player(ticker, subject, stat):
+    series, parts = ticker.split("-")[0], ticker.split("-")
+    team = parts[2][:3] if len(parts) > 2 else "AAA"
+    if stat in ("passing_yards", "attempts"):
+        return (f"00-QB{team}", "QB", team, subject)
+    pos = {"rushing_yards": "RB", "field_goals": "K", "tackles": "LB"}.get(stat, "WR")
+    return (f"00-P{series}{team}", pos, team, subject)
+
+
+def _tree(tmp, ticker, family, *, subject=None, stat=None, thr=None, per="FULL", p=0.45, player="auto"):
     """The one-game capture plus ONE extra row (the contract under test), a declared-fair candidate on it, and the capture/ledger/bankroll files."""
     build_run(tmp / "a")
     shard = tmp / "a" / "analysis" / "games" / f"{GAME}.json"
@@ -27,7 +49,13 @@ def _tree(tmp, ticker, family, *, subject=None, stat=None, thr=None, per="FULL",
     d["rows"].append(row)
     json.dump(d, open(shard, "w"))
     pk = json.load(open(tmp / "a" / "packet.json"))
-    pk["games"][0]["markets"].append({"ticker": ticker, "movement": {"total_move_since_first_capture": 0.0}, "book_depth_yes": 500000.0, "book_depth_no": 500000.0,
+    pid = None
+    if family == "PLAYER_STAT" and player is not None:
+        pl_row = _default_player(ticker, subject, stat) if player == "auto" else player
+        if pl_row is not None:
+            pid = pl_row[0]
+            write_identity_tables(tmp, [pl_row])
+    pk["games"][0]["markets"].append({"ticker": ticker, "player_id": pid, "movement": {"total_move_since_first_capture": 0.0}, "book_depth_yes": 500000.0, "book_depth_no": 500000.0,
                                       "availability_state": "EXPECTED_ACTIVE" if family == "PLAYER_STAT" else None})
     json.dump(pk, open(tmp / "a" / "packet.json", "w"))
     th = thesis(shift=None, candidates=[{"ticker": ticker, "side": "YES", "fair": {"low": 0.64, "high": 0.72, "basis": "declared for the test"},
@@ -46,11 +74,11 @@ def _tree(tmp, ticker, family, *, subject=None, stat=None, thr=None, per="FULL",
 
 def _run(tmp, ticker, family, recs, name="out", **tree):
     _tree(tmp, ticker, family, **tree)
-    extra = []
+    extra = ["--raw-root", str(tmp / "raw")] if (tmp / "raw").exists() else []
     if recs is not None:
         f = tmp / "qb.json"
         f.write_text(json.dumps({"schema": QBC.SCHEMA, "records": recs}))
-        extra = ["--qb-confirmations", str(f)]
+        extra += ["--qb-confirmations", str(f)]
     card, _ = _run_entry_point(tmp, name, *extra)
     return card
 

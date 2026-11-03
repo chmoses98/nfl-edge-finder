@@ -31,6 +31,7 @@ from . import exposure as EXP
 from .common import DAILY_EXPOSURE_FLAG_UNITS, GAME_EXPOSURE_FLAG_UNITS, UNIT_DOLLARS, num
 from .fairvalue import bet_up_to, fair_probability, fee_fn_from_schedule
 from . import qb_confirmations as QBC
+from . import player_identity as PI
 from . import qb_dependency as QD
 from .guards import guard_candidate
 
@@ -84,15 +85,23 @@ def build_pit_evidence(*, run: dict, game: dict, ev: dict) -> dict:
             # full provenance travels with the row so the record can show WHY a quarterback was or was not confirmed
             qb[t] = {k: row.get(k) for k in ("status", "confirmed_at", "source", "source_ref", "record_id", "qb_player_id", "reason", "game_id",
                                              "team", "observed_at", "captured_at", "as_of", "kickoff_utc", "conflicts", "withdrawn_record_ids")}
+    # A contract about ONE named player: resolve who he is and what position he plays from the repository's own player data
+    # (run["player_identity_book"], built by scripts/handicap/run_card.py from --raw-root). Unresolvable -> an UNVERIFIED block, which blocks.
+    player_identity = None
+    if QD.is_player_scoped(ev.get("ticker"), ev.get("family")):
+        pm = next((m for m in game.get("markets", []) if m.get("ticker") == ev.get("ticker")), None) or {}
+        player_identity = PI.verify(run.get("player_identity_book"), player_id=pm.get("player_id"), game_teams=teams, game_week=game.get("week"),
+                                    ticker_team=QD.own_team(ev.get("ticker") or "", [t for t in teams if t]), as_of=run.get("decision_time"))
     return {
         "schema": PIT_SCHEMA,
         "integration_version": INTEGRATION_VERSION,
+        "player_identity": player_identity,
         "projection_as_of": fresh.get("ledger_feature_cutoff"),
         "injuries_as_of": injuries_as_of,
         "qb": qb,
         "teams": teams,
         "game_id": game.get("game_id"),
-        "qb_policy": {"table_version": QD.TABLE_VERSION, "max_age_at_decision_min": QBC.MAX_AGE_AT_DECISION_MIN,
+        "qb_policy": {"table_version": QD.TABLE_VERSION, "player_identity_version": PI.IDENTITY_VERSION, "max_age_at_decision_min": QBC.MAX_AGE_AT_DECISION_MIN,
                       "max_lead_before_kickoff_min": QBC.MAX_LEAD_BEFORE_KICKOFF_MIN},
         "bet_up_to_provenance": {
             "ceiling_basis": ev.get("fair_basis"),
@@ -108,7 +117,7 @@ def _is_quote_block(code: str) -> bool:
     return code.startswith(QUOTE_BLOCK_PREFIXES)
 
 
-def pit_applies(rec: dict) -> tuple[bool, str]:
+def pit_applies(rec: dict, *, as_of=None) -> tuple[bool, str]:
     """Whether G_PIT / G_ORDER_CEILING judge this record, and if not, why. A record without a ``pit_evidence`` block predates the gate and is
     not re-judged. A PLAYER market keeps its own availability gate and is judged here ONLY when the QB-dependency table says its production
     depends on the quarterback (QB_GATED passing props, QB_INDIRECT pass-catcher / scorer props); an unrelated prop (kicker, defender,
@@ -118,7 +127,8 @@ def pit_applies(rec: dict) -> tuple[bool, str]:
         return False, "record predates the pit_evidence block; its historical verdict is not re-judged"
     if rec.get("market_family") in S.PLAYER_MARKET_FAMILIES:
         pit = rec.get("pit_evidence") or {}
-        req = QD.requirement(rec.get("market_ticker"), family=rec.get("market_family"), teams=pit.get("teams"))
+        req = QD.requirement(rec.get("market_ticker"), family=rec.get("market_family"), teams=pit.get("teams"), player=pit.get("player_identity"),
+                             decision_time=as_of or rec.get("created_at"))
         if not req.requires_confirmation:
             return False, f"player market: gated by player_availability_resolved; {req.classification} in the QB-dependency table ({req.rationale})"
     return True, ""
@@ -138,7 +148,7 @@ def pit_gate(rec: dict, *, dq, dr, as_of: datetime) -> tuple[str, str, dict]:
         "ticker": rec.get("market_ticker"), "family": rec.get("market_family"), "game_id": pit.get("game_id") or rec.get("game_id"),
         "side": rec.get("side"), "decision_time": as_of, "kickoff_utc": rec.get("kickoff_utc"),
         "projection_as_of": pit.get("projection_as_of"), "injuries_as_of": pit.get("injuries_as_of"),
-        "qb": pit.get("qb") or {}, "teams": pit.get("teams") or [],
+        "qb": pit.get("qb") or {}, "teams": pit.get("teams") or [], "player": pit.get("player_identity"),
         "quote": quote or {}, "contracts": None if quote is None else quote.get("depth"),
     }
     out = guard_candidate(cand)

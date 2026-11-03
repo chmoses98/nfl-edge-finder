@@ -23,7 +23,12 @@ QB_INDIRECT  a player prop whose production runs THROUGH the passing game (recep
              exposed (fail closed). The opponent's quarterback is second-order for a pass-catcher and is NOT required.
 NOT_GATED    unrelated to the quarterback or only second-order: kicker props, defender tackles/sacks, running-back rushing volume/yards,
              longest rush, longest field goal. These keep their own player-availability gate (G_AVAILABILITY) and every other gate.
-             Residual gap (documented, not hidden): a QUARTERBACK's rushing prop looks like a running-back rushing prop in a ticker.
+             A NOT_GATED statistic is only ever NOT_GATED for a player whose identity AND position were VERIFIED from the repository's own player
+             data (player_identity.py) as a non-quarterback (2026-11-03: closes the former "a QB's rushing prop looks like a running-back rushing prop"
+             gap). A QUARTERBACK's own rushing / receiving / scrambling / touchdown prop is QB_GATED on his own team: that team's quarterback must be
+             CONFIRMED_STARTER *and be that player* (a backup's prop is blocked). If identity or position cannot be verified the prop is blocked
+             outright (PLAYER_IDENTITY_UNVERIFIED): no confirmation can show that the player is not the quarterback. Field markets across both
+             teams' players (game rushing leader, rushing head-to-head) can be won by a quarterback and are QB_GATED on both teams.
 
 The classification of a ticker is the STRICTEST of what its series says and what the record's own ``market_family`` says.
 
@@ -35,7 +40,9 @@ from dataclasses import dataclass
 
 from nfl_edge.kalshi import classifier as K
 
-TABLE_VERSION = "nfl-qb-dependency-2026-11-03.1"
+from . import player_identity as PI
+
+TABLE_VERSION = "nfl-qb-dependency-2026-11-03.2"
 
 QB_GATED = "QB_GATED"
 QB_INDIRECT = "QB_INDIRECT"
@@ -50,6 +57,12 @@ RULE_STAT = "FAMILY_STAT"
 RULE_OUT_OF_SCOPE = "OUT_OF_SINGLE_GAME_SCOPE"
 RULE_UNCLASSIFIED = "UNCLASSIFIED_FAIL_CLOSED"
 RULE_NO_TICKER = "NO_TICKER_FAIL_CLOSED"
+RULE_PLAYER_UNVERIFIED = "PLAYER_IDENTITY_UNVERIFIED_FAIL_CLOSED"
+RULE_QB_OWN_PROP = "QB_OWN_PROP_STARTER_MUST_BE_THE_PLAYER"
+
+#: Families whose contract is ABOUT ONE NAMED PLAYER (the packet market row carries his GSIS id). For these, the table's class is applied only
+#: after the player's identity and position are verified (player_identity.verify); see ``requirement``.
+PLAYER_SCOPED_FAMILIES = ("PLAYER_STAT", "FIRST_TD_SCORER", "NEXT_TD_SCORER", "ANYTIME_TD")
 
 _G, _I, _N = QB_GATED, QB_INDIRECT, NOT_GATED
 
@@ -116,17 +129,17 @@ STAT_TABLE: dict = {
     ("PLAYER_STAT", "longest_reception"): (_I, "a reception needs a thrower; own team's QB"),
     ("PLAYER_STAT", "touchdowns"): (_I, "anytime-TD: a WR/TE touchdown is QB-dependent (qb_resolution.is_qb_dependent); position not in ticker; own team's QB"),
     # --- unrelated or second-order
-    ("PLAYER_STAT", "rushing_yards"): (_N, "running-back volume is carried by his carries (context/qb_resolution.is_qb_dependent); residual gap: a QB's rushing prop"),
-    ("PLAYER_STAT", "carries"): (_N, "running-back volume; same residual gap"),
-    ("PLAYER_STAT", "longest_rush"): (_N, "a rushing play; same residual gap"),
-    ("PLAYER_STAT", "sacks"): (_N, "a defender's pass rush; the opposing QB is second-order and the defender's own availability gate applies"),
+    ("PLAYER_STAT", "rushing_yards"): (_N, "running-back volume is carried by his carries (context/qb_resolution.is_qb_dependent); only for a VERIFIED non-quarterback"),
+    ("PLAYER_STAT", "carries"): (_N, "running-back volume; only for a VERIFIED non-quarterback"),
+    ("PLAYER_STAT", "longest_rush"): (_N, "a rushing play; only for a VERIFIED non-quarterback"),
+    ("PLAYER_STAT", "sacks"): (_N, "a defender's pass rush; the opposing QB is second-order and the defender's own availability gate applies (verified non-QB)"),
     ("PLAYER_STAT", "tackles"): (_N, "defender volume; unrelated to who plays quarterback"),
     ("PLAYER_STAT", "field_goals"): (_N, "kicker prop; unrelated to the quarterback"),
     # --- head-to-head player props (two players, usually two teams; the ticker does not name both teams)
     ("PLAYER_H2H", "passing_yards"): (_G, "two quarterbacks' passing lines"),
     ("PLAYER_H2H", "receiving_yards"): (_G, "two pass-catchers, usually on different teams; both quarterbacks matter and the ticker does not name both teams"),
     ("PLAYER_H2H", "fantasy_points"): (_G, "fantasy points of unknown positions"),
-    ("PLAYER_H2H", "rushing_yards"): (_N, "two running backs' volume; same residual gap as rushing props"),
+    ("PLAYER_H2H", "rushing_yards"): (_G, "two players' rushing lines; either may be a quarterback and the ticker names no positions (2026-11-03: was NOT_GATED)"),
     # --- game-level statistics
     ("GAME_STAT", "field_goals_game"): (_G, "field goals are the stalled-drive complement of touchdowns: score-determined"),
     ("GAME_STAT", "sacks_game"): (_G, "sacks suffered by two quarterbacks"),
@@ -145,8 +158,8 @@ STAT_TABLE: dict = {
     ("GAME_PLAYER_LEADER", "fantasy_points"): (_G, "fantasy leader across both teams"),
     ("GAME_PLAYER_LEADER", "receiving_tds"): (_G, "receiving-touchdown leader across both teams"),
     ("GAME_PLAYER_LEADER", "passing_tds"): (_G, "passing-touchdown leader: both quarterbacks"),
-    ("GAME_PLAYER_LEADER", "rushing_yards"): (_N, "rushing-yards leader is carried by running-back volume; same residual gap"),
-    ("GAME_PLAYER_LEADER", "rushing_tds"): (_N, "rushing-touchdown leader is carried by running-back volume; same residual gap"),
+    ("GAME_PLAYER_LEADER", "rushing_yards"): (_G, "the game's rushing leader can be a quarterback; the field spans both teams (2026-11-03: was NOT_GATED)"),
+    ("GAME_PLAYER_LEADER", "rushing_tds"): (_G, "the game's rushing-touchdown leader can be a quarterback; the field spans both teams (2026-11-03: was NOT_GATED)"),
 }
 #: Families whose entry is stat-level (a stat missing from STAT_TABLE for one of these is UNCLASSIFIED -> gated).
 STAT_LEVEL_FAMILIES = tuple(sorted({f for f, _ in STAT_TABLE}))
@@ -164,14 +177,20 @@ class QbRequirement:
     scope: str                   # BOTH_TEAMS | OWN_TEAM (meaningful only when a confirmation is required)
     rationale: str
     teams_required: tuple        # the team codes whose quarterback must be CONFIRMED_STARTER ( () when none )
+    identity_block: str | None = None       # player-scoped contract whose player identity / position is NOT verified: reason code; ALWAYS blocks
+    starter_player_id: str | None = None    # verified quarterback prop: the confirmed starter of ``starter_team`` must be exactly this GSIS id
+    starter_team: str | None = None
+    player_position_group: str | None = None
 
     @property
     def requires_confirmation(self) -> bool:
-        return self.classification in (QB_GATED, QB_INDIRECT)
+        return self.classification in (QB_GATED, QB_INDIRECT) or self.identity_block is not None
 
     def to_dict(self) -> dict:
         return {"classification": self.classification, "rule": self.rule, "family": self.family, "stat": self.stat, "scope": self.scope,
-                "teams_required": list(self.teams_required), "rationale": self.rationale, "table_version": TABLE_VERSION}
+                "teams_required": list(self.teams_required), "rationale": self.rationale, "table_version": TABLE_VERSION,
+                "identity_block": self.identity_block, "starter_player_id": self.starter_player_id, "starter_team": self.starter_team,
+                "player_position_group": self.player_position_group}
 
 
 def lookup(family, stat=None) -> tuple:
@@ -229,9 +248,12 @@ def own_team(ticker: str, teams) -> str | None:
     return winners[0] if len(winners) == 1 else None
 
 
-def requirement(ticker: str | None, *, family: str | None = None, teams=None) -> QbRequirement:
+def requirement(ticker: str | None, *, family: str | None = None, teams=None, player=None, decision_time=None) -> QbRequirement:
     """What this contract needs from the quarterbacks. ``family`` is the record's own market_family (the strictest of the two views wins).
-    ``teams`` is the game's [home, away] (nflverse codes); only used to narrow a QB_INDIRECT requirement to the player's own team."""
+    ``teams`` is the game's [home, away] (nflverse codes); only used to narrow a QB_INDIRECT requirement to the player's own team.
+    ``player`` is the VERIFIED player identity block (player_identity.verify) for a contract about one named player; ``decision_time`` the
+    clock it is judged against. A player-scoped contract with no accepted identity is blocked (identity_block); a verified quarterback's prop
+    is gated on his own team and requires him to be that team's confirmed starter; a verified non-quarterback keeps the table's class."""
     teams = [t for t in (teams or []) if t]
     t = (ticker or "").strip()
     views = []
@@ -250,6 +272,27 @@ def requirement(ticker: str | None, *, family: str | None = None, teams=None) ->
             views.append((c, rule, family, None, why))
     best = max(views, key=lambda v: _STRICT[v[0]])
     cls, rule, fam, stat, why = best
+    scoped = any(v[2] in PLAYER_SCOPED_FAMILIES for v in views) and rule != RULE_OUT_OF_SCOPE
+    if scoped:
+        ok, reason, ident = PI.accept(player, teams=teams, decision_time=decision_time)
+        if not ok:
+            return QbRequirement(QB_GATED, RULE_PLAYER_UNVERIFIED, fam, stat, SCOPE_BOTH,
+                                 f"the player's identity or position is not verified ({reason}); a confirmation cannot show he is not the "
+                                 "quarterback, so the prop is blocked (fail closed)", tuple(teams), identity_block=reason)
+        if ident["is_qb"]:
+            tm = ident["team"]
+            if cls == QB_GATED:                        # a quarterback's passing prop: both quarterbacks, and he must be his team's starter
+                return QbRequirement(QB_GATED, rule, fam, stat, SCOPE_BOTH, why + " (verified quarterback: he must be his team's confirmed starter)",
+                                     tuple(teams), starter_player_id=ident["gsis_id"], starter_team=tm, player_position_group=ident["position_group"])
+            return QbRequirement(QB_GATED, RULE_QB_OWN_PROP, fam, stat, SCOPE_OWN,
+                                 "a quarterback's own rushing / receiving / scrambling / touchdown prop: his team's confirmed starter must be this player",
+                                 (tm,), starter_player_id=ident["gsis_id"], starter_team=tm, player_position_group=ident["position_group"])
+        # verified non-quarterback: the table's class; a pass-catcher prop is gated on the VERIFIED team's quarterback
+        if cls == NOT_GATED:
+            return QbRequirement(cls, rule, fam, stat, SCOPE_BOTH, why, (), player_position_group=ident["position_group"])
+        if cls == QB_INDIRECT:
+            return QbRequirement(cls, rule, fam, stat, SCOPE_OWN, why, (ident["team"],), player_position_group=ident["position_group"])
+        return QbRequirement(cls, rule, fam, stat, SCOPE_BOTH, why, tuple(teams), player_position_group=ident["position_group"])
     if cls == NOT_GATED:
         return QbRequirement(cls, rule, fam, stat, SCOPE_BOTH, why, ())
     if cls == QB_INDIRECT:
@@ -258,6 +301,16 @@ def requirement(ticker: str | None, *, family: str | None = None, teams=None) ->
             return QbRequirement(cls, rule, fam, stat, SCOPE_OWN, why, (mine,))
         return QbRequirement(cls, rule, fam, stat, SCOPE_BOTH, why + " (player's team not readable from the ticker: both teams required)", tuple(teams))
     return QbRequirement(cls, rule, fam, stat, SCOPE_BOTH, why, tuple(teams))
+
+
+def is_player_scoped(ticker: str | None, family: str | None = None) -> bool:
+    """Whether the contract is about one named player (so its identity must be verified before its class applies)."""
+    fams = []
+    if family:
+        fams.append(family)
+    if ticker:
+        fams.append(_from_ticker(ticker.strip())[0])
+    return any(f in PLAYER_SCOPED_FAMILIES for f in fams)
 
 
 def gated_family_names() -> tuple:

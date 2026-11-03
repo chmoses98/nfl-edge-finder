@@ -26,7 +26,7 @@ KO = AS_OF + timedelta(hours=4)
 
 
 def _cand(ticker, qb=None):
-    return {"ticker": ticker, "side": "YES", "decision_time": DEC, "kickoff_utc": KO,
+    return {"ticker": ticker, "game_id": GAME, "side": "YES", "decision_time": DEC, "kickoff_utc": KO,
             "projection_as_of": DEC - timedelta(minutes=5), "injuries_as_of": DEC - timedelta(minutes=5),
             "qb": qb or {}, "teams": ["AAA", "BBB"],
             "quote": {"price": 0.5, "captured_at": DEC - timedelta(minutes=1), "kind": "EXECUTABLE_ASK", "depth": 1000}, "contracts": 10}
@@ -58,7 +58,11 @@ def test_confirmed_quarterbacks_still_let_the_family_through(ticker):
 def test_unrelated_player_props_are_never_qb_blocked(ticker):
     # 2026-11-03 (PR #241): receiving / anytime-TD props are QB_INDIRECT and now need their own team's quarterback (tests/test_qb_dependency.py);
     # props unrelated to the quarterback (rushing volume, kicker) are still never blocked by it.
-    assert not [b for b in GD.guard_candidate(_cand(ticker))["blocks"] if b.startswith("QB_")]
+    # (a VERIFIED non-quarterback; an unverified player is blocked outright - tests/test_qb_player_identity_gate.py)
+    from test_qb_dependency import auto_ident
+    c = _cand(ticker)
+    c["player"] = auto_ident(ticker)
+    assert not [b for b in GD.guard_candidate(c)["blocks"] if b.startswith("QB_")]
 
 
 # ---- through the REAL entry point: scripts/handicap/run_card.py -------------------------------------------------------------

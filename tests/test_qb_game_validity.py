@@ -94,12 +94,17 @@ def test_each_team_is_resolved_on_its_own_records_only():
 
 
 def test_the_guard_rejudges_a_row_for_another_game_or_team():
-    base = {"status": "CONFIRMED_STARTER", "confirmed_at": (NOW - H).isoformat(), "source": "HEAD_COACH_STATEMENT_ON_RECORD"}
+    # 2026-11-03: a row must also say WHOSE quarterback (team) and WHICH quarterback (qb_player_id); a row that does not proves nothing
+    base = {"status": "CONFIRMED_STARTER", "confirmed_at": (NOW - H).isoformat(), "source": "HEAD_COACH_STATEMENT_ON_RECORD", "qb_player_id": "00-QBSF"}
     kw = dict(dec=NOW, ko=KO, max_age=Q.MAX_AGE_AT_DECISION_MIN, max_lead=Q.MAX_LEAD_BEFORE_KICKOFF_MIN)
     assert GD._qb_blocks("SF", dict(base, game_id=GAME, team="SF"), game_id=GAME, **kw) == []
-    assert GD._qb_blocks("SF", dict(base, game_id="other"), game_id=GAME, **kw) == ["QB_WRONG_GAME:SF"]
-    assert GD._qb_blocks("SF", dict(base), game_id=GAME, **kw) == ["QB_WRONG_GAME:SF"]            # a row that does not say which game proves nothing
+    assert GD._qb_blocks("SF", dict(base, game_id="other", team="SF"), game_id=GAME, **kw) == ["QB_WRONG_GAME:SF"]
+    assert GD._qb_blocks("SF", dict(base, team="SF"), game_id=GAME, **kw) == ["QB_WRONG_GAME:SF"]            # a row that does not say which game proves nothing
     assert GD._qb_blocks("SF", dict(base, game_id=GAME, team="ATL"), game_id=GAME, **kw) == ["QB_WRONG_TEAM:SF"]
+    assert GD._qb_blocks("SF", dict(base, game_id=GAME), game_id=GAME, **kw) == ["QB_WRONG_TEAM:SF"]            # a row that does not say which team proves nothing
+    assert GD._qb_blocks("SF", dict(base, game_id=GAME, team="SF", qb_player_id=None), game_id=GAME, **kw) == ["QB_PLAYER_NOT_NAMED:SF"]
+    assert GD._qb_blocks("SF", dict(base, game_id=GAME, team="SF", qb_player_id="  "), game_id=GAME, **kw) == ["QB_PLAYER_NOT_NAMED:SF"]
+    assert GD._qb_blocks("SF", dict(base, game_id=GAME, team="SF"), game_id=None, **kw) == ["QB_GAME_UNKNOWN:SF"]    # the contract's own game is unknown
 
 
 # ---- time ordering ------------------------------------------------------------------------------------------------------------
@@ -134,7 +139,7 @@ def test_a_statement_at_or_after_kickoff_is_not_pregame_evidence():
 @pytest.mark.parametrize("source", sorted(Q.NON_CONFIRMING_SOURCE_TYPES))
 def test_no_non_accepted_source_can_confirm_at_the_resolver_or_the_guard(source):
     assert Q.validate_records([rec(source=source)])[0] == []
-    row = {"status": "CONFIRMED_STARTER", "confirmed_at": (NOW - H).isoformat(), "source": source, "game_id": GAME}
+    row = {"status": "CONFIRMED_STARTER", "confirmed_at": (NOW - H).isoformat(), "source": source, "game_id": GAME, "team": "SF", "qb_player_id": "00-QBSF"}
     out = GD._qb_blocks("SF", row, dec=NOW, ko=KO, game_id=GAME, max_age=1e9, max_lead=1e9)
     assert out == ["QB_SOURCE_NOT_ACCEPTED:SF"]
     assert GD._qb_blocks("SF", dict(row, source=None), dec=NOW, ko=KO, game_id=GAME, max_age=1e9, max_lead=1e9) == ["QB_SOURCE_NOT_ACCEPTED:SF"]
@@ -225,7 +230,7 @@ def test_the_pit_evidence_record_keeps_the_provenance_so_the_decision_can_be_aud
 
 
 def test_the_guard_rejudges_clocks_on_a_row_that_arrived_by_another_road():
-    base = {"status": "CONFIRMED_STARTER", "source": "HEAD_COACH_STATEMENT_ON_RECORD", "game_id": GAME}
+    base = {"status": "CONFIRMED_STARTER", "source": "HEAD_COACH_STATEMENT_ON_RECORD", "game_id": GAME, "team": "SF", "qb_player_id": "00-QBSF"}
     kw = dict(dec=NOW, ko=KO, game_id=GAME, max_age=Q.MAX_AGE_AT_DECISION_MIN, max_lead=Q.MAX_LEAD_BEFORE_KICKOFF_MIN)
     assert GD._qb_blocks("SF", dict(base, confirmed_at=(NOW - 25 * H).isoformat()), **kw) == ["QB_CONFIRMATION_STALE:SF"]
     assert GD._qb_blocks("SF", dict(base, confirmed_at=(KO - 49 * H).isoformat()), **dict(kw, max_age=1e9)) == ["QB_CONFIRMATION_TOO_EARLY_BEFORE_KICKOFF:SF"]
