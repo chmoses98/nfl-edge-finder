@@ -13,6 +13,11 @@ on:
   schedule:
     - cron: '49 */3 * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run the fetch, close pairing and settlement but SKIP every publish to market-data (validate a change without writing production data). Default: false.'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -78,7 +83,9 @@ jobs:
           python3 scripts/data/nflverse_download.py --only schedules,stats_player,snap_counts,pbp,players,rosters,ff_playerids --seasons 2025-2026 2>&1 | tail -4
           python3 nfl_edge/data/ids.py 2>&1 | tail -3
           git fetch --depth=1 origin market-data
-          rm -rf /tmp/md && git worktree add -f /tmp/md origin/market-data
+          # the ~52 GB tree goes on the runner's big secondary disk and is linked at /tmp/md (scripts/ci/market_data_worktree.sh);
+          # it refuses, with a message, to start a checkout the largest filesystem cannot hold.
+          bash scripts/ci/market_data_worktree.sh
       # EVIDENCE FIRST. Canonical close + CLV for every kicked-off game (Parts 2-6): write-once batches per game; a game
       # without a valid pre-kickoff observation is CLV_CLOSE_MISSING, never inferred. It runs before settlement because
       # it is the evidence the owner's actual-wager CLV needs and the cheaper of the two (no result tables, no autopsy).
@@ -97,7 +104,7 @@ jobs:
       # already on disk as write-once batches): the closes can no longer be starved by anything that runs after them.
       - name: Publish the close and CLV batches and the projection index
         id: publish_closes
-        if: ${{ !cancelled() && (steps.closes.outputs.status == 'WROTE' || steps.closes.outputs.index_written != '0' || steps.closes.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.closes.outputs.status == 'WROTE' || steps.closes.outputs.index_written != '0' || steps.closes.outcome == 'failure') && !inputs.dry_run }}
         timeout-minutes: 10
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
@@ -126,7 +133,7 @@ jobs:
       # the closes publish could not, should it have failed) and runs when either driver failed part-way too.
       - name: Publish the settlement, close and CLV batches, autopsies and scorecard
         id: publish_evidence
-        if: ${{ !cancelled() && (steps.settle.outputs.status == 'WROTE' || steps.closes.outputs.status == 'WROTE' || steps.settle.outputs.index_written != '0' || steps.settle.outcome == 'failure' || steps.closes.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.settle.outputs.status == 'WROTE' || steps.closes.outputs.status == 'WROTE' || steps.settle.outputs.index_written != '0' || steps.settle.outcome == 'failure' || steps.closes.outcome == 'failure') && !inputs.dry_run }}
         timeout-minutes: 10
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
@@ -148,7 +155,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/settle_v2_derived.log"
       - name: Publish the scorecard and exchange cross-check
         id: publish_scorecard
-        if: ${{ !cancelled() && steps.scorecard.outputs.derived == 'REBUILT' }}
+        if: ${{ !cancelled() && steps.scorecard.outputs.derived == 'REBUILT' && !inputs.dry_run }}
         timeout-minutes: 15
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
@@ -187,6 +194,12 @@ jobs:
             --hypotheses data/shadow/v2/hypotheses/hypotheses.jsonl 2>&1 | tee "$RUNNER_TEMP/weekly_report_v2.log"
           # fail-soft: a failed eligibility build must never cost the week its research publication
           timeout "$(left)s" python3 scripts/shadow_v2/eligibility_v2.py --reports data/shadow/v2/reports --market-data /tmp/md --out data/shadow/v2/eligibility 2>&1 | tee "$RUNNER_TEMP/eligibility_v2.log" || echo "::warning::production-eligibility build failed; the previous latest.json stays in force"
+      # What the closes step produced, by week, with true closes kept apart from earlier-quote proxies. Reporting only; on a
+      # dry run it is the evidence that the pipeline works (nothing is published). Never fails the job.
+      - name: Close coverage by week (true close vs proxy vs missing)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: python3 scripts/shadow_v2/close_coverage.py --closes data/shadow/v2 --json "$RUNNER_TEMP/close_coverage.json" --summary "$GITHUB_STEP_SUMMARY"
       - name: Show where a failed driver died
         if: failure() || steps.research.outcome == 'failure' || steps.scorecard.outcome == 'failure'
         run: |
@@ -198,7 +211,7 @@ jobs:
       # re-indexing the archive. A no-op when the rebuild changed nothing.
       - name: Publish the research export, scorecard v3 and weekly report
         id: research_publish
-        if: steps.research.outcome == 'success'
+        if: ${{ steps.research.outcome == 'success' && !inputs.dry_run }}
         run: |
           python3 scripts/ci/publish_market_data.py --src data/shadow/v2 \
             --message "shadow v2 research export + scorecard + weekly report (batch ${{ steps.settle.outputs.batch_id }})"
