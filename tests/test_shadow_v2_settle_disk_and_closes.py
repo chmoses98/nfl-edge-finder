@@ -159,3 +159,15 @@ def test_coverage_reads_gzip_batches_from_disk(tmp_path):
     rep = cc.coverage(cc.iter_rows(str(tmp_path)))
     assert rep["weeks"]["07"]["records"] == 2 and rep["weeks"]["07"]["TRUE_CLOSE"] == 1
     assert "| 07 |" in cc.markdown(rep)
+
+
+# ------------------------------------------------------------------------------------------ fetch time budget
+def test_the_market_data_fetch_has_room_and_the_evidence_path_still_fits_the_job_limit():
+    """Runs 41627070445 and 41651989390 were killed by a 25-minute fetch cap (the fetch alone takes ~22 min on a slow runner)."""
+    import yaml
+    doc = yaml.safe_load(open(WORKFLOW))
+    job = doc["jobs"]["settle"]
+    steps = {s.get("id"): s for s in job["steps"] if s.get("id")}
+    assert steps["fetch"]["timeout-minutes"] >= 40
+    evidence = [steps[i]["timeout-minutes"] for i in ("fetch", "closes", "publish_closes", "settle", "publish_evidence")]
+    assert sum(evidence) <= job["timeout-minutes"], evidence
