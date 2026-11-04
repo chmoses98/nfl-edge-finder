@@ -64,6 +64,7 @@ from datetime import datetime, timezone, timedelta
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 from nfl_edge.kalshi.client import KalshiClient  # noqa
+from nfl_edge.kalshi import tape  # noqa
 from nfl_edge.kalshi.classifier import classify, KALSHI_TO_NFLVERSE  # noqa
 from nfl_edge.board.provisional import PROVISIONAL_FILE, capturable_provisional, load_provisional  # noqa
 from nfl_edge.evaluation import openset as OS  # noqa
@@ -180,6 +181,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rps", type=float, default=4.0)
     ap.add_argument("--max-trade-tickers", type=int, default=400)
+    ap.add_argument("--max-gap-fills", type=int, default=20, help="tickers whose recorded trade gap is re-fetched per run (#246)")
     ap.add_argument("--book-window-hours", type=float, default=BOOK_WINDOW_HOURS)
     ap.add_argument("--max-books", type=int, default=2500)
     ap.add_argument("--force-daily", action="store_true")
@@ -306,20 +308,39 @@ def main():
         min_ts = state["trade_cursor"].get(ticker) or int((t_start - timedelta(hours=24)).timestamp())
         trades, complete, info = c.trades(ticker=ticker, min_ts=min_ts, limit=1000, max_pages=5)
         n_trade_tickers += 1
-        max_seen = min_ts
+        fetched_ts = []
         for t in trades:
             try:
                 ts_ = int(datetime.fromisoformat(t["created_time"].replace("Z", "+00:00")).timestamp())
             except Exception:
                 ts_ = None
-            if ts_ and ts_ > max_seen:
-                max_seen = ts_
+            fetched_ts.append(ts_)
             trades_f.write(json.dumps({"run_id": run_id, **t}, separators=(",", ":")) + "\n"); n_trades += 1
-        if complete:
-            state["trade_cursor"][ticker] = max_seen + 1
-        else:
+        nxt, gap = tape.plan_after_fetch(min_ts, fetched_ts, complete, run_id)
+        state["trade_cursor"][ticker] = nxt
+        if not complete:
             incomplete_trades += 1
-    manifest["trades"] = {"tickers_with_volume_change": len(trade_candidates), "tickers_fetched": n_trade_tickers, "incomplete": incomplete_trades}
+        if gap:
+            state.setdefault("trade_gaps", {}).setdefault(ticker, []).append(gap)      # explicit, auditable hole -- never silent
+    # bounded gap fill: oldest-recorded gaps first, a few tickers per run (#246)
+    gaps_filled = 0
+    for ticker in sorted(state.get("trade_gaps", {}))[: a.max_gap_fills]:
+        g = state["trade_gaps"][ticker][0]
+        gtr, gcomplete, _ = c.trades(ticker=ticker, min_ts=g["from"], max_ts=g["to"], limit=1000, max_pages=5)
+        gts = []
+        for t in gtr:
+            try:
+                gts.append(int(datetime.fromisoformat(t["created_time"].replace("Z", "+00:00")).timestamp()))
+            except Exception:
+                gts.append(None)
+            trades_f.write(json.dumps({"run_id": run_id, "gap_fill": True, **t}, separators=(",", ":")) + "\n"); n_trades += 1
+        rest = tape.shrink_gap(g, gts, gcomplete)
+        state["trade_gaps"][ticker] = ([rest] if rest else []) + state["trade_gaps"][ticker][1:]
+        if not state["trade_gaps"][ticker]:
+            del state["trade_gaps"][ticker]
+        gaps_filled += 1
+    manifest["trades"] = {"tickers_with_volume_change": len(trade_candidates), "tickers_fetched": n_trade_tickers, "incomplete": incomplete_trades,
+                          "gap_fill_attempted": gaps_filled, "gaps_open_tickers": len(state.get("trade_gaps", {})), "gaps_open": sum(len(v) for v in state.get("trade_gaps", {}).values())}
     # CONFIRMATION LEDGER. Quote rows are change-suppressed, so an unchanged market leaves no trace of having
     # been seen, and "no row written" is indistinguishable from "we could not reach the market" unless we
     # record it separately. `last_seen` stamps every ticker this run actually returned as open -- changed or
