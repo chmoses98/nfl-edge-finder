@@ -33,7 +33,8 @@ sys.path.insert(0, ROOT)
 
 # manifest keys this branch adds outside the v2 gate; additive observation only
 ADDITIVE_MANIFEST_KEYS = {"books_dropped_by_cap", "openset", "provisional_series", "provisional_file_present",
-                          "schema_version", "v2_capture", "capture_mode"}
+                          "schema_version", "v2_capture", "capture_mode",
+                          "trade_gaps"}   # #246: explicit gap bookkeeping for capped live trade fetches (observation only)
 # The same thing one level down: PER-SERIES manifest keys added outside the v2 gate. `provisional` records
 # whether a series came from the discovered-but-not-yet-reviewed list; it is an observation ABOUT the
 # capture, never an input to what was requested or how anything was priced.
