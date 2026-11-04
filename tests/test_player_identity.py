@@ -100,7 +100,7 @@ def _ok(**kw):
 
 
 def test_accept_takes_a_verified_block_and_normalises_it():
-    ok, why, n = PI.accept(_ok(), teams=TEAMS, decision_time=DEC + timedelta(minutes=5))
+    ok, why, n = PI.accept(_ok(), teams=TEAMS, decision_time=DEC + timedelta(minutes=5), market_player_id="00-1")
     assert ok and why is None and n == {"gsis_id": "00-1", "position_group": "QB", "is_qb": True, "team": "AAA"}
 
 
@@ -121,7 +121,7 @@ def test_accept_takes_a_verified_block_and_normalises_it():
     ({"as_of": (DEC - timedelta(hours=25)).isoformat()}, PI.R_STALE),
 ])
 def test_accept_refuses_a_block_that_is_not_what_verify_would_have_produced(mutate, reason):
-    ok, why, n = PI.accept(_ok(**mutate), teams=TEAMS, decision_time=DEC + timedelta(minutes=5))
+    ok, why, n = PI.accept(_ok(**mutate), teams=TEAMS, decision_time=DEC + timedelta(minutes=5), market_player_id="00-1")
     assert not ok and why == reason and n is None
 
 
@@ -160,3 +160,46 @@ def test_load_book_reads_the_three_repository_tables_with_sha256_and_never_raise
     (root / "weekly_rosters" / "roster_weekly_2026.parquet").unlink()
     (root / "ff_playerids" / "db_playerids.csv").unlink()
     assert not PI.load_book(str(root), 2026) and _verify(PI.load_book(str(root), 2026))["reason"] == PI.R_NO_SOURCE
+
+
+# ---------------------------------------------------------------------------------------------------------------- MFL-style codes, same-week rows, names
+@pytest.mark.parametrize("code,canon", [("KCC", "KC"), ("GBP", "GB"), ("SFO", "SF"), ("NEP", "NE"), ("NOS", "NO"), ("TBB", "TB"), ("LVR", "LV"), ("LAR", "LA"), ("JAC", "JAX"), ("WSH", "WAS")])
+def test_every_alias_the_repository_knows_normalises(code, canon):
+    assert PI.norm_team(code) == canon
+
+
+def test_kc_and_kcc_do_not_conflict_across_sources():
+    b = _book([_p(team="KC")], rosters=[{"gsis_id": "00-1", "position": "QB", "team": "KCC", "week": 6}], ffids=[{"gsis_id": "00-1", "position": "QB", "team": "KC", "name": "x"}])
+    r = PI.verify(b, player_id="00-1", game_teams=["KC", "BUF"], game_week=7, as_of=DEC)
+    assert r["verified"] and r["team"] == "KC"
+    b = _book([_p(team="KCC")], ffids=[{"gsis_id": "00-1", "position": "QB", "team": "KC", "name": "x"}])
+    assert PI.verify(b, player_id="00-1", game_teams=["KCC", "BUF"], game_week=7, as_of=DEC)["verified"]
+
+
+@pytest.mark.parametrize("order", [0, 1])
+def test_conflicting_rows_of_the_same_roster_week_block_whatever_the_file_order(order):
+    rows = [{"gsis_id": "00-1", "position": "QB", "team": "AAA", "week": 7}, {"gsis_id": "00-1", "position": "RB", "team": "AAA", "week": 7}]
+    r = _verify(_book([_p(pos="QB")], rosters=rows[::-1] if order else rows))
+    assert r["verified"] is False and r["reason"] == PI.R_POSITION_CONFLICT
+    rows = [{"gsis_id": "00-1", "position": "QB", "team": "AAA", "week": 7}, {"gsis_id": "00-1", "position": "QB", "team": "BBB", "week": 7}]
+    r = _verify(_book([_p(pos="QB")], rosters=rows[::-1] if order else rows))
+    assert r["verified"] is False and r["reason"] == PI.R_TEAM_CONFLICT
+
+
+def test_a_market_name_that_the_tables_do_not_carry_blocks_and_a_matching_one_verifies():
+    b = _book([_p(name="Patrick Mahomes II")])
+    kw = dict(player_id="00-1", game_teams=TEAMS, game_week=7, as_of=DEC)
+    r = PI.verify(b, player_name="Patrick Mahomes", **kw)
+    assert r["verified"] and r["name_checked"] is True
+    r = PI.verify(b, player_name="Josh Allen", **kw)
+    assert r["verified"] is False and r["reason"] == PI.R_NAME_MISMATCH
+    assert PI.verify(b, **kw)["name_checked"] is False                         # no market name supplied: not checked, said so
+    assert PI.names_match("T.J. Hockenson", "TJ Hockenson") and PI.names_match("Kenneth Walker III", "Ken Walker") and not PI.names_match("", "x")
+
+
+def test_accept_binds_the_block_to_the_markets_own_player_id():
+    ok = PI.verify(_book([_p()]), player_id="00-1", game_teams=TEAMS, game_week=7, as_of=DEC)
+    kw = dict(teams=TEAMS, decision_time=DEC + timedelta(minutes=1))
+    assert PI.accept(ok, market_player_id="00-1", **kw)[0] is True
+    assert PI.accept(ok, market_player_id="00-2", **kw)[1] == PI.R_ID_MISMATCH
+    assert PI.accept(ok, market_player_id=None, **kw)[1] == PI.R_NO_PLAYER_ID

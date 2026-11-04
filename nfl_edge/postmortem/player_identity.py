@@ -34,7 +34,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import unicodedata
 from datetime import datetime
+
+from nfl_edge.data.ids import TEAM_ALIASES
 
 from .common import parse_ts
 
@@ -58,7 +62,6 @@ _GROUPS = {
     "DB": "DEF", "CB": "DEF", "S": "DEF", "SS": "DEF", "FS": "DEF", "SAF": "DEF",
     "OL": "OL", "T": "OL", "G": "OL", "C": "OL", "OT": "OL", "OG": "OL",
 }
-_TEAM_ALIAS = {"LAR": "LA", "JAC": "JAX", "WSH": "WAS"}
 
 # reason codes (stable strings; the gate prefixes them PLAYER_IDENTITY_UNVERIFIED:)
 R_NO_PLAYER_ID = "NO_PLAYER_ID"
@@ -70,6 +73,8 @@ R_TEAM_UNKNOWN = "TEAM_UNKNOWN"
 R_TEAM_CONFLICT = "TEAM_CONFLICT"
 R_TEAM_NOT_IN_GAME = "TEAM_NOT_IN_GAME"
 R_TEAM_MISMATCH_TICKER = "TEAM_MISMATCH_WITH_TICKER"
+R_NAME_MISMATCH = "PLAYER_NAME_MISMATCH"
+R_ID_MISMATCH = "PLAYER_ID_MISMATCH"
 R_NO_TEAMS = "GAME_TEAMS_UNKNOWN"
 R_MALFORMED = "IDENTITY_MALFORMED"
 R_NO_PROVENANCE = "IDENTITY_WITHOUT_PROVENANCE"
@@ -89,7 +94,27 @@ def norm_team(t) -> str | None:
     if not isinstance(t, str) or not t.strip():
         return None
     t = t.strip().upper()
-    return _TEAM_ALIAS.get(t, t)
+    return TEAM_ALIASES.get(t, t)          # one alias table for the repository (nfl_edge/data/ids.py): LAR->LA, JAC->JAX, KCC->KC, GBP->GB, ...
+
+
+def _name_key(n) -> str:
+    if not isinstance(n, str):
+        return ""
+    n = unicodedata.normalize("NFKD", n).encode("ascii", "ignore").decode().lower()
+    n = re.sub(r"[^a-z ]", " ", n)
+    n = re.sub(r"\b(jr|sr|ii|iii|iv|v)\b", "", n)
+    return re.sub(r"\s+", " ", n).strip()
+
+
+def names_match(a, b) -> bool:
+    """Same person by name: equal after normalisation, or same surname with the same first initial (T.J. vs Thomas). Blank never matches."""
+    x, y = _name_key(a), _name_key(b)
+    if not x or not y:
+        return False
+    if x == y:
+        return True
+    xs, ys = x.split(), y.split()
+    return xs[-1] == ys[-1] and xs[0][0] == ys[0][0]
 
 
 # ----------------------------------------------------------------------------------------------------------------------------- the book
@@ -213,7 +238,7 @@ def _unverified(reason: str, *, player_id=None, as_of=None, week=None, detail=No
     return out
 
 
-def verify(book: IdentityBook | None, *, player_id, game_teams, game_week, ticker_team=None, as_of) -> dict:
+def verify(book: IdentityBook | None, *, player_id, game_teams, game_week, ticker_team=None, as_of, player_name=None) -> dict:
     """Resolve one market's player to (identity, position, team) with provenance, or UNVERIFIED with a reason. ``game_teams`` is the game's
     [home, away] (nflverse codes); ``ticker_team`` the team the ticker's subject names when it can be read (else None); ``as_of`` the decision time."""
     dec = parse_ts(as_of)
@@ -242,9 +267,10 @@ def verify(book: IdentityBook | None, *, player_id, game_teams, game_week, ticke
 
     # roster rows are point in time: the latest week at or before the game's week; players / ff rows are undated snapshots
     roster = [o for o in obs if o["source"] == SRC_ROSTER and o["week"] is not None and (wk is None or o["week"] <= wk)]
-    roster_obs = max(roster, key=lambda o: o["week"]) if roster else None
+    top = max(o["week"] for o in roster) if roster else None
+    roster_rows = [o for o in roster if o["week"] == top]            # EVERY row of the latest usable week: no dependence on file order
     snaps = [o for o in obs if o["source"] in (SRC_PLAYERS, SRC_FFIDS)]
-    used = ([roster_obs] if roster_obs else []) + snaps
+    used = roster_rows + snaps
     used_prov = prov([(o["source"], o) for o in used])
     # --- position: at least one recognised group; sources must agree on QB-ness
     groups = [(o, position_group(o["position"])) for o in used]
@@ -260,8 +286,11 @@ def verify(book: IdentityBook | None, *, player_id, game_teams, game_week, ticke
                            detail="an unrecognised position string in " + ",".join(sorted({o["source"] for o, g in groups if g is None})))
     primary_obs, primary_group = next(((o, g) for o, g in known if o["source"] == SRC_ROSTER), known[0])
     # --- team
-    if roster_obs is not None and norm_team(roster_obs["team"]):
-        team = norm_team(roster_obs["team"])
+    rteams = {norm_team(o["team"]) for o in roster_rows if norm_team(o["team"])}
+    if len(rteams) > 1:
+        return _unverified(R_TEAM_CONFLICT, player_id=pid, as_of=dec, week=wk, sources=used_prov, detail=sorted(rteams))
+    if rteams:
+        team = next(iter(rteams))
     else:
         cand = {norm_team(o["team"]) for o in snaps if norm_team(o["team"])}
         if not cand:
@@ -273,13 +302,17 @@ def verify(book: IdentityBook | None, *, player_id, game_teams, game_week, ticke
         return _unverified(R_TEAM_NOT_IN_GAME, player_id=pid, as_of=dec, week=wk, sources=used_prov, detail=team)
     if ticker_team is not None and norm_team(ticker_team) != team:
         return _unverified(R_TEAM_MISMATCH_TICKER, player_id=pid, as_of=dec, week=wk, sources=used_prov, detail=f"table={team} ticker={norm_team(ticker_team)}")
-    name = next((o["name"] for o in used if o.get("name")), None)
+    table_names = [o["name"] for o in used if o.get("name")]
+    if player_name and table_names and not any(names_match(player_name, n) for n in table_names):
+        return _unverified(R_NAME_MISMATCH, player_id=pid, as_of=dec, week=wk, sources=used_prov, detail=f"market={player_name!r} table={sorted(set(table_names))}")
+    name = table_names[0] if table_names else None
     return {"schema": SCHEMA, "version": IDENTITY_VERSION, "verified": True, "reason": None, "gsis_id": pid, "name": name,
+            "market_player_name": player_name, "name_checked": bool(player_name and table_names),
             "position": primary_obs["position"], "position_group": primary_group, "is_qb": primary_group == QB, "team": team, "game_week": wk,
             "as_of": dec.isoformat() if dec else None, "sources": used_prov}
 
 
-def accept(identity, *, teams, decision_time, max_age_min: float = MAX_AGE_AT_DECISION_MIN) -> tuple[bool, str | None, dict | None]:
+def accept(identity, *, teams, decision_time, market_player_id=None, max_age_min: float = MAX_AGE_AT_DECISION_MIN) -> tuple[bool, str | None, dict | None]:
     """Re-judge an identity block the gate was handed (it may have travelled through a record). (ok, reason, normalised). A block that says
     ``verified`` but lacks provenance, a recognised position, a team in this game, or a clock at/before the decision is NOT accepted."""
     if not isinstance(identity, dict):
@@ -293,6 +326,10 @@ def accept(identity, *, teams, decision_time, max_age_min: float = MAX_AGE_AT_DE
         return False, R_NO_PROVENANCE, None
     if identity.get("is_qb") is not (grp == QB):
         return False, R_MALFORMED, None
+    if not (isinstance(market_player_id, str) and market_player_id.strip()):
+        return False, R_NO_PLAYER_ID, None                     # the block must be bound to the market's own player id
+    if pid.strip() != market_player_id.strip():
+        return False, R_ID_MISMATCH, None
     if team not in {norm_team(t) for t in (teams or []) if norm_team(t)}:
         return False, R_TEAM_NOT_IN_GAME, None
     at, dec = parse_ts(identity.get("as_of")), parse_ts(decision_time)
@@ -306,3 +343,18 @@ def accept(identity, *, teams, decision_time, max_age_min: float = MAX_AGE_AT_DE
         return False, R_STALE, None
     return True, None, {"gsis_id": pid.strip(), "position_group": grp, "is_qb": grp == QB, "team": team}
 
+
+
+def verify_qb(book: IdentityBook | None, *, qb_player_id, team, game_teams, game_week, as_of) -> dict:
+    """Cross-check the quarterback a confirmation NAMES against the identity book: he must be a verified quarterback on ``team``.
+    ``checked`` is False when there is no book (nothing to check against; the caller does not block on that alone) and True otherwise."""
+    if book is None or not book:
+        return {"checked": False, "ok": None, "reason": R_NO_SOURCE}
+    r = verify(book, player_id=qb_player_id, game_teams=game_teams, game_week=game_week, as_of=as_of)
+    if not r["verified"]:
+        return {"checked": True, "ok": False, "reason": r["reason"]}
+    if not r["is_qb"]:
+        return {"checked": True, "ok": False, "reason": "NAMED_STARTER_NOT_A_QUARTERBACK"}
+    if r["team"] != norm_team(team):
+        return {"checked": True, "ok": False, "reason": "NAMED_STARTER_ON_ANOTHER_TEAM"}
+    return {"checked": True, "ok": True, "reason": None}

@@ -208,7 +208,8 @@ def _prop_guard(ticker, qb=None, verified=True):
     from nfl_edge.postmortem.guards import guard_candidate
     from test_qb_dependency import auto_ident
     # 2026-11-03: a contract about one named player is judged only with a VERIFIED identity (nfl_edge/postmortem/player_identity.py)
-    return guard_candidate({"ticker": ticker, "game_id": GAME, "player": auto_ident(ticker, ("ATL", "SF"), as_of=NOW) if verified else None, "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
+    return guard_candidate({"ticker": ticker, "game_id": GAME, "player": auto_ident(ticker, ("ATL", "SF"), as_of=NOW) if verified else None,
+                           "player_id": auto_ident(ticker, ("ATL", "SF"), as_of=NOW)["gsis_id"] if verified and auto_ident(ticker, ("ATL", "SF"), as_of=NOW) else None, "side": "YES", "decision_time": NOW, "kickoff_utc": KO,
                             "projection_as_of": NOW, "injuries_as_of": NOW, "qb": qb or {}, "teams": ["ATL", "SF"],
                             "quote": {"price": 0.5, "captured_at": NOW, "kind": "EXECUTABLE_ASK", "depth": 100}, "contracts": 10})
 

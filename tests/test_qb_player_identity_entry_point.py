@@ -28,6 +28,10 @@ def QB(team="AAA", gsis=None):
 
 
 def go(tmp_path, ticker, kw, player, recs=None, family="PLAYER_STAT"):
+    if isinstance(player, tuple) and player[3] != kw.get("subject") and not player[3].endswith(" QB"):
+        player = player[:3] + (kw.get("subject"),)
+    if isinstance(player, tuple) and player[3].endswith(" QB"):
+        player = player[:3] + (kw.get("subject"),)          # the market's player name is checked against the table's
     return _run(tmp_path, ticker, family, recs, player=player, **kw)
 
 
@@ -167,4 +171,73 @@ def test_the_card_records_the_verified_identity_with_provenance_on_the_bet_recor
     assert pi["verified"] is True and pi["position_group"] == "RB" and pi["team"] == "AAA" and pi["gsis_id"] == "00-RB1" and pi["as_of"] == AS_OF.isoformat()
     assert pi["sources"][0]["source"] == "NFLVERSE_PLAYERS" and len(pi["sources"][0]["sha256"]) == 64
     cov = json.load(open(tmp_path / "out" / "qb_coverage.json"))["player_identity"]
-    assert cov["players"] == 1 and cov["errors"] != [] and cov["sources"][0]["rows"] == 1      # the two tables not supplied are listed, not hidden
+    assert cov["players"] == 3 and cov["errors"] != [] and cov["sources"][0]["rows"] == 3      # the two tables not supplied are listed, not hidden
+
+
+# ---------------------------------------------------------------------------------------------------------------- empty book, names, workflow, warning
+@pytest.mark.parametrize("ticker,kw,pos", [(RUSH, RUSH_KW, "RB"), ("KXNFLFG-26OCT25AAABBB-AAAK1-2", dict(subject="A Kicker", stat="field_goals", thr=2.0), "K"),
+                                           ("KXNFLTKL-26OCT25AAABBB-BBBLB1-8", dict(subject="B Backer", stat="tackles", thr=8.0), "LB")])
+def test_with_an_EMPTY_identity_book_rushing_kicker_and_defender_props_block_NO_IDENTITY_SOURCE(tmp_path, ticker, kw, pos):
+    """DOCUMENTED CONSEQUENCE: a workflow that passes no player tables turns every formerly NOT_GATED player prop into a BLOCK (fail closed). Every workflow that
+    runs run_card.py must therefore supply the tables (tests/test_qb_player_identity_workflows.py pins that)."""
+    import shutil
+    from test_qb_run_nfl_families import _tree
+    team = ticker.split("-")[2][:3]
+    _tree(tmp_path, ticker, "PLAYER_STAT", player=(f"00-{pos}1", pos, team, kw["subject"]), **kw)
+    shutil.rmtree(tmp_path / "raw")                                              # the market carries a player id; there is no table at all
+    import json
+    from nfl_edge.postmortem import qb_confirmations as QBC
+    from test_postmortem_wiring import _run_entry_point
+    f = tmp_path / "qb.json"
+    f.write_text(json.dumps({"schema": QBC.SCHEMA, "records": _recs()}))
+    card, _ = _run_entry_point(tmp_path, "out", "--qb-confirmations", str(f))
+    _blocked_unverified(card, "NO_IDENTITY_SOURCE")
+
+
+def test_a_market_player_name_the_table_does_not_carry_for_that_id_is_blocked(tmp_path):
+    from test_qb_run_nfl_families import _tree
+    _tree(tmp_path, RUSH, "PLAYER_STAT", player=("00-RB1", "RB", "AAA", "Somebody Else"), **RUSH_KW)       # id matches, the NAME does not
+    import json
+    from nfl_edge.postmortem import qb_confirmations as QBC
+    from test_postmortem_wiring import _run_entry_point
+    f = tmp_path / "qb.json"
+    f.write_text(json.dumps({"schema": QBC.SCHEMA, "records": _recs()}))
+    pk = json.load(open(tmp_path / "a" / "packet.json"))
+    for m in pk["games"][0]["markets"]:
+        if m["ticker"] == RUSH:
+            m["player_name"] = "A Rusher"
+    json.dump(pk, open(tmp_path / "a" / "packet.json", "w"))
+    card, _ = _run_entry_point(tmp_path, "out", "--raw-root", str(tmp_path / "raw"), "--qb-confirmations", str(f))
+    _blocked_unverified(card, "PLAYER_NAME_MISMATCH")
+
+
+def test_a_confirmation_naming_a_starter_the_tables_do_not_show_as_a_qb_blocks_a_game_level_market(tmp_path):
+    import json
+    from nfl_edge.postmortem import qb_confirmations as QBC
+    from test_postmortem_wiring import _run_entry_point
+    from test_qb_run_nfl_families import _tree
+    _tree(tmp_path, "KXNFLTEAMTOTAL-26OCT25AAABBB-BBB24", "TEAM_TOTAL", subject="BBB", stat="team_points", thr=24.0)
+    write_identity_tables(tmp_path, [("00-QBAAA", "QB", "AAA", "AAA Starter"), ("00-QBBBB", "RB", "BBB", "Not A QB")])         # BBB's "starter" is a running back
+    f = tmp_path / "qb.json"
+    f.write_text(json.dumps({"schema": QBC.SCHEMA, "records": _recs()}))
+    card, _ = _run_entry_point(tmp_path, "out", "--raw-root", str(tmp_path / "raw"), "--qb-confirmations", str(f))
+    assert _line(card)["status"] == "BLOCKED" and "QB_NAMED_STARTER_NOT_VERIFIED:BBB:NAMED_STARTER_NOT_A_QUARTERBACK" in _reasons(card)
+
+
+def test_the_record_binds_the_markets_player_id(tmp_path):
+    import json
+    card = go(tmp_path, RUSH, RUSH_KW, ("00-RB1", "RB", "AAA", "A Rusher"), None)
+    rec = json.load(open(tmp_path / "out" / "records" / f"{_line(card)['recommendation_id']}.json"))
+    assert rec["pit_evidence"]["market_player_id"] == "00-RB1" == rec["pit_evidence"]["player_identity"]["gsis_id"]
+
+
+def test_live_mode_with_an_empty_or_incomplete_book_prints_a_prominent_warning(tmp_path, capsys):
+    from test_qb_run_nfl_families import _tree
+    _tree(tmp_path, RUSH, "PLAYER_STAT", player=("00-RB1", "RB", "AAA", "A Rusher"), **RUSH_KW)
+    from test_postmortem_wiring import _run_entry_point
+    _run_entry_point(tmp_path, "empty")                                          # no --raw-root: empty book
+    err = capsys.readouterr().err
+    assert "WARNING: PLAYER IDENTITY BOOK EMPTY" in err and "::warning::player identity book empty" in err
+    _run_entry_point(tmp_path, "partial", "--raw-root", str(tmp_path / "raw"))   # only players.parquet exists: incomplete
+    err = capsys.readouterr().err
+    assert "WARNING: PLAYER IDENTITY BOOK INCOMPLETE" in err and "weekly_rosters" in err

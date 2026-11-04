@@ -85,17 +85,22 @@ def build_pit_evidence(*, run: dict, game: dict, ev: dict) -> dict:
             # full provenance travels with the row so the record can show WHY a quarterback was or was not confirmed
             qb[t] = {k: row.get(k) for k in ("status", "confirmed_at", "source", "source_ref", "record_id", "qb_player_id", "reason", "game_id",
                                              "team", "observed_at", "captured_at", "as_of", "kickoff_utc", "conflicts", "withdrawn_record_ids")}
+            if row.get("status") == QBC.CONFIRMED_STARTER and row.get("qb_player_id"):
+                qb[t]["qb_identity_check"] = PI.verify_qb(run.get("player_identity_book"), qb_player_id=row.get("qb_player_id"), team=t,
+                                                          game_teams=teams, game_week=game.get("week"), as_of=run.get("decision_time"))
     # A contract about ONE named player: resolve who he is and what position he plays from the repository's own player data
     # (run["player_identity_book"], built by scripts/handicap/run_card.py from --raw-root). Unresolvable -> an UNVERIFIED block, which blocks.
-    player_identity = None
+    player_identity, market_player_id = None, None
     if QD.is_player_scoped(ev.get("ticker"), ev.get("family")):
         pm = next((m for m in game.get("markets", []) if m.get("ticker") == ev.get("ticker")), None) or {}
         player_identity = PI.verify(run.get("player_identity_book"), player_id=pm.get("player_id"), game_teams=teams, game_week=game.get("week"),
-                                    ticker_team=QD.own_team(ev.get("ticker") or "", [t for t in teams if t]), as_of=run.get("decision_time"))
+                                    ticker_team=QD.own_team(ev.get("ticker") or "", [t for t in teams if t]), as_of=run.get("decision_time"),
+                                    player_name=pm.get("player_name"))
+        market_player_id = pm.get("player_id")
     return {
         "schema": PIT_SCHEMA,
         "integration_version": INTEGRATION_VERSION,
-        "player_identity": player_identity,
+        "player_identity": player_identity, "market_player_id": market_player_id,
         "projection_as_of": fresh.get("ledger_feature_cutoff"),
         "injuries_as_of": injuries_as_of,
         "qb": qb,
@@ -127,7 +132,7 @@ def pit_applies(rec: dict, *, as_of=None) -> tuple[bool, str]:
         return False, "record predates the pit_evidence block; its historical verdict is not re-judged"
     if rec.get("market_family") in S.PLAYER_MARKET_FAMILIES:
         pit = rec.get("pit_evidence") or {}
-        req = QD.requirement(rec.get("market_ticker"), family=rec.get("market_family"), teams=pit.get("teams"), player=pit.get("player_identity"),
+        req = QD.requirement(rec.get("market_ticker"), family=rec.get("market_family"), teams=pit.get("teams"), player=pit.get("player_identity"), market_player_id=pit.get("market_player_id"),
                              decision_time=as_of or rec.get("created_at"))
         if not req.requires_confirmation:
             return False, f"player market: gated by player_availability_resolved; {req.classification} in the QB-dependency table ({req.rationale})"
@@ -148,7 +153,7 @@ def pit_gate(rec: dict, *, dq, dr, as_of: datetime) -> tuple[str, str, dict]:
         "ticker": rec.get("market_ticker"), "family": rec.get("market_family"), "game_id": pit.get("game_id") or rec.get("game_id"),
         "side": rec.get("side"), "decision_time": as_of, "kickoff_utc": rec.get("kickoff_utc"),
         "projection_as_of": pit.get("projection_as_of"), "injuries_as_of": pit.get("injuries_as_of"),
-        "qb": pit.get("qb") or {}, "teams": pit.get("teams") or [], "player": pit.get("player_identity"),
+        "qb": pit.get("qb") or {}, "teams": pit.get("teams") or [], "player": pit.get("player_identity"), "player_id": pit.get("market_player_id"),
         "quote": quote or {}, "contracts": None if quote is None else quote.get("depth"),
     }
     out = guard_candidate(cand)

@@ -22,7 +22,8 @@ def write_identity_tables(tmp, players):
     import polars as pl
     d = tmp / "raw" / "players"
     d.mkdir(parents=True, exist_ok=True)
-    rows = list(players)
+    # the confirmations name 00-QB<team> as each team's starter; the identity book cross-checks them, so both are in the table as QBs
+    rows = list(players) + [r for r in (("00-QBAAA", "QB", "AAA", "AAA Starter"), ("00-QBBBB", "QB", "BBB", "BBB Starter")) if r[0] not in {x[0] for x in players}]
     pl.DataFrame({"gsis_id": [r[0] for r in rows], "display_name": [r[3] for r in rows], "position": [r[1] for r in rows],
                   "latest_team": [r[2] for r in rows]}, schema={"gsis_id": pl.Utf8, "display_name": pl.Utf8, "position": pl.Utf8, "latest_team": pl.Utf8}
                  ).write_parquet(d / "players.parquet")

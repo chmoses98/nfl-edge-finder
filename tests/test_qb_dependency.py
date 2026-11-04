@@ -61,13 +61,15 @@ def auto_ident(ticker, teams=("AAA", "BBB"), as_of=DEC):
 def req(ticker, *, family=None, teams=None, player="auto", decision_time=DEC):
     if player == "auto":
         player = auto_ident(ticker, tuple(teams)) if teams and len(teams) == 2 else None
-    return QD.requirement(ticker, family=family, teams=teams, player=player, decision_time=decision_time)
+    return QD.requirement(ticker, family=family, teams=teams, player=player, decision_time=decision_time,
+                          market_player_id=player.get("gsis_id") if isinstance(player, dict) else None)
 
 
 def cand(ticker, qb=None, *, family=None, game_id=GAME, teams=("AAA", "BBB"), player="auto"):
     return {"ticker": ticker, "family": family, "game_id": game_id, "side": "YES", "decision_time": DEC, "kickoff_utc": KO,
             "projection_as_of": DEC - timedelta(minutes=5), "injuries_as_of": DEC - timedelta(minutes=5), "qb": qb or {}, "teams": list(teams),
             "player": auto_ident(ticker, teams) if player == "auto" else player,
+            "player_id": (lambda p: p.get("gsis_id") if isinstance(p, dict) else None)(auto_ident(ticker, teams) if player == "auto" else player),
             "quote": {"price": 0.5, "captured_at": DEC - timedelta(minutes=1), "kind": "EXECUTABLE_ASK", "depth": 1000}, "contracts": 10}
 
 
@@ -303,9 +305,10 @@ def test_the_compat_gated_family_names_cover_every_score_family():
 
 # ---------------------------------------------------------------------------------------------------------------- the real gate (gates.evaluate_gates)
 def _rec(ticker, family, qb=None, teams=("AAA", "BBB"), player="auto"):
+    pi_ = auto_ident(ticker, teams) if player == "auto" else player
     return {"decision": "RECOMMENDED", "created_at": DEC.isoformat(), "market_ticker": ticker, "market_family": family, "side": "YES",
             "kickoff_utc": KO.isoformat(), "game_id": "G1",
-            "pit_evidence": {"teams": list(teams), "game_id": "G1", "qb": qb or {}, "player_identity": auto_ident(ticker, teams) if player == "auto" else player, "projection_as_of": (DEC - timedelta(minutes=5)).isoformat(),
+            "pit_evidence": {"teams": list(teams), "game_id": "G1", "qb": qb or {}, "player_identity": pi_, "market_player_id": pi_.get("gsis_id") if isinstance(pi_, dict) else None, "projection_as_of": (DEC - timedelta(minutes=5)).isoformat(),
                              "injuries_as_of": (DEC - timedelta(minutes=5)).isoformat()}}
 
 

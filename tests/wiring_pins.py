@@ -13,15 +13,17 @@ with the reason. sha256 first 16 hex chars, same convention as the other pin tab
 # classify a contract about ONE named player from the player's VERIFIED identity and position (a QB's own rushing/receiving/TD prop is QB-gated on his own
 # confirmed starter; an unverified player is blocked; rushing field markets are QB_GATED), and the guard also re-judges a confirmed row's game, team and named
 # quarterback. These only ever ADD blocks; no threshold, fee, depth, net-EV, quote-age, stake or exposure rule moved. card.py is unchanged.
+# Third pass (PR #241 review): norm_team reuses nfl_edge/data/ids.py TEAM_ALIASES; every same-week roster row is judged (no file-order dependence); market name
+# and gsis id are bound to the verified block; a confirmation's named quarterback is cross-checked against the player tables. Still only ADDS blocks.
 PINS = {
     "nfl_edge/handicap/card.py": "a38a435e5769cd29",
-    "nfl_edge/postmortem/integration.py": "0c2bfc2c979cd6a8",
-    "nfl_edge/postmortem/guards.py": "5c803e661c2978b6",
+    "nfl_edge/postmortem/integration.py": "7679163123d938ed",
+    "nfl_edge/postmortem/guards.py": "42429433ac2fcb06",
     "nfl_edge/postmortem/fairvalue.py": "bc31bf425852e365",
     "nfl_edge/postmortem/exposure.py": "2a6119d4262018c3",
     "nfl_edge/postmortem/common.py": "3801603049d43c8f",
     "nfl_edge/postmortem/ontology.py": "59ef4d0f1171db6b",
     "nfl_edge/postmortem/qb_confirmations.py": "4d5759fc575f1d07",
-    "nfl_edge/postmortem/player_identity.py": "364798b76809d69f",
-    "nfl_edge/postmortem/qb_dependency.py": "4fa9e92593bb6fdb",
+    "nfl_edge/postmortem/player_identity.py": "83b7a83c682b2d25",
+    "nfl_edge/postmortem/qb_dependency.py": "7a4a562d1cc07cc7",
 }

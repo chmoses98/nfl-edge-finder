@@ -51,6 +51,9 @@ def _qb_blocks(team, row, *, dec, ko, game_id, max_age, max_lead) -> list:
         out.append(f"QB_WRONG_GAME:{team}")                   # a confirmation for another game (or one that does not say which) is not this game's
     if row.get("team") != team:
         out.append(f"QB_WRONG_TEAM:{team}")                   # another team's quarterback, or a row that does not say whose (2026-11-03: was only checked when present)
+    chk = row.get("qb_identity_check")
+    if isinstance(chk, dict) and chk.get("checked") and chk.get("ok") is False:
+        out.append(f"QB_NAMED_STARTER_NOT_VERIFIED:{team}:{chk.get('reason')}")   # the named "quarterback" is not a QB on this team in the player tables
     if not (isinstance(row.get("qb_player_id"), str) and row["qb_player_id"].strip()):
         out.append(f"QB_PLAYER_NOT_NAMED:{team}")             # a confirmation that does not name the quarterback confirms nothing
     ct = parse_ts(row.get("confirmed_at"))
@@ -112,7 +115,8 @@ def guard_candidate(c: dict, *, max_projection_age_min=MAX_PROJECTION_AGE_MIN, m
 
     # --- confirmed quarterbacks (table-driven: qb_dependency.requirement; unknown family -> gated)
     teams = list(c.get("teams") or [])
-    req = QD.requirement(c.get("ticker"), family=c.get("family"), teams=teams, player=c.get("player"), decision_time=dec)
+    req = QD.requirement(c.get("ticker"), family=c.get("family"), teams=teams, player=c.get("player"), decision_time=dec,
+                         market_player_id=c.get("player_id"))
     if req.identity_block:
         blocks.append(f"PLAYER_IDENTITY_UNVERIFIED:{req.identity_block}")   # player-scoped contract whose player / position is not verified
     extra = ont.family in require_qb_for

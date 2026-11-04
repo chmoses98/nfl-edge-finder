@@ -248,7 +248,7 @@ def own_team(ticker: str, teams) -> str | None:
     return winners[0] if len(winners) == 1 else None
 
 
-def requirement(ticker: str | None, *, family: str | None = None, teams=None, player=None, decision_time=None) -> QbRequirement:
+def requirement(ticker: str | None, *, family: str | None = None, teams=None, player=None, decision_time=None, market_player_id=None) -> QbRequirement:
     """What this contract needs from the quarterbacks. ``family`` is the record's own market_family (the strictest of the two views wins).
     ``teams`` is the game's [home, away] (nflverse codes); only used to narrow a QB_INDIRECT requirement to the player's own team.
     ``player`` is the VERIFIED player identity block (player_identity.verify) for a contract about one named player; ``decision_time`` the
@@ -274,7 +274,7 @@ def requirement(ticker: str | None, *, family: str | None = None, teams=None, pl
     cls, rule, fam, stat, why = best
     scoped = any(v[2] in PLAYER_SCOPED_FAMILIES for v in views) and rule != RULE_OUT_OF_SCOPE
     if scoped:
-        ok, reason, ident = PI.accept(player, teams=teams, decision_time=decision_time)
+        ok, reason, ident = PI.accept(player, teams=teams, decision_time=decision_time, market_player_id=market_player_id)
         if not ok:
             return QbRequirement(QB_GATED, RULE_PLAYER_UNVERIFIED, fam, stat, SCOPE_BOTH,
                                  f"the player's identity or position is not verified ({reason}); a confirmation cannot show he is not the "

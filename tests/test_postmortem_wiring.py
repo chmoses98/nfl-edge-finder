@@ -204,6 +204,7 @@ def test_player_markets_keep_their_own_availability_gate():
     # 2026-11-03: ...for a player whose identity and position are VERIFIED as a non-quarterback (an unverified one is blocked: tests/test_qb_player_identity_gate.py)
     from test_qb_dependency import auto_ident
     rec["pit_evidence"]["player_identity"] = auto_ident(rec["market_ticker"], ("BBB", "AAA"), as_of=NOW)
+    rec["pit_evidence"]["market_player_id"] = rec["pit_evidence"]["player_identity"]["gsis_id"]
     rep = G.evaluate_gates(rec, _bare_ctx())
     assert rep.gates[G.G_PIT].status == G.NOT_APPLICABLE
 

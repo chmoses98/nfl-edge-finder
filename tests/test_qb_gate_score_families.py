@@ -61,6 +61,7 @@ def test_unrelated_player_props_are_never_qb_blocked(ticker):
     from test_qb_dependency import auto_ident
     c = _cand(ticker)
     c["player"] = auto_ident(ticker)
+    c["player_id"] = c["player"]["gsis_id"]
     assert not [b for b in GD.guard_candidate(c)["blocks"] if b.startswith("QB_")]
 
 

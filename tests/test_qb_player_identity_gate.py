@@ -4,6 +4,7 @@ from datetime import timedelta
 import pytest
 
 from nfl_edge.postmortem import guards as GD
+from nfl_edge.postmortem import player_identity as PI
 from nfl_edge.postmortem import qb_dependency as QD
 from test_qb_dependency import DEC, GATED, INDIRECT, NOT_GATED, auto_ident, both, cand, confirmed, ident, req
 
@@ -94,7 +95,7 @@ def test_unknown_market_families_stay_fail_closed_with_or_without_an_identity():
 
 
 def test_the_record_family_cannot_loosen_a_player_contract():
-    r = QD.requirement(RUSH, family="TOTAL", teams=["AAA", "BBB"], player=ident("AAA", "RB"), decision_time=DEC)
+    r = QD.requirement(RUSH, family="TOTAL", teams=["AAA", "BBB"], player=ident("AAA", "RB"), decision_time=DEC, market_player_id="00-PAAA")
     assert r.classification == GATED and r.identity_block is None             # the strictest view (a total) still wins; the identity does not relax it
 
 
@@ -105,3 +106,40 @@ def test_is_player_scoped():
 
 def test_the_auto_identity_helper_agrees_with_the_verifier():
     assert auto_ident(RUSH)["position_group"] == "RB" and auto_ident(PASS)["position_group"] == "QB" and auto_ident("KXNFLTOTAL-26OCT25AAABBB-45") is None
+
+
+# ---------------------------------------------------------------------------------------------------------------- binding to the market's own player id
+def test_a_verified_block_for_another_player_than_the_markets_is_refused():
+    ok = ident("AAA", "RB", "00-PAAA")
+    out = GD.guard_candidate(cand(RUSH, player=ok) | {"player_id": "00-SOMEONE-ELSE"})
+    assert "PLAYER_IDENTITY_UNVERIFIED:PLAYER_ID_MISMATCH" in out["blocks"] and not out["actionable"]
+    out = GD.guard_candidate(cand(RUSH, player=ok) | {"player_id": None})
+    assert "PLAYER_IDENTITY_UNVERIFIED:NO_PLAYER_ID" in out["blocks"]
+
+
+# ---------------------------------------------------------------------------------------------------------------- the quarterback a confirmation names is cross-checked
+def _qb_row(**chk):
+    return confirmed("AAA") | {"qb_identity_check": chk}
+
+
+@pytest.mark.parametrize("reason", ["PLAYER_NOT_IN_IDENTITY_SOURCE", "NAMED_STARTER_NOT_A_QUARTERBACK", "NAMED_STARTER_ON_ANOTHER_TEAM"])
+def test_a_confirmed_starter_the_player_tables_do_not_show_as_a_qb_on_that_team_blocks(reason):
+    out = GD.guard_candidate(cand("KXNFLTOTAL-26OCT25AAABBB-45", {"AAA": _qb_row(checked=True, ok=False, reason=reason), "BBB": confirmed("BBB")}))
+    assert f"QB_NAMED_STARTER_NOT_VERIFIED:AAA:{reason}" in out["blocks"] and not out["actionable"]
+
+
+def test_an_unchecked_cross_check_does_not_block_and_a_passed_one_does_not_either():
+    for chk in ({"checked": False, "ok": None, "reason": "NO_IDENTITY_SOURCE"}, {"checked": True, "ok": True, "reason": None}):
+        assert GD.guard_candidate(cand("KXNFLTOTAL-26OCT25AAABBB-45", {"AAA": _qb_row(**chk), "BBB": confirmed("BBB")}))["actionable"]
+
+
+def test_verify_qb_against_a_real_book():
+    book = PI.book_from_rows(players=[{"gsis_id": "00-Q", "position": "QB", "latest_team": "AAA", "display_name": "Q"},
+                                      {"gsis_id": "00-R", "position": "RB", "latest_team": "AAA", "display_name": "R"},
+                                      {"gsis_id": "00-O", "position": "QB", "latest_team": "BBB", "display_name": "O"}], season=2026)
+    kw = dict(team="AAA", game_teams=["AAA", "BBB"], game_week=7, as_of=DEC)
+    assert PI.verify_qb(book, qb_player_id="00-Q", **kw) == {"checked": True, "ok": True, "reason": None}
+    assert PI.verify_qb(book, qb_player_id="00-R", **kw)["reason"] == "NAMED_STARTER_NOT_A_QUARTERBACK"
+    assert PI.verify_qb(book, qb_player_id="00-O", **kw)["reason"] == "NAMED_STARTER_ON_ANOTHER_TEAM"
+    assert PI.verify_qb(book, qb_player_id="00-X", **kw)["reason"] == "PLAYER_NOT_IN_IDENTITY_SOURCE"
+    assert PI.verify_qb(PI.IdentityBook(), qb_player_id="00-Q", **kw)["checked"] is False and PI.verify_qb(None, qb_player_id="00-Q", **kw)["ok"] is None
