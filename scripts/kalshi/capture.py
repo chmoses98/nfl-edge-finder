@@ -339,8 +339,9 @@ def main():
         if not state["trade_gaps"][ticker]:
             del state["trade_gaps"][ticker]
         gaps_filled += 1
-    manifest["trades"] = {"tickers_with_volume_change": len(trade_candidates), "tickers_fetched": n_trade_tickers, "incomplete": incomplete_trades,
-                          "gap_fill_attempted": gaps_filled, "gaps_open_tickers": len(state.get("trade_gaps", {})), "gaps_open": sum(len(v) for v in state.get("trade_gaps", {}).values())}
+    manifest["trades"] = {"tickers_with_volume_change": len(trade_candidates), "tickers_fetched": n_trade_tickers, "incomplete": incomplete_trades}
+    # additive top-level key (the isolation guard pins existing keys/values): explicit trade-gap bookkeeping (#246)
+    manifest["trade_gaps"] = {"gap_fill_attempted": gaps_filled, "gaps_open_tickers": len(state.get("trade_gaps", {})), "gaps_open": sum(len(v) for v in state.get("trade_gaps", {}).values())}
     # CONFIRMATION LEDGER. Quote rows are change-suppressed, so an unchanged market leaves no trace of having
     # been seen, and "no row written" is indistinguishable from "we could not reach the market" unless we
     # record it separately. `last_seen` stamps every ticker this run actually returned as open -- changed or
