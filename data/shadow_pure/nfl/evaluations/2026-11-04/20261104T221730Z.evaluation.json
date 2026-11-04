@@ -1,0 +1,2385 @@
+{
+ "evaluated_at": "2026-11-04T22:17:30.671953+00:00",
+ "market_vs_sports_mismatches": 22,
+ "matured_keys": 5464,
+ "new_outcomes": 106,
+ "outcomes_total": 5453,
+ "policy": "DESCRIPTIVE ONLY. No promotion, no authority, no staking, no publication to production.",
+ "run_id": "20261104T221730Z",
+ "scorecards": {
+  "DAY_BEFORE/full_eligible_population": {
+   "bootstrap": {
+    "replicates": 1000,
+    "seed": 20261010
+   },
+   "conditional_dnp_excluded": 1164,
+   "coverage": {
+    "challenger_only_without_champion": 0,
+    "challenger_rows": 5447,
+    "champion_only_without_challenger": 0,
+    "champion_rows": 5447,
+    "matched_forecasts_without_outcome": 0,
+    "outcome_rows": 5447,
+    "outcomes_without_matched_forecasts": 0,
+    "settled_with_both_forecasts": 5447
+   },
+   "exclusions_by_statistic": {
+    "NFL:carries": {
+     "conditional_dnp": 86
+    },
+    "NFL:completions": {
+     "conditional_dnp": 6
+    },
+    "NFL:passing_attempts": {
+     "conditional_dnp": 6
+    },
+    "NFL:passing_yards": {
+     "conditional_dnp": 6
+    },
+    "NFL:receiving_yards": {
+     "conditional_dnp": 243
+    },
+    "NFL:receptions": {
+     "conditional_dnp": 243
+    },
+    "NFL:rushing_yards": {
+     "conditional_dnp": 86
+    },
+    "NFL:snap_share": {
+     "conditional_dnp": 245
+    },
+    "NFL:targets": {
+     "conditional_dnp": 243
+    }
+   },
+   "gate": "pure_gate 1.0.0",
+   "metric_policy": "matched unique player-game-statistic rows only; one representative common ladder rung per player-game (average probability closest to 0.5, outcome-blind); CRPS approximated by 2x mean pinball loss over common quantile levels; paired percentile bootstrap resampling whole games (sport|game_id); deltas are challenger minus champion",
+   "n_games": 43,
+   "note": "Scores use sports outcomes and player-stat projections only. Market odds are never model inputs. Promotion needs a preregistered, untouched chronological holdout.",
+   "statistic_scorecards": {
+    "NFL:carries": {
+     "challenger_bias": -0.283035,
+     "challenger_brier": 0.236461,
+     "challenger_crps_quantile_approx": 2.205776,
+     "challenger_mae": 3.360152,
+     "challenger_p10_p90_coverage": 0.866426,
+     "challenger_rmse": 4.624316,
+     "champion_bias": -0.804047,
+     "champion_brier": 0.252856,
+     "champion_crps_quantile_approx": 2.286402,
+     "champion_mae": 3.59775,
+     "champion_p10_p90_coverage": 0.891697,
+     "champion_rmse": 4.943252,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.031203,
+      -0.000992
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.053763,
+      0.003663
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.191882,
+      0.022469
+     ],
+     "delta_mae_challenger_minus_champion": -0.237599,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.450945,
+      -0.043966
+     ],
+     "delta_mean_squared_error": -3.051446,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -5.671128,
+      -0.567877
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 277,
+     "n_crps": 277,
+     "n_games": 43,
+     "n_player_games": 277,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:completions": {
+     "challenger_bias": 0.068576,
+     "challenger_brier": 0.238164,
+     "challenger_crps_quantile_approx": 3.295833,
+     "challenger_mae": 5.094529,
+     "challenger_p10_p90_coverage": 0.8125,
+     "challenger_rmse": 6.645801,
+     "champion_bias": -0.54649,
+     "champion_brier": 0.259163,
+     "champion_crps_quantile_approx": 3.415833,
+     "champion_mae": 5.3963,
+     "champion_p10_p90_coverage": 0.8375,
+     "champion_rmse": 6.797413,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.039714,
+      -0.004054
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.075,
+      0.024096
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.33098,
+      0.073092
+     ],
+     "delta_mae_challenger_minus_champion": -0.301771,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.603341,
+      -0.030722
+     ],
+     "delta_mean_squared_error": -2.038159,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -7.040676,
+      2.96126
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 80,
+     "n_crps": 80,
+     "n_games": 43,
+     "n_player_games": 80,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_attempts": {
+     "challenger_bias": 0.112809,
+     "challenger_brier": 0.246968,
+     "challenger_crps_quantile_approx": 4.449167,
+     "challenger_mae": 7.158524,
+     "challenger_p10_p90_coverage": 0.8875,
+     "challenger_rmse": 9.031264,
+     "champion_bias": -0.737267,
+     "champion_brier": 0.26059,
+     "champion_crps_quantile_approx": 4.746667,
+     "champion_mae": 7.495572,
+     "champion_p10_p90_coverage": 0.875,
+     "champion_rmse": 9.312964,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.032759,
+      0.002804
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.025316,
+      0.051282
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.614167,
+      -0.027848
+     ],
+     "delta_mae_challenger_minus_champion": -0.337049,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.694027,
+      -0.006204
+     ],
+     "delta_mean_squared_error": -5.167578,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -16.258857,
+      5.966809
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 80,
+     "n_crps": 80,
+     "n_games": 43,
+     "n_player_games": 80,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_yards": {
+     "challenger_bias": -2.135796,
+     "challenger_brier": 0.252137,
+     "challenger_crps_quantile_approx": 36.275467,
+     "challenger_mae": 58.388564,
+     "challenger_p10_p90_coverage": 0.7875,
+     "challenger_rmse": 73.636229,
+     "champion_bias": 10.110821,
+     "champion_brier": 0.255605,
+     "champion_crps_quantile_approx": 36.992766,
+     "champion_mae": 58.668259,
+     "champion_p10_p90_coverage": 0.8,
+     "champion_rmse": 74.465159,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.022363,
+      0.015366
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.076923,
+      0.051282
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -2.559086,
+      0.883992
+     ],
+     "delta_mae_challenger_minus_champion": -0.279695,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -3.847701,
+      3.31789
+     ],
+     "delta_mean_squared_error": -122.765635,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -852.980331,
+      482.454086
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 80,
+     "n_crps": 80,
+     "n_games": 43,
+     "n_player_games": 80,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receiving_yards": {
+     "challenger_bias": 0.389717,
+     "challenger_brier": 0.208932,
+     "challenger_crps_quantile_approx": 9.424642,
+     "challenger_mae": 16.055593,
+     "challenger_p10_p90_coverage": 0.860656,
+     "challenger_rmse": 22.831212,
+     "champion_bias": -0.430748,
+     "champion_brier": 0.213561,
+     "champion_crps_quantile_approx": 9.53643,
+     "champion_mae": 16.001815,
+     "champion_p10_p90_coverage": 0.859485,
+     "champion_rmse": 23.00329,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.011468,
+      0.001883
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.010357,
+      0.011765
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.310992,
+      0.060964
+     ],
+     "delta_mae_challenger_minus_champion": 0.053779,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.254982,
+      0.328781
+     ],
+     "delta_mean_squared_error": -7.887109,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -29.313358,
+      10.689155
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 854,
+     "n_crps": 854,
+     "n_games": 43,
+     "n_player_games": 854,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receptions": {
+     "challenger_bias": 0.017799,
+     "challenger_brier": 0.233047,
+     "challenger_crps_quantile_approx": 0.724902,
+     "challenger_mae": 1.233414,
+     "challenger_p10_p90_coverage": 0.922717,
+     "challenger_rmse": 1.666868,
+     "champion_bias": 0.023662,
+     "champion_brier": 0.251679,
+     "champion_crps_quantile_approx": 0.754567,
+     "champion_mae": 1.293509,
+     "champion_p10_p90_coverage": 0.93911,
+     "champion_rmse": 1.711159,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.025297,
+      -0.012127
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.028902,
+      -0.005848
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.049589,
+      -0.009454
+     ],
+     "delta_mae_challenger_minus_champion": -0.060095,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.083803,
+      -0.037081
+     ],
+     "delta_mean_squared_error": -0.149616,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.271934,
+      -0.018295
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 854,
+     "n_crps": 854,
+     "n_games": 43,
+     "n_player_games": 854,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:rushing_yards": {
+     "challenger_bias": -0.608026,
+     "challenger_brier": 0.231684,
+     "challenger_crps_quantile_approx": 11.878839,
+     "challenger_mae": 19.302342,
+     "challenger_p10_p90_coverage": 0.862816,
+     "challenger_rmse": 27.444354,
+     "champion_bias": -1.778545,
+     "champion_brier": 0.239165,
+     "champion_crps_quantile_approx": 12.232178,
+     "champion_mae": 19.596809,
+     "champion_p10_p90_coverage": 0.844765,
+     "champion_rmse": 28.142511,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.022347,
+      0.005988
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.017361,
+      0.054152
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.974103,
+      0.223518
+     ],
+     "delta_mae_challenger_minus_champion": -0.294467,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -1.195356,
+      0.552239
+     ],
+     "delta_mean_squared_error": -38.80836,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -104.730266,
+      24.4513
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 277,
+     "n_crps": 277,
+     "n_games": 43,
+     "n_player_games": 277,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:snap_share": {
+     "challenger_bias": 0.007892,
+     "challenger_brier": 0.180739,
+     "challenger_crps_quantile_approx": 0.070976,
+     "challenger_mae": 0.112735,
+     "challenger_p10_p90_coverage": 0.856526,
+     "challenger_rmse": 0.156546,
+     "champion_bias": -0.006178,
+     "champion_brier": 0.191425,
+     "champion_crps_quantile_approx": 0.075629,
+     "champion_mae": 0.120346,
+     "champion_p10_p90_coverage": 0.857605,
+     "champion_rmse": 0.164167,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.017383,
+      -0.004004
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.021834,
+      0.019715
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.006723,
+      -0.002625
+     ],
+     "delta_mae_challenger_minus_champion": -0.007611,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.011416,
+      -0.003988
+     ],
+     "delta_mean_squared_error": -0.002444,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.00383,
+      -0.000956
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 927,
+     "n_crps": 927,
+     "n_games": 43,
+     "n_player_games": 927,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:targets": {
+     "challenger_bias": 0.07121,
+     "challenger_brier": 0.237457,
+     "challenger_crps_quantile_approx": 0.94153,
+     "challenger_mae": 1.561595,
+     "challenger_p10_p90_coverage": 0.915691,
+     "challenger_rmse": 2.134813,
+     "champion_bias": 0.091661,
+     "champion_brier": 0.267023,
+     "champion_crps_quantile_approx": 1.003279,
+     "champion_mae": 1.67943,
+     "champion_p10_p90_coverage": 0.932084,
+     "champion_rmse": 2.241274,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.037107,
+      -0.022773
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.030481,
+      -0.001159
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.086045,
+      -0.038517
+     ],
+     "delta_mae_challenger_minus_champion": -0.117835,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.157309,
+      -0.079245
+     ],
+     "delta_mean_squared_error": -0.465882,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.680668,
+      -0.238827
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 854,
+     "n_crps": 854,
+     "n_games": 43,
+     "n_player_games": 854,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    }
+   }
+  },
+  "DAY_BEFORE/pregame_market_listed_cohort": {
+   "bootstrap": {
+    "replicates": 1000,
+    "seed": 20261010
+   },
+   "conditional_dnp_excluded": 8,
+   "coverage": {
+    "challenger_only_without_champion": 0,
+    "challenger_rows": 1036,
+    "champion_only_without_challenger": 0,
+    "champion_rows": 1036,
+    "matched_forecasts_without_outcome": 0,
+    "outcome_rows": 1036,
+    "outcomes_without_matched_forecasts": 0,
+    "settled_with_both_forecasts": 1036
+   },
+   "exclusions_by_statistic": {
+    "NFL:receiving_yards": {
+     "conditional_dnp": 3
+    },
+    "NFL:receptions": {
+     "conditional_dnp": 3
+    },
+    "NFL:rushing_yards": {
+     "conditional_dnp": 2
+    }
+   },
+   "gate": "pure_gate 1.0.0",
+   "metric_policy": "matched unique player-game-statistic rows only; one representative common ladder rung per player-game (average probability closest to 0.5, outcome-blind); CRPS approximated by 2x mean pinball loss over common quantile levels; paired percentile bootstrap resampling whole games (sport|game_id); deltas are challenger minus champion",
+   "n_games": 30,
+   "note": "Scores use sports outcomes and player-stat projections only. Market odds are never model inputs. Promotion needs a preregistered, untouched chronological holdout.",
+   "statistic_scorecards": {
+    "NFL:carries": {
+     "challenger_bias": -0.28703,
+     "challenger_brier": 0.228915,
+     "challenger_crps_quantile_approx": 2.853815,
+     "challenger_mae": 4.335454,
+     "challenger_p10_p90_coverage": 0.939759,
+     "challenger_rmse": 5.598075,
+     "champion_bias": -1.899975,
+     "champion_brier": 0.260205,
+     "champion_crps_quantile_approx": 3.106827,
+     "champion_mae": 4.659302,
+     "champion_p10_p90_coverage": 0.927711,
+     "champion_rmse": 6.178642,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.056021,
+      -0.008986
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      0.0,
+      0.039474
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.472807,
+      -0.073485
+     ],
+     "delta_mae_challenger_minus_champion": -0.323848,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.845317,
+      0.150124
+     ],
+     "delta_mean_squared_error": -6.837168,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -14.556967,
+      -0.705469
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 83,
+     "n_crps": 83,
+     "n_games": 30,
+     "n_player_games": 83,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:completions": {
+     "challenger_bias": -0.958715,
+     "challenger_brier": 0.226238,
+     "challenger_crps_quantile_approx": 2.78642,
+     "challenger_mae": 4.331722,
+     "challenger_p10_p90_coverage": 0.87037,
+     "challenger_rmse": 5.542277,
+     "champion_bias": -1.610044,
+     "champion_brier": 0.257562,
+     "champion_crps_quantile_approx": 3.04321,
+     "champion_mae": 4.811381,
+     "champion_p10_p90_coverage": 0.888889,
+     "champion_rmse": 5.991879,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.054912,
+      -0.008296
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.08,
+      0.038462
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.497436,
+      -0.037736
+     ],
+     "delta_mae_challenger_minus_champion": -0.479659,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.865649,
+      -0.103766
+     ],
+     "delta_mean_squared_error": -5.185776,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -9.813547,
+      -0.843032
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 54,
+     "n_crps": 54,
+     "n_games": 30,
+     "n_player_games": 54,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_attempts": {
+     "challenger_bias": -1.536159,
+     "challenger_brier": 0.248202,
+     "challenger_crps_quantile_approx": 3.976543,
+     "challenger_mae": 6.51697,
+     "challenger_p10_p90_coverage": 0.907407,
+     "challenger_rmse": 7.926312,
+     "champion_bias": -2.417633,
+     "champion_brier": 0.267587,
+     "champion_crps_quantile_approx": 4.408642,
+     "champion_mae": 6.930444,
+     "champion_p10_p90_coverage": 0.888889,
+     "champion_rmse": 8.534554,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.041978,
+      0.005066
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.039216,
+      0.089286
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.820988,
+      -0.088889
+     ],
+     "delta_mae_challenger_minus_champion": -0.413474,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.841661,
+      0.038588
+     ],
+     "delta_mean_squared_error": -10.012193,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -22.94522,
+      0.644974
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 54,
+     "n_crps": 54,
+     "n_games": 30,
+     "n_player_games": 54,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_yards": {
+     "challenger_bias": -7.526033,
+     "challenger_brier": 0.249854,
+     "challenger_crps_quantile_approx": 29.491236,
+     "challenger_mae": 47.742563,
+     "challenger_p10_p90_coverage": 0.87037,
+     "challenger_rmse": 57.590749,
+     "champion_bias": 4.012172,
+     "champion_brier": 0.258564,
+     "champion_crps_quantile_approx": 30.465822,
+     "champion_mae": 48.942424,
+     "champion_p10_p90_coverage": 0.87037,
+     "champion_rmse": 58.328712,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.028189,
+      0.01098
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.072727,
+      0.076923
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -2.844003,
+      0.866439
+     ],
+     "delta_mae_challenger_minus_champion": -1.199861,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -5.287574,
+      2.831076
+     ],
+     "delta_mean_squared_error": -85.544206,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -740.824857,
+      515.267432
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 54,
+     "n_crps": 54,
+     "n_games": 30,
+     "n_player_games": 54,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receiving_yards": {
+     "challenger_bias": -0.630448,
+     "challenger_brier": 0.255537,
+     "challenger_crps_quantile_approx": 12.473424,
+     "challenger_mae": 20.733994,
+     "challenger_p10_p90_coverage": 0.846875,
+     "challenger_rmse": 26.48283,
+     "champion_bias": -2.311836,
+     "champion_brier": 0.261727,
+     "champion_crps_quantile_approx": 12.636656,
+     "champion_mae": 20.451585,
+     "champion_p10_p90_coverage": 0.8375,
+     "champion_rmse": 26.781932,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.015993,
+      0.005083
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.015337,
+      0.031447
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.477206,
+      0.144852
+     ],
+     "delta_mae_challenger_minus_champion": 0.282409,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.233874,
+      0.81314
+     ],
+     "delta_mean_squared_error": -15.931558,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -53.089121,
+      23.644719
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 320,
+     "n_crps": 320,
+     "n_games": 30,
+     "n_player_games": 320,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receptions": {
+     "challenger_bias": -0.15455,
+     "challenger_brier": 0.242734,
+     "challenger_crps_quantile_approx": 0.962581,
+     "challenger_mae": 1.564745,
+     "challenger_p10_p90_coverage": 0.916129,
+     "challenger_rmse": 2.019255,
+     "champion_bias": -0.350475,
+     "champion_brier": 0.248927,
+     "champion_crps_quantile_approx": 0.987097,
+     "champion_mae": 1.578299,
+     "champion_p10_p90_coverage": 0.919355,
+     "champion_rmse": 2.065909,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.015366,
+      0.003019
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.025237,
+      0.016393
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.063481,
+      0.015622
+     ],
+     "delta_mae_challenger_minus_champion": -0.013554,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.072651,
+      0.044887
+     ],
+     "delta_mean_squared_error": -0.190589,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.476694,
+      0.083991
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 310,
+     "n_crps": 310,
+     "n_games": 30,
+     "n_player_games": 310,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:rushing_yards": {
+     "challenger_bias": 0.607844,
+     "challenger_brier": 0.230477,
+     "challenger_crps_quantile_approx": 11.968141,
+     "challenger_mae": 19.767107,
+     "challenger_p10_p90_coverage": 0.882353,
+     "challenger_rmse": 26.851174,
+     "champion_bias": -1.011135,
+     "champion_brier": 0.236566,
+     "champion_crps_quantile_approx": 12.241529,
+     "champion_mae": 19.752428,
+     "champion_p10_p90_coverage": 0.856209,
+     "champion_rmse": 27.265607,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.02549,
+      0.010391
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.020548,
+      0.077922
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -1.136804,
+      0.473784
+     ],
+     "delta_mae_challenger_minus_champion": 0.014678,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -1.271556,
+      1.114994
+     ],
+     "delta_mean_squared_error": -22.427753,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -116.692442,
+      64.262312
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 153,
+     "n_crps": 153,
+     "n_games": 30,
+     "n_player_games": 153,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    }
+   }
+  },
+  "FINAL_T90/full_eligible_population": {
+   "bootstrap": {
+    "replicates": 1000,
+    "seed": 20261010
+   },
+   "conditional_dnp_excluded": 507,
+   "coverage": {
+    "challenger_only_without_champion": 0,
+    "challenger_rows": 2468,
+    "champion_only_without_challenger": 0,
+    "champion_rows": 2468,
+    "matched_forecasts_without_outcome": 0,
+    "outcome_rows": 2468,
+    "outcomes_without_matched_forecasts": 0,
+    "settled_with_both_forecasts": 2468
+   },
+   "exclusions_by_statistic": {
+    "NFL:carries": {
+     "conditional_dnp": 34
+    },
+    "NFL:completions": {
+     "conditional_dnp": 2
+    },
+    "NFL:passing_attempts": {
+     "conditional_dnp": 2
+    },
+    "NFL:passing_yards": {
+     "conditional_dnp": 2
+    },
+    "NFL:receiving_yards": {
+     "conditional_dnp": 108
+    },
+    "NFL:receptions": {
+     "conditional_dnp": 108
+    },
+    "NFL:rushing_yards": {
+     "conditional_dnp": 34
+    },
+    "NFL:snap_share": {
+     "conditional_dnp": 109
+    },
+    "NFL:targets": {
+     "conditional_dnp": 108
+    }
+   },
+   "gate": "pure_gate 1.0.0",
+   "metric_policy": "matched unique player-game-statistic rows only; one representative common ladder rung per player-game (average probability closest to 0.5, outcome-blind); CRPS approximated by 2x mean pinball loss over common quantile levels; paired percentile bootstrap resampling whole games (sport|game_id); deltas are challenger minus champion",
+   "n_games": 20,
+   "note": "Scores use sports outcomes and player-stat projections only. Market odds are never model inputs. Promotion needs a preregistered, untouched chronological holdout.",
+   "statistic_scorecards": {
+    "NFL:carries": {
+     "challenger_bias": -0.048953,
+     "challenger_brier": 0.233491,
+     "challenger_crps_quantile_approx": 2.051563,
+     "challenger_mae": 3.207381,
+     "challenger_p10_p90_coverage": 0.890625,
+     "challenger_rmse": 4.450794,
+     "champion_bias": -0.51815,
+     "champion_brier": 0.254137,
+     "champion_crps_quantile_approx": 2.16875,
+     "champion_mae": 3.418444,
+     "champion_p10_p90_coverage": 0.890625,
+     "champion_rmse": 4.716592,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.038491,
+      -0.004336
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.044776,
+      0.043103
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.269251,
+      0.031078
+     ],
+     "delta_mae_challenger_minus_champion": -0.211062,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.517916,
+      0.048703
+     ],
+     "delta_mean_squared_error": -2.43667,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -6.658603,
+      1.035689
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 128,
+     "n_crps": 128,
+     "n_games": 20,
+     "n_player_games": 128,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:completions": {
+     "challenger_bias": -1.269911,
+     "challenger_brier": 0.226955,
+     "challenger_crps_quantile_approx": 2.842105,
+     "challenger_mae": 4.3251,
+     "challenger_p10_p90_coverage": 0.842105,
+     "challenger_rmse": 5.634954,
+     "champion_bias": -1.712439,
+     "champion_brier": 0.245721,
+     "champion_crps_quantile_approx": 3.049123,
+     "champion_mae": 4.625518,
+     "champion_p10_p90_coverage": 0.868421,
+     "champion_rmse": 6.00059,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.041272,
+      0.003089
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.081081,
+      0.0
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.517949,
+      0.057895
+     ],
+     "delta_mae_challenger_minus_champion": -0.300418,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.726479,
+      0.095727
+     ],
+     "delta_mean_squared_error": -4.254381,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -10.555127,
+      0.991795
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 38,
+     "n_crps": 38,
+     "n_games": 20,
+     "n_player_games": 38,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_attempts": {
+     "challenger_bias": -2.457418,
+     "challenger_brier": 0.240399,
+     "challenger_crps_quantile_approx": 4.131579,
+     "challenger_mae": 6.569845,
+     "challenger_p10_p90_coverage": 0.868421,
+     "challenger_rmse": 8.274231,
+     "champion_bias": -3.037561,
+     "champion_brier": 0.262478,
+     "champion_crps_quantile_approx": 4.638596,
+     "champion_mae": 7.150171,
+     "champion_p10_p90_coverage": 0.868421,
+     "champion_rmse": 8.975056,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.047505,
+      0.001055
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.078947,
+      0.076923
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -1.059259,
+      -0.030769
+     ],
+     "delta_mae_challenger_minus_champion": -0.580326,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -1.134244,
+      -0.059342
+     ],
+     "delta_mean_squared_error": -12.08874,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -30.117802,
+      2.399562
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 38,
+     "n_crps": 38,
+     "n_games": 20,
+     "n_player_games": 38,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_yards": {
+     "challenger_bias": -6.056697,
+     "challenger_brier": 0.248092,
+     "challenger_crps_quantile_approx": 29.057064,
+     "challenger_mae": 47.326492,
+     "challenger_p10_p90_coverage": 0.894737,
+     "challenger_rmse": 56.968279,
+     "champion_bias": 4.700484,
+     "champion_brier": 0.254082,
+     "champion_crps_quantile_approx": 29.716988,
+     "champion_mae": 47.390311,
+     "champion_p10_p90_coverage": 0.868421,
+     "champion_rmse": 58.173328,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.026094,
+      0.016658
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      0.0,
+      0.085714
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -2.257506,
+      0.863609
+     ],
+     "delta_mae_challenger_minus_champion": -0.063818,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -4.234103,
+      4.611779
+     ],
+     "delta_mean_squared_error": -138.75131,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -735.964456,
+      425.113909
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 38,
+     "n_crps": 38,
+     "n_games": 20,
+     "n_player_games": 38,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receiving_yards": {
+     "challenger_bias": -0.086843,
+     "challenger_brier": 0.219749,
+     "challenger_crps_quantile_approx": 9.196886,
+     "challenger_mae": 15.745524,
+     "challenger_p10_p90_coverage": 0.876607,
+     "challenger_rmse": 21.609425,
+     "champion_bias": -0.710802,
+     "champion_brier": 0.218041,
+     "champion_crps_quantile_approx": 9.181919,
+     "champion_mae": 15.573787,
+     "champion_p10_p90_coverage": 0.874036,
+     "champion_rmse": 21.555663,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.004791,
+      0.007769
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.01039,
+      0.015504
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.164982,
+      0.214788
+     ],
+     "delta_mae_challenger_minus_champion": 0.171737,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.171814,
+      0.481889
+     ],
+     "delta_mean_squared_error": 2.320643,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -17.708432,
+      23.298773
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 389,
+     "n_crps": 389,
+     "n_games": 20,
+     "n_player_games": 389,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receptions": {
+     "challenger_bias": -0.079816,
+     "challenger_brier": 0.230167,
+     "challenger_crps_quantile_approx": 0.749786,
+     "challenger_mae": 1.260912,
+     "challenger_p10_p90_coverage": 0.92545,
+     "challenger_rmse": 1.727181,
+     "champion_bias": -0.069431,
+     "champion_brier": 0.246029,
+     "champion_crps_quantile_approx": 0.772922,
+     "champion_mae": 1.32404,
+     "champion_p10_p90_coverage": 0.935733,
+     "champion_rmse": 1.784822,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.024093,
+      -0.006875
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.025974,
+      0.005063
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.046989,
+      0.000873
+     ],
+     "delta_mae_challenger_minus_champion": -0.063128,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.090696,
+      -0.033973
+     ],
+     "delta_mean_squared_error": -0.202435,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.334646,
+      -0.061301
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 389,
+     "n_crps": 389,
+     "n_games": 20,
+     "n_player_games": 389,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:rushing_yards": {
+     "challenger_bias": 2.256163,
+     "challenger_brier": 0.226598,
+     "challenger_crps_quantile_approx": 10.41161,
+     "challenger_mae": 17.15881,
+     "challenger_p10_p90_coverage": 0.875,
+     "challenger_rmse": 23.302214,
+     "champion_bias": 1.337438,
+     "champion_brier": 0.238532,
+     "champion_crps_quantile_approx": 10.738562,
+     "champion_mae": 17.414248,
+     "champion_p10_p90_coverage": 0.851562,
+     "champion_rmse": 23.814588,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.035239,
+      0.00727
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.026087,
+      0.074074
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -1.201464,
+      0.370548
+     ],
+     "delta_mae_challenger_minus_champion": -0.255438,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -1.766595,
+      1.019247
+     ],
+     "delta_mean_squared_error": -24.141409,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -101.649426,
+      42.618951
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 128,
+     "n_crps": 128,
+     "n_games": 20,
+     "n_player_games": 128,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:snap_share": {
+     "challenger_bias": 0.007402,
+     "challenger_brier": 0.168002,
+     "challenger_crps_quantile_approx": 0.066288,
+     "challenger_mae": 0.104835,
+     "challenger_p10_p90_coverage": 0.867925,
+     "challenger_rmse": 0.145917,
+     "champion_bias": -0.00939,
+     "champion_brier": 0.17749,
+     "champion_crps_quantile_approx": 0.071326,
+     "champion_mae": 0.114263,
+     "champion_p10_p90_coverage": 0.863208,
+     "champion_rmse": 0.153467,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.019292,
+      0.000301
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.023981,
+      0.03211
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.008045,
+      -0.002332
+     ],
+     "delta_mae_challenger_minus_champion": -0.009427,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.014373,
+      -0.004667
+     ],
+     "delta_mean_squared_error": -0.00226,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.004224,
+      -0.000375
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 424,
+     "n_crps": 424,
+     "n_games": 20,
+     "n_player_games": 424,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:targets": {
+     "challenger_bias": -0.147659,
+     "challenger_brier": 0.240252,
+     "challenger_crps_quantile_approx": 0.999143,
+     "challenger_mae": 1.631752,
+     "challenger_p10_p90_coverage": 0.907455,
+     "challenger_rmse": 2.297873,
+     "champion_bias": -0.127059,
+     "champion_brier": 0.269835,
+     "champion_crps_quantile_approx": 1.075407,
+     "champion_mae": 1.752595,
+     "champion_p10_p90_coverage": 0.920308,
+     "champion_rmse": 2.427371,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.039446,
+      -0.019924
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.03876,
+      0.007653
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.111911,
+      -0.037173
+     ],
+     "delta_mae_challenger_minus_champion": -0.120844,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.177285,
+      -0.065358
+     ],
+     "delta_mean_squared_error": -0.611907,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.917923,
+      -0.314567
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 389,
+     "n_crps": 389,
+     "n_games": 20,
+     "n_player_games": 389,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    }
+   }
+  },
+  "FINAL_T90/pregame_market_listed_cohort": {
+   "bootstrap": {
+    "replicates": 1000,
+    "seed": 20261010
+   },
+   "conditional_dnp_excluded": 6,
+   "coverage": {
+    "challenger_only_without_champion": 0,
+    "challenger_rows": 753,
+    "champion_only_without_challenger": 0,
+    "champion_rows": 753,
+    "matched_forecasts_without_outcome": 0,
+    "outcome_rows": 753,
+    "outcomes_without_matched_forecasts": 0,
+    "settled_with_both_forecasts": 753
+   },
+   "exclusions_by_statistic": {
+    "NFL:receiving_yards": {
+     "conditional_dnp": 3
+    },
+    "NFL:receptions": {
+     "conditional_dnp": 2
+    },
+    "NFL:rushing_yards": {
+     "conditional_dnp": 1
+    }
+   },
+   "gate": "pure_gate 1.0.0",
+   "metric_policy": "matched unique player-game-statistic rows only; one representative common ladder rung per player-game (average probability closest to 0.5, outcome-blind); CRPS approximated by 2x mean pinball loss over common quantile levels; paired percentile bootstrap resampling whole games (sport|game_id); deltas are challenger minus champion",
+   "n_games": 19,
+   "note": "Scores use sports outcomes and player-stat projections only. Market odds are never model inputs. Promotion needs a preregistered, untouched chronological holdout.",
+   "statistic_scorecards": {
+    "NFL:carries": {
+     "challenger_bias": -0.187649,
+     "challenger_brier": 0.229273,
+     "challenger_crps_quantile_approx": 2.693989,
+     "challenger_mae": 4.158121,
+     "challenger_p10_p90_coverage": 0.934426,
+     "challenger_rmse": 5.505198,
+     "champion_bias": -1.488325,
+     "champion_brier": 0.260499,
+     "champion_crps_quantile_approx": 2.915847,
+     "champion_mae": 4.467066,
+     "champion_p10_p90_coverage": 0.918033,
+     "champion_rmse": 5.956796,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.057119,
+      -0.008843
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      0.0,
+      0.053571
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.461376,
+      -0.00452
+     ],
+     "delta_mae_challenger_minus_champion": -0.308944,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.886687,
+      0.200021
+     ],
+     "delta_mean_squared_error": -5.176216,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -13.578104,
+      1.078078
+     ],
+     "few_game_clusters_warning": true,
+     "n_common_thresholds_scored_one_per_player_game": 61,
+     "n_crps": 61,
+     "n_games": 19,
+     "n_player_games": 61,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:completions": {
+     "challenger_bias": -1.361589,
+     "challenger_brier": 0.224193,
+     "challenger_crps_quantile_approx": 2.827778,
+     "challenger_mae": 4.223178,
+     "challenger_p10_p90_coverage": 0.833333,
+     "challenger_rmse": 5.603644,
+     "champion_bias": -1.863717,
+     "champion_brier": 0.243491,
+     "champion_crps_quantile_approx": 3.031481,
+     "champion_mae": 4.52215,
+     "champion_p10_p90_coverage": 0.861111,
+     "champion_rmse": 5.967706,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.043826,
+      0.003335
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.088235,
+      0.0
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.540541,
+      0.076471
+     ],
+     "delta_mae_challenger_minus_champion": -0.298972,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.791568,
+      0.109677
+     ],
+     "delta_mean_squared_error": -4.21269,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -11.010059,
+      1.354254
+     ],
+     "few_game_clusters_warning": true,
+     "n_common_thresholds_scored_one_per_player_game": 36,
+     "n_crps": 36,
+     "n_games": 19,
+     "n_player_games": 36,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_attempts": {
+     "challenger_bias": -2.829844,
+     "challenger_brier": 0.239517,
+     "challenger_crps_quantile_approx": 4.155556,
+     "challenger_mae": 6.5911,
+     "challenger_p10_p90_coverage": 0.861111,
+     "challenger_rmse": 8.314921,
+     "champion_bias": -3.482867,
+     "champion_brier": 0.261625,
+     "champion_crps_quantile_approx": 4.67037,
+     "champion_mae": 7.170339,
+     "champion_p10_p90_coverage": 0.861111,
+     "champion_rmse": 9.005047,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.049666,
+      0.00181
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.081081,
+      0.083333
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -1.089474,
+      -0.015238
+     ],
+     "delta_mae_challenger_minus_champion": -0.579239,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -1.161129,
+      -0.048851
+     ],
+     "delta_mean_squared_error": -11.952965,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -31.108445,
+      3.093995
+     ],
+     "few_game_clusters_warning": true,
+     "n_common_thresholds_scored_one_per_player_game": 36,
+     "n_crps": 36,
+     "n_games": 19,
+     "n_player_games": 36,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_yards": {
+     "challenger_bias": -7.406642,
+     "challenger_brier": 0.245332,
+     "challenger_crps_quantile_approx": 28.242488,
+     "challenger_mae": 45.177658,
+     "challenger_p10_p90_coverage": 0.916667,
+     "challenger_rmse": 54.738055,
+     "champion_bias": 3.440625,
+     "champion_brier": 0.253114,
+     "champion_crps_quantile_approx": 28.840502,
+     "champion_mae": 45.549981,
+     "champion_p10_p90_coverage": 0.888889,
+     "champion_rmse": 56.305796,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.029979,
+      0.015393
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      0.0,
+      0.090909
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -2.409977,
+      1.057779
+     ],
+     "delta_mae_challenger_minus_champion": -0.372322,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -5.031664,
+      4.73097
+     ],
+     "delta_mean_squared_error": -174.087987,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -879.840118,
+      423.832771
+     ],
+     "few_game_clusters_warning": true,
+     "n_common_thresholds_scored_one_per_player_game": 36,
+     "n_crps": 36,
+     "n_games": 19,
+     "n_player_games": 36,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receiving_yards": {
+     "challenger_bias": -1.990469,
+     "challenger_brier": 0.260565,
+     "challenger_crps_quantile_approx": 12.133002,
+     "challenger_mae": 20.175874,
+     "challenger_p10_p90_coverage": 0.852321,
+     "challenger_rmse": 25.732865,
+     "champion_bias": -3.30932,
+     "champion_brier": 0.258761,
+     "champion_crps_quantile_approx": 12.151714,
+     "champion_mae": 19.694871,
+     "champion_p10_p90_coverage": 0.839662,
+     "champion_rmse": 25.76309,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.009342,
+      0.011003
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.008658,
+      0.034632
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.292813,
+      0.277896
+     ],
+     "delta_mae_challenger_minus_champion": 0.481003,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      0.066851,
+      0.894613
+     ],
+     "delta_mean_squared_error": -1.556495,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -32.860341,
+      29.133966
+     ],
+     "few_game_clusters_warning": true,
+     "n_common_thresholds_scored_one_per_player_game": 237,
+     "n_crps": 237,
+     "n_games": 19,
+     "n_player_games": 237,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receptions": {
+     "challenger_bias": -0.281316,
+     "challenger_brier": 0.240773,
+     "challenger_crps_quantile_approx": 0.978063,
+     "challenger_mae": 1.577606,
+     "challenger_p10_p90_coverage": 0.897436,
+     "challenger_rmse": 2.067617,
+     "champion_bias": -0.429145,
+     "champion_brier": 0.24354,
+     "champion_crps_quantile_approx": 0.980912,
+     "champion_mae": 1.593795,
+     "champion_p10_p90_coverage": 0.905983,
+     "champion_rmse": 2.111698,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.010059,
+      0.005051
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.034934,
+      0.017391
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.033333,
+      0.035046
+     ],
+     "delta_mae_challenger_minus_champion": -0.016189,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.059459,
+      0.030111
+     ],
+     "delta_mean_squared_error": -0.184226,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.407951,
+      0.077511
+     ],
+     "few_game_clusters_warning": true,
+     "n_common_thresholds_scored_one_per_player_game": 234,
+     "n_crps": 234,
+     "n_games": 19,
+     "n_player_games": 234,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:rushing_yards": {
+     "challenger_bias": 2.573705,
+     "challenger_brier": 0.228319,
+     "challenger_crps_quantile_approx": 10.634174,
+     "challenger_mae": 17.753376,
+     "challenger_p10_p90_coverage": 0.88785,
+     "challenger_rmse": 23.7756,
+     "champion_bias": 1.303512,
+     "champion_brier": 0.245745,
+     "champion_crps_quantile_approx": 11.158323,
+     "champion_mae": 18.089718,
+     "champion_p10_p90_coverage": 0.850467,
+     "champion_rmse": 24.598332,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.041642,
+      0.002673
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.009346,
+      0.09009
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -1.460156,
+      0.2177
+     ],
+     "delta_mae_challenger_minus_champion": -0.336342,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -1.763865,
+      0.935442
+     ],
+     "delta_mean_squared_error": -39.798781,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -121.095231,
+      40.35568
+     ],
+     "few_game_clusters_warning": true,
+     "n_common_thresholds_scored_one_per_player_game": 107,
+     "n_crps": 107,
+     "n_games": 19,
+     "n_player_games": 107,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    }
+   }
+  },
+  "MORNING_OF/full_eligible_population": {
+   "bootstrap": {
+    "replicates": 1000,
+    "seed": 20261010
+   },
+   "conditional_dnp_excluded": 1158,
+   "coverage": {
+    "challenger_only_without_champion": 0,
+    "challenger_rows": 5447,
+    "champion_only_without_challenger": 0,
+    "champion_rows": 5447,
+    "matched_forecasts_without_outcome": 0,
+    "outcome_rows": 5447,
+    "outcomes_without_matched_forecasts": 0,
+    "settled_with_both_forecasts": 5447
+   },
+   "exclusions_by_statistic": {
+    "NFL:carries": {
+     "conditional_dnp": 85
+    },
+    "NFL:completions": {
+     "conditional_dnp": 5
+    },
+    "NFL:passing_attempts": {
+     "conditional_dnp": 5
+    },
+    "NFL:passing_yards": {
+     "conditional_dnp": 5
+    },
+    "NFL:receiving_yards": {
+     "conditional_dnp": 243
+    },
+    "NFL:receptions": {
+     "conditional_dnp": 243
+    },
+    "NFL:rushing_yards": {
+     "conditional_dnp": 85
+    },
+    "NFL:snap_share": {
+     "conditional_dnp": 244
+    },
+    "NFL:targets": {
+     "conditional_dnp": 243
+    }
+   },
+   "gate": "pure_gate 1.0.0",
+   "metric_policy": "matched unique player-game-statistic rows only; one representative common ladder rung per player-game (average probability closest to 0.5, outcome-blind); CRPS approximated by 2x mean pinball loss over common quantile levels; paired percentile bootstrap resampling whole games (sport|game_id); deltas are challenger minus champion",
+   "n_games": 43,
+   "note": "Scores use sports outcomes and player-stat projections only. Market odds are never model inputs. Promotion needs a preregistered, untouched chronological holdout.",
+   "statistic_scorecards": {
+    "NFL:carries": {
+     "challenger_bias": -0.282172,
+     "challenger_brier": 0.23643,
+     "challenger_crps_quantile_approx": 2.199281,
+     "challenger_mae": 3.34822,
+     "challenger_p10_p90_coverage": 0.866906,
+     "challenger_rmse": 4.615992,
+     "champion_bias": -0.798908,
+     "champion_brier": 0.252495,
+     "champion_crps_quantile_approx": 2.279856,
+     "champion_mae": 3.587055,
+     "champion_p10_p90_coverage": 0.892086,
+     "champion_rmse": 4.934495,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.030571,
+      -0.000402
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.053763,
+      0.00365
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.191095,
+      0.021814
+     ],
+     "delta_mae_challenger_minus_champion": -0.238835,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.450945,
+      -0.047961
+     ],
+     "delta_mean_squared_error": -3.041866,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -5.664775,
+      -0.56662
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 278,
+     "n_crps": 278,
+     "n_games": 43,
+     "n_player_games": 278,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:completions": {
+     "challenger_bias": -0.046653,
+     "challenger_brier": 0.237716,
+     "challenger_crps_quantile_approx": 3.317695,
+     "challenger_mae": 5.146016,
+     "challenger_p10_p90_coverage": 0.802469,
+     "challenger_rmse": 6.684396,
+     "champion_bias": -0.678994,
+     "champion_brier": 0.260151,
+     "champion_crps_quantile_approx": 3.460905,
+     "champion_mae": 5.46893,
+     "champion_p10_p90_coverage": 0.82716,
+     "champion_rmse": 6.870593,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.040821,
+      -0.005027
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.074074,
+      0.024096
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.360317,
+      0.060082
+     ],
+     "delta_mae_challenger_minus_champion": -0.322914,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.626249,
+      -0.052696
+     ],
+     "delta_mean_squared_error": -2.52389,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -7.470801,
+      2.501758
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 81,
+     "n_crps": 81,
+     "n_games": 43,
+     "n_player_games": 81,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_attempts": {
+     "challenger_bias": 0.082293,
+     "challenger_brier": 0.24544,
+     "challenger_crps_quantile_approx": 4.426337,
+     "challenger_mae": 7.09927,
+     "challenger_p10_p90_coverage": 0.888889,
+     "challenger_rmse": 8.979168,
+     "champion_bias": -0.794578,
+     "champion_brier": 0.260304,
+     "champion_crps_quantile_approx": 4.73251,
+     "champion_mae": 7.469447,
+     "champion_p10_p90_coverage": 0.876543,
+     "champion_rmse": 9.274578,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.034496,
+      0.002454
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.025,
+      0.05
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.618803,
+      -0.0375
+     ],
+     "delta_mae_challenger_minus_champion": -0.370177,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.717416,
+      -0.038865
+     ],
+     "delta_mean_squared_error": -5.392338,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -16.405458,
+      5.609006
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 81,
+     "n_crps": 81,
+     "n_games": 43,
+     "n_player_games": 81,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_yards": {
+     "challenger_bias": -3.107158,
+     "challenger_brier": 0.251979,
+     "challenger_crps_quantile_approx": 36.308895,
+     "challenger_mae": 58.665447,
+     "challenger_p10_p90_coverage": 0.790123,
+     "challenger_rmse": 73.729132,
+     "champion_bias": 8.938435,
+     "champion_brier": 0.25574,
+     "champion_crps_quantile_approx": 37.040158,
+     "champion_mae": 58.991521,
+     "champion_p10_p90_coverage": 0.802469,
+     "champion_rmse": 74.602216,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.0224,
+      0.014993
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.075,
+      0.050633
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -2.545076,
+      0.863057
+     ],
+     "delta_mae_challenger_minus_champion": -0.326074,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -3.85702,
+      3.298559
+     ],
+     "delta_mean_squared_error": -129.505623,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -850.705324,
+      474.28757
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 81,
+     "n_crps": 81,
+     "n_games": 43,
+     "n_player_games": 81,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receiving_yards": {
+     "challenger_bias": 0.389717,
+     "challenger_brier": 0.208932,
+     "challenger_crps_quantile_approx": 9.424642,
+     "challenger_mae": 16.055593,
+     "challenger_p10_p90_coverage": 0.860656,
+     "challenger_rmse": 22.831212,
+     "champion_bias": -0.430748,
+     "champion_brier": 0.213561,
+     "champion_crps_quantile_approx": 9.53643,
+     "champion_mae": 16.001815,
+     "champion_p10_p90_coverage": 0.859485,
+     "champion_rmse": 23.00329,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.011468,
+      0.001883
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.010357,
+      0.011765
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.310992,
+      0.060964
+     ],
+     "delta_mae_challenger_minus_champion": 0.053779,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.254982,
+      0.328781
+     ],
+     "delta_mean_squared_error": -7.887109,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -29.313358,
+      10.689155
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 854,
+     "n_crps": 854,
+     "n_games": 43,
+     "n_player_games": 854,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receptions": {
+     "challenger_bias": 0.017799,
+     "challenger_brier": 0.233047,
+     "challenger_crps_quantile_approx": 0.724902,
+     "challenger_mae": 1.233414,
+     "challenger_p10_p90_coverage": 0.922717,
+     "challenger_rmse": 1.666868,
+     "champion_bias": 0.023662,
+     "champion_brier": 0.251679,
+     "champion_crps_quantile_approx": 0.754567,
+     "champion_mae": 1.293509,
+     "champion_p10_p90_coverage": 0.93911,
+     "champion_rmse": 1.711159,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.025297,
+      -0.012127
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.028902,
+      -0.005848
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.049589,
+      -0.009454
+     ],
+     "delta_mae_challenger_minus_champion": -0.060095,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.083803,
+      -0.037081
+     ],
+     "delta_mean_squared_error": -0.149616,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.271934,
+      -0.018295
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 854,
+     "n_crps": 854,
+     "n_games": 43,
+     "n_player_games": 854,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:rushing_yards": {
+     "challenger_bias": -0.532713,
+     "challenger_brier": 0.231816,
+     "challenger_crps_quantile_approx": 11.868189,
+     "challenger_mae": 19.306035,
+     "challenger_p10_p90_coverage": 0.859712,
+     "challenger_rmse": 27.422068,
+     "champion_bias": -1.670703,
+     "champion_brier": 0.239779,
+     "champion_crps_quantile_approx": 12.235332,
+     "champion_mae": 19.627762,
+     "champion_p10_p90_coverage": 0.841727,
+     "champion_rmse": 28.142725,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.022873,
+      0.005767
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.017241,
+      0.053763
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.988598,
+      0.211911
+     ],
+     "delta_mae_challenger_minus_champion": -0.321727,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -1.243962,
+      0.552239
+     ],
+     "delta_mean_squared_error": -40.043141,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -105.976508,
+      22.90876
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 278,
+     "n_crps": 278,
+     "n_games": 43,
+     "n_player_games": 278,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:snap_share": {
+     "challenger_bias": 0.007824,
+     "challenger_brier": 0.180552,
+     "challenger_crps_quantile_approx": 0.070913,
+     "challenger_mae": 0.112673,
+     "challenger_p10_p90_coverage": 0.856681,
+     "challenger_rmse": 0.156472,
+     "champion_bias": -0.00619,
+     "champion_brier": 0.191219,
+     "champion_crps_quantile_approx": 0.075548,
+     "champion_mae": 0.120234,
+     "champion_p10_p90_coverage": 0.857759,
+     "champion_rmse": 0.164079,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.017383,
+      -0.004004
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.021834,
+      0.019651
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.006703,
+      -0.002625
+     ],
+     "delta_mae_challenger_minus_champion": -0.007561,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.011363,
+      -0.003955
+     ],
+     "delta_mean_squared_error": -0.002438,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.003829,
+      -0.000952
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 928,
+     "n_crps": 928,
+     "n_games": 43,
+     "n_player_games": 928,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:targets": {
+     "challenger_bias": 0.07121,
+     "challenger_brier": 0.237457,
+     "challenger_crps_quantile_approx": 0.94153,
+     "challenger_mae": 1.561595,
+     "challenger_p10_p90_coverage": 0.915691,
+     "challenger_rmse": 2.134813,
+     "champion_bias": 0.091661,
+     "champion_brier": 0.267023,
+     "champion_crps_quantile_approx": 1.003279,
+     "champion_mae": 1.67943,
+     "champion_p10_p90_coverage": 0.932084,
+     "champion_rmse": 2.241274,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.037107,
+      -0.022773
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.030481,
+      -0.001159
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.086045,
+      -0.038517
+     ],
+     "delta_mae_challenger_minus_champion": -0.117835,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.157309,
+      -0.079245
+     ],
+     "delta_mean_squared_error": -0.465882,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.680668,
+      -0.238827
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 854,
+     "n_crps": 854,
+     "n_games": 43,
+     "n_player_games": 854,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    }
+   }
+  },
+  "MORNING_OF/pregame_market_listed_cohort": {
+   "bootstrap": {
+    "replicates": 1000,
+    "seed": 20261010
+   },
+   "conditional_dnp_excluded": 10,
+   "coverage": {
+    "challenger_only_without_champion": 0,
+    "challenger_rows": 1168,
+    "champion_only_without_challenger": 0,
+    "champion_rows": 1168,
+    "matched_forecasts_without_outcome": 0,
+    "outcome_rows": 1168,
+    "outcomes_without_matched_forecasts": 0,
+    "settled_with_both_forecasts": 1168
+   },
+   "exclusions_by_statistic": {
+    "NFL:carries": {
+     "conditional_dnp": 1
+    },
+    "NFL:receiving_yards": {
+     "conditional_dnp": 3
+    },
+    "NFL:receptions": {
+     "conditional_dnp": 3
+    },
+    "NFL:rushing_yards": {
+     "conditional_dnp": 3
+    }
+   },
+   "gate": "pure_gate 1.0.0",
+   "metric_policy": "matched unique player-game-statistic rows only; one representative common ladder rung per player-game (average probability closest to 0.5, outcome-blind); CRPS approximated by 2x mean pinball loss over common quantile levels; paired percentile bootstrap resampling whole games (sport|game_id); deltas are challenger minus champion",
+   "n_games": 31,
+   "note": "Scores use sports outcomes and player-stat projections only. Market odds are never model inputs. Promotion needs a preregistered, untouched chronological holdout.",
+   "statistic_scorecards": {
+    "NFL:carries": {
+     "challenger_bias": -0.288742,
+     "challenger_brier": 0.232448,
+     "challenger_crps_quantile_approx": 2.709474,
+     "challenger_mae": 4.177725,
+     "challenger_p10_p90_coverage": 0.936842,
+     "challenger_rmse": 5.443871,
+     "champion_bias": -1.720524,
+     "champion_brier": 0.257209,
+     "champion_crps_quantile_approx": 2.922105,
+     "champion_mae": 4.465004,
+     "champion_p10_p90_coverage": 0.936842,
+     "champion_rmse": 5.994121,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.049318,
+      -0.0039
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.029126,
+      0.033333
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.42684,
+      -0.047619
+     ],
+     "delta_mae_challenger_minus_champion": -0.287279,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.811202,
+      0.134892
+     ],
+     "delta_mean_squared_error": -6.293756,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -13.678508,
+      -0.952667
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 95,
+     "n_crps": 95,
+     "n_games": 31,
+     "n_player_games": 95,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:completions": {
+     "challenger_bias": -1.141005,
+     "challenger_brier": 0.228899,
+     "challenger_crps_quantile_approx": 2.802299,
+     "challenger_mae": 4.390878,
+     "challenger_p10_p90_coverage": 0.862069,
+     "challenger_rmse": 5.554592,
+     "champion_bias": -1.828979,
+     "champion_brier": 0.261659,
+     "champion_crps_quantile_approx": 3.078161,
+     "champion_mae": 4.879303,
+     "champion_p10_p90_coverage": 0.87931,
+     "champion_rmse": 6.050623,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.054077,
+      -0.010886
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.072727,
+      0.035088
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.524138,
+      -0.055952
+     ],
+     "delta_mae_challenger_minus_champion": -0.488426,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.85324,
+      -0.118964
+     ],
+     "delta_mean_squared_error": -5.756551,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -10.62646,
+      -1.507935
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 58,
+     "n_crps": 58,
+     "n_games": 31,
+     "n_player_games": 58,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_attempts": {
+     "challenger_bias": -1.662302,
+     "challenger_brier": 0.242089,
+     "challenger_crps_quantile_approx": 3.896552,
+     "challenger_mae": 6.299609,
+     "challenger_p10_p90_coverage": 0.913793,
+     "challenger_rmse": 7.709659,
+     "champion_bias": -2.613393,
+     "champion_brier": 0.26595,
+     "champion_crps_quantile_approx": 4.349425,
+     "champion_mae": 6.814976,
+     "champion_p10_p90_coverage": 0.896552,
+     "champion_rmse": 8.378627,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.04578,
+      -0.001884
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.035714,
+      0.071429
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.84023,
+      -0.136842
+     ],
+     "delta_mae_challenger_minus_champion": -0.515367,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.92481,
+      -0.073628
+     ],
+     "delta_mean_squared_error": -10.762549,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -23.299527,
+      -1.021849
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 58,
+     "n_crps": 58,
+     "n_games": 31,
+     "n_player_games": 58,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:passing_yards": {
+     "challenger_bias": -9.769948,
+     "challenger_brier": 0.250915,
+     "challenger_crps_quantile_approx": 29.930577,
+     "challenger_mae": 49.254617,
+     "challenger_p10_p90_coverage": 0.862069,
+     "challenger_rmse": 58.868515,
+     "champion_bias": 1.281433,
+     "champion_brier": 0.255906,
+     "champion_crps_quantile_approx": 30.628677,
+     "champion_mae": 49.571671,
+     "champion_p10_p90_coverage": 0.862069,
+     "champion_rmse": 59.204469,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.024418,
+      0.015652
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.067797,
+      0.070175
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -2.537846,
+      1.045271
+     ],
+     "delta_mae_challenger_minus_champion": -0.317053,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -4.435277,
+      3.872358
+     ],
+     "delta_mean_squared_error": -39.667085,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -663.412154,
+      545.375846
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 58,
+     "n_crps": 58,
+     "n_games": 31,
+     "n_player_games": 58,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receiving_yards": {
+     "challenger_bias": -1.446627,
+     "challenger_brier": 0.256503,
+     "challenger_crps_quantile_approx": 12.397085,
+     "challenger_mae": 20.470022,
+     "challenger_p10_p90_coverage": 0.846575,
+     "challenger_rmse": 26.258539,
+     "champion_bias": -2.962336,
+     "champion_brier": 0.261888,
+     "champion_crps_quantile_approx": 12.54147,
+     "champion_mae": 20.140816,
+     "champion_p10_p90_coverage": 0.832877,
+     "champion_rmse": 26.469565,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.016478,
+      0.005192
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.00554,
+      0.03183
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.43647,
+      0.144358
+     ],
+     "delta_mae_challenger_minus_champion": 0.329206,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.164868,
+      0.794968
+     ],
+     "delta_mean_squared_error": -11.126996,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -46.335722,
+      20.992977
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 365,
+     "n_crps": 365,
+     "n_games": 31,
+     "n_player_games": 365,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:receptions": {
+     "challenger_bias": -0.204464,
+     "challenger_brier": 0.245237,
+     "challenger_crps_quantile_approx": 0.951397,
+     "challenger_mae": 1.544817,
+     "challenger_p10_p90_coverage": 0.913408,
+     "challenger_rmse": 1.991273,
+     "champion_bias": -0.37179,
+     "champion_brier": 0.249064,
+     "champion_crps_quantile_approx": 0.966667,
+     "champion_mae": 1.554529,
+     "champion_p10_p90_coverage": 0.918994,
+     "champion_rmse": 2.03337,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.012497,
+      0.004451
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.024658,
+      0.011628
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -0.050741,
+      0.021769
+     ],
+     "delta_mae_challenger_minus_champion": -0.009712,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -0.059284,
+      0.037747
+     ],
+     "delta_mean_squared_error": -0.169426,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -0.421292,
+      0.079243
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 358,
+     "n_crps": 358,
+     "n_games": 31,
+     "n_player_games": 358,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    },
+    "NFL:rushing_yards": {
+     "challenger_bias": 0.679884,
+     "challenger_brier": 0.233115,
+     "challenger_crps_quantile_approx": 11.64463,
+     "challenger_mae": 19.274949,
+     "challenger_p10_p90_coverage": 0.879518,
+     "challenger_rmse": 26.148174,
+     "champion_bias": -1.037851,
+     "champion_brier": 0.242787,
+     "champion_crps_quantile_approx": 12.025883,
+     "champion_mae": 19.380805,
+     "champion_p10_p90_coverage": 0.849398,
+     "champion_rmse": 26.662341,
+     "crps_min_common_quantile_levels": 3,
+     "delta_brier_game_cluster_bootstrap_95ci": [
+      -0.031094,
+      0.008477
+     ],
+     "delta_coverage_game_cluster_bootstrap_95ci": [
+      -0.011976,
+      0.080247
+     ],
+     "delta_crps_game_cluster_bootstrap_95ci": [
+      -1.226066,
+      0.347066
+     ],
+     "delta_mae_challenger_minus_champion": -0.105856,
+     "delta_mae_game_cluster_bootstrap_95ci": [
+      -1.372864,
+      1.01571
+     ],
+     "delta_mean_squared_error": -27.153454,
+     "delta_mse_game_cluster_bootstrap_95ci": [
+      -122.983706,
+      55.044473
+     ],
+     "few_game_clusters_warning": false,
+     "n_common_thresholds_scored_one_per_player_game": 166,
+     "n_crps": 166,
+     "n_games": 31,
+     "n_player_games": 166,
+     "n_without_common_threshold": 0,
+     "status": "DESCRIPTIVE_ONLY_NOT_AUTOMATIC_PROMOTION"
+    }
+   }
+  }
+ },
+ "settlement_contracts_seen": 9047
+}
