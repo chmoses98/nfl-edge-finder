@@ -12,9 +12,10 @@ Honesty rules (each is tested):
   NAMES the starter (team announcement, head-coach statement on record, official lineup) observed before the decision and
   before kickoff and not stale (``run["qb_confirmations"]`` is {game_id: {team: row}}). A depth chart, active roster,
   inactive list or injury-report status is NOT a confirmation and can never become one. A team with no usable record blocks
-  game-level score markets ``QB_UNKNOWN:<team>``; a conflicting, stale or withdrawn one blocks ``QB_NOT_CONFIRMED:<team>``.
-  Games whose both quarterbacks are confirmed are evaluated normally; every other game stays blocked, and props and other
-  non-score markets are never blocked by this logic.
+  every market the QB-dependency table gates (qb_dependency.py: score-determined lines, team/game stats, events, QB passing props, and
+  anything unclassified; pass-catcher props need only their own team's QB) ``QB_UNKNOWN:<team>``; a conflicting, stale, too-early or
+  withdrawn one blocks ``QB_NOT_CONFIRMED:<team>`` with a ``QB_REASON`` code. Games whose required quarterbacks are confirmed are evaluated
+  normally; markets the table marks NOT_GATED (kicker, defender, running-back rushing props) are never blocked by this logic.
 * The ceiling check compares the record's ``bet_up_to_probability`` with a whole-order, fee-inclusive bound derived from
   the analyst's DECLARED fair range. That range is uncalibrated, so the bound is labelled ``ANALYST_DECLARED_UNCALIBRATED``;
   a CALIBRATED bet-up-to is reported as ``None`` (MISSING_CALIBRATION) because no held-out calibration cells exist for
@@ -29,6 +30,9 @@ from datetime import datetime, timezone
 from . import exposure as EXP
 from .common import DAILY_EXPOSURE_FLAG_UNITS, GAME_EXPOSURE_FLAG_UNITS, UNIT_DOLLARS, num
 from .fairvalue import bet_up_to, fair_probability, fee_fn_from_schedule
+from . import qb_confirmations as QBC
+from . import player_identity as PI
+from . import qb_dependency as QD
 from .guards import guard_candidate
 
 INTEGRATION_VERSION = "nfl-postmortem-integration-1.0.0"
@@ -78,15 +82,32 @@ def build_pit_evidence(*, run: dict, game: dict, ev: dict) -> dict:
     for t in teams:
         row = supplied.get(t)
         if isinstance(row, dict):
-            qb[t] = {"status": row.get("status"), "confirmed_at": row.get("confirmed_at"), "source": row.get("source"),
-                     "record_id": row.get("record_id"), "qb_player_id": row.get("qb_player_id"), "reason": row.get("reason")}
+            # full provenance travels with the row so the record can show WHY a quarterback was or was not confirmed
+            qb[t] = {k: row.get(k) for k in ("status", "confirmed_at", "source", "source_ref", "record_id", "qb_player_id", "reason", "game_id",
+                                             "team", "observed_at", "captured_at", "as_of", "kickoff_utc", "conflicts", "withdrawn_record_ids")}
+            if row.get("status") == QBC.CONFIRMED_STARTER and row.get("qb_player_id"):
+                qb[t]["qb_identity_check"] = PI.verify_qb(run.get("player_identity_book"), qb_player_id=row.get("qb_player_id"), team=t,
+                                                          game_teams=teams, game_week=game.get("week"), as_of=run.get("decision_time"))
+    # A contract about ONE named player: resolve who he is and what position he plays from the repository's own player data
+    # (run["player_identity_book"], built by scripts/handicap/run_card.py from --raw-root). Unresolvable -> an UNVERIFIED block, which blocks.
+    player_identity, market_player_id = None, None
+    if QD.is_player_scoped(ev.get("ticker"), ev.get("family")):
+        pm = next((m for m in game.get("markets", []) if m.get("ticker") == ev.get("ticker")), None) or {}
+        player_identity = PI.verify(run.get("player_identity_book"), player_id=pm.get("player_id"), game_teams=teams, game_week=game.get("week"),
+                                    ticker_team=QD.own_team(ev.get("ticker") or "", [t for t in teams if t]), as_of=run.get("decision_time"),
+                                    player_name=pm.get("player_name"))
+        market_player_id = pm.get("player_id")
     return {
         "schema": PIT_SCHEMA,
         "integration_version": INTEGRATION_VERSION,
+        "player_identity": player_identity, "market_player_id": market_player_id,
         "projection_as_of": fresh.get("ledger_feature_cutoff"),
         "injuries_as_of": injuries_as_of,
         "qb": qb,
         "teams": teams,
+        "game_id": game.get("game_id"),
+        "qb_policy": {"table_version": QD.TABLE_VERSION, "player_identity_version": PI.IDENTITY_VERSION, "max_age_at_decision_min": QBC.MAX_AGE_AT_DECISION_MIN,
+                      "max_lead_before_kickoff_min": QBC.MAX_LEAD_BEFORE_KICKOFF_MIN},
         "bet_up_to_provenance": {
             "ceiling_basis": ev.get("fair_basis"),
             "ceiling_is_calibrated": False,
@@ -101,6 +122,23 @@ def _is_quote_block(code: str) -> bool:
     return code.startswith(QUOTE_BLOCK_PREFIXES)
 
 
+def pit_applies(rec: dict, *, as_of=None) -> tuple[bool, str]:
+    """Whether G_PIT / G_ORDER_CEILING judge this record, and if not, why. A record without a ``pit_evidence`` block predates the gate and is
+    not re-judged. A PLAYER market keeps its own availability gate and is judged here ONLY when the QB-dependency table says its production
+    depends on the quarterback (QB_GATED passing props, QB_INDIRECT pass-catcher / scorer props); an unrelated prop (kicker, defender,
+    running-back rushing) is not blocked by an unknown quarterback."""
+    from nfl_edge.handicap import schema as S
+    if rec.get("pit_evidence") is None:
+        return False, "record predates the pit_evidence block; its historical verdict is not re-judged"
+    if rec.get("market_family") in S.PLAYER_MARKET_FAMILIES:
+        pit = rec.get("pit_evidence") or {}
+        req = QD.requirement(rec.get("market_ticker"), family=rec.get("market_family"), teams=pit.get("teams"), player=pit.get("player_identity"), market_player_id=pit.get("market_player_id"),
+                             decision_time=as_of or rec.get("created_at"))
+        if not req.requires_confirmation:
+            return False, f"player market: gated by player_availability_resolved; {req.classification} in the QB-dependency table ({req.rationale})"
+    return True, ""
+
+
 def pit_gate(rec: dict, *, dq, dr, as_of: datetime) -> tuple[str, str, dict]:
     """(status, reason, evidence). status is PASS or FAIL. ``dq`` is the gate's resolved decision-time quote (or None),
     ``dr`` the resolved full-position depth (or None). Quote provenance is judged from those, not from a capture."""
@@ -112,9 +150,10 @@ def pit_gate(rec: dict, *, dq, dr, as_of: datetime) -> tuple[str, str, dict]:
             depth = num(getattr(dr, "contracts_required", None))
         quote = {"price": dq.executable_price, "captured_at": dq.confirmed_at, "kind": "EXECUTABLE_ASK", "depth": depth}
     cand = {
-        "ticker": rec.get("market_ticker"), "side": rec.get("side"), "decision_time": as_of, "kickoff_utc": rec.get("kickoff_utc"),
+        "ticker": rec.get("market_ticker"), "family": rec.get("market_family"), "game_id": pit.get("game_id") or rec.get("game_id"),
+        "side": rec.get("side"), "decision_time": as_of, "kickoff_utc": rec.get("kickoff_utc"),
         "projection_as_of": pit.get("projection_as_of"), "injuries_as_of": pit.get("injuries_as_of"),
-        "qb": pit.get("qb") or {}, "teams": pit.get("teams") or [],
+        "qb": pit.get("qb") or {}, "teams": pit.get("teams") or [], "player": pit.get("player_identity"), "player_id": pit.get("market_player_id"),
         "quote": quote or {}, "contracts": None if quote is None else quote.get("depth"),
     }
     out = guard_candidate(cand)
@@ -124,6 +163,7 @@ def pit_gate(rec: dict, *, dq, dr, as_of: datetime) -> tuple[str, str, dict]:
         # double-report it as a provenance failure, but never let a missing executable ask pass silently either.
         blocks = [b for b in blocks if not _is_quote_block(b)] + ["NO_EXECUTABLE_QUOTE_FOR_PROVENANCE"]
     evidence = {"blocks": sorted(set(blocks)), "warnings": out["warnings"], "guard_version": INTEGRATION_VERSION,
+                "qb_requirement": out.get("qb_requirement"), "qb_provenance": out.get("qb_provenance"),
                 "quote_kind": None if quote is None else quote["kind"],
                 "policy": "restriction-only; CONFIRMED_STARTER requires a supplied confirmation with a time"}
     if blocks:

@@ -76,7 +76,7 @@ def test_an_expected_starter_from_a_depth_chart_is_visible_but_still_blocks(tmp_
 
 
 def test_a_stale_confirmation_blocks(tmp_path):
-    recs = qb_records(AS_OF, minutes_before_cap=Q.CONFIRMATION_MAX_AGE_MIN + 30)
+    recs = qb_records(AS_OF, minutes_before_cap=Q.MAX_AGE_AT_DECISION_MIN + 30)
     card, _ = _run(tmp_path, recs)
     assert card["lines"][0]["status"] == "BLOCKED" and any("QB_NOT_CONFIRMED" in r for r in _blocks(card))
 

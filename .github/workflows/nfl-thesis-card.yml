@@ -110,7 +110,16 @@ jobs:
           python-version: '3.11'
 
       - name: Install
-        run: pip install -q numpy pandas scipy pyarrow
+        run: pip install -q numpy pandas polars scipy pyarrow
+
+      # PR #241: a contract about ONE named player is judged only after his identity and POSITION are verified from the nflverse players /
+      # weekly_rosters tables and ff_playerids (nfl_edge/postmortem/player_identity.py). Without these tables every player prop blocks
+      # PLAYER_IDENTITY_UNVERIFIED:NO_IDENTITY_SOURCE (fail closed). Three small files; the script writes under code/data/raw/nflverse.
+      - name: Fetch the player identity tables (nflverse players, weekly_rosters, ff_playerids)
+        run: |
+          SEASON=$(date -u +%Y); [ "$(date -u +%m)" -lt 3 ] && SEASON=$((SEASON-1))
+          python3 code/scripts/data/nflverse_download.py --only players,weekly_rosters,ff_playerids --seasons "$SEASON" 2>&1 | tail -3
+          test -s code/data/raw/nflverse/players/players.parquet || { echo "::error::players.parquet missing: player props will block"; exit 1; }
 
       - name: Read the trigger issue
         id: issue
@@ -167,7 +176,7 @@ jobs:
           [ "$MODE" = "LIVE" ] && EXTRA="--live-evidence"
           if [ -d qb/qb_confirmations ]; then EXTRA="$EXTRA --qb-confirmations qb/qb_confirmations"; fi
           python3 code/scripts/handicap/run_card.py --reports-dir "$REPORTS" --submission "$RUNNER_TEMP/submission.json" \
-            --schedule-csv md/data/kalshi/capture/schedule_cache.csv --handicap-root hd --fee-root md --mode "$MODE" $EXTRA --out out 2>&1 | tail -20
+            --schedule-csv md/data/kalshi/capture/schedule_cache.csv --handicap-root hd --fee-root md --mode "$MODE" --player-identity-root code/data/raw/nflverse $EXTRA --out out 2>&1 | tail -20
           echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Compose the reply

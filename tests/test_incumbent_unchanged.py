@@ -40,7 +40,12 @@ SOURCE_PINS = {
     # gained `PreflightResult.exposure_flags` (flags at the fixed $75 unit: >$375/game, >$1,125/day; never a cap). No threshold, fee,
     # depth, net-EV, quote-age or risk rule moved; tests/test_preflight_no_weakening.py asserts it. Records written before
     # `pit_evidence` existed are NOT re-judged. Pins: gates 2821835860e32f3e -> a0d03cb7af6bab98, preflight b32665e82cf0b994 -> a606567c3bfdb841.
-    "nfl_edge/handicap/gates.py": "a0d03cb7af6bab98",            # the real-money gates
+    # DELIBERATE, REVIEWED EDIT (PR #241, 2026-11-03): `gates.py` step 9 now asks `integration.pit_applies(rec)` whether G_PIT judges a PLAYER market:
+    # it does when the QB-dependency table (nfl_edge/postmortem/qb_dependency.py) says the prop depends on the quarterback (QB passing props, pass-catcher
+    # and scorer props); unrelated props (kicker, defender, rushing volume) keep only their own gate, and the order-size ceiling check stays game-level.
+    # Restriction-only: it can only turn an approved record into a blocked one. No threshold, fee, depth, net-EV, quote-age or risk rule moved.
+    # Pin: a0d03cb7af6bab98 -> 07e095f5192bbe6c.
+    "nfl_edge/handicap/gates.py": "07e095f5192bbe6c",            # the real-money gates
     # DELIBERATE, REVIEWED EDIT (2026-11-01 owner clarification): correlation-group caps remain
     # but per-game and per-slate caps may be absent. The active policy has 5U per thesis,
     # no arbitrary game/slate cap. Pilot policy still enforces its original caps.

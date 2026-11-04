@@ -1,8 +1,8 @@
 """Point-in-time CONFIRMED-STARTER quarterback records: strict validation, per-game resolution, slate coverage.
 
 WHY THIS EXISTS
-The point-in-time gate (``integration.pit_gate`` -> ``guards.guard_candidate``) blocks every game-level score market
-(game winner, spread, total, team total, 1Q/1H) unless BOTH quarterbacks are ``CONFIRMED_STARTER`` with a time. Before this
+The point-in-time gate (``integration.pit_gate`` -> ``guards.guard_candidate``) blocks every market the QB-dependency table
+(``qb_dependency.py``: score-determined lines, team/game stats, events, QB passing props, anything unclassified) gates unless the required quarterbacks are ``CONFIRMED_STARTER`` with a time. Before this
 module nothing in the repository could produce that confirmation, so the gate blocked every game-level line (QB_UNKNOWN).
 This module is the only door through which a quarterback becomes CONFIRMED_STARTER, and it is narrow on purpose.
 
@@ -25,10 +25,19 @@ FAIL-CLOSED RULES (each is tested)
 * a record that fails validation is REJECTED with a code and never reaches a gate;
 * a confirmation must have been OBSERVED at or before it was CAPTURED, CAPTURED at or before the decision time, and the
   decision (and the capture) must precede kickoff - records captured in the future relative to the run are invisible;
-* a confirmation older than ``CONFIRMATION_MAX_AGE_MIN`` at the decision is STALE -> status UNKNOWN (reason STALE);
-* the LATEST observation for a team/game decides, so a later "OUT" or "EXPECTED_UNCONFIRMED" withdraws an earlier confirmation;
+* GAME-SPECIFIC validity (2026-11-03; replaces the blanket 48 h age): a record counts for ONE game_id and ONE of that game's two
+  teams, was OBSERVED before kickoff and before the decision, and must be fresh on BOTH clocks:
+    - ``MAX_AGE_AT_DECISION_MIN`` (24 h): observed no more than 24 h before the decision, else STALE_CONFIRMATION;
+    - ``MAX_LEAD_BEFORE_KICKOFF_MIN`` (48 h): observed inside the last 48 h before kickoff, else OBSERVED_TOO_EARLY_BEFORE_KICKOFF.
+  Why: starters change through the final injury-report week (designations are final on the Friday before a Sunday game, official
+  inactives come ~90 min before kickoff); a statement older than the last two days precedes the information that can still change it.
+  Both windows are deliberately tighter than the old 48 h blanket, are owner-adjustable constants, and only ever BLOCK;
+* the LATEST observation for a team/game decides, so a later OUT / EXPECTED_UNCONFIRMED / UNKNOWN withdraws an earlier
+  confirmation (reason WITHDRAWN_BY_LATER_OUT / WITHDRAWN_BY_LATER_RECORD); on an exact observed-time tie a non-confirming record wins;
 * two CONFIRMED_STARTER records for different quarterbacks are a CONFLICT -> UNKNOWN, unless the later one explicitly
   ``supersedes`` the earlier record id (a deliberate change of mind with an audit trail);
+* every non-confirmed row carries a stable reason code and provenance (record_id, source, source_ref, observed_at, captured_at, as_of,
+  kickoff_utc, game_id, team); a team with no visible record at all has no source to cite and is reported QB_UNKNOWN by the gate;
 * a team with no usable record is simply absent -> the gate reports ``QB_UNKNOWN:<team>``;
 * a game is "QB-confirmed" only when BOTH teams resolve to CONFIRMED_STARTER.
 
@@ -44,7 +53,7 @@ from datetime import datetime
 from .common import parse_ts
 
 SCHEMA = "nfl-qb-confirmations.v1"
-MODULE_VERSION = "nfl-qb-confirmations-1.0.0"
+MODULE_VERSION = "nfl-qb-confirmations-2.0.0"
 
 CONFIRMED_STARTER = "CONFIRMED_STARTER"
 EXPECTED_UNCONFIRMED = "EXPECTED_UNCONFIRMED"
@@ -66,9 +75,19 @@ NON_CONFIRMING_SOURCE_TYPES = frozenset({
 #: A non-confirming source may only assert these (a QB declared OUT is restrictive and safe to record from an injury report / inactive list).
 NON_CONFIRMING_ALLOWED_STATUSES = (EXPECTED_UNCONFIRMED, OUT, UNKNOWN)
 
-#: OWNER-ADJUSTABLE DEFAULT. How long a confirmation stays usable at the decision. A starter named days ago may have changed (injury,
-#: illness, coach's decision); the injury snapshot gate (<=180 min) is the other half of the protection.
-CONFIRMATION_MAX_AGE_MIN = 48 * 60.0
+#: OWNER-ADJUSTABLE DEFAULTS (both only ever block). Replace the former blanket ``CONFIRMATION_MAX_AGE_MIN = 48 h``.
+#: A confirmation must be OBSERVED no more than this long before the DECISION ...
+MAX_AGE_AT_DECISION_MIN = 24 * 60.0
+#: ... AND no more than this long before KICKOFF, i.e. inside the window in which the final injury designations and the official inactives
+#: (the last news that can change a starter) are published. A statement from earlier in the week predates them. Whichever is tighter binds.
+MAX_LEAD_BEFORE_KICKOFF_MIN = 48 * 60.0
+#: Reason codes of a non-confirmed row (stable strings; reports and tests key on them).
+REASON_STALE = "STALE_CONFIRMATION"
+REASON_TOO_EARLY = "OBSERVED_TOO_EARLY_BEFORE_KICKOFF"
+REASON_CONFLICT = "CONFLICTING_CONFIRMATIONS"
+REASON_WITHDRAWN_OUT = "WITHDRAWN_BY_LATER_OUT"
+REASON_WITHDRAWN = "WITHDRAWN_BY_LATER_RECORD"
+REASON_NOT_CONFIRMED = "NOT_CONFIRMED_BY_ANY_ACCEPTED_SOURCE"
 
 REQUIRED_FIELDS = ("record_id", "game_id", "team", "qb_player_id", "status", "source_type", "source_ref",
                    "observed_at", "captured_at", "captured_by")
@@ -189,53 +208,75 @@ def _transitively_superseded(records: list[dict]) -> set[str]:
 
 
 def resolve_team(records: list[dict], *, game_id: str, team: str, kickoff, as_of,
-                 max_age_min: float = CONFIRMATION_MAX_AGE_MIN) -> dict | None:
-    """The effective quarterback status for one team in one game, or None when no usable record exists (-> QB_UNKNOWN).
+                 max_age_min: float = MAX_AGE_AT_DECISION_MIN, max_lead_min: float = MAX_LEAD_BEFORE_KICKOFF_MIN) -> dict | None:
+    """The effective quarterback status for one team in ONE game, or None when no record is visible (-> QB_UNKNOWN: nothing to cite).
 
-    Only records captured at or before ``as_of`` AND before kickoff are visible. The result is the row the gate reads:
-    ``{"status", "confirmed_at", "source", ...}`` where ``confirmed_at`` is the time the source said it (set only for CONFIRMED)."""
+    Only records for this game_id AND this team, captured at or before ``as_of`` AND before kickoff (hence observed before both), are
+    visible. Every row returned carries a reason (None only when CONFIRMED) and the provenance of the record that decided it, plus the
+    clocks it was judged against (``as_of`` = the decision time, ``kickoff_utc``). ``confirmed_at`` is the time the source said it and is
+    set only for CONFIRMED_STARTER."""
     dec, ko = parse_ts(as_of), parse_ts(kickoff)
     if dec is None or ko is None or dec >= ko:
         return None                                          # no decision clock, no kickoff, or already kicked off: nothing is usable
     vis = [r for r in records if r["game_id"] == game_id and r["team"] == team
-           and parse_ts(r["captured_at"]) <= dec and parse_ts(r["captured_at"]) < ko]
+           and parse_ts(r["captured_at"]) <= dec and parse_ts(r["captured_at"]) < ko and parse_ts(r["observed_at"]) < ko]
     if not vis:
         return None
-    vis.sort(key=lambda r: (parse_ts(r["observed_at"]), parse_ts(r["captured_at"]), r["record_id"]))
+    # latest OBSERVATION decides; on an exact observed-time tie a non-confirming record sorts last (the restrictive one wins)
+    vis.sort(key=lambda r: (parse_ts(r["observed_at"]), 0 if r["status"] == CONFIRMED_STARTER else 1, parse_ts(r["captured_at"]), r["record_id"]))
     latest = vis[-1]
-    base = {"qb_player_id": latest["qb_player_id"], "record_id": latest["record_id"], "source": latest["source_type"],
-            "source_ref": latest["source_ref"], "observed_at": latest["observed_at"], "captured_at": latest["captured_at"]}
+    base = {"game_id": game_id, "team": team, "qb_player_id": latest["qb_player_id"], "record_id": latest["record_id"],
+            "source": latest["source_type"], "source_ref": latest["source_ref"], "observed_at": latest["observed_at"],
+            "captured_at": latest["captured_at"], "as_of": dec.isoformat(), "kickoff_utc": ko.isoformat(),
+            "window": {"max_age_at_decision_min": max_age_min, "max_lead_before_kickoff_min": max_lead_min}}
     if latest["status"] != CONFIRMED_STARTER:
-        return {**base, "status": latest["status"], "confirmed_at": None, "reason": "LATEST_RECORD_IS_NOT_A_CONFIRMATION"}
+        earlier = [r for r in vis[:-1] if r["status"] == CONFIRMED_STARTER]
+        if earlier:
+            reason = REASON_WITHDRAWN_OUT if latest["status"] == OUT else REASON_WITHDRAWN
+            return {**base, "status": latest["status"], "confirmed_at": None, "reason": reason,
+                    "withdrawn_record_ids": sorted(r["record_id"] for r in earlier)}
+        return {**base, "status": latest["status"], "confirmed_at": None, "reason": REASON_NOT_CONFIRMED}
     ties = [r for r in vis if r["observed_at"] == latest["observed_at"] and r["status"] == CONFIRMED_STARTER
             and r["qb_player_id"] != latest["qb_player_id"]]
     superseded = _transitively_superseded(vis)
     clash = [r for r in vis if r["status"] == CONFIRMED_STARTER and r["qb_player_id"] != latest["qb_player_id"]
              and r["record_id"] not in superseded]
     if ties or clash:
-        return {**base, "status": UNKNOWN, "confirmed_at": None, "reason": "CONFLICTING_CONFIRMATIONS",
+        return {**base, "status": UNKNOWN, "confirmed_at": None, "reason": REASON_CONFLICT,
                 "conflicts": sorted({r["record_id"] for r in ties + clash})}
-    age = (dec - parse_ts(latest["observed_at"])).total_seconds() / 60.0
+    obs = parse_ts(latest["observed_at"])
+    age = (dec - obs).total_seconds() / 60.0
+    lead = (ko - obs).total_seconds() / 60.0
     if age > max_age_min:
-        return {**base, "status": UNKNOWN, "confirmed_at": None, "reason": "STALE_CONFIRMATION", "age_min": round(age, 1)}
+        return {**base, "status": UNKNOWN, "confirmed_at": None, "reason": REASON_STALE, "age_min": round(age, 1)}
+    if lead > max_lead_min:
+        return {**base, "status": UNKNOWN, "confirmed_at": None, "reason": REASON_TOO_EARLY, "age_min": round(age, 1),
+                "lead_before_kickoff_min": round(lead, 1)}
     return {**base, "status": CONFIRMED_STARTER, "confirmed_at": latest["observed_at"], "reason": None,
-            "age_min": round(age, 1)}
+            "age_min": round(age, 1), "lead_before_kickoff_min": round(lead, 1)}
 
 
-def resolve_game(records: list[dict], *, game_id: str, teams, kickoff, as_of, max_age_min: float = CONFIRMATION_MAX_AGE_MIN) -> dict:
-    """{team: row} for the teams that have a usable record (absent team -> QB_UNKNOWN at the gate)."""
+def resolve_game(records: list[dict], *, game_id: str, teams, kickoff, as_of, max_age_min: float = MAX_AGE_AT_DECISION_MIN,
+                 max_lead_min: float = MAX_LEAD_BEFORE_KICKOFF_MIN) -> dict:
+    """{team: row} for the teams that have a visible record (absent team -> QB_UNKNOWN at the gate). A record is only ever matched to the
+    game_id and a team in ``teams`` (the game's own two teams), so another game's confirmation, or a team that is not playing in this
+    game, can never confirm anything here."""
     out = {}
     for t in teams:
-        row = resolve_team(records, game_id=game_id, team=t, kickoff=kickoff, as_of=as_of, max_age_min=max_age_min)
+        if not t:
+            continue
+        row = resolve_team(records, game_id=game_id, team=t, kickoff=kickoff, as_of=as_of, max_age_min=max_age_min, max_lead_min=max_lead_min)
         if row is not None:
             out[t] = row
     return out
 
 
-def resolve_slate(records: list[dict], games: list[dict], *, as_of, max_age_min: float = CONFIRMATION_MAX_AGE_MIN) -> dict:
+def resolve_slate(records: list[dict], games: list[dict], *, as_of, max_age_min: float = MAX_AGE_AT_DECISION_MIN,
+                  max_lead_min: float = MAX_LEAD_BEFORE_KICKOFF_MIN) -> dict:
     """{game_id: {team: row}} for every game in the packet. ``games`` entries need game_id, home_team, away_team, kickoff_utc."""
     return {g["game_id"]: resolve_game(records, game_id=g["game_id"], teams=[g.get("home_team"), g.get("away_team")],
-                                       kickoff=g.get("kickoff_utc"), as_of=as_of, max_age_min=max_age_min) for g in games}
+                                       kickoff=g.get("kickoff_utc"), as_of=as_of, max_age_min=max_age_min, max_lead_min=max_lead_min)
+            for g in games}
 
 
 def coverage(resolved: dict, games: list[dict], *, as_of) -> dict:
@@ -258,7 +299,8 @@ def coverage(resolved: dict, games: list[dict], *, as_of) -> dict:
         rows.append({"game_id": gid, "kickoff_utc": g.get("kickoff_utc"), "both_confirmed": both, "teams": sides})
     return {"schema": "nfl-qb-coverage.v1", "module_version": MODULE_VERSION, "as_of": parse_ts(as_of).isoformat() if parse_ts(as_of) else None,
             "games": len(games), "games_both_qbs_confirmed": confirmed, "games_blocked_qb": len(games) - confirmed,
-            "team_slots_not_confirmed_by_reason": dict(sorted(reasons.items())), "max_age_min": CONFIRMATION_MAX_AGE_MIN, "per_game": rows}
+            "team_slots_not_confirmed_by_reason": dict(sorted(reasons.items())), "max_age_at_decision_min": MAX_AGE_AT_DECISION_MIN,
+            "max_lead_before_kickoff_min": MAX_LEAD_BEFORE_KICKOFF_MIN, "per_game": rows}
 
 
 def new_record(*, record_id: str, game_id: str, team: str, qb_player_id: str, status: str, source_type: str, source_ref: str,
@@ -276,5 +318,5 @@ def new_record(*, record_id: str, game_id: str, team: str, qb_player_id: str, st
 
 
 __all__ = ["SCHEMA", "CONFIRMED_STARTER", "EXPECTED_UNCONFIRMED", "OUT", "UNKNOWN", "CONFIRMING_SOURCE_TYPES",
-           "NON_CONFIRMING_SOURCE_TYPES", "CONFIRMATION_MAX_AGE_MIN", "validate_records", "load_records_file", "resolve_team",
+           "NON_CONFIRMING_SOURCE_TYPES", "MAX_AGE_AT_DECISION_MIN", "MAX_LEAD_BEFORE_KICKOFF_MIN", "validate_records", "load_records_file", "resolve_team",
            "resolve_game", "resolve_slate", "coverage", "new_record"]
