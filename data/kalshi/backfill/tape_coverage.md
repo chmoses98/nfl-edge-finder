@@ -3,9 +3,9 @@
 | series | contracts | settled | horizon rows | with 2-sided pre-start quote | T-24h quote | candle files | legacy tape (capped) | recovered tape complete/attempted (no kickoff anchor) |
 |---|---|---|---|---|---|---|---|---|
 | KXNFLRECYDS | 10254 | 10170 | 10170 | 9800 | 7901 | 0 | n/m | 0/0 (0) |
-| KXNFLSPREAD | 7420 | 7420 | 7420 | 5312 | 4851 | 0 | n/m | 3/3 (0) |
+| KXNFLSPREAD | 7420 | 7420 | 7420 | 5312 | 4851 | 0 | n/m | 4/4 (1568) |
 | KXNFLREC | 7399 | 7358 | 7358 | 5888 | 4283 | 0 | n/m | 0/0 (0) |
-| KXNFLTOTAL | 5918 | 5918 | 5918 | 4825 | 4134 | 0 | n/m | 2/2 (0) |
+| KXNFLTOTAL | 5918 | 5918 | 5918 | 4825 | 4134 | 0 | n/m | 2/2 (1296) |
 | KXNFLFIRSTTD | 5487 | 5355 | 5355 | 3241 | 1981 | 0 | n/m | 0/0 (0) |
 | KXNFLANYTD | 5482 | 5335 | 5335 | 5067 | 4527 | 0 | n/m | 0/0 (0) |
 | KXNFLRSHYDS | 4639 | 4625 | 4625 | 4558 | 3790 | 0 | n/m | 0/0 (0) |
