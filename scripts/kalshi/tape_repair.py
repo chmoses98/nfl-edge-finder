@@ -87,9 +87,6 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
                 unanchored[t] = "no_kickoff_anchor"            # not fetched: a close_time anchor would admit post-kickoff prints
                 continue
             prev = state["tickers"].get(t, {})
-            if prev.get("anchor_ts") not in (None, anchor) and _nonempty(os.path.join(out, "trades_v2", s, f"{t}.jsonl")):
-                unanchored[t] = "anchor_changed_with_data_on_disk"      # never mix tapes cut at two different anchors
-                continue
             # a result recorded under a close_time anchor (earlier collector) is not trusted as pregame: redo it at the kickoff anchor
             if prev.get("status") in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP") and prev.get("anchor_kind") != "close_time" and prev.get("anchor_ts") in (None, anchor):
                 continue
@@ -105,6 +102,18 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
         d = os.path.join(out, "trades_v2", s); os.makedirs(d, exist_ok=True)
         fpath = os.path.join(d, f"{t}.jsonl")
         prev = state["tickers"].get(t, {})
+        reanchored = None
+        if prev.get("anchor_ts") not in (None, anchor) and _nonempty(fpath):
+            # The tape on disk was cut at a different anchor (e.g. close_time, which can be hours AFTER kickoff, so it holds in-game prints).
+            # Never mix anchors and never delete: move it to trades_v2_quarantine/ (kept for audit, excluded from research) and refetch from scratch.
+            qd = os.path.join(out, "trades_v2_quarantine", s); os.makedirs(qd, exist_ok=True)
+            qp = os.path.join(qd, f"{t}.anchor{prev['anchor_ts']}.jsonl")
+            k = 1
+            while os.path.exists(qp):
+                qp = os.path.join(qd, f"{t}.anchor{prev['anchor_ts']}.{k}.jsonl"); k += 1
+            reanchored = dict(old_anchor_ts=prev["anchor_ts"], old_anchor_kind=prev.get("anchor_kind"), quarantined_prints=prev.get("n"), quarantine_path=os.path.relpath(qp, out))
+            os.replace(fpath, qp)
+            prev = {}
         r = T.fetch_tape(client, t, anchor_ts=anchor, market_open_ts=open_ts, resume_cursor=(prev.get("cursor") if prev.get("anchor_ts") == anchor else None), page_budget=page_budget,
                          limit=limit, known_ids=existing_ids(fpath))
         with open(fpath, "a") as f:
@@ -121,7 +130,7 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
             alltr = [json.loads(l) for l in open(fpath)]
             ver = T.hourly_candle_vs_tape(candles or [], alltr, anchor)
         row = T.final_status(r, ver)
-        row.update(series=s, anchor_kind=kind, run_started_at=run_rec["started_at"], total_prints_on_disk=sum(1 for _ in open(fpath)))
+        row.update(series=s, anchor_kind=kind, reanchored=reanchored, run_started_at=run_rec["started_at"], total_prints_on_disk=sum(1 for _ in open(fpath)))
         with open(os.path.join(out, "tape_meta.jsonl"), "a") as f:
             f.write(json.dumps(row, separators=(",", ":")) + "\n")
         state["tickers"][t] = dict(status=row["status"], cursor=r.cursor, n=row["total_prints_on_disk"], oldest_ts=r.oldest_ts or prev.get("oldest_ts"),

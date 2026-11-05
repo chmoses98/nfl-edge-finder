@@ -215,14 +215,24 @@ class KickoffAnchoring(unittest.TestCase):
             st = json.load(open(os.path.join(d, "tape_state.json")))["tickers"][m["ticker"]]
             self.assertEqual((st["anchor_kind"], st["anchor_ts"], st["n"]), ("kickoff_ticker_parse", 1_769_366_400, 1))
 
-    def test_changed_anchor_with_data_on_disk_is_not_mixed(self):
+    def test_changed_anchor_quarantines_the_old_tape_and_refetches_from_scratch(self):
+        """Run 41997504463 published LA-CHI tapes under a close_time anchor ~3.5h after kickoff (in-game prints)."""
         m = {"ticker": "KXNFLGAME-26JAN25LASEA-SEA", "result": "yes", "open_time": T_iso(1_769_000_000), "close_time": T_iso(1_769_487_320)}
+        kick = 1_769_366_400
         with tempfile.TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, "trades_v2", "KXNFLGAME"))
-            open(os.path.join(d, "trades_v2", "KXNFLGAME", m["ticker"] + ".jsonl"), "w").write('{"trade_id":"x"}\n')
-            json.dump({"tickers": {m["ticker"]: {"status": "INCOMPLETE_RESUMABLE", "cursor": "c", "n": 1, "anchor_ts": 5, "anchor_kind": "close_time"}}, "runs": []},
+            old = [mk_trade(i, 1_769_487_000 - i) for i in range(5)]                  # all after kickoff: in-game prints
+            fp = os.path.join(d, "trades_v2", "KXNFLGAME", m["ticker"] + ".jsonl")
+            open(fp, "w").write("".join(json.dumps(x) + "\n" for x in old))
+            json.dump({"tickers": {m["ticker"]: {"status": "INCOMPLETE_RESUMABLE", "cursor": "stale", "n": 5, "anchor_ts": 1_769_487_320, "anchor_kind": "close_time"}}, "runs": []},
                       open(os.path.join(d, "tape_state.json"), "w"))
-            c = FakeClient([])
-            r = TR.run(c, **self._kw(d, [m], self.KO))
-            self.assertEqual((c.stats.requests, r["no_kickoff_anchor"]), (0, 1))
-            self.assertEqual(json.load(open(os.path.join(d, "tape_state.json")))["unanchored"][m["ticker"]], "anchor_changed_with_data_on_disk")
+            good = [mk_trade(100 + i, kick - 10 - i) for i in range(3)]
+            r = TR.run(FakeClient(good + old), **self._kw(d, [m], self.KO))
+            self.assertEqual(r["tickers_attempted"], 1)
+            new = [json.loads(x) for x in open(fp)]
+            self.assertEqual(len(new), 3)
+            self.assertTrue(max(TR.T.to_ts(x["created_time"]) for x in new) <= kick)          # pregame only
+            q = os.path.join(d, "trades_v2_quarantine", "KXNFLGAME", m["ticker"] + ".anchor1769487320.jsonl")
+            self.assertEqual(open(q).read().count("\n"), 5)                                    # old tape kept verbatim for audit
+            row = [json.loads(x) for x in open(os.path.join(d, "tape_meta.jsonl"))][-1]
+            self.assertEqual((row["anchor_kind"], row["reanchored"]["old_anchor_kind"], row["reanchored"]["quarantined_prints"]), ("kickoff_ticker_parse", "close_time", 5))
