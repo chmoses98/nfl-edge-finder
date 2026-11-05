@@ -105,3 +105,35 @@ def test_capture_publish_sparse_does_not_materialize_shadow_history(tmp_path):
     tree = set(git("ls-tree", "-r", "--name-only", "market-data", cwd=origin).stdout.split())
     assert "data/shadow_pure/nfl/manifests/a.manifest.json" in tree, "sparse commit must preserve other trees"
     assert "data/kalshi/capture/newrun.manifest.json" in tree
+
+
+def test_sparse_only_checks_out_just_the_named_paths_below_src(tmp_path):
+    """tape-repair publishes under data/kalshi/backfill, which also holds the huge archived trades/ + candles/."""
+    origin, repo, other = _setup(tmp_path)
+    git("checkout", "-q", "market-data", cwd=other)
+    arch = other / "data" / "kalshi" / "backfill" / "trades"
+    arch.mkdir(parents=True)
+    (arch / "T.jsonl").write_text("archived\n")
+    git("add", "-A", cwd=other)
+    git("commit", "-q", "-m", "archive", cwd=other)
+    git("push", "-q", "origin", "market-data", cwd=other)
+    out = repo / "data" / "kalshi" / "backfill"
+    (out / "trades_v2" / "KXNFLGAME").mkdir(parents=True)
+    (out / "trades_v2" / "KXNFLGAME" / "T.jsonl").write_text("{}\n")
+    (out / "tape_state.json").write_text("{}\n")
+    r = subprocess.run([sys.executable, PUBLISHER, "--src", "data/kalshi/backfill", "--message", "tape", "--sparse",
+                        "--only", "trades_v2/", "--only", "tape_state.json"], cwd=repo, text=True, capture_output=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    wt = tmp_path / "_market_data_wt"
+    on_disk = {os.path.relpath(os.path.join(d, f), wt) for d, _s, fs in os.walk(wt) if ".git" not in d for f in fs}
+    assert not any("backfill/trades/" in p for p in on_disk), on_disk       # archive never materialised
+    changed = [c for c in git("diff", "--name-status", "market-data~1", "market-data", cwd=origin).stdout.split("\n") if c]
+    assert sorted(changed) == ["A\tdata/kalshi/backfill/tape_state.json",
+                               "A\tdata/kalshi/backfill/trades_v2/KXNFLGAME/T.jsonl"]
+    tree = git("ls-tree", "-r", "--name-only", "market-data", cwd=origin).stdout.split()
+    assert "data/kalshi/backfill/trades/T.jsonl" in tree                      # archive untouched
+
+
+def test_only_requires_sparse():
+    r = subprocess.run([sys.executable, PUBLISHER, "--src", "x", "--message", "m", "--only", "a"], text=True, capture_output=True)
+    assert r.returncode == 2

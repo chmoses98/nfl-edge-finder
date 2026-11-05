@@ -46,7 +46,7 @@ jobs:
           python-version: '3.11'
       - name: Restore markets + tape state from market-data
         run: |
-          git fetch --depth=1 origin market-data || true
+          git fetch --depth=1 --filter=blob:none origin market-data || true
           if git rev-parse --verify origin/market-data >/dev/null 2>&1; then
             git checkout origin/market-data -- data/kalshi/backfill/markets data/kalshi/backfill/horizons data/kalshi/backfill/tape_state.json data/kalshi/backfill/tape_meta.jsonl data/kalshi/backfill/trades_v2 2>/dev/null || true
             git reset -q
@@ -70,7 +70,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # publish ONLY what this job produced: drop the restored inputs so nothing else is overlaid on market-data
           rm -rf data/kalshi/backfill/markets data/kalshi/backfill/horizons data/kalshi/backfill/candles data/kalshi/backfill/trades data/kalshi/backfill/state.json
-          python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --message "kalshi tape repair $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --sparse --only trades_v2/ --only tape_state.json --only tape_meta.jsonl --only tape_coverage.json --only tape_coverage.md --message "kalshi tape repair $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
       - name: Chain next run if work remains
         if: steps.repair.outputs.rc == '3' && github.event.inputs.chain != '0'
         env:

@@ -75,7 +75,12 @@ def main():
     ap.add_argument("--sparse", action="store_true",
                     help="check out only --src in the publish worktree (blobless fetch): for publishers that only add "
                          "files under --src, so they never materialise the whole branch (tens of GB)")
+    ap.add_argument("--only", action="append", default=[],
+                    help="with --sparse: path (relative to --src) to check out; repeatable. Narrows the sparse checkout "
+                         "below --src when --src itself holds large archives the publisher never touches")
     a = ap.parse_args()
+    if a.only and not a.sparse:
+        ap.error("--only requires --sparse")
     repo = os.path.abspath(a.repo)
     src = os.path.join(repo, a.src)
     if not os.path.isdir(src) or not any(os.scandir(src)):
@@ -88,7 +93,9 @@ def main():
     if exists and a.sparse:
         sh(["git", "fetch", "--depth=1", "--filter=blob:none", "origin", a.branch], cwd=repo)
         sh(["git", "worktree", "add", "--no-checkout", "-f", wt, f"origin/{a.branch}"], cwd=repo)
-        sh(["git", "sparse-checkout", "set", "--no-cone", "/" + a.src.strip("/") + "/"], cwd=wt)
+        base = "/" + a.src.strip("/")
+        pats = [base + "/" + o.strip("/") + ("/" if o.endswith("/") else "") for o in a.only] or [base + "/"]
+        sh(["git", "sparse-checkout", "set", "--no-cone", *pats], cwd=wt)
         sh(["git", "checkout", "-B", a.branch, f"origin/{a.branch}"], cwd=wt)
     elif exists:
         sh(["git", "fetch", "--depth=1", "origin", a.branch], cwd=repo)
