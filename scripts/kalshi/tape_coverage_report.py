@@ -5,6 +5,7 @@ Per series: archived contracts, settled (result join), horizon rows & rows with 
 (``trades/``: exactly 10,000 lines = CAPPED), recovered tape (``trades_v2/`` + ``tape_meta.jsonl`` status), hashes of every input file."""
 from __future__ import annotations
 import argparse, collections, glob, hashlib, json, os
+from datetime import datetime, timezone
 
 HORIZONS = ["T-168h", "T-72h", "T-48h", "T-24h", "T-6h", "T-90m", "T-0"]
 CAP = 10000
@@ -48,7 +49,9 @@ def report(backfill):
             r = json.loads(l)
             hz[r["series"]][r["ticker"]] = r
     # legacy trades/ is NOT restored by the tape-repair job (tens of GB): then legacy counts are "not measured" (None), never 0
-    legacy_measured = os.path.isdir(os.path.join(backfill, "trades"))
+    mpath = os.path.join(backfill, "legacy_manifest.json")
+    lman = json.load(open(mpath))["tickers"] if os.path.exists(mpath) else None          # exact, immutable baseline (scripts/kalshi/legacy_manifest.py)
+    legacy_measured = bool(lman) or os.path.isdir(os.path.join(backfill, "trades"))
     unanchored = collections.Counter()
     sp = os.path.join(backfill, "tape_state.json")
     if os.path.exists(sp):
@@ -63,21 +66,33 @@ def report(backfill):
         rows = hz.get(s, {})
         per_h = {h: sum(two_sided((r.get("snaps") or {}).get(h)) for r in rows.values()) for h in HORIZONS}
         anchored = [r for r in rows.values() if r.get("anchor_kind") == "kickoff"]
-        legacy = sorted(glob.glob(os.path.join(backfill, "trades", s, "*.jsonl")))
-        lc = [nlines(p) for p in legacy] if legacy_measured else []
+        if lman is not None:
+            lrows = {t: e for t, e in lman.items() if e["series"] == s}
+            legacy, lc = list(lrows), [e["lines"] for e in lrows.values()]
+        else:
+            lrows = {}
+            legacy = sorted(glob.glob(os.path.join(backfill, "trades", s, "*.jsonl")))
+            lc = [nlines(p) for p in legacy] if legacy_measured else []
         v2 = [meta[t] for t in ids.get(s, ()) if t in meta]
         e = dict(**mk.get(s, {}), horizon_rows=len(rows), horizon_rows_with_any_two_sided_prestart_quote=sum(any(two_sided(x) for x in (r.get("snaps") or {}).values()) for r in rows.values()),
                  two_sided_prestart_quote_by_horizon=per_h, horizon_rows_anchored_to_kickoff=len(anchored), games_with_horizon_rows=len({r.get("game_id") for r in anchored if r.get("game_id")}),
                  candle_files=len(glob.glob(os.path.join(backfill, "candles", s, "*.json"))),
-                 legacy_tape_files=len(legacy) if legacy_measured else None, legacy_tape_capped_at_10000=sum(c >= CAP for c in lc) if legacy_measured else None,
+                 legacy_tape_files=len(legacy) if legacy_measured else None, legacy_size_band_ge_2_9MB=(sum(e["bytes"] >= 2_900_000 for e in lrows.values()) if lman is not None else None),
+                 legacy_capped_basis=("exact_lines_manifest" if lman is not None else ("exact_lines_checkout" if legacy_measured else "not_measured")), legacy_tape_capped_at_10000=sum(c >= CAP for c in lc) if legacy_measured else None,
                  legacy_tape_empty=sum(c == 0 for c in lc) if legacy_measured else None, recovered_tape_no_kickoff_anchor=unanchored.get(s, 0),
                  recovered_tape=dict(attempted=len(v2), status=dict(collections.Counter(x["status"] for x in v2)),
                                      anchor_kind=dict(collections.Counter(x.get("anchor_kind") for x in v2)),
                                      tier=dict(collections.Counter(x.get("tier") or "historical" for x in v2)),
+                                     capped_legacy_recovered=sum(1 for t, e in lrows.items() if e["capped"] and meta.get(t, {}).get("status") in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP") and meta[t].get("total_prints_on_disk")),
+                                     capped_legacy_recovered_verified=sum(1 for t, e in lrows.items() if e["capped"] and meta.get(t, {}).get("status") in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP") and meta[t].get("total_prints_on_disk") and (meta[t].get("candle_check") or {}).get("verified")),
+                                     capped_legacy_in_progress=sum(1 for t, e in lrows.items() if e["capped"] and meta.get(t, {}).get("status") in ("INCOMPLETE_RESUMABLE", "INCOMPLETE_ERROR")),
+                                     empty_both_tiers=sum(1 for x in v2 if not x.get("total_prints_on_disk") and "live" in (x.get("tiers_checked") or [])),
+                                     empty_historical_only=sum(1 for x in v2 if not x.get("total_prints_on_disk") and "live" not in (x.get("tiers_checked") or [])),
                                      with_prints=sum(bool(x.get("total_prints_on_disk")) for x in v2),
                                      candle_verified=sum(bool((x.get("candle_check") or {}).get("verified")) for x in v2),
                                      with_source_gap=sum(bool(x.get("irrecoverable_window")) for x in v2),
                                      prints=sum(x.get("total_prints_on_disk", 0) for x in v2)))
+        e["recovery_backlog_estimate"] = max(0, len(anchored) - sum(1 for t in ids.get(s, ()) if meta.get(t, {}).get("status") in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP")))
         out["series"][s] = e
     tot = collections.Counter()
     for e in out["series"].values():
@@ -85,7 +100,25 @@ def report(backfill):
             tot[k] += e.get(k) or 0
         tot["recovered_complete"] += e["recovered_tape"]["status"].get("COMPLETE", 0) + e["recovered_tape"]["status"].get("COMPLETE_WITH_SOURCE_GAP", 0)
     tot["recovered_tape_no_kickoff_anchor"] = sum(e.get("recovered_tape_no_kickoff_anchor", 0) for e in out["series"].values())
-    out["totals"] = dict(tot, legacy_measured=legacy_measured)
+    capped_total = sum(1 for e in (lman or {}).values() if e["capped"])
+    cap_rec = sum(e["recovered_tape"]["capped_legacy_recovered"] for e in out["series"].values())
+    out["totals"] = dict(tot, legacy_measured=legacy_measured, legacy_capped_exact=capped_total if lman is not None else None,
+                         legacy_capped_recovered=cap_rec if lman is not None else None,
+                         legacy_capped_recovered_verified=sum(e["recovered_tape"]["capped_legacy_recovered_verified"] for e in out["series"].values()) if lman is not None else None,
+                         legacy_capped_remaining=(capped_total - cap_rec) if lman is not None else None,
+                         recovered_nonempty=sum(e["recovered_tape"]["with_prints"] for e in out["series"].values()),
+                         recovered_candle_verified=sum(e["recovered_tape"]["candle_verified"] for e in out["series"].values()),
+                         recovered_prints=sum(e["recovered_tape"]["prints"] for e in out["series"].values()),
+                         empty_both_tiers=sum(e["recovered_tape"]["empty_both_tiers"] for e in out["series"].values()),
+                         empty_historical_only=sum(e["recovered_tape"]["empty_historical_only"] for e in out["series"].values()))
+    runs = (json.load(open(sp)).get("runs") or []) if os.path.exists(sp) else []
+    cs = collections.Counter()
+    for r in runs:
+        for k, v in (r.get("client_stats") or {}).items():
+            if isinstance(v, (int, float)) and k != "seconds_sleeping":
+                cs[k] += v
+        cs["runs"] += 1; cs["trades_written"] += r.get("trades_written", 0); cs["throttled_runs"] += r.get("stopped") == "throttled"
+    out["collection"] = dict(cs)
     return out
 
 
@@ -97,15 +130,26 @@ def md(rep):
     return "\n".join(L) + "\n"
 
 
+def history_row(rep):
+    """One compact snapshot per run (append-only): backlog and recovery per family, so progress can be tracked over time."""
+    return dict(at=datetime.now(timezone.utc).isoformat(), totals=rep["totals"], collection=rep.get("collection"),
+                families={s: dict(attempted=e["recovered_tape"]["attempted"], nonempty=e["recovered_tape"]["with_prints"], verified=e["recovered_tape"]["candle_verified"],
+                                  capped_recovered=e["recovered_tape"]["capped_legacy_recovered"], backlog=e.get("recovery_backlog_estimate"))
+                          for s, e in rep["series"].items() if e["recovered_tape"]["attempted"] or e.get("recovery_backlog_estimate")})
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--backfill", default="data/kalshi/backfill"); ap.add_argument("--out"); ap.add_argument("--md")
+    ap.add_argument("--backfill", default="data/kalshi/backfill"); ap.add_argument("--out"); ap.add_argument("--md"); ap.add_argument("--history")
     a = ap.parse_args()
     rep = report(a.backfill)
     if a.out:
         json.dump(rep, open(a.out, "w"), indent=1, sort_keys=True)
     if a.md:
         open(a.md, "w").write(md(rep))
+    if a.history:
+        with open(a.history, "a") as f:
+            f.write(json.dumps(history_row(rep), separators=(",", ":")) + "\n")
     print(json.dumps(rep["totals"]))
 
 
