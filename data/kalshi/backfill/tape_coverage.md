@@ -29,7 +29,7 @@
 | KXNFLDRAFTDB | 72 | 72 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNFL1HSPREAD | 68 | 68 | 68 | 67 | 64 | 0 | n/m | 0/0 (0) |
 | KXNFLDRAFT1ST | 64 | 64 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
-| KXNFL1HTOTAL | 63 | 63 | 63 | 63 | 63 | 0 | n/m | 0/0 (0) |
+| KXNFL1HTOTAL | 63 | 63 | 63 | 63 | 63 | 0 | n/m | 3/3 (0) |
 | KXNFLTRADE | 61 | 61 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNFLDRAFTRB | 56 | 56 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNFLDPOTY | 53 | 53 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
