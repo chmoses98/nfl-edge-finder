@@ -114,6 +114,10 @@ def main():
     for s in series:
         p = os.path.join(a.out, "markets", f"{s}.jsonl")
         mk[s] = [json.loads(l) for l in open(p)] if os.path.exists(p) else []
+    if not any(mk.values()):
+        print(json.dumps(dict(error="MARKETS_MISSING", detail=f"no settled-market files for {series} under {a.out}/markets; nothing to repair "
+                                    "(restore markets/ from market-data first)")))
+        return 2
     rec = run(KalshiClient(rps=a.rps), out=a.out, series=series, markets_by_series=mk, kickoffs=load_kickoffs(), classify=classify,
               budget=a.budget, page_budget=a.page_budget, max_tickers=a.max_tickers)
     print(json.dumps(rec, default=str))

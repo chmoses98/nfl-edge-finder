@@ -137,3 +137,19 @@ def test_sparse_only_checks_out_just_the_named_paths_below_src(tmp_path):
 def test_only_requires_sparse():
     r = subprocess.run([sys.executable, PUBLISHER, "--src", "x", "--message", "m", "--only", "a"], text=True, capture_output=True)
     assert r.returncode == 2
+
+
+def test_sparse_only_ignores_stray_files_under_src(tmp_path):
+    """Run 41978608349: tape_repair leaves data/kalshi/backfill/schedule_cache.csv; `git add -A -- <src>` then failed
+    ('paths exist outside of your sparse-checkout definition') and the publish step went red."""
+    origin, repo, _other = _setup(tmp_path)
+    out = repo / "data" / "kalshi" / "backfill"
+    out.mkdir(parents=True)
+    (out / "tape_state.json").write_text("{}\n")
+    (out / "schedule_cache.csv").write_text("stray\n")
+    r = subprocess.run([sys.executable, PUBLISHER, "--src", "data/kalshi/backfill", "--message", "tape", "--sparse",
+                        "--only", "tape_state.json", "--only", "tape_meta.jsonl"], cwd=repo, text=True, capture_output=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    tree = git("ls-tree", "-r", "--name-only", "market-data", cwd=origin).stdout.split()
+    assert "data/kalshi/backfill/tape_state.json" in tree
+    assert "data/kalshi/backfill/schedule_cache.csv" not in tree
