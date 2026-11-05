@@ -143,6 +143,31 @@ class Candles(unittest.TestCase):
             self.assertEqual((c["anchor_ts"], len(c["h60"]), len(c["m1"])), (ANCHOR, 1, 1))
 
 
+class CandleOnly(unittest.TestCase):
+    def test_complete_ticker_without_candles_gets_a_two_request_candle_job_and_no_trade_refetch(self):
+        m = mk("KXNFLTOTAL", 1, ANCHOR)
+        with tempfile.TemporaryDirectory() as d:
+            json.dump({"tickers": {m["ticker"]: {"status": "COMPLETE", "n": 7, "cursor": None, "anchor_ts": ANCHOR, "anchor_kind": "kickoff", "tier": "historical"}}, "runs": []},
+                      open(os.path.join(d, "tape_state.json"), "w"))
+            c = Fake([])
+            r = run(d, [m], c)
+            self.assertEqual((r["candle_only"], c.stats.requests, r["tickers_attempted"]), (1, 2, 0))
+            self.assertFalse([p for p in c.paths if "trades" in p])
+            self.assertTrue(os.path.exists(os.path.join(d, "candles_v2", "KXNFLTOTAL", m["ticker"] + ".json")))
+            self.assertIn(os.path.join("candles_v2", "KXNFLTOTAL", m["ticker"] + ".json"), open(os.path.join(d, "publish_manifest.txt")).read().split())
+            c2 = Fake([]); self.assertEqual(run(d, [m], c2)["candle_only"], 0)               # flagged: never repeated
+
+    def test_legacy_candles_and_empty_tapes_need_no_job(self):
+        a, b = mk("KXNFLTOTAL", 1, ANCHOR), mk("KXNFLTOTAL", 2, ANCHOR)
+        with tempfile.TemporaryDirectory() as d:
+            json.dump({"tickers": {a["ticker"]: {"status": "COMPLETE", "n": 7, "anchor_ts": ANCHOR, "anchor_kind": "kickoff", "tier": "historical"},
+                                   b["ticker"]: {"status": "COMPLETE", "n": 0, "anchor_ts": ANCHOR, "anchor_kind": "kickoff", "tier": "historical", "tiers_checked": ["historical", "live"]}}, "runs": []},
+                      open(os.path.join(d, "tape_state.json"), "w"))
+            c = Fake([])
+            self.assertEqual(run(d, [a, b], c, manifest={a["ticker"]: {"has_candles": True}})["candle_only"], 0)
+            self.assertEqual(c.stats.requests, 0)
+
+
 class Throttle(unittest.TestCase):
     def test_run_stops_when_throttled_and_saves_progress(self):
         ms = [mk("KXNFLTOTAL", i, ANCHOR + i) for i in range(5)]

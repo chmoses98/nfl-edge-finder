@@ -153,10 +153,10 @@ def fetch_candles(client, s, t, open_ts, anchor, tier):
 
 
 def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, page_budget, max_tickers=0, limit=1000, per_series=0, manifest=None, quotes=None,
-        fetch_existing=None, max_throttle=MAX_THROTTLE):
+        fetch_existing=None, max_throttle=MAX_THROTTLE, max_candle_jobs=40):
     state_path = os.path.join(out, "tape_state.json")
     state = T.load_state(state_path)
-    todo, unanchored = [], {}
+    todo, unanchored, candle_jobs = [], {}, []
     for s in series:
         for m in markets_by_series.get(s, []):
             if m.get("result") not in ("yes", "no"):
@@ -170,12 +170,28 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
             # a result recorded under a close_time anchor (earlier collector) is not trusted as pregame: redo it at the kickoff anchor
             empty_unchecked = prev.get("n") == 0 and "live" not in (prev.get("tiers_checked") or [])      # complete-and-empty seen by the historical tier only
             if prev.get("status") in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP") and prev.get("anchor_kind") != "close_time" and prev.get("anchor_ts") in (None, anchor) and not empty_unchecked:
+                if prev.get("n") and not prev.get("candles") and not (manifest or {}).get(t, {}).get("has_candles"):
+                    candle_jobs.append((s, m, anchor, kind))      # tape done, but no quotes stored for it yet: a 2-request candle-only job
                 continue
             todo.append((s, m, anchor, kind))
     todo = order_todo(todo, state, manifest, quotes, per_series)
-    run_rec = dict(started_at=datetime.now(timezone.utc).isoformat(), todo=len(todo), no_kickoff_anchor=len(unanchored), tickers_attempted=0, complete=0, incomplete=0, trades_written=0, restore_failed=0, stopped=None)
+    run_rec = dict(started_at=datetime.now(timezone.utc).isoformat(), todo=len(todo), no_kickoff_anchor=len(unanchored), tickers_attempted=0, complete=0, incomplete=0, trades_written=0, restore_failed=0, candle_only=0, stopped=None)
     touched = []
     os.makedirs(out, exist_ok=True)
+    for s, m, anchor, kind in candle_jobs[:max_candle_jobs]:
+        if client.stats.requests >= budget - 3 or getattr(client.stats, "http_429", 0) + getattr(client.stats, "http_5xx", 0) >= max_throttle:
+            break
+        t = m["ticker"]; prev = state["tickers"][t]
+        open_ts = T.to_ts(m.get("open_time") or m.get("created_time"))
+        h60, m1 = fetch_candles(client, s, t, open_ts, anchor, prev.get("tier") or "historical")
+        if h60 or m1:
+            cdir = os.path.join(out, "candles_v2", s); os.makedirs(cdir, exist_ok=True)
+            with open(os.path.join(cdir, f"{t}.json"), "w") as f:
+                json.dump(dict(ticker=t, series=s, anchor_ts=anchor, tier=prev.get("tier") or "historical", h60=h60, m1=m1), f, separators=(",", ":"))
+            touched.append(os.path.join("candles_v2", s, f"{t}.json"))
+        prev["candles"] = "v2" if (h60 or m1) else "none"
+        run_rec["candle_only"] += 1
+        T.save_state(state_path, state)
     for s, m, anchor, kind in todo:
         if client.stats.requests >= budget - 3 or (max_tickers and run_rec["tickers_attempted"] >= max_tickers):
             break
@@ -224,13 +240,16 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
                 f.write(json.dumps(x, separators=(",", ":")) + "\n")
         # candle verification needs the WHOLE tape: only when this run completed it
         ver = None
+        cflag = prev.get("candles") if prev.get("anchor_ts") == anchor else None
         if r.tape_complete:
             cpath = os.path.join(out, "candles", s, f"{t}.json")
             candles = (json.load(open(cpath)).get("h60") if os.path.exists(cpath) else None)
             if candles is None:
                 h60, m1 = fetch_candles(client, s, t, open_ts, anchor, tier)
                 candles = h60
+                cflag = "none"
                 if (h60 or m1) and not (manifest or {}).get(t, {}).get("has_candles"):
+                    cflag = "v2"
                     # no legacy candle file for this contract: keep what we fetched (quotes at any instant), so the engine can evaluate it
                     cdir = os.path.join(out, "candles_v2", s); os.makedirs(cdir, exist_ok=True)
                     with open(os.path.join(cdir, f"{t}.json"), "w") as f:
@@ -238,12 +257,14 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
                     touched.append(os.path.join("candles_v2", s, f"{t}.json"))
             alltr = [json.loads(l) for l in open(fpath)]
             ver = T.hourly_candle_vs_tape(candles or [], alltr, anchor)
+        if r.tape_complete and (manifest or {}).get(t, {}).get("has_candles"):
+            cflag = "legacy"
         row = T.final_status(r, ver)
         row.update(series=s, anchor_kind=kind, reanchored=reanchored, tier=tier, tiers_checked=checked, run_started_at=run_rec["started_at"], total_prints_on_disk=sum(1 for _ in open(fpath)))
         with open(os.path.join(out, "tape_meta.jsonl"), "a") as f:
             f.write(json.dumps(row, separators=(",", ":")) + "\n")
         state["tickers"][t] = dict(status=row["status"], cursor=r.cursor, n=row["total_prints_on_disk"], oldest_ts=r.oldest_ts or prev.get("oldest_ts"),
-                                   newest_ts=r.newest_ts or prev.get("newest_ts"), anchor_ts=anchor, anchor_kind=kind, tier=tier, tiers_checked=checked)
+                                   newest_ts=r.newest_ts or prev.get("newest_ts"), anchor_ts=anchor, anchor_kind=kind, tier=tier, tiers_checked=checked, candles=cflag)
         run_rec["tickers_attempted"] += 1; run_rec["trades_written"] += len(r.trades)
         run_rec["complete" if r.tape_complete else "incomplete"] += 1
         T.save_state(state_path, state)          # after EVERY ticker: a killed runner loses at most the current ticker
