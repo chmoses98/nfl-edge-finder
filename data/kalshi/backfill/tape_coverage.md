@@ -3,7 +3,7 @@
 | series | contracts | settled | horizon rows | with 2-sided pre-start quote | T-24h quote | candle files | legacy tape (capped) | recovered tape complete/attempted (no kickoff anchor) |
 |---|---|---|---|---|---|---|---|---|
 | KXNFLRECYDS | 10254 | 10170 | 10170 | 9800 | 7901 | 0 | n/m | 0/0 (0) |
-| KXNFLSPREAD | 7420 | 7420 | 7420 | 5312 | 4851 | 0 | n/m | 3/3 (1568) |
+| KXNFLSPREAD | 7420 | 7420 | 7420 | 5312 | 4851 | 0 | n/m | 3/3 (0) |
 | KXNFLREC | 7399 | 7358 | 7358 | 5888 | 4283 | 0 | n/m | 0/0 (0) |
 | KXNFLTOTAL | 5918 | 5918 | 5918 | 4825 | 4134 | 0 | n/m | 2/2 (0) |
 | KXNFLFIRSTTD | 5487 | 5355 | 5355 | 3241 | 1981 | 0 | n/m | 0/0 (0) |
@@ -12,7 +12,7 @@
 | KXNFLPASSYDS | 3283 | 3248 | 3248 | 3122 | 2817 | 0 | n/m | 0/0 (0) |
 | KXNFL2TD | 2163 | 2136 | 2136 | 1711 | 1308 | 0 | n/m | 0/0 (0) |
 | KXNFLPASSTDS | 812 | 812 | 812 | 779 | 730 | 0 | n/m | 0/0 (0) |
-| KXNFLTEAMTOTAL | 809 | 809 | 809 | 712 | 320 | 0 | n/m | 0/0 (0) |
+| KXNFLTEAMTOTAL | 809 | 809 | 809 | 712 | 320 | 0 | n/m | 3/3 (0) |
 | KXNFLDRAFTPICK | 784 | 784 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNFLDRAFTTEAM | 736 | 736 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNFLGAME | 666 | 658 | 658 | 654 | 654 | 0 | n/m | 7/9 (0) |
