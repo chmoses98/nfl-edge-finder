@@ -1,0 +1,144 @@
+{
+ "exposure": {
+  "n_day_flags": 2,
+  "n_game_flags": 2,
+  "n_group_flags": 2,
+  "policy": "flags only; no cap"
+ },
+ "items": [
+  {
+   "id": "1",
+   "note": "reconcile.py; missing evidence is a MISSING_* flag; combos without legs are COMBO_UNDECODED",
+   "status": "DONE",
+   "title": "Immutable per-contract reconciliation"
+  },
+  {
+   "id": "1b",
+   "note": "no real (non-test) recommendation exists on handicap-data for these fills; they are owner-selected, not model picks",
+   "status": "UNRESOLVED",
+   "title": "Recommendation / model attribution for the window"
+  },
+  {
+   "id": "1c",
+   "note": "the routed wager rows carry no exchange order or fill ids yet (router-side change); reconcile.py now accepts order_id / kalshi_order_id / fill_ids / kalshi_fill_ids the moment they appear",
+   "status": "UNRESOLVED",
+   "title": "Order id / fill ids per fill"
+  },
+  {
+   "id": "2",
+   "note": "fairvalue.py; None whenever calibration or fee is missing",
+   "status": "DONE",
+   "title": "Fee-inclusive break-even, calibrated fair probability, bet-up-to"
+  },
+  {
+   "id": "2b",
+   "note": "gates.G_PIT via integration.py; restriction-only. Game-level lines are BLOCKED QB_UNKNOWN until run_card.py --qb-confirmations supplies a confirmation with a time (a depth chart is never a confirmation)",
+   "status": "WIRED_PENDING_MERGE",
+   "title": "PIT guards (projection, injuries, confirmed QB, quote, kickoff, price provenance)"
+  },
+  {
+   "id": "2c",
+   "note": "gates.G_ORDER_CEILING; can only FAIL a too-high ceiling. Calibrated bet-up-to stays None (MISSING_CALIBRATION): no held-out cells exist for thesis-conditioned fair values",
+   "status": "WIRED_PENDING_MERGE",
+   "title": "Whole-order fee-inclusive ceiling check"
+  },
+  {
+   "id": "3",
+   "note": "card.exposure_flags and PreflightResult.exposure_flags at 1U=$75 ($375/game, $1,125/day); flags only, no cap, per NFL_OPERATING_POLICY",
+   "status": "WIRED_PENDING_MERGE",
+   "title": "Correlation groups + game/daily exposure flags (>5U, >15U)"
+  },
+  {
+   "id": "4",
+   "note": "research/postmortem_2026-11-02/distribution_eval.json",
+   "status": "DONE",
+   "title": "Key-number distributions + held-out evaluation"
+  },
+  {
+   "id": "4b",
+   "note": "no held-out gain over market-only; do not activate",
+   "status": "NOT_DEMONSTRATED",
+   "title": "Matchup evidence (EPA, pace, ST) improves on the closing market"
+  },
+  {
+   "id": "4c",
+   "note": "no point-in-time injury history before the 2026 availability_pit capture",
+   "status": "UNRESOLVED",
+   "title": "Injury / confirmed-QB history for the distribution model"
+  },
+  {
+   "id": "5",
+   "note": "loss_eval.py; closes for the window are not published, so most losses are INSUFFICIENT_EVIDENCE",
+   "status": "DONE_PARTIAL",
+   "title": "Loss classification"
+  },
+  {
+   "id": "5b",
+   "note": "run 41513363507 died in the market-data fetch step with No space left on device, skipping close/CLV; shadow-v2-settle.yml lacked the free_runner_disk.sh step its sibling workflows have. Added; unverified until the workflow is dispatched (needs owner approval)",
+   "status": "FIX_PROPOSED_NOT_DISPATCHED",
+   "title": "Closing prices for weeks 5-8"
+  },
+  {
+   "id": "7",
+   "note": "challenge.py C10 compared open exposure to a None cap (owner policy 2026-11-01); 18 of the 20 clean-main test failures",
+   "status": "FIXED",
+   "title": "RUN NFL card crashed with no per-game cap"
+  },
+  {
+   "id": "6",
+   "note": "see kalshi-bet-router / nba-edge-finder PRs",
+   "status": "OTHER_REPO",
+   "title": "NBA router PR #48"
+  }
+ ],
+ "loss_evaluation": {
+  "category_counts": {
+   "BAD_EXPRESSION": 1,
+   "INSUFFICIENT_EVIDENCE": 23
+  },
+  "close_coverage": {
+   "n_settled_single": 42,
+   "n_with_close": 0,
+   "n_without_close": 42
+  },
+  "family_claims_allowed": {
+   "GAME_WINNER": false,
+   "PLAYER_STAT": false,
+   "SPREAD": false,
+   "TEAM_TOTAL": false
+  },
+  "min_n_for_family_claim": 100,
+  "n_losses": 24
+ },
+ "reconciliation": {
+  "amended": 0,
+  "flag_counts": {
+   "AVAILABILITY_NOT_APPLICABLE_TO_COMBO": 3,
+   "COMBO_REPORTED_SEPARATELY": 2,
+   "MISSING_AVAILABILITY_EVIDENCE": 43,
+   "MISSING_CLOSE": 43,
+   "MISSING_COMBO_LEGS": 2,
+   "MISSING_KICKOFF": 43,
+   "MISSING_ORDER_FILL_DETAIL": 46,
+   "MISSING_RECOMMENDATION": 46,
+   "MISSING_SETTLEMENT": 1,
+   "SERIES_NOT_IN_TAXONOMY": 1
+  },
+  "kinds": {
+   "COMBO_UNDECODED": 2,
+   "SINGLE": 43,
+   "UNCLASSIFIED": 1
+  },
+  "n_records": 46,
+  "recommendation_states": {
+   "NO_RECOMMENDATION_ON_RECORD": 46
+  },
+  "settled": 45,
+  "version": "postmortem-reconcile-1.0.0"
+ },
+ "version": "postmortem-1.0.0",
+ "window": [
+  "2026-10-22",
+  "2026-11-01"
+ ]
+}

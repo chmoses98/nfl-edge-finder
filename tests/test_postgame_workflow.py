@@ -563,11 +563,11 @@ def test_the_upstream_workflow_exists_and_cannot_be_triggered_by_this_one():
 #            genuinely a diff question -- so that half stays a diff, scoped to research/ alone, where it
 #            cannot be tripped by unrelated code.
 SCIENTIFIC_PINS = {
-    # Sync the unchanged 2026-11-01 owner-approved risk policy with
-    # tests/test_incumbent_unchanged.py. The previous hash was stale; code is unmodified.
+    # PR #232 (2026-11-02): risk.py re-synced to the owner-reviewed 2026-11-01 pin already in tests/test_incumbent_unchanged.py (this table was
+    # left on the pre-2026-11-01 hash e7af977ea69a524b, which is why test_J / test_J3 failed on main); gates.py 2821835860e32f3e -> a0d03cb7af6bab98 (two restriction-only gates).
     # DELIBERATE, REVIEWED EDIT (owner staking policy; same reason as tests/test_incumbent_unchanged.py): fixed unit, whole-unit stakes, optional bankroll guards.
     "nfl_edge/handicap/risk.py": "54fb66955d79705b",                 # the risk policy engine
-    "nfl_edge/handicap/gates.py": "2821835860e32f3e",                # the real-money gates
+    "nfl_edge/handicap/gates.py": "a0d03cb7af6bab98",                # the real-money gates
     "nfl_edge/settlement/settle.py": "1f24b396ae07569a",             # settlement
     "nfl_edge/settlement/semantics.py": "e877fba94b93a122",          # contract value vs event probability
     # DELIBERATE, REVIEWED EDIT (2026-09-23): the closing-centre bank is bounded to games played before the

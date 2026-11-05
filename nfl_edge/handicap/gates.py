@@ -80,6 +80,8 @@ G_DEPTH = "full_position_executable"
 G_FEE_SCHEDULE = "fee_schedule_established"
 G_NET_EV = "net_executable_ev"
 G_RISK = "portfolio_risk_policy"
+G_PIT = "game_level_pit_evidence"                      # postmortem 2026-11-02: projection/injury/QB/quote point-in-time
+G_ORDER_CEILING = "order_size_fee_inclusive_ceiling"    # postmortem 2026-11-02: whole-order, fee-inclusive ceiling check
 
 
 @dataclass
@@ -320,6 +322,19 @@ def evaluate_gates(rec: dict, ctx: GateContext) -> GateReport:
 
     # ---- 8. portfolio risk -----------------------------------------------------------------------
     report.gates[G_RISK] = _risk_gate(rec, ctx, report)
+
+    # ---- 9. postmortem 2026-11-02 safeguards (RESTRICTION-ONLY; logic in nfl_edge/postmortem/integration.py) --------
+    # Applies to game-level records that carry a `pit_evidence` block. Records written before it existed are not
+    # re-judged, so replaying history cannot change a historical verdict. Player markets keep their own availability gate.
+    from nfl_edge.postmortem import integration as PM
+    if rec.get("pit_evidence") is None or rec.get("market_family") in S.PLAYER_MARKET_FAMILIES:
+        why = "player market: gated by player_availability_resolved" if rec.get("pit_evidence") is not None else \
+            "record predates the pit_evidence block; its historical verdict is not re-judged"
+        report.gates[G_PIT] = GateResult(NOT_APPLICABLE, why)
+        report.gates[G_ORDER_CEILING] = GateResult(NOT_APPLICABLE, why)
+    else:
+        report.gates[G_PIT] = GateResult(*PM.pit_gate(rec, dq=dq, dr=dr, as_of=as_of))
+        report.gates[G_ORDER_CEILING] = GateResult(*PM.ceiling_gate(rec, fee_schedule=ctx.fee_schedule, series=series, as_of=as_of))
 
     report.blocking_reasons = [f"{name}: {g.reason}" for name, g in report.gates.items()
                                if g.status in BLOCKING]

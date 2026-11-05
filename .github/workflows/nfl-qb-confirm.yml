@@ -1,0 +1,156 @@
+name: NFL QB confirm
+
+# Records ONE confirmed-starter quarterback assertion in the append-only ledger on the `qb-confirmations` branch
+# (qb_confirmations/<season>.jsonl). The NFL thesis card reads that ledger; a game-level score market is evaluated only when BOTH
+# quarterbacks of the game resolve to CONFIRMED_STARTER (docs/QB_CONFIRMATIONS.md).
+#
+# WHAT THIS IS. A human-attested intake: the owner states what a team announcement / head-coach statement / official lineup said,
+# where, and when it said it. The workflow checks the shape, the source allowlist, the clock (observed <= captured < kickoff) and
+# that the game and team exist in the published packet. It cannot verify that the source said it.
+# WHAT THIS IS NOT. It fetches nothing, reads no depth chart, roster or inactive list as a confirmation (those source types can only
+# record EXPECTED_UNCONFIRMED or OUT), places no bet, touches no secret, and never rewrites a prior line.
+#
+# Only the repository owner can start it. Inputs are passed through `env`, never interpolated into the shell.
+
+on:
+  workflow_dispatch:
+    inputs:
+      game_id:
+        description: 'packet game id, e.g. 2026_09_SF_ATL'
+        required: true
+        type: string
+      team:
+        description: 'team code of the quarterback, e.g. SF'
+        required: true
+        type: string
+      qb_player_id:
+        description: 'quarterback player id (public nflverse/gsis id)'
+        required: true
+        type: string
+      qb_name:
+        description: 'quarterback name (for the reader; optional)'
+        required: false
+        type: string
+        default: ''
+      status:
+        description: 'CONFIRMED_STARTER | EXPECTED_UNCONFIRMED | OUT | UNKNOWN'
+        required: true
+        type: choice
+        options: [CONFIRMED_STARTER, EXPECTED_UNCONFIRMED, OUT, UNKNOWN]
+      source_type:
+        description: 'CONFIRMED_STARTER needs TEAM_OFFICIAL_ANNOUNCEMENT | HEAD_COACH_STATEMENT_ON_RECORD | NFL_OFFICIAL_LINEUP_NAMING_STARTER'
+        required: true
+        type: choice
+        options:
+          - TEAM_OFFICIAL_ANNOUNCEMENT
+          - HEAD_COACH_STATEMENT_ON_RECORD
+          - NFL_OFFICIAL_LINEUP_NAMING_STARTER
+          - INJURY_REPORT
+          - INACTIVE_LIST
+          - DEPTH_CHART
+          - ACTIVE_ROSTER
+          - MODEL_EXPECTATION
+      source_ref:
+        description: 'URL or precise citation of the source'
+        required: true
+        type: string
+      observed_at:
+        description: 'when the SOURCE said it, aware ISO-8601 (e.g. 2026-11-04T18:30:00Z)'
+        required: true
+        type: string
+      supersedes:
+        description: 'comma-separated record ids this deliberately replaces (a change of mind); blank otherwise'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: nfl-qb-confirm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+jobs:
+  record:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: code
+          fetch-depth: 1
+
+      - name: Checkout the published packet (handicap-reports)
+        uses: actions/checkout@v4
+        with:
+          ref: handicap-reports
+          path: hr
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # The ledger lives on its own orphan branch so it can never collide with the router-managed handicap-data ledger or the
+      # large market-data branch. It is created on the first confirmation and only ever appended to afterwards.
+      - name: Check out the confirmation ledger (create the branch on first use)
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads "https://github.com/${REPO}.git" qb-confirmations >/dev/null 2>&1; then
+            git -C code fetch --depth=1 origin qb-confirmations
+            git -C code worktree add -f ../qb FETCH_HEAD
+          else
+            echo "::notice::no qb-confirmations branch yet; creating it with this first record"
+            git init -q -b qb-confirmations qb
+            git -C qb remote add origin "https://github.com/${REPO}.git"
+          fi
+          mkdir -p qb/qb_confirmations
+
+      - name: Append the record (validated; refuses rather than repairs)
+        env:
+          GAME_ID: ${{ inputs.game_id }}
+          TEAM: ${{ inputs.team }}
+          QB_ID: ${{ inputs.qb_player_id }}
+          QB_NAME: ${{ inputs.qb_name }}
+          STATUS: ${{ inputs.status }}
+          SOURCE_TYPE: ${{ inputs.source_type }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          OBSERVED_AT: ${{ inputs.observed_at }}
+          SUPERSEDES: ${{ inputs.supersedes }}
+          ACTOR: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          ARGS=(--ledger-dir qb/qb_confirmations --packet hr/latest/packet.json --game-id "$GAME_ID" --team "$TEAM"
+                --qb-player-id "$QB_ID" --status "$STATUS" --source-type "$SOURCE_TYPE" --source-ref "$SOURCE_REF"
+                --observed-at "$OBSERVED_AT" --captured-by "${ACTOR}@run-${RUN_ID}" --supersedes "$SUPERSEDES")
+          [ -n "$QB_NAME" ] && ARGS+=(--qb-name "$QB_NAME")
+          python3 code/scripts/handicap/qb_confirm_append.py "${ARGS[@]}" | tee "$RUNNER_TEMP/append.txt"
+
+      - name: Commit and push (append-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd qb
+          git add qb_confirmations
+          if git diff --cached --quiet; then
+            echo "nothing to commit (duplicate assertion)"
+            exit 0
+          fi
+          git commit -q -m "qb confirmation: $(head -1 "$RUNNER_TEMP/append.txt")"
+          B64=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$B64"
+          # An empty extraheader first resets any header actions/checkout persisted (the worktree case), then ours is the only one.
+          git -c http.https://github.com/.extraheader= -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $B64" \
+            push -q origin HEAD:qb-confirmations

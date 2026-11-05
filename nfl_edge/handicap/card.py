@@ -30,8 +30,9 @@ from nfl_edge.handicap import schedule_kickoffs as SK
 from nfl_edge.handicap import schema as S
 from nfl_edge.handicap import staking as ST
 from nfl_edge.handicap import submission as SB
+from nfl_edge.postmortem import integration as PM
 
-CARD_VERSION = "card-2.0.0"
+CARD_VERSION = "card-2.1.0"   # 2.1.0: pit_evidence on every record, order-size ceiling + PIT gates, $75-unit exposure flags (PR #232)
 LIVE, REHEARSAL = "LIVE", "REHEARSAL"
 UNIT = ST.UNIT_DOLLARS
 MAX_CAPTURE_AGE_MIN = 15.0
@@ -170,6 +171,9 @@ def candidate_record(*, run: dict, game: dict, row: dict, ev: dict, thesis: dict
                              "context_capture": game["data_freshness"].get("context_capture")},
         "correlation_group": f"{game['game_id']}::{(thesis.get('drivers') or [thesis['thesis_id']])[0]}",
         "correlation_direction": "same", "correlation_strength": "strong (qualitative)", "test_only": mode == REHEARSAL,
+        # Point-in-time facts the record rests on, read by gates.G_PIT / G_ORDER_CEILING. Missing stays None (never inferred);
+        # a quarterback is confirmed only by a supplied run["qb_confirmations"] entry.
+        "pit_evidence": PM.build_pit_evidence(run=run, game=game, ev=ev),
     }
     if ev["family"] == "PLAYER_STAT":
         # A player prop settles on the player taking the field: the record carries the availability the packet holds for THIS contract and when that was captured.
@@ -435,6 +439,12 @@ def run_card(*, run: dict, theses: list, schedule_text: str, root: str, as_of: d
             x["state_reason"] = ("no analyst thesis was filed for this game; triage rank " + str(x.get("triage_rank")) +
                                  ". Absence of a thesis is a PASS, not an omission: " + ("; ".join(x["triage"]["reasons"]) or "no standout factor"))
     out = _assemble(run, mode, as_of, gate, games_out, card_lines, thesis_reports, accepted, dossiers, owner, policy, report, bank_meta, None, pre)
+    # Exposure FLAGS at the fixed $75 unit (>5U = $375 per game, >15U = $1,125 per day). Flags only; nothing is capped or resized.
+    out["exposure_flags"] = PM.exposure_flags(
+        [{"ticker": l["ticker"], "side": l["side"], "stake": l["stake_dollars"], "game_id": l["game_id"], "game_date": str(l["kickoff_utc"])[:10]}
+         for l in card_lines if l["status"] != "BLOCKED"],
+        open_units_by_game={k: v / UNIT for k, v in (owner.get("by_game") or {}).items()} if owner.get("state") == "OK" else {},
+        game_dates={g["game_id"]: str(g["kickoff_utc"])[:10] for g in pk["games"]})
     out["review_coverage"] = _review_coverage(games_out, submission, sub_errors, sub_warnings)
     out["bankroll"] = None if bankroll is None else BK.public_view(bankroll, [l["stake_dollars"] for l in card_lines] or None)
     out["_bankroll_private"] = bankroll
@@ -678,6 +688,7 @@ def _preflight(lines, run, as_of, mode, root, market_data_root, handicap_root, p
     for r in res:
         out[r.candidate_id] = {"verdict": r.verdict, "approved_stake": r.approved_stake, "blocking_reasons": r.blocking_reasons, "warnings": r.warnings,
                                "may_be_shown_as_a_bet": r.may_be_shown_as_a_bet, "depth": r.depth, "net_ev": r.net_ev, "decision_at": decision_at.isoformat(),
+                               "gates": {k: {"status": g.get("status"), "reason": g.get("reason")} for k, g in (r.gates or {}).items()},
                                "evidence": "LIVE_TICKER_FETCH" if live_client is not None else "CAPTURE_STREAM"}
     for c, l in zip(cands, lines):
         doc = next((d for d in docs if d.get("market_ticker") == c["market_ticker"]), None)
@@ -751,6 +762,12 @@ def redact_public(card: dict) -> dict:
                                   "note": "positions and amounts withheld: owner fills are not republished by the card"}
     if out.get("portfolio"):
         out["portfolio"] = dict(out["portfolio"], outstanding="withheld (owner positions are not republished)")
+    xf = out.get("exposure_flags")
+    if xf:   # open owner exposure feeds the per-game/per-day totals, so amounts are withheld; the flags themselves are kept
+        out["exposure_flags"] = {"unit_dollars": xf.get("unit_dollars"), "game_flag_dollars": xf.get("game_flag_dollars"), "daily_flag_dollars": xf.get("daily_flag_dollars"),
+                                 "policy_note": xf.get("policy_note"),
+                                 "flags": [{"kind": f["kind"], "game": f.get("game"), "day": f.get("day"), "axis": f.get("axis")} for f in xf.get("flags", [])],
+                                 "note": "units and dollars withheld: they include the owner's open positions"}
     import copy
     out["theses"] = copy.deepcopy(out.get("theses") or [])
     for t in out["theses"]:
@@ -801,6 +818,14 @@ def render_markdown(card: dict) -> str:
         L.append("")
         for l in actionable:
             L.append(f"* `{l['ticker']}` settles: {l['settles']}")
+        L.append("")
+    xf = card.get("exposure_flags") or {}
+    if xf.get("flags"):
+        L += ["## Exposure flags (review only — nothing is capped)", ""]
+        for f in xf["flags"]:
+            where = f.get("game") or f.get("day")
+            amt = f" {f['units']}U (${f['dollars']})" if f.get("dollars") is not None else (f" {f['units']}U" if f.get("units") is not None else "")
+            L.append(f"* {f['kind']} {where or ''}{(' ' + f['axis']) if f.get('axis') else ''}:{amt} vs limit {f.get('limit_units', '')}U")
         L.append("")
     if blocked:
         L += ["## Candidates BLOCKED by preflight — do NOT bet", ""]
