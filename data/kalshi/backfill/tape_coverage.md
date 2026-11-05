@@ -3,7 +3,7 @@
 | series | contracts | settled | horizon rows | with 2-sided pre-start quote | T-24h quote | candle files | legacy tape (capped) | recovered tape complete/attempted (no kickoff anchor) |
 |---|---|---|---|---|---|---|---|---|
 | KXNFLRECYDS | 10254 | 10170 | 10170 | 9800 | 7901 | 0 | n/m | 0/0 (0) |
-| KXNFLSPREAD | 7420 | 7420 | 7420 | 5312 | 4851 | 0 | n/m | 0/0 (0) |
+| KXNFLSPREAD | 7420 | 7420 | 7420 | 5312 | 4851 | 0 | n/m | 2/2 (1568) |
 | KXNFLREC | 7399 | 7358 | 7358 | 5888 | 4283 | 0 | n/m | 0/0 (0) |
 | KXNFLTOTAL | 5918 | 5918 | 5918 | 4825 | 4134 | 0 | n/m | 0/0 (0) |
 | KXNFLFIRSTTD | 5487 | 5355 | 5355 | 3241 | 1981 | 0 | n/m | 0/0 (0) |
@@ -15,7 +15,7 @@
 | KXNFLTEAMTOTAL | 809 | 809 | 809 | 712 | 320 | 0 | n/m | 0/0 (0) |
 | KXNFLDRAFTPICK | 784 | 784 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNFLDRAFTTEAM | 736 | 736 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
-| KXNFLGAME | 666 | 658 | 658 | 654 | 654 | 0 | n/m | 7/9 (92) |
+| KXNFLGAME | 666 | 658 | 658 | 654 | 654 | 0 | n/m | 7/9 (0) |
 | KXNEXTTEAMNFL | 417 | 417 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNFLTEAM1POS | 288 | 288 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNEXTNFLCOACH | 234 | 234 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
