@@ -47,6 +47,13 @@ def report(backfill):
         for l in open(p):
             r = json.loads(l)
             hz[r["series"]][r["ticker"]] = r
+    # legacy trades/ is NOT restored by the tape-repair job (tens of GB): then legacy counts are "not measured" (None), never 0
+    legacy_measured = os.path.isdir(os.path.join(backfill, "trades"))
+    unanchored = collections.Counter()
+    sp = os.path.join(backfill, "tape_state.json")
+    if os.path.exists(sp):
+        for t in (json.load(open(sp)).get("unanchored") or {}):
+            unanchored[t.split("-")[0]] += 1
     meta = {}
     mp = os.path.join(backfill, "tape_meta.jsonl")
     if os.path.exists(mp):
@@ -57,12 +64,13 @@ def report(backfill):
         per_h = {h: sum(two_sided((r.get("snaps") or {}).get(h)) for r in rows.values()) for h in HORIZONS}
         anchored = [r for r in rows.values() if r.get("anchor_kind") == "kickoff"]
         legacy = sorted(glob.glob(os.path.join(backfill, "trades", s, "*.jsonl")))
-        lc = [nlines(p) for p in legacy]
+        lc = [nlines(p) for p in legacy] if legacy_measured else []
         v2 = [meta[t] for t in ids.get(s, ()) if t in meta]
         e = dict(**mk.get(s, {}), horizon_rows=len(rows), horizon_rows_with_any_two_sided_prestart_quote=sum(any(two_sided(x) for x in (r.get("snaps") or {}).values()) for r in rows.values()),
                  two_sided_prestart_quote_by_horizon=per_h, horizon_rows_anchored_to_kickoff=len(anchored), games_with_horizon_rows=len({r.get("game_id") for r in anchored if r.get("game_id")}),
                  candle_files=len(glob.glob(os.path.join(backfill, "candles", s, "*.json"))),
-                 legacy_tape_files=len(legacy), legacy_tape_capped_at_10000=sum(c >= CAP for c in lc), legacy_tape_empty=sum(c == 0 for c in lc),
+                 legacy_tape_files=len(legacy) if legacy_measured else None, legacy_tape_capped_at_10000=sum(c >= CAP for c in lc) if legacy_measured else None,
+                 legacy_tape_empty=sum(c == 0 for c in lc) if legacy_measured else None, recovered_tape_no_kickoff_anchor=unanchored.get(s, 0),
                  recovered_tape=dict(attempted=len(v2), status=dict(collections.Counter(x["status"] for x in v2)),
                                      anchor_kind=dict(collections.Counter(x.get("anchor_kind") for x in v2)),
                                      candle_verified=sum(bool((x.get("candle_check") or {}).get("verified")) for x in v2),
@@ -72,17 +80,18 @@ def report(backfill):
     tot = collections.Counter()
     for e in out["series"].values():
         for k in ("unique_contracts", "settled", "horizon_rows", "horizon_rows_with_any_two_sided_prestart_quote", "candle_files", "legacy_tape_files", "legacy_tape_capped_at_10000"):
-            tot[k] += e.get(k, 0)
+            tot[k] += e.get(k) or 0
         tot["recovered_complete"] += e["recovered_tape"]["status"].get("COMPLETE", 0) + e["recovered_tape"]["status"].get("COMPLETE_WITH_SOURCE_GAP", 0)
-    out["totals"] = dict(tot)
+    tot["recovered_tape_no_kickoff_anchor"] = sum(e.get("recovered_tape_no_kickoff_anchor", 0) for e in out["series"].values())
+    out["totals"] = dict(tot, legacy_measured=legacy_measured)
     return out
 
 
 def md(rep):
-    L = ["# NFL backfill coverage (unique contracts; not snapshots, not games)", "", "| series | contracts | settled | horizon rows | with 2-sided pre-start quote | T-24h quote | candle files | legacy tape (capped) | recovered tape complete/attempted |", "|---|---|---|---|---|---|---|---|---|"]
+    L = ["# NFL backfill coverage (unique contracts; not snapshots, not games)", "", "| series | contracts | settled | horizon rows | with 2-sided pre-start quote | T-24h quote | candle files | legacy tape (capped) | recovered tape complete/attempted (no kickoff anchor) |", "|---|---|---|---|---|---|---|---|---|"]
     for s, e in sorted(rep["series"].items(), key=lambda kv: -kv[1].get("settled", 0))[:40]:
         rt = e["recovered_tape"]; c = rt["status"].get("COMPLETE", 0) + rt["status"].get("COMPLETE_WITH_SOURCE_GAP", 0)
-        L.append(f"| {s} | {e.get('unique_contracts', 0)} | {e.get('settled', 0)} | {e['horizon_rows']} | {e['horizon_rows_with_any_two_sided_prestart_quote']} | {e['two_sided_prestart_quote_by_horizon']['T-24h']} | {e['candle_files']} | {e['legacy_tape_files']} ({e['legacy_tape_capped_at_10000']}) | {c}/{rt['attempted']} |")
+        L.append(f"| {s} | {e.get('unique_contracts', 0)} | {e.get('settled', 0)} | {e['horizon_rows']} | {e['horizon_rows_with_any_two_sided_prestart_quote']} | {e['two_sided_prestart_quote_by_horizon']['T-24h']} | {e['candle_files']} | {'n/m' if e['legacy_tape_files'] is None else str(e['legacy_tape_files']) + ' (' + str(e['legacy_tape_capped_at_10000']) + ')'} | {c}/{rt['attempted']} ({e.get('recovered_tape_no_kickoff_anchor', 0)}) |")
     return "\n".join(L) + "\n"
 
 

@@ -81,7 +81,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # publish ONLY what this job produced: drop the restored inputs so nothing else is overlaid on market-data
           rm -rf data/kalshi/backfill/markets data/kalshi/backfill/horizons data/kalshi/backfill/candles data/kalshi/backfill/trades data/kalshi/backfill/state.json
-          python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --sparse --only trades_v2/ --only tape_state.json --only tape_meta.jsonl --only tape_coverage.json --only tape_coverage.md --message "kalshi tape repair $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --sparse --only trades_v2/ --only trades_v2_quarantine/ --only tape_state.json --only tape_meta.jsonl --only tape_coverage.json --only tape_coverage.md --message "kalshi tape repair $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
       - name: Fail the job if the repair step errored
         if: always() && steps.repair.outputs.rc != '0' && steps.repair.outputs.rc != '3'
         run: |
