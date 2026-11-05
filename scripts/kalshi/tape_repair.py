@@ -8,6 +8,7 @@ cursor is exhausted, and writes ADDITIVE files only (the published ``trades/`` f
   data/kalshi/backfill/trades_v2/<SERIES>/<TICKER>.jsonl    de-duplicated pre-start prints, append-only
   data/kalshi/backfill/tape_meta.jsonl                      one audit row per attempt (status, pages, cursor, oldest/newest, candle check, source gap)
   data/kalshi/backfill/tape_state.json                      resume cursors (a failed page is retried, never skipped)
+Tiers: historical/trades first; an empty first page falls back to the live markets/trades (recorded as ``tier`` / ``tiers_checked``).
 Bounded: ``--budget`` HTTP requests per run, ``--page-budget`` pages per ticker per run; exit 3 when work remains (workflow may chain).
 Read-only: public GET endpoints only; no order surface.
 """
@@ -20,6 +21,7 @@ sys.path.insert(0, ROOT)
 from nfl_edge.kalshi import tape as T                      # noqa: E402
 
 OUT = os.path.join(ROOT, "data", "kalshi", "backfill")
+HIST, LIVE = "historical/trades", "markets/trades"        # Kalshi serves archived markets from historical/*, recent ones only from the live tier
 PRIORITY = ["KXNFLGAME", "KXNFLSPREAD", "KXNFLTOTAL", "KXNFLTEAMTOTAL", "KXNFL1HSPREAD", "KXNFL1HTOTAL", "KXNFL1HWINNER", "KXNFLPASSYDS", "KXNFLRECYDS", "KXNFLRSHYDS", "KXNFLTD"]
 
 
@@ -88,7 +90,8 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
                 continue
             prev = state["tickers"].get(t, {})
             # a result recorded under a close_time anchor (earlier collector) is not trusted as pregame: redo it at the kickoff anchor
-            if prev.get("status") in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP") and prev.get("anchor_kind") != "close_time" and prev.get("anchor_ts") in (None, anchor):
+            empty_unchecked = prev.get("n") == 0 and "live" not in (prev.get("tiers_checked") or [])      # complete-and-empty seen by the historical tier only
+            if prev.get("status") in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP") and prev.get("anchor_kind") != "close_time" and prev.get("anchor_ts") in (None, anchor) and not empty_unchecked:
                 continue
             todo.append((s, m, anchor, kind))
     todo.sort(key=lambda x: (PRIORITY.index(x[0]) if x[0] in PRIORITY else 99, -(T.to_ts(x[1].get("close_time")) or 0)))
@@ -114,8 +117,17 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
             reanchored = dict(old_anchor_ts=prev["anchor_ts"], old_anchor_kind=prev.get("anchor_kind"), quarantined_prints=prev.get("n"), quarantine_path=os.path.relpath(qp, out))
             os.replace(fpath, qp)
             prev = {}
-        r = T.fetch_tape(client, t, anchor_ts=anchor, market_open_ts=open_ts, resume_cursor=(prev.get("cursor") if prev.get("anchor_ts") == anchor else None), page_budget=page_budget,
-                         limit=limit, known_ids=existing_ids(fpath))
+        tier = prev.get("tier") if prev.get("anchor_ts") == anchor and prev.get("tier") in ("historical", "live") else "historical"
+        checked = [tier]
+        kw = dict(anchor_ts=anchor, market_open_ts=open_ts, page_budget=page_budget, limit=limit, known_ids=existing_ids(fpath))
+        r = T.fetch_tape(client, t, path=LIVE if tier == "live" else HIST, resume_cursor=(prev.get("cursor") if prev.get("anchor_ts") == anchor else None), **kw)
+        if tier == "historical" and r.stop_reason == T.EMPTY_PAGE and r.pages == 1 and not prev.get("cursor"):
+            # empty first page: the market may still live only in the LIVE tier (historical/* 404s or is empty for it). Ask the live endpoint before
+            # recording a tape as complete-and-empty.  Adopt the live result only if it holds prints or errored (an error must be retried, not hidden).
+            checked.append("live")
+            r2 = T.fetch_tape(client, t, path=LIVE, resume_cursor=None, **kw)
+            if r2.n or r2.stop_reason == T.ERROR or r2.cursor:
+                r, tier = r2, "live"
         with open(fpath, "a") as f:
             for x in r.trades:
                 f.write(json.dumps(x, separators=(",", ":")) + "\n")
@@ -125,16 +137,20 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
             cpath = os.path.join(out, "candles", s, f"{t}.json")
             candles = (json.load(open(cpath)).get("h60") if os.path.exists(cpath) else None)
             if candles is None:
-                body, _ = client.try_get(f"historical/markets/{t}/candlesticks", {"start_ts": open_ts, "end_ts": anchor, "period_interval": 60})
-                candles = (body or {}).get("candlesticks")
+                routes = [f"historical/markets/{t}/candlesticks", f"series/{s}/markets/{t}/candlesticks"]      # historical/* 404s for live-tier markets
+                for route in (routes if tier == "historical" else routes[::-1]):
+                    body, _ = client.try_get(route, {"start_ts": open_ts, "end_ts": anchor, "period_interval": 60})
+                    candles = (body or {}).get("candlesticks")
+                    if candles is not None:
+                        break
             alltr = [json.loads(l) for l in open(fpath)]
             ver = T.hourly_candle_vs_tape(candles or [], alltr, anchor)
         row = T.final_status(r, ver)
-        row.update(series=s, anchor_kind=kind, reanchored=reanchored, run_started_at=run_rec["started_at"], total_prints_on_disk=sum(1 for _ in open(fpath)))
+        row.update(series=s, anchor_kind=kind, reanchored=reanchored, tier=tier, tiers_checked=checked, run_started_at=run_rec["started_at"], total_prints_on_disk=sum(1 for _ in open(fpath)))
         with open(os.path.join(out, "tape_meta.jsonl"), "a") as f:
             f.write(json.dumps(row, separators=(",", ":")) + "\n")
         state["tickers"][t] = dict(status=row["status"], cursor=r.cursor, n=row["total_prints_on_disk"], oldest_ts=r.oldest_ts or prev.get("oldest_ts"),
-                                   newest_ts=r.newest_ts or prev.get("newest_ts"), anchor_ts=anchor, anchor_kind=kind)
+                                   newest_ts=r.newest_ts or prev.get("newest_ts"), anchor_ts=anchor, anchor_kind=kind, tier=tier, tiers_checked=checked)
         run_rec["tickers_attempted"] += 1; run_rec["trades_written"] += len(r.trades)
         run_rec["complete" if r.tape_complete else "incomplete"] += 1
         T.save_state(state_path, state)          # after EVERY ticker: a killed runner loses at most the current ticker
