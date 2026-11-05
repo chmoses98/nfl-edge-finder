@@ -92,8 +92,11 @@ def fast_implied_lines(rows: list[dict], home: str, away: str) -> tuple[float | 
                 sp.append((fs, mid))
             elif r.get("team") == away:
                 sp.append((-fs, 1 - mid))
-        elif r.get("family") == "TOTAL" and r.get("threshold") is not None:
-            tp.append((float(r["threshold"]), mid))
+        elif r.get("family") == "TOTAL" and (r.get("floor_strike") is not None or r.get("threshold") is not None):
+            # rung N settles total >= N  <=>  total > N-0.5.  Read it on the floor_strike axis (as the spread does):
+            # the raw integer threshold biased the centre +0.5 points (every total / team-total ladder shifted).
+            fs = r.get("floor_strike")
+            tp.append((float(fs) if fs is not None else float(r["threshold"]) - 0.5, mid))
     s = crossing(sp); t = crossing(tp)
     return s, t, {"n_spread_rungs": len(sp), "n_total_rungs": len(tp)}
 
