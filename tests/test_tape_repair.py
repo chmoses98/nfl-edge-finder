@@ -236,3 +236,62 @@ class KickoffAnchoring(unittest.TestCase):
             self.assertEqual(open(q).read().count("\n"), 5)                                    # old tape kept verbatim for audit
             row = [json.loads(x) for x in open(os.path.join(d, "tape_meta.jsonl"))][-1]
             self.assertEqual((row["anchor_kind"], row["reanchored"]["old_anchor_kind"], row["reanchored"]["quarantined_prints"]), ("kickoff_ticker_parse", "close_time", 5))
+
+
+class TierFallback(unittest.TestCase):
+    """Run 42018593777: Super Bowl / LA-SEA markets returned an empty historical/trades page (and 404 historical candlesticks) and were recorded COMPLETE
+    with 0 prints. Recent markets only exist in the live tier (markets/trades)."""
+    KO = {("2026-02-08", "SEA", "NE"): (ANCHOR, "g", "2025", "22")}
+
+    class TwoTier:
+        def __init__(self, live_trades, hist_trades=()):
+            self.hist, self.live = FakeClient(list(hist_trades)), FakeClient(live_trades)
+            self.paths = []
+            class S:  # noqa
+                requests = 0
+                def to_dict(s): return {"requests": s.requests}
+            self.stats = S()
+
+        def try_get(self, path, params):
+            self.paths.append(path); self.stats.requests += 1
+            if path == "historical/trades":
+                return self.hist.try_get(path, params)
+            if path == "markets/trades":
+                return self.live.try_get(path, params)
+            if path.startswith("historical/markets/"):
+                return None, "404"
+            return {"candlesticks": []}, None
+
+    def _run(self, d, client, **extra):
+        class Sem:  # noqa
+            game_date = None; away_team = None; home_team = None
+        m = {"ticker": "KXNFLSPREAD-26FEB08SEANE-SEA3", "result": "yes", "open_time": T_iso(ANCHOR - 9999), "close_time": T_iso(ANCHOR + 1000)}
+        return TR.run(client, out=d, series=["KXNFLSPREAD"], markets_by_series={"KXNFLSPREAD": [m]}, kickoffs=self.KO, classify=lambda x: Sem(), budget=1000, page_budget=extra.get("page_budget", 5)), m
+
+    def test_empty_historical_falls_back_to_live_and_records_the_tier(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = self.TwoTier([mk_trade(i, ANCHOR - 10 - i) for i in range(1500)])
+            r, m = self._run(d, c, page_budget=1)
+            self.assertEqual(r["trades_written"], 1000)
+            st = json.load(open(os.path.join(d, "tape_state.json")))["tickers"][m["ticker"]]
+            self.assertEqual((st["tier"], st["status"], st["tiers_checked"]), ("live", "INCOMPLETE_RESUMABLE", ["historical", "live"]))
+            c.paths.clear(); r2, _ = self._run(d, c, page_budget=5)                   # resume goes straight to the live tier, never back to historical
+            self.assertNotIn("historical/trades", c.paths); self.assertEqual(r2["complete"], 1)
+            self.assertEqual(sum(1 for _ in open(os.path.join(d, "trades_v2", "KXNFLSPREAD", m["ticker"] + ".jsonl"))), 1500)
+
+    def test_empty_in_both_tiers_is_complete_and_says_both_were_checked(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = self.TwoTier([])
+            r, m = self._run(d, c)
+            row = [json.loads(x) for x in open(os.path.join(d, "tape_meta.jsonl"))][-1]
+            self.assertEqual((row["status"], row["n"], row["tier"], row["tiers_checked"]), ("COMPLETE", 0, "historical", ["historical", "live"]))
+            self.assertIn("series/KXNFLSPREAD/markets/" + m["ticker"] + "/candlesticks", c.paths)       # live candle route tried after the historical 404
+            self.assertEqual(self._run(d, c)[0]["tickers_attempted"], 0)             # not retried once both tiers were checked
+
+    def test_old_empty_result_from_the_historical_tier_only_is_rechecked(self):
+        with tempfile.TemporaryDirectory() as d:
+            m = "KXNFLSPREAD-26FEB08SEANE-SEA3"
+            json.dump({"tickers": {m: {"status": "COMPLETE", "cursor": None, "n": 0, "anchor_ts": ANCHOR, "anchor_kind": "kickoff_ticker_parse"}}, "runs": []}, open(os.path.join(d, "tape_state.json"), "w"))
+            c = self.TwoTier([mk_trade(1, ANCHOR - 5)])
+            r, _ = self._run(d, c)
+            self.assertEqual((r["tickers_attempted"], r["trades_written"]), (1, 1))

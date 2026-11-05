@@ -73,6 +73,8 @@ def report(backfill):
                  legacy_tape_empty=sum(c == 0 for c in lc) if legacy_measured else None, recovered_tape_no_kickoff_anchor=unanchored.get(s, 0),
                  recovered_tape=dict(attempted=len(v2), status=dict(collections.Counter(x["status"] for x in v2)),
                                      anchor_kind=dict(collections.Counter(x.get("anchor_kind") for x in v2)),
+                                     tier=dict(collections.Counter(x.get("tier") or "historical" for x in v2)),
+                                     with_prints=sum(bool(x.get("total_prints_on_disk")) for x in v2),
                                      candle_verified=sum(bool((x.get("candle_check") or {}).get("verified")) for x in v2),
                                      with_source_gap=sum(bool(x.get("irrecoverable_window")) for x in v2),
                                      prints=sum(x.get("total_prints_on_disk", 0) for x in v2)))
