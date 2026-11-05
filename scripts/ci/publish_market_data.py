@@ -120,7 +120,12 @@ def main():
                 if fn.endswith(".part"):
                     continue
                 shutil.copy2(os.path.join(root, fn), os.path.join(dest, rel, fn))
-        sh(["git", "add", "-A", "--", a.src], cwd=wt)
+        # with --only, stage just those paths: strays under --src (e.g. a schedule cache) are outside the sparse
+        # definition, and `git add -A -- <src>` refuses them
+        stage = [os.path.join(a.src, o.strip("/")) for o in a.only if os.path.exists(os.path.join(wt, a.src, o.strip("/")))] or [a.src]
+        if a.only and stage == [a.src]:
+            print("nothing to publish (none of the --only paths exist)"); return 0
+        sh(["git", "add", "-A", "--", *stage], cwd=wt)
         staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=wt).returncode != 0
         if staged:
             sh(["git", "commit", "-q", "-m", a.message], cwd=wt)

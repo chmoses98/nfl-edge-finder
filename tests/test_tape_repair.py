@@ -156,3 +156,13 @@ class CaptureGaps(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_main_exits_2_when_no_markets_were_restored(tmp_path, monkeypatch, capsys):
+    """Run 41978608349 restored nothing, saw todo=0 and exited 0: a green no-op. Zero markets must be an error."""
+    import importlib.util, sys as _sys
+    spec = importlib.util.spec_from_file_location("tape_repair_main", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "kalshi", "tape_repair.py"))
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    monkeypatch.setattr(_sys, "argv", ["tape_repair.py", "--series", "KXNFLGAME", "--out", str(tmp_path)])
+    assert mod.main() == 2
+    assert "MARKETS_MISSING" in capsys.readouterr().out

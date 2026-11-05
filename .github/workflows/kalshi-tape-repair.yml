@@ -46,19 +46,30 @@ jobs:
           python-version: '3.11'
       - name: Restore markets + tape state from market-data
         run: |
-          git fetch --depth=1 --filter=blob:none origin market-data || true
-          if git rev-parse --verify origin/market-data >/dev/null 2>&1; then
-            git checkout origin/market-data -- data/kalshi/backfill/markets data/kalshi/backfill/horizons data/kalshi/backfill/tape_state.json data/kalshi/backfill/tape_meta.jsonl data/kalshi/backfill/trades_v2 2>/dev/null || true
-            git reset -q
-          fi
-          ls data/kalshi/backfill 2>/dev/null || echo "no prior state"
+          set -e
+          git fetch --depth=1 --filter=blob:none origin +market-data:refs/remotes/origin/market-data
+          # one path at a time, only if it exists on the branch: a single missing pathspec (tape_state.json on a first
+          # run) makes `git checkout -- a b c` restore NOTHING, which silently turned the first pilot into a no-op.
+          for p in markets horizons tape_state.json tape_meta.jsonl trades_v2; do
+            if git cat-file -e "origin/market-data:data/kalshi/backfill/$p" 2>/dev/null; then
+              git checkout origin/market-data -- "data/kalshi/backfill/$p"
+              echo "restored $p"
+            else
+              echo "not on market-data yet: $p"
+            fi
+          done
+          git reset -q
+          test -d data/kalshi/backfill/markets || { echo "::error::markets/ was not restored from market-data"; exit 1; }
+          ls data/kalshi/backfill
       - name: Repair tape
         id: repair
         continue-on-error: true
         run: |
           set +e
           python3 scripts/kalshi/tape_repair.py --series "${{ github.event.inputs.series }}" --budget "${{ github.event.inputs.budget }}" --page-budget "${{ github.event.inputs.page_budget }}" --max-tickers "${{ github.event.inputs.max_tickers }}"
-          echo "rc=$?" >> $GITHUB_OUTPUT
+          rc=$?
+          echo "tape_repair.py exit code: $rc (0=done, 3=work remains, other=ERROR)"
+          echo "rc=$rc" >> $GITHUB_OUTPUT
       - name: Coverage report
         if: always()
         run: |
@@ -71,6 +82,11 @@ jobs:
           # publish ONLY what this job produced: drop the restored inputs so nothing else is overlaid on market-data
           rm -rf data/kalshi/backfill/markets data/kalshi/backfill/horizons data/kalshi/backfill/candles data/kalshi/backfill/trades data/kalshi/backfill/state.json
           python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --sparse --only trades_v2/ --only tape_state.json --only tape_meta.jsonl --only tape_coverage.json --only tape_coverage.md --message "kalshi tape repair $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: Fail the job if the repair step errored
+        if: always() && steps.repair.outputs.rc != '0' && steps.repair.outputs.rc != '3'
+        run: |
+          echo "::error::tape_repair.py exit code was '${{ steps.repair.outputs.rc }}' (not 0/3): the repair did not run correctly"
+          exit 1
       - name: Chain next run if work remains
         if: steps.repair.outputs.rc == '3' && github.event.inputs.chain != '0'
         env:
