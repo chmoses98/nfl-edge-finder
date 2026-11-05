@@ -15,7 +15,7 @@
 | KXNFLTEAMTOTAL | 809 | 809 | 809 | 712 | 320 | 0 | n/m | 0/0 (0) |
 | KXNFLDRAFTPICK | 784 | 784 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNFLDRAFTTEAM | 736 | 736 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
-| KXNFLGAME | 666 | 658 | 658 | 654 | 654 | 0 | n/m | 6/7 (92) |
+| KXNFLGAME | 666 | 658 | 658 | 654 | 654 | 0 | n/m | 7/9 (92) |
 | KXNEXTTEAMNFL | 417 | 417 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNFLTEAM1POS | 288 | 288 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
 | KXNEXTNFLCOACH | 234 | 234 | 0 | 0 | 0 | 0 | n/m | 0/0 (0) |
