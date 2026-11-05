@@ -295,3 +295,26 @@ class TierFallback(unittest.TestCase):
             c = self.TwoTier([mk_trade(1, ANCHOR - 5)])
             r, _ = self._run(d, c)
             self.assertEqual((r["tickers_attempted"], r["trades_written"]), (1, 1))
+
+
+class UnanchoredMerge(unittest.TestCase):
+    def test_a_run_for_one_series_keeps_the_unanchored_entries_of_the_others(self):
+        class Sem:  # noqa
+            game_date = None; away_team = None; home_team = None
+        with tempfile.TemporaryDirectory() as d:
+            json.dump({"tickers": {}, "runs": [], "unanchored": {"KXNFLSPREAD-25AUG23LVARI-LV49": "no_kickoff_anchor", "KXNFLTOTAL-25AUG23LVARI-80": "no_kickoff_anchor"}},
+                      open(os.path.join(d, "tape_state.json"), "w"))
+            m = {"ticker": "KXNFLGAME-25AUG23LVARI-LV", "result": "yes", "open_time": T_iso(ANCHOR - 9), "close_time": T_iso(ANCHOR)}
+            TR.run(FakeClient([]), out=d, series=["KXNFLGAME"], markets_by_series={"KXNFLGAME": [m]}, kickoffs={}, classify=lambda x: Sem(), budget=100, page_budget=2)
+            u = json.load(open(os.path.join(d, "tape_state.json")))["unanchored"]
+            self.assertEqual(sorted(u), ["KXNFLGAME-25AUG23LVARI-LV", "KXNFLSPREAD-25AUG23LVARI-LV49", "KXNFLTOTAL-25AUG23LVARI-80"])
+
+    def test_a_ticker_that_gains_an_anchor_leaves_the_unanchored_list(self):
+        class Sem:  # noqa
+            game_date = None; away_team = None; home_team = None
+        with tempfile.TemporaryDirectory() as d:
+            json.dump({"tickers": {}, "runs": [], "unanchored": {"KXNFLGAME-26FEB08SEANE-SEA": "no_kickoff_anchor"}}, open(os.path.join(d, "tape_state.json"), "w"))
+            m = {"ticker": "KXNFLGAME-26FEB08SEANE-SEA", "result": "yes", "open_time": T_iso(ANCHOR - 9), "close_time": T_iso(ANCHOR)}
+            TR.run(FakeClient([]), out=d, series=["KXNFLGAME"], markets_by_series={"KXNFLGAME": [m]}, kickoffs={("2026-02-08", "SEA", "NE"): (ANCHOR, "g", "2025", "22")},
+                   classify=lambda x: Sem(), budget=100, page_budget=2)
+            self.assertEqual(json.load(open(os.path.join(d, "tape_state.json")))["unanchored"], {})

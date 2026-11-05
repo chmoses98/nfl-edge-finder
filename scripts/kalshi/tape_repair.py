@@ -157,7 +157,9 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
     run_rec["finished_at"] = datetime.now(timezone.utc).isoformat(); run_rec["client_stats"] = client.stats.to_dict()
     remaining = sum(1 for s, m, _a, _k in todo if state["tickers"].get(m["ticker"], {}).get("status") not in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP"))
     run_rec["remaining"] = remaining
-    state["unanchored"] = unanchored
+    # per-series merge: a run for one family must not erase what earlier runs recorded for the others (run 42054083681 did)
+    kept = {t: v for t, v in (state.get("unanchored") or {}).items() if t.split("-")[0] not in set(series)}
+    state["unanchored"] = {**kept, **unanchored}
     state["runs"].append(run_rec)
     T.save_state(state_path, state)
     return run_rec
