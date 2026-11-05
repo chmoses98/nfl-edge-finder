@@ -128,7 +128,8 @@ def hourly_candle_vs_tape(candles_h60: list, trades: list, anchor_ts: int, tol: 
     # hours the exchange says traded (candle volume > 0) but for which the tape holds LESS volume: a recoverable-or-not gap, found independently of counts
     short = sorted(e for e, c in ends.items() if e <= anchor_ts and float(c.get("volume") or 0) > tol
                    and sum(q for _, q in by.get(e, [])) + tol < float(c.get("volume") or 0))
-    return dict(hours_with_prints=len(by), hours_checked=checked, low_ok=ok_low, high_ok=ok_high, volume_ok=ok_vol, hours_missing_candle=missing_candle,
+    pre_vol = sum(float(c.get("volume") or 0) for e, c in ends.items() if e <= anchor_ts)
+    return dict(candles_returned=len(ends), candle_volume_pre_anchor=pre_vol, hours_with_prints=len(by), hours_checked=checked, low_ok=ok_low, high_ok=ok_high, volume_ok=ok_vol, hours_missing_candle=missing_candle,
                 hours_candle_volume_not_in_tape=len(short), first_uncovered_hour_end=short[0] if short else None, last_uncovered_hour_end=short[-1] if short else None,
                 verified=bool(checked) and checked == ok_low == ok_high == ok_vol and missing_candle == 0 and not short)
 

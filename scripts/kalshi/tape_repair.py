@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Recover PRE-START trade tape past the old 10,000-print cap, resumably, with an audited completeness status per ticker (#246).
 
-Reads ``data/kalshi/backfill/markets/<SERIES>.jsonl`` (settled archived markets), anchors each ticker at kickoff (nflverse schedule, same join as
-backfill_quotes.py; fallback = market close_time, recorded as ``anchor_kind``), pages ``GET /historical/trades?ticker&max_ts=<anchor>`` newest->oldest until the
+Reads ``data/kalshi/backfill/markets/<SERIES>.jsonl`` (settled archived markets), anchors each ticker at KICKOFF (nflverse schedule: classifier join, else the (date,away,home) encoded in the ticker when it matches exactly one
+game; recorded as ``anchor_kind``). A ticker with no kickoff anchor is NEVER fetched (market close_time can be days after the game, which would put
+in-game prints in a 'pre-start' tape); it is listed under tape_state.json ``unanchored`` instead. Pages ``GET /historical/trades?ticker&max_ts=<anchor>`` newest->oldest until the
 cursor is exhausted, and writes ADDITIVE files only (the published ``trades/`` feed is untouched):
   data/kalshi/backfill/trades_v2/<SERIES>/<TICKER>.jsonl    de-duplicated pre-start prints, append-only
   data/kalshi/backfill/tape_meta.jsonl                      one audit row per attempt (status, pages, cursor, oldest/newest, candle check, source gap)
@@ -11,7 +12,7 @@ Bounded: ``--budget`` HTTP requests per run, ``--page-budget`` pages per ticker 
 Read-only: public GET endpoints only; no order surface.
 """
 from __future__ import annotations
-import argparse, json, os, sys
+import argparse, json, os, re, sys
 from datetime import datetime, timezone
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -33,40 +34,78 @@ def existing_ids(path):
     return ids
 
 
+_TICKER = re.compile(r"^[A-Z0-9]+-(\d\d)([A-Z]{3})(\d\d)([A-Z]+)(?:-|$)")
+_ALIAS = {"JAC": "JAX"}          # Kalshi ticker code -> nflverse code
+_MON = {m: i for i, m in enumerate("JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split(), 1)}
+
+
+def kickoff_from_ticker(ticker, kickoffs):
+    """Kickoff for ``KXNFLGAME-26JAN25LASEA-SEA`` from the (date, away, home) in the ticker, when EXACTLY ONE split of the team letters matches a scheduled
+    game on that date (else the day before: Kalshi dates by UTC, so late games carry the next day).  The shared classifier cannot split ambiguous codes
+    like ``LASEA`` (LA vs LAC).  Returns (kickoff_epoch, "kickoff_ticker_parse") or None; never guesses between candidates."""
+    m = _TICKER.match(ticker or "")
+    if not m or m.group(2) not in _MON:
+        return None
+    from datetime import date, timedelta
+    d0 = date(2000 + int(m.group(1)), _MON[m.group(2)], int(m.group(3)))
+    letters = m.group(4)
+    for d in (d0, d0 - timedelta(days=1)):
+        hits = {(d.isoformat(), _ALIAS.get(letters[:i], letters[:i]), _ALIAS.get(letters[i:], letters[i:])) for i in range(2, len(letters) - 1)} & set(kickoffs)
+        if len(hits) == 1:
+            return kickoffs[hits.pop()][0], "kickoff_ticker_parse"
+        if len(hits) > 1:
+            return None
+    return None
+
+
 def anchor_for(m, kickoffs, classify):
+    """(anchor_ts, anchor_kind) at KICKOFF, or (None, None) when no kickoff can be established -- never market close_time."""
     sem = classify(m)
     if sem.game_date and sem.away_team and sem.home_team:
         k = kickoffs.get((sem.game_date, sem.away_team, sem.home_team))
         if k:
             return k[0], "kickoff"
-    return T.to_ts(m.get("close_time") or m.get("expiration_time")), "close_time"
+    r = kickoff_from_ticker(m.get("ticker"), kickoffs)
+    return r if r else (None, None)
+
+
+def _nonempty(path):
+    return os.path.exists(path) and os.path.getsize(path) > 0
 
 
 def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, page_budget, max_tickers=0, limit=1000):
     state_path = os.path.join(out, "tape_state.json")
     state = T.load_state(state_path)
-    todo = []
+    todo, unanchored = [], {}
     for s in series:
         for m in markets_by_series.get(s, []):
             if m.get("result") not in ("yes", "no"):
                 continue
-            st = state["tickers"].get(m["ticker"], {}).get("status")
-            if st in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP"):
+            t = m["ticker"]
+            anchor, kind = anchor_for(m, kickoffs, classify)
+            if anchor is None:
+                unanchored[t] = "no_kickoff_anchor"            # not fetched: a close_time anchor would admit post-kickoff prints
                 continue
-            todo.append((s, m))
+            prev = state["tickers"].get(t, {})
+            if prev.get("anchor_ts") not in (None, anchor) and _nonempty(os.path.join(out, "trades_v2", s, f"{t}.jsonl")):
+                unanchored[t] = "anchor_changed_with_data_on_disk"      # never mix tapes cut at two different anchors
+                continue
+            # a result recorded under a close_time anchor (earlier collector) is not trusted as pregame: redo it at the kickoff anchor
+            if prev.get("status") in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP") and prev.get("anchor_kind") != "close_time" and prev.get("anchor_ts") in (None, anchor):
+                continue
+            todo.append((s, m, anchor, kind))
     todo.sort(key=lambda x: (PRIORITY.index(x[0]) if x[0] in PRIORITY else 99, -(T.to_ts(x[1].get("close_time")) or 0)))
-    run_rec = dict(started_at=datetime.now(timezone.utc).isoformat(), todo=len(todo), tickers_attempted=0, complete=0, incomplete=0, trades_written=0)
+    run_rec = dict(started_at=datetime.now(timezone.utc).isoformat(), todo=len(todo), no_kickoff_anchor=len(unanchored), tickers_attempted=0, complete=0, incomplete=0, trades_written=0)
     os.makedirs(out, exist_ok=True)
-    for s, m in todo:
+    for s, m, anchor, kind in todo:
         if client.stats.requests >= budget - 3 or (max_tickers and run_rec["tickers_attempted"] >= max_tickers):
             break
         t = m["ticker"]
-        anchor, kind = anchor_for(m, kickoffs, classify)
         open_ts = T.to_ts(m.get("open_time") or m.get("created_time"))
         d = os.path.join(out, "trades_v2", s); os.makedirs(d, exist_ok=True)
         fpath = os.path.join(d, f"{t}.jsonl")
         prev = state["tickers"].get(t, {})
-        r = T.fetch_tape(client, t, anchor_ts=anchor, market_open_ts=open_ts, resume_cursor=prev.get("cursor"), page_budget=page_budget,
+        r = T.fetch_tape(client, t, anchor_ts=anchor, market_open_ts=open_ts, resume_cursor=(prev.get("cursor") if prev.get("anchor_ts") == anchor else None), page_budget=page_budget,
                          limit=limit, known_ids=existing_ids(fpath))
         with open(fpath, "a") as f:
             for x in r.trades:
@@ -91,8 +130,9 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
         run_rec["complete" if r.tape_complete else "incomplete"] += 1
         T.save_state(state_path, state)          # after EVERY ticker: a killed runner loses at most the current ticker
     run_rec["finished_at"] = datetime.now(timezone.utc).isoformat(); run_rec["client_stats"] = client.stats.to_dict()
-    remaining = sum(1 for s, m in todo if state["tickers"].get(m["ticker"], {}).get("status") not in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP"))
+    remaining = sum(1 for s, m, _a, _k in todo if state["tickers"].get(m["ticker"], {}).get("status") not in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP"))
     run_rec["remaining"] = remaining
+    state["unanchored"] = unanchored
     state["runs"].append(run_rec)
     T.save_state(state_path, state)
     return run_rec

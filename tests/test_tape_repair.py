@@ -116,11 +116,11 @@ class CandleCheck(unittest.TestCase):
 class Runner(unittest.TestCase):
     def test_resume_state_and_additive_outputs(self):
         class Sem:  # noqa
-            game_date = None; away_team = None; home_team = None
+            game_date = "2025-10-05"; away_team = "AAA"; home_team = "BBB"
         tr = [mk_trade(i, ANCHOR - 100 - i) for i in range(3_000)]
         m = {"ticker": "TK", "result": "yes", "open_time": T_iso(ANCHOR - 99999), "close_time": T_iso(ANCHOR)}
         with tempfile.TemporaryDirectory() as d:
-            kw = dict(out=d, series=["KXNFLGAME"], markets_by_series={"KXNFLGAME": [m]}, kickoffs={}, classify=lambda x: Sem(), budget=1000)
+            kw = dict(out=d, series=["KXNFLGAME"], markets_by_series={"KXNFLGAME": [m]}, kickoffs={("2025-10-05", "AAA", "BBB"): (ANCHOR, "g", "2025", "5")}, classify=lambda x: Sem(), budget=1000)
             c = FakeClient(tr)
             r1 = TR.run(c, page_budget=2, **kw)
             self.assertEqual((r1["incomplete"], r1["remaining"]), (1, 1))
@@ -130,7 +130,7 @@ class Runner(unittest.TestCase):
             lines = open(os.path.join(d, "trades_v2", "KXNFLGAME", "TK.jsonl")).read().splitlines()
             self.assertEqual(len(lines), 3000); self.assertEqual(len({json.loads(x)["trade_id"] for x in lines}), 3000)
             meta = [json.loads(x) for x in open(os.path.join(d, "tape_meta.jsonl"))]
-            self.assertEqual([x["status"] for x in meta][-1], "COMPLETE"); self.assertEqual(meta[-1]["anchor_kind"], "close_time")
+            self.assertEqual([x["status"] for x in meta][-1], "COMPLETE"); self.assertEqual(meta[-1]["anchor_kind"], "kickoff")
             self.assertEqual(TR.run(c, page_budget=5, **kw)["tickers_attempted"], 0)        # completed tickers are not refetched
 
 
@@ -166,3 +166,63 @@ def test_main_exits_2_when_no_markets_were_restored(tmp_path, monkeypatch, capsy
     monkeypatch.setattr(_sys, "argv", ["tape_repair.py", "--series", "KXNFLGAME", "--out", str(tmp_path)])
     assert mod.main() == 2
     assert "MARKETS_MISSING" in capsys.readouterr().out
+
+
+class KickoffAnchoring(unittest.TestCase):
+    """Run 41997504463: LA-SEA tickers could not be classified and fell back to market close_time = 2 days AFTER the game."""
+    KO = {("2026-01-25", "NE", "DEN"): (1_769_360_400, "g1", "2025", "21"), ("2026-01-25", "LA", "SEA"): (1_769_366_400, "g2", "2025", "21"),
+          ("2026-01-17", "SF", "SEA"): (1_768_698_000, "g3", "2025", "20")}
+
+    def test_ticker_parse_resolves_ambiguous_la_code(self):
+        self.assertEqual(TR.kickoff_from_ticker("KXNFLGAME-26JAN25LASEA-SEA", self.KO), (1_769_366_400, "kickoff_ticker_parse"))
+
+    def test_ticker_parse_maps_kalshi_jac_to_nflverse_jax(self):
+        ko = {("2025-10-19", "LA", "JAX"): (1_760_900_000, "g", "2025", "7")}
+        self.assertEqual(TR.kickoff_from_ticker("KXNFLGAME-25OCT19LAJAC-JAC", ko)[0], 1_760_900_000)
+
+    def test_ticker_parse_uses_previous_day_for_utc_dated_late_games(self):
+        self.assertEqual(TR.kickoff_from_ticker("KXNFLGAME-26JAN18SFSEA-SF", self.KO)[0], 1_768_698_000)
+
+    def test_ticker_parse_refuses_ambiguity_and_unknowns(self):
+        ko = dict(self.KO); ko[("2026-01-25", "LAS", "EA")] = (1, "x", "x", "x")        # two splits of LASEA on the same day
+        self.assertIsNone(TR.kickoff_from_ticker("KXNFLGAME-26JAN25LASEA-SEA", ko))
+        self.assertIsNone(TR.kickoff_from_ticker("KXNFLGAME-25AUG23LVARI-LV", self.KO))        # preseason: not in the schedule
+        self.assertIsNone(TR.kickoff_from_ticker("garbage", self.KO))
+
+    def _kw(self, d, ms, ko):
+        class Sem:  # noqa
+            game_date = None; away_team = None; home_team = None
+        return dict(out=d, series=["KXNFLGAME"], markets_by_series={"KXNFLGAME": ms}, kickoffs=ko, classify=lambda x: Sem(), budget=1000, page_budget=5)
+
+    def test_market_without_kickoff_is_never_fetched_and_is_reported(self):
+        m = {"ticker": "KXNFLGAME-25AUG23LVARI-LV", "result": "yes", "open_time": T_iso(ANCHOR - 9999), "close_time": T_iso(ANCHOR + 999_999)}
+        with tempfile.TemporaryDirectory() as d:
+            c = FakeClient([mk_trade(1, ANCHOR - 5)])
+            r = TR.run(c, **self._kw(d, [m], self.KO))
+            self.assertEqual((c.stats.requests, r["tickers_attempted"], r["no_kickoff_anchor"], r["remaining"]), (0, 0, 1, 0))
+            self.assertEqual(json.load(open(os.path.join(d, "tape_state.json")))["unanchored"], {"KXNFLGAME-25AUG23LVARI-LV": "no_kickoff_anchor"})
+            self.assertFalse(os.path.exists(os.path.join(d, "trades_v2", "KXNFLGAME", "KXNFLGAME-25AUG23LVARI-LV.jsonl")))
+
+    def test_old_close_time_complete_is_redone_at_the_kickoff_anchor(self):
+        m = {"ticker": "KXNFLGAME-26JAN25LASEA-SEA", "result": "yes", "open_time": T_iso(1_769_000_000), "close_time": T_iso(1_769_487_320)}
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "trades_v2", "KXNFLGAME"))
+            open(os.path.join(d, "trades_v2", "KXNFLGAME", m["ticker"] + ".jsonl"), "w").close()
+            json.dump({"tickers": {m["ticker"]: {"status": "COMPLETE", "cursor": None, "n": 0, "anchor_ts": 1_769_487_320, "anchor_kind": "close_time"}}, "runs": []},
+                      open(os.path.join(d, "tape_state.json"), "w"))
+            r = TR.run(FakeClient([mk_trade(1, 1_769_366_400 - 50)]), **self._kw(d, [m], self.KO))
+            self.assertEqual(r["tickers_attempted"], 1)
+            st = json.load(open(os.path.join(d, "tape_state.json")))["tickers"][m["ticker"]]
+            self.assertEqual((st["anchor_kind"], st["anchor_ts"], st["n"]), ("kickoff_ticker_parse", 1_769_366_400, 1))
+
+    def test_changed_anchor_with_data_on_disk_is_not_mixed(self):
+        m = {"ticker": "KXNFLGAME-26JAN25LASEA-SEA", "result": "yes", "open_time": T_iso(1_769_000_000), "close_time": T_iso(1_769_487_320)}
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "trades_v2", "KXNFLGAME"))
+            open(os.path.join(d, "trades_v2", "KXNFLGAME", m["ticker"] + ".jsonl"), "w").write('{"trade_id":"x"}\n')
+            json.dump({"tickers": {m["ticker"]: {"status": "INCOMPLETE_RESUMABLE", "cursor": "c", "n": 1, "anchor_ts": 5, "anchor_kind": "close_time"}}, "runs": []},
+                      open(os.path.join(d, "tape_state.json"), "w"))
+            c = FakeClient([])
+            r = TR.run(c, **self._kw(d, [m], self.KO))
+            self.assertEqual((c.stats.requests, r["no_kickoff_anchor"]), (0, 1))
+            self.assertEqual(json.load(open(os.path.join(d, "tape_state.json")))["unanchored"][m["ticker"]], "anchor_changed_with_data_on_disk")
