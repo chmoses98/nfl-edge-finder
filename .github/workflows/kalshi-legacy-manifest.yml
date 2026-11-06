@@ -22,22 +22,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Sparse blobless fetch of the legacy tapes and candle files (read-only inputs)
+      - name: Fetch the legacy tapes into a SEPARATE scratch repo (never sparse-checkout the main working tree) and list candle files
         run: |
           set -e
-          git fetch --depth=1 --filter=blob:none origin +market-data:refs/remotes/origin/market-data
+          mkdir -p /tmp/md && cd /tmp/md
+          git init -q . && git remote add origin "https://github.com/${GITHUB_REPOSITORY}"
           git sparse-checkout init --no-cone
-          git sparse-checkout set /data/kalshi/backfill/trades/ /data/kalshi/backfill/candles/
-          git checkout origin/market-data -- data/kalshi/backfill/trades data/kalshi/backfill/candles
-          git reset -q
-          du -sh data/kalshi/backfill/trades data/kalshi/backfill/candles
+          git sparse-checkout set /data/kalshi/backfill/trades/
+          git fetch -q --depth=1 --filter=blob:none origin market-data
+          git checkout -q FETCH_HEAD
+          # candle presence only needs the file NAMES: empty placeholders from the tree listing instead of downloading ~430 MB
+          git ls-tree -r --name-only FETCH_HEAD data/kalshi/backfill/candles | while read -r f; do mkdir -p "$(dirname "$f")"; : > "$f"; done
+          du -sh data/kalshi/backfill/trades; find data/kalshi/backfill/candles -type f | wc -l
       - name: Build manifest
-        run: python3 scripts/kalshi/legacy_manifest.py --backfill data/kalshi/backfill --out data/kalshi/backfill/legacy_manifest.json
+        run: python3 scripts/kalshi/legacy_manifest.py --backfill /tmp/md/data/kalshi/backfill --out data/kalshi/backfill/legacy_manifest.json
       - name: Publish (new path only)
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # keep ONLY the manifest under the publish source so nothing else can be overlaid on market-data
-          rm -rf data/kalshi/backfill/trades data/kalshi/backfill/candles
           ls data/kalshi/backfill
           python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --sparse --only legacy_manifest.json --message "legacy tape manifest $(date -u +'%Y-%m-%dT%H:%M:%SZ')"

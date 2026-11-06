@@ -296,3 +296,19 @@ class CoverageV2(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CommittedCappedList(unittest.TestCase):
+    def test_committed_list_is_the_exact_baseline_and_drives_priority(self):
+        m = TR.load_committed_capped_list()
+        self.assertEqual(sum(1 for e in m.values() if e["capped"]), 439)
+        self.assertEqual(len(m), 1007)
+        self.assertTrue(all(e["has_candles"] for e in m.values()))
+        capped = next(t for t, e in m.items() if e["capped"])
+        other = mk("KXNFLTOTAL", 1, ANCHOR + 5)
+        cm = {"ticker": capped, "result": "yes", "open_time": iso(ANCHOR - 9), "close_time": iso(ANCHOR - 5)}
+        o = TR.order_todo([("KXNFLTOTAL", other, ANCHOR, "kickoff"), (capped.split("-")[0], cm, ANCHOR, "kickoff")], {"tickers": {}}, m, None)
+        self.assertEqual(o[0][1]["ticker"], capped)
+
+    def test_missing_file_means_no_manifest_not_a_crash(self):
+        self.assertIsNone(TR.load_committed_capped_list("/nonexistent/x.json"))
