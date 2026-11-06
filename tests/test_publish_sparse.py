@@ -153,3 +153,27 @@ def test_sparse_only_ignores_stray_files_under_src(tmp_path):
     tree = git("ls-tree", "-r", "--name-only", "market-data", cwd=origin).stdout.split()
     assert "data/kalshi/backfill/tape_state.json" in tree
     assert "data/kalshi/backfill/schedule_cache.csv" not in tree
+
+
+def test_race_retry_works_in_a_single_branch_checkout(tmp_path):
+    """actions/checkout and the sandbox clones fetch ONLY main (`+refs/heads/main:refs/remotes/origin/main`).  The retry did `git fetch origin market-data`, which
+    then updates FETCH_HEAD only, so it rebased onto a STALE origin/market-data and every retry was rejected non-fast-forward (8 of 8 in a real campaign run)."""
+    origin, repo, other = _setup(tmp_path)
+    git("config", "--unset-all", "remote.origin.fetch", cwd=repo)
+    git("config", "remote.origin.fetch", "+refs/heads/main:refs/remotes/origin/main", cwd=repo)
+    git("fetch", "-q", "origin", "+market-data:refs/remotes/origin/market-data", cwd=repo)       # what the workflows do before publishing
+    marker = origin / "raced-once"
+    hook = origin / "hooks" / "pre-receive"
+    hook.parent.mkdir(exist_ok=True)
+    (other / "data" / "kalshi" / "capture" / "racer.jsonl").write_text("racer\n")
+    git("add", "-A", cwd=other); git("commit", "-q", "-m", "racer", cwd=other)
+    git("push", "-q", "origin", "HEAD:refs/heads/racer", cwd=other)
+    hook.write_text("#!/bin/sh\n"
+                    f"if [ ! -e '{marker}' ]; then\n  touch '{marker}'\n"
+                    "  env -u GIT_QUARANTINE_PATH -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES \\\n"
+                    "      git update-ref refs/heads/market-data refs/heads/racer\nfi\nexit 0\n")
+    hook.chmod(0o755)
+    r = subprocess.run([sys.executable, PUBLISHER, "--src", "data/shadow_pure", "--message", "pure", "--sparse"], cwd=repo, text=True, capture_output=True)
+    assert r.returncode == 0, r.stdout[-1500:] + r.stderr[-800:]
+    tree = set(git("ls-tree", "-r", "--name-only", "market-data", cwd=origin).stdout.split())
+    assert {"data/kalshi/capture/racer.jsonl", "data/shadow_pure/nfl/projections/run1.jsonl.gz"} <= tree
