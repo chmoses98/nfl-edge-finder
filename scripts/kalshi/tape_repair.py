@@ -189,6 +189,7 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
                     candle_jobs.append((s, m, anchor, kind))      # tape done, but no quotes stored for it yet: a 2-request candle-only job
                 continue
             todo.append((s, m, anchor, kind))
+    eligible = list(todo)          # the FULL backlog: `remaining` / rc 3 / chaining must reflect it, not the per-run cap applied by order_todo
     todo = order_todo(todo, state, manifest, quotes, per_series, order)
     run_rec = dict(started_at=datetime.now(timezone.utc).isoformat(), todo=len(todo), no_kickoff_anchor=len(unanchored), tickers_attempted=0, complete=0, incomplete=0, trades_written=0, restore_failed=0, candle_only=0, stopped=None)
     touched = []
@@ -286,8 +287,9 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
     with open(os.path.join(out, "publish_manifest.txt"), "w") as f:
         f.write("".join(p + "\n" for p in sorted(set(touched))))
     run_rec["finished_at"] = datetime.now(timezone.utc).isoformat(); run_rec["client_stats"] = client.stats.to_dict()
-    remaining = sum(1 for s, m, _a, _k in todo if state["tickers"].get(m["ticker"], {}).get("status") not in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP"))
+    remaining = sum(1 for s, m, _a, _k in eligible if state["tickers"].get(m["ticker"], {}).get("status") not in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP"))
     run_rec["remaining"] = remaining
+    run_rec["eligible_at_start"] = len(eligible)
     # per-series merge: a run for one family must not erase what earlier runs recorded for the others (run 42054083681 did)
     kept = {t: v for t, v in (state.get("unanchored") or {}).items() if t.split("-")[0] not in set(series)}
     state["unanchored"] = {**kept, **unanchored}
