@@ -17,7 +17,7 @@ Bounded: ``--budget`` HTTP requests per run, ``--page-budget`` pages per ticker 
 Read-only: public GET endpoints only; no order surface.
 """
 from __future__ import annotations
-import argparse, glob, json, os, re, subprocess, sys
+import argparse, glob, hashlib, json, os, re, subprocess, sys
 from datetime import datetime, timezone
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -84,11 +84,15 @@ def _is_done(st):
     return st.get("status") in ("COMPLETE", "COMPLETE_WITH_SOURCE_GAP")
 
 
-def order_todo(todo, state, manifest=None, quotes=None, per_series=0):
+def order_todo(todo, state, manifest=None, quotes=None, per_series=0, order="hash"):
     """Pure ordering of ``todo`` = [(series, market, anchor, kind)].  1) legacy tapes capped at 10,000 prints (manifest), 2) contracts with a two-sided
     pre-start quote, interleaved across families, least-covered family first, 3) contracts with no quote.  ``per_series`` caps a family in groups 2+3 (not 1)."""
     manifest = manifest or {}
     def close(x):
+        if order == "hash":
+            # deterministic pseudo-random order: a capped-size batch then spans the WHOLE season (all weeks / games) instead of only the newest games, so every family
+            # gets discovery, validation AND holdout observations for a chronological out-of-sample test
+            return hashlib.md5(x[1]["ticker"].encode()).hexdigest()
         return -(T.to_ts(x[1].get("close_time")) or 0)
     capped = sorted((x for x in todo if (manifest.get(x[1]["ticker"]) or {}).get("capped")), key=close)
     rest = [x for x in todo if not (manifest.get(x[1]["ticker"]) or {}).get("capped")]
@@ -164,7 +168,7 @@ def fetch_candles(client, s, t, open_ts, anchor, tier):
 
 
 def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, page_budget, max_tickers=0, limit=1000, per_series=0, manifest=None, quotes=None,
-        fetch_existing=None, max_throttle=MAX_THROTTLE, max_candle_jobs=40):
+        fetch_existing=None, max_throttle=MAX_THROTTLE, max_candle_jobs=40, order="hash"):
     state_path = os.path.join(out, "tape_state.json")
     state = T.load_state(state_path)
     todo, unanchored, candle_jobs = [], {}, []
@@ -185,7 +189,7 @@ def run(client, *, out, series, markets_by_series, kickoffs, classify, budget, p
                     candle_jobs.append((s, m, anchor, kind))      # tape done, but no quotes stored for it yet: a 2-request candle-only job
                 continue
             todo.append((s, m, anchor, kind))
-    todo = order_todo(todo, state, manifest, quotes, per_series)
+    todo = order_todo(todo, state, manifest, quotes, per_series, order)
     run_rec = dict(started_at=datetime.now(timezone.utc).isoformat(), todo=len(todo), no_kickoff_anchor=len(unanchored), tickers_attempted=0, complete=0, incomplete=0, trades_written=0, restore_failed=0, candle_only=0, stopped=None)
     touched = []
     os.makedirs(out, exist_ok=True)
@@ -301,6 +305,7 @@ def main():
     ap.add_argument("--per-series", type=int, default=0, help="max tickers per family per run outside the capped-legacy group (0 = no cap)")
     ap.add_argument("--restore-ref", default=None, help="git ref (e.g. origin/market-data) to restore the touched tickers' existing tapes from, lazily")
     ap.add_argument("--max-throttle", type=int, default=MAX_THROTTLE)
+    ap.add_argument("--order", choices=["hash", "recent"], default="hash", help="order within a group: deterministic hash (spans the season) or newest close first")
     a = ap.parse_args()
     from nfl_edge.kalshi.client import KalshiClient
     from nfl_edge.kalshi.classifier import classify
@@ -332,7 +337,7 @@ def main():
         quotes = None
     rec = run(KalshiClient(rps=a.rps), out=a.out, series=series, markets_by_series=mk, kickoffs=load_kickoffs(), classify=classify,
               budget=a.budget, page_budget=a.page_budget, max_tickers=a.max_tickers, per_series=a.per_series, manifest=manifest, quotes=quotes,
-              fetch_existing=git_restorer(a.restore_ref, a.out) if a.restore_ref else None, max_throttle=a.max_throttle)
+              fetch_existing=git_restorer(a.restore_ref, a.out) if a.restore_ref else None, max_throttle=a.max_throttle, order=a.order)
     print(json.dumps(rec, default=str))
     if rec.get("stopped") == "throttled":
         return 5          # throttled: progress is saved, but the workflow must NOT chain another run
