@@ -93,6 +93,27 @@ class Ordering(unittest.TestCase):
         self.assertEqual([x[0] for x in o].count("KXNFLTOTAL"), 2)
 
 
+class SeasonSampling(unittest.TestCase):
+    def test_hash_order_is_deterministic_and_spans_the_season_where_recent_does_not(self):
+        ms = [dict(mk("KXNFLTOTAL", i, ANCHOR + i * 86400 * 3), ticker=f"KXNFLTOTAL-25SEP07AAABBB-{i}") for i in range(60)]     # 60 contracts, close times spread over 180 days
+        todo = [(m["ticker"].split("-")[0], m, ANCHOR, "kickoff") for m in ms]
+        a = [x[1]["ticker"] for x in TR.order_todo(todo, {"tickers": {}}, {}, None, per_series=10, order="hash")]
+        b = [x[1]["ticker"] for x in TR.order_todo(list(reversed(todo)), {"tickers": {}}, {}, None, per_series=10, order="hash")]
+        self.assertEqual(a, b)                                                           # deterministic regardless of input order
+        recent = [x[1]["ticker"] for x in TR.order_todo(todo, {"tickers": {}}, {}, None, per_series=10, order="recent")]
+        idx = {m["ticker"]: i for i, m in enumerate(ms)}
+        span = lambda L: max(idx[t] for t in L) - min(idx[t] for t in L)
+        self.assertEqual(sorted(idx[t] for t in recent), list(range(50, 60)))             # newest 10 only: one narrow slice of the season
+        self.assertGreater(span(a), 30)                                                  # hash sample spreads across it
+
+    def test_capped_legacy_stay_first_in_either_order(self):
+        cap = mk("KXNFLGAME", 9, ANCHOR - 10 ** 7)
+        oth = [mk("KXNFLTOTAL", i, ANCHOR + i) for i in range(5)]
+        todo = [(m["ticker"].split("-")[0], m, ANCHOR, "kickoff") for m in oth + [cap]]
+        for order in ("hash", "recent"):
+            self.assertEqual(TR.order_todo(todo, {"tickers": {}}, {cap["ticker"]: {"capped": True}}, None, order=order)[0][1]["ticker"], cap["ticker"])
+
+
 class LazyRestore(unittest.TestCase):
     def test_only_the_touched_ticker_is_restored_and_published(self):
         m1, m2 = mk("KXNFLTOTAL", 1, ANCHOR + 2), mk("KXNFLTOTAL", 2, ANCHOR + 1)
