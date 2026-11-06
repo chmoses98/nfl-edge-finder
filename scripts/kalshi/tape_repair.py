@@ -122,6 +122,17 @@ def order_todo(todo, state, manifest=None, quotes=None, per_series=0):
     return out
 
 
+def load_committed_capped_list(path=None):
+    """Fallback when market-data has no legacy_manifest.json yet: the exact list of the 439 tapes capped at 10,000 lines (and the 1,007 legacy tickers, all of which
+    have a legacy candle file) committed in config/.  -> {ticker: {capped, has_candles}} or None."""
+    path = path or os.path.join(ROOT, "config", "kalshi_legacy_capped_tapes.json")
+    if not os.path.exists(path):
+        return None
+    d = json.load(open(path))
+    capped = set(d["capped"])
+    return {t: {"capped": t in capped, "has_candles": True} for t in d["legacy_tickers"]}
+
+
 def git_restorer(ref, out, root=ROOT):
     """fetch_existing(rel) -> bool: materialise ONE published file (path relative to ``out``) from ``ref`` if it is not on disk yet."""
     def restore(rel):
@@ -307,7 +318,7 @@ def main():
                                     "(restore markets/ from market-data first)")))
         return 2
     mp = os.path.join(a.out, "legacy_manifest.json")
-    manifest = json.load(open(mp)).get("tickers") if os.path.exists(mp) else None
+    manifest = json.load(open(mp)).get("tickers") if os.path.exists(mp) else load_committed_capped_list()
     quotes = None
     try:
         from tape_coverage_report import two_sided
