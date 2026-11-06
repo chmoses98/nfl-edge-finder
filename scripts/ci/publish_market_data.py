@@ -157,7 +157,9 @@ def main():
             return 4
         if not exists:
             time.sleep(3 * attempt); continue
-        sh(["git", "fetch", "origin", a.branch], cwd=wt)
+        # explicit refspec: in a single-branch checkout (actions/checkout, `git clone --single-branch`) a bare `git fetch origin <branch>` only sets FETCH_HEAD, so the
+        # rebase below would use a STALE origin/<branch> and every retry would be rejected non-fast-forward
+        sh(["git", "fetch", "origin", f"+refs/heads/{a.branch}:refs/remotes/origin/{a.branch}"], cwd=wt)
         rb = subprocess.run(["git", "rebase", f"origin/{a.branch}"], cwd=wt, text=True, capture_output=True)
         unmerged = subprocess.run(["git", "diff", "--name-only", "--diff-filter=U"], cwd=wt, text=True, capture_output=True).stdout.strip()
         if rb.returncode != 0 or unmerged:
