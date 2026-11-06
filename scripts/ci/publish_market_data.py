@@ -78,7 +78,13 @@ def main():
     ap.add_argument("--only", action="append", default=[],
                     help="with --sparse: path (relative to --src) to check out; repeatable. Narrows the sparse checkout "
                          "below --src when --src itself holds large archives the publisher never touches")
+    ap.add_argument("--only-from", default=None,
+                    help="file with one --only path (relative to --src) per line, e.g. the files a run touched; missing/empty file adds nothing")
+    ap.add_argument("--remove-from", default=None,
+                    help="file with paths (relative to --src) to `git rm` on the branch, e.g. a tape the verifier moved to quarantine (the old content stays in history)")
     a = ap.parse_args()
+    if a.only_from and os.path.exists(a.only_from):
+        a.only += [l.strip() for l in open(a.only_from) if l.strip()]
     if a.only and not a.sparse:
         ap.error("--only requires --sparse")
     repo = os.path.abspath(a.repo)
@@ -120,12 +126,18 @@ def main():
                 if fn.endswith(".part"):
                     continue
                 shutil.copy2(os.path.join(root, fn), os.path.join(dest, rel, fn))
+        removals = [l.strip() for l in open(a.remove_from) if l.strip()] if a.remove_from and os.path.exists(a.remove_from) else []
+        for rp in removals:
+            sh(["git", "rm", "-q", "-f", "--ignore-unmatch", "--", os.path.join(a.src, rp)], cwd=wt)
         # with --only, stage just those paths: strays under --src (e.g. a schedule cache) are outside the sparse
         # definition, and `git add -A -- <src>` refuses them
-        stage = [os.path.join(a.src, o.strip("/")) for o in a.only if os.path.exists(os.path.join(wt, a.src, o.strip("/")))] or [a.src]
-        if a.only and stage == [a.src]:
+        stage = [os.path.join(a.src, o.strip("/")) for o in a.only if os.path.exists(os.path.join(wt, a.src, o.strip("/")))]
+        if not a.only:
+            stage = [a.src]
+        elif not stage and not removals:
             print("nothing to publish (none of the --only paths exist)"); return 0
-        sh(["git", "add", "-A", "--", *stage], cwd=wt)
+        if stage:
+            sh(["git", "add", "-A", "--", *stage], cwd=wt)
         staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=wt).returncode != 0
         if staged:
             sh(["git", "commit", "-q", "-m", a.message], cwd=wt)

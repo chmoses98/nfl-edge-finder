@@ -1,0 +1,43 @@
+name: Kalshi legacy tape manifest (research-only, read-only, additive)
+
+# One-off / on-demand: exact line count, bytes, sha256, time span and candle presence of every LEGACY tape (data/kalshi/backfill/trades/**), published as
+# data/kalshi/backfill/legacy_manifest.json on market-data (new path only; trades/ and candles/ are never modified). It is the immutable "before" baseline for
+# the tape-recovery coverage report and the priority list (tapes capped at exactly 10,000 prints first) for kalshi-tape-repair.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-backfill
+  cancel-in-progress: false
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Sparse blobless fetch of the legacy tapes and candle files (read-only inputs)
+        run: |
+          set -e
+          git fetch --depth=1 --filter=blob:none origin +market-data:refs/remotes/origin/market-data
+          git sparse-checkout init --no-cone
+          git sparse-checkout set /data/kalshi/backfill/trades/ /data/kalshi/backfill/candles/
+          git checkout origin/market-data -- data/kalshi/backfill/trades data/kalshi/backfill/candles
+          git reset -q
+          du -sh data/kalshi/backfill/trades data/kalshi/backfill/candles
+      - name: Build manifest
+        run: python3 scripts/kalshi/legacy_manifest.py --backfill data/kalshi/backfill --out data/kalshi/backfill/legacy_manifest.json
+      - name: Publish (new path only)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # keep ONLY the manifest under the publish source so nothing else can be overlaid on market-data
+          rm -rf data/kalshi/backfill/trades data/kalshi/backfill/candles
+          ls data/kalshi/backfill
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --sparse --only legacy_manifest.json --message "legacy tape manifest $(date -u +'%Y-%m-%dT%H:%M:%SZ')"

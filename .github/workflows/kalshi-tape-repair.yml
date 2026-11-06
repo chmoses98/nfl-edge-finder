@@ -2,30 +2,38 @@ name: Kalshi NFL tape repair (research-only, read-only API, additive data)
 
 # Recovers PRE-START trade tape beyond the old 10,000-print cap (#246). Publishes ONLY new paths on `market-data`
 # (trades_v2/, tape_meta.jsonl, tape_state.json, coverage reports); the published trades/ feed is never rewritten.
-# Resumable: tape_state.json keeps per-ticker cursors; exit code 3 = work remains (bounded self-chain).
+# Resumable: tape_state.json keeps per-ticker cursors; exit code 3 = work remains (bounded self-chain), 5 = throttled (saved, never chained).
+# Efficient: only the tickers a run touches are restored (lazily, per file) and published (publish_manifest.txt); trades_v2/ is never downloaded whole.
+# Scheduled: a low-frequency bounded rotation (series=auto: capped legacy tapes first, then quote-bearing contracts round-robin across families).
 on:
+  schedule:
+    - cron: '23 */6 * * *'      # 4x/day, small bounded batches; the chain stays 0 (see inputs) until chained operation is reviewed
   workflow_dispatch:
     inputs:
       series:
-        description: 'comma list of series tickers'
+        description: 'comma list of series tickers, or auto (all priority families, capped legacy tapes first)'
         required: false
-        default: 'KXNFLGAME,KXNFLSPREAD,KXNFLTOTAL,KXNFLTEAMTOTAL'
+        default: 'auto'
       budget:
         description: 'HTTP request budget for this run'
         required: false
-        default: '20000'
+        default: '1500'
       page_budget:
         description: 'max pages per ticker per run (1000 prints/page)'
         required: false
-        default: '200'
+        default: '40'
       max_tickers:
         description: 'max tickers this run (0 = unlimited within budget)'
         required: false
-        default: '0'
+        default: '12'
+      per_series:
+        description: 'max tickers per family per run outside the capped-legacy group (0 = no cap)'
+        required: false
+        default: '3'
       chain:
         description: 'remaining self-dispatches allowed'
         required: false
-        default: '3'
+        default: '0'
 
 permissions:
   contents: write
@@ -34,6 +42,14 @@ permissions:
 concurrency:
   group: market-data-backfill
   cancel-in-progress: false
+
+env:
+  SERIES: ${{ github.event.inputs.series || 'auto' }}
+  BUDGET: ${{ github.event.inputs.budget || '400' }}
+  PAGE_BUDGET: ${{ github.event.inputs.page_budget || '30' }}
+  MAX_TICKERS: ${{ github.event.inputs.max_tickers || '8' }}
+  PER_SERIES: ${{ github.event.inputs.per_series || '2' }}
+  CHAIN: ${{ github.event.inputs.chain || '0' }}
 
 jobs:
   repair:
@@ -44,13 +60,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Restore markets + tape state from market-data
+      - name: Restore markets, horizons, manifest and tape state from market-data (NOT trades_v2)
         run: |
           set -e
           git fetch --depth=1 --filter=blob:none origin +market-data:refs/remotes/origin/market-data
-          # one path at a time, only if it exists on the branch: a single missing pathspec (tape_state.json on a first
-          # run) makes `git checkout -- a b c` restore NOTHING, which silently turned the first pilot into a no-op.
-          for p in markets horizons tape_state.json tape_meta.jsonl trades_v2; do
+          # one path at a time, only if it exists on the branch: a single missing pathspec makes `git checkout -- a b c` restore NOTHING.
+          # trades_v2/ is deliberately absent: tape_repair restores just the tickers it touches (--restore-ref), so the download does not grow with the archive.
+          for p in markets horizons legacy_manifest.json tape_state.json tape_meta.jsonl tape_coverage_history.jsonl; do
             if git cat-file -e "origin/market-data:data/kalshi/backfill/$p" 2>/dev/null; then
               git checkout origin/market-data -- "data/kalshi/backfill/$p"
               echo "restored $p"
@@ -66,31 +82,39 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python3 scripts/kalshi/tape_repair.py --series "${{ github.event.inputs.series }}" --budget "${{ github.event.inputs.budget }}" --page-budget "${{ github.event.inputs.page_budget }}" --max-tickers "${{ github.event.inputs.max_tickers }}"
+          python3 scripts/kalshi/tape_repair.py --series "$SERIES" --budget "$BUDGET" --page-budget "$PAGE_BUDGET" --max-tickers "$MAX_TICKERS" --per-series "$PER_SERIES" --restore-ref origin/market-data
           rc=$?
-          echo "tape_repair.py exit code: $rc (0=done, 3=work remains, other=ERROR)"
+          echo "tape_repair.py exit code: $rc (0=done, 3=work remains, 5=throttled, other=ERROR)"
           echo "rc=$rc" >> $GITHUB_OUTPUT
+      - name: Independent kickoff verification (quarantines failures before anything is published)
+        if: always()
+        run: |
+          python3 scripts/kalshi/tape_verify.py --out data/kalshi/backfill || true
       - name: Coverage report
         if: always()
         run: |
-          python3 scripts/kalshi/tape_coverage_report.py --backfill data/kalshi/backfill --out data/kalshi/backfill/tape_coverage.json --md data/kalshi/backfill/tape_coverage.md || true
-      - name: Publish (additive paths only)
+          python3 scripts/kalshi/tape_coverage_report.py --backfill data/kalshi/backfill --out data/kalshi/backfill/tape_coverage.json --md data/kalshi/backfill/tape_coverage.md --history data/kalshi/backfill/tape_coverage_history.jsonl || true
+      - name: Publish (additive paths only; only the files this run touched)
         if: always()
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # publish ONLY what this job produced: drop the restored inputs so nothing else is overlaid on market-data
           rm -rf data/kalshi/backfill/markets data/kalshi/backfill/horizons data/kalshi/backfill/candles data/kalshi/backfill/trades data/kalshi/backfill/state.json
-          python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --sparse --only trades_v2/ --only trades_v2_quarantine/ --only tape_state.json --only tape_meta.jsonl --only tape_coverage.json --only tape_coverage.md --message "kalshi tape repair $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python3 scripts/ci/publish_market_data.py --src data/kalshi/backfill --sparse --only-from data/kalshi/backfill/publish_manifest.txt --remove-from data/kalshi/backfill/publish_remove.txt --only tape_state.json --only tape_meta.jsonl --only tape_coverage.json --only tape_coverage.md --only tape_coverage_history.jsonl --only tape_verify.json --message "kalshi tape repair $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
       - name: Fail the job if the repair step errored
-        if: always() && steps.repair.outputs.rc != '0' && steps.repair.outputs.rc != '3'
+        if: always() && steps.repair.outputs.rc != '0' && steps.repair.outputs.rc != '3' && steps.repair.outputs.rc != '5'
         run: |
-          echo "::error::tape_repair.py exit code was '${{ steps.repair.outputs.rc }}' (not 0/3): the repair did not run correctly"
+          echo "::error::tape_repair.py exit code was '${{ steps.repair.outputs.rc }}' (not 0/3/5): the repair did not run correctly"
           exit 1
+      - name: Throttled (progress saved, not chained)
+        if: steps.repair.outputs.rc == '5'
+        run: echo "::warning::Kalshi throttled this run (429/5xx limit reached); progress was published and no follow-up run will be chained."
       - name: Chain next run if work remains
-        if: steps.repair.outputs.rc == '3' && github.event.inputs.chain != '0'
+        if: steps.repair.outputs.rc == '3' && env.CHAIN != '0'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NEXT=$(( ${{ github.event.inputs.chain }} - 1 ))
-          gh workflow run kalshi-tape-repair.yml --ref main -f series="${{ github.event.inputs.series }}" -f budget="${{ github.event.inputs.budget }}" -f page_budget="${{ github.event.inputs.page_budget }}" -f max_tickers="${{ github.event.inputs.max_tickers }}" -f chain="$NEXT"
+          NEXT=$(( CHAIN - 1 ))
+          echo "chaining: remaining=$NEXT"
+          gh workflow run kalshi-tape-repair.yml --ref main -f series="$SERIES" -f budget="$BUDGET" -f page_budget="$PAGE_BUDGET" -f max_tickers="$MAX_TICKERS" -f per_series="$PER_SERIES" -f chain="$NEXT"
