@@ -93,6 +93,21 @@ class Ordering(unittest.TestCase):
         self.assertEqual([x[0] for x in o].count("KXNFLTOTAL"), 2)
 
 
+class RemainingIsTheFullBacklog(unittest.TestCase):
+    def test_per_series_cap_does_not_hide_the_backlog_from_rc_and_chaining(self):
+        ms = [mk("KXNFLTOTAL", i, ANCHOR + i) for i in range(5)]
+        with tempfile.TemporaryDirectory() as d:
+            r = run(d, ms, Fake([trade(1, ANCHOR - 5)]), per_series=2)
+            self.assertEqual((r["tickers_attempted"], r["eligible_at_start"], r["remaining"]), (2, 5, 3))     # 3 left: rc 3, so `chain` continues
+            r2 = run(d, ms, Fake([trade(1, ANCHOR - 5)]), per_series=10)
+            self.assertEqual((r2["tickers_attempted"], r2["remaining"]), (3, 0))                               # finished: rc 0, chain stops
+
+    def test_main_returns_3_while_backlog_remains(self):
+        import importlib
+        src = open(os.path.join(ROOT, "scripts", "kalshi", "tape_repair.py")).read()
+        self.assertIn('return 3 if rec["remaining"] else 0', src)
+
+
 class SeasonSampling(unittest.TestCase):
     def test_hash_order_is_deterministic_and_spans_the_season_where_recent_does_not(self):
         ms = [dict(mk("KXNFLTOTAL", i, ANCHOR + i * 86400 * 3), ticker=f"KXNFLTOTAL-25SEP07AAABBB-{i}") for i in range(60)]     # 60 contracts, close times spread over 180 days
