@@ -1,92 +1,92 @@
 ## NFL projection scorecard — last 28 days
 
-Generated 2026-11-08T16:57:51Z. Research only; nothing here is a betting signal.
+Generated 2026-11-10T21:22:34Z. Research only; nothing here is a betting signal.
 
-Archived pregame forecasts: 10841 across 56 games. Settled: 3470 (void/DNP 253, stat corrections 0).
+Archived pregame forecasts: 11010 across 56 games. Settled: 4378 (void/DNP 349, stat corrections 0).
 
 | Stat | Model | n (games) | MAE | Bias | CRPS | 80% range caught | vs incumbent (CRPS) |
 |---|---|---|---|---|---|---|---|
-| anytime_td (yes/no) | pf-nfl (challenger) | 525 (42) | Brier 0.1767 | calib -0.018 | log loss 0.5283 | — | -0.0080 [-0.0219, +0.0068] (n=158) (Brier) |
+| anytime_td (yes/no) | pf-nfl (challenger) | 694 (56) | Brier 0.1758 | calib -0.011 | log loss 0.5279 | — | -0.0080 [-0.0219, +0.0068] (n=158) (Brier) |
 | anytime_td (yes/no) | shadow-0.4.0 (incumbent) | 257 (13) | Brier 0.1396 | calib -0.037 | log loss 0.4540 | — |  |
-| carries | pf-nfl (challenger) | 135 (42) | 4.573 | -0.323 | 3.206 | 80% | — |
+| carries | pf-nfl (challenger) | 183 (56) | 4.427 | -0.216 | 3.151 | 79% | — |
 | carries | shadow-0.4.0 (incumbent) | 29 (12) | 6.184 | -5.228 | — | — |  |
-| completions | pf-nfl (challenger) | 79 (42) | 5.196 | +0.723 | 3.729 | 78% | — |
+| completions | pf-nfl (challenger) | 104 (56) | 4.561 | +0.641 | 3.332 | 84% | — |
 | completions | shadow-0.4.0 (incumbent) | 23 (12) | 3.846 | -0.765 | — | — |  |
-| passing_attempts | pf-nfl (challenger) | 79 (42) | 7.136 | +0.916 | 5.073 | 86% | — |
+| passing_attempts | pf-nfl (challenger) | 104 (56) | 6.456 | +0.855 | 4.614 | 88% | — |
 | passing_attempts | shadow-0.4.0 (incumbent) | 23 (12) | 6.309 | -2.725 | — | — |  |
-| passing_tds | pf-nfl (challenger) | 79 (42) | 0.893 | -0.014 | 0.591 | 82% | — |
+| passing_tds | pf-nfl (challenger) | 104 (56) | 0.893 | -0.006 | 0.598 | 81% | — |
 | passing_tds | shadow-0.4.0 (incumbent) | 25 (13) | 0.845 | -0.118 | — | — |  |
-| passing_yards | pf-nfl (challenger) | 79 (42) | 60.996 | +1.813 | 43.751 | 80% | — |
+| passing_yards | pf-nfl (challenger) | 104 (56) | 60.030 | -0.844 | 42.508 | 82% | — |
 | passing_yards | shadow-0.4.0 (incumbent) | 25 (13) | 44.300 | +0.347 | — | — |  |
-| receiving_yards | pf-nfl (challenger) | 482 (42) | 20.799 | +0.672 | 14.238 | 80% | — |
+| receiving_yards | pf-nfl (challenger) | 635 (56) | 20.523 | +0.344 | 14.152 | 80% | — |
 | receiving_yards | shadow-0.4.0 (incumbent) | 113 (13) | 22.231 | -12.471 | — | — |  |
-| receptions | pf-nfl (challenger) | 482 (42) | 1.522 | +0.095 | 1.034 | 80% | — |
+| receptions | pf-nfl (challenger) | 635 (56) | 1.475 | +0.089 | 1.013 | 81% | — |
 | receptions | shadow-0.4.0 (incumbent) | 100 (12) | 2.223 | -1.781 | — | — |  |
-| rushing_yards | pf-nfl (challenger) | 135 (42) | 27.639 | -1.461 | 18.929 | 80% | — |
+| rushing_yards | pf-nfl (challenger) | 183 (56) | 25.534 | -0.235 | 17.809 | 81% | — |
 | rushing_yards | shadow-0.4.0 (incumbent) | 66 (13) | 17.607 | -5.586 | — | — |  |
-| targets | pf-nfl (challenger) | 482 (42) | 1.914 | +0.118 | 1.323 | 81% | — |
-| team_pass_attempts | pf-nfl (challenger) | 84 (42) | 6.568 | +0.857 | 4.606 | 81% | — |
-| team_points | pf-nfl (challenger) | 84 (42) | 7.374 | +0.021 | 5.054 | 82% | — |
-| team_rush_attempts | pf-nfl (challenger) | 84 (42) | 5.969 | -0.680 | 4.293 | 77% | — |
+| targets | pf-nfl (challenger) | 635 (56) | 1.871 | +0.130 | 1.297 | 82% | — |
+| team_pass_attempts | pf-nfl (challenger) | 112 (56) | 5.913 | +0.909 | 4.189 | 85% | — |
+| team_points | pf-nfl (challenger) | 112 (56) | 7.127 | +0.178 | 4.986 | 83% | — |
+| team_rush_attempts | pf-nfl (challenger) | 112 (56) | 5.783 | -0.505 | 4.170 | 79% | — |
 
 **Drift checks**
 
 - anytime_td: **OK** — within expectations
-- carries: **WATCH** — CRPS 116% of historical holdout
-- completions: **INSUFFICIENT** — 79 settled forecasts (< 100)
-- passing_attempts: **INSUFFICIENT** — 79 settled forecasts (< 100)
-- passing_tds: **INSUFFICIENT** — 79 settled forecasts (< 100)
-- passing_yards: **INSUFFICIENT** — 79 settled forecasts (< 100)
+- carries: **WATCH** — CRPS 114% of historical holdout
+- completions: **OK** — within expectations
+- passing_attempts: **OK** — within expectations
+- passing_tds: **OK** — within expectations
+- passing_yards: **OK** — within expectations
 - receiving_yards: **OK** — within expectations
 - receptions: **OK** — within expectations
-- rushing_yards: **WATCH** — CRPS 113% of historical holdout
+- rushing_yards: **OK** — within expectations
 - targets: **OK** — within expectations
-- team_pass_attempts: **INSUFFICIENT** — 84 settled forecasts (< 100)
-- team_points: **INSUFFICIENT** — 84 settled forecasts (< 100)
-- team_rush_attempts: **INSUFFICIENT** — 84 settled forecasts (< 100)
+- team_pass_attempts: **OK** — within expectations
+- team_points: **OK** — within expectations
+- team_rush_attempts: **OK** — within expectations
 
 ### NFL monitoring lines (research only; pre-registered corrections are NOT adopted)
 
 | Stat | Segment | n (games) | Mean actual | Bias (model - actual) | Relative | 95% CI | Status | Study (dev) |
 |---|---|---|---|---|---|---|---|---|
-| anytime_td | new_team_first4 | 18 (15) | 0.11 | +0.068 | +61.5% | [-0.10, +0.18] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
-| anytime_td | backup | 215 (42) | 0.18 | +0.002 | +1.0% | [-0.03, +0.04] | OK | +7% to +18% (development, pre-registered, not adopted) |
-| anytime_td | rookie | 64 (35) | 0.14 | +0.030 | +21.0% | [-0.05, +0.12] | WATCH | monitored (no study band) |
-| anytime_td | none_of_the_three | 281 (42) | 0.34 | -0.039 | -11.4% | [-0.08, +0.01] | OK |  |
-| carries | new_team_first4 | 7 (7) | 5.57 | +2.015 | +36.2% | [-0.34, +3.88] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
-| carries | backup | 68 (41) | 10.01 | -0.403 | -4.0% | [-1.79, +0.90] | OK | +7% to +18% (development, pre-registered, not adopted) |
-| carries | rookie | 11 (11) | 9.36 | -2.578 | -27.5% | [-6.39, +0.82] | INSUFFICIENT | monitored (no study band) |
-| carries | none_of_the_three | 64 (40) | 14.11 | -0.433 | -3.1% | [-1.78, +0.93] | OK |  |
-| completions | new_team_first4 | 1 (1) | 20.00 | -2.825 | -14.1% | — | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| anytime_td | new_team_first4 | 21 (17) | 0.10 | +0.083 | +87.4% | [-0.08, +0.17] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| anytime_td | backup | 284 (56) | 0.18 | +0.004 | +2.3% | [-0.03, +0.04] | OK | +7% to +18% (development, pre-registered, not adopted) |
+| anytime_td | rookie | 86 (47) | 0.15 | +0.029 | +19.1% | [-0.04, +0.09] | WATCH | monitored (no study band) |
+| anytime_td | none_of_the_three | 373 (56) | 0.33 | -0.026 | -7.8% | [-0.07, +0.02] | OK |  |
+| carries | new_team_first4 | 8 (8) | 4.88 | +2.499 | +51.3% | [+0.47, +4.33] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| carries | backup | 90 (54) | 10.07 | -0.706 | -7.0% | [-1.83, +0.33] | OK | +7% to +18% (development, pre-registered, not adopted) |
+| carries | rookie | 16 (15) | 9.50 | -1.271 | -13.4% | [-4.33, +1.26] | INSUFFICIENT | monitored (no study band) |
+| carries | none_of_the_three | 88 (54) | 13.58 | +0.111 | +0.8% | [-0.95, +1.19] | OK |  |
+| completions | new_team_first4 | 3 (3) | 17.67 | +0.722 | +4.1% | [-2.37, +4.93] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
 | completions | rookie | 3 (3) | 10.67 | +7.958 | +74.6% | [-1.81, +20.11] | INSUFFICIENT | monitored (no study band) |
-| completions | none_of_the_three | 75 (42) | 20.41 | +0.481 | +2.4% | [-0.99, +2.24] | OK |  |
-| passing_attempts | new_team_first4 | 1 (1) | 28.00 | +2.229 | +8.0% | — | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| completions | none_of_the_three | 98 (54) | 20.49 | +0.414 | +2.0% | [-0.89, +1.86] | OK |  |
+| passing_attempts | new_team_first4 | 3 (3) | 25.67 | +5.285 | +20.6% | [+2.34, +10.67] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
 | passing_attempts | rookie | 3 (3) | 20.33 | +10.135 | +49.8% | [-9.09, +31.94] | INSUFFICIENT | monitored (no study band) |
-| passing_attempts | none_of_the_three | 75 (42) | 31.88 | +0.530 | +1.7% | [-1.37, +2.62] | OK |  |
-| passing_tds | new_team_first4 | 1 (1) | 0.00 | +1.190 | — | — | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| passing_attempts | none_of_the_three | 98 (54) | 31.98 | +0.436 | +1.4% | [-1.06, +2.24] | OK |  |
+| passing_tds | new_team_first4 | 3 (3) | 0.00 | +1.142 | — | [+1.05, +1.19] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
 | passing_tds | rookie | 3 (3) | 0.33 | +0.788 | +236.5% | [+0.26, +1.20] | INSUFFICIENT | monitored (no study band) |
-| passing_tds | none_of_the_three | 75 (42) | 1.53 | -0.062 | -4.0% | [-0.34, +0.19] | OK |  |
-| passing_yards | new_team_first4 | 1 (1) | 252.00 | -61.266 | -24.3% | — | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| passing_tds | none_of_the_three | 98 (54) | 1.55 | -0.065 | -4.2% | [-0.32, +0.19] | OK |  |
+| passing_yards | new_team_first4 | 3 (3) | 181.67 | +12.715 | +7.0% | [-46.84, +69.55] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
 | passing_yards | rookie | 3 (3) | 74.67 | +115.948 | +155.3% | [+42.83, +197.60] | INSUFFICIENT | monitored (no study band) |
-| passing_yards | none_of_the_three | 75 (42) | 230.20 | -1.911 | -0.8% | [-21.60, +16.65] | OK |  |
-| receiving_yards | new_team_first4 | 16 (14) | 18.50 | +4.203 | +22.7% | [-5.18, +12.75] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
-| receiving_yards | backup | 177 (42) | 18.49 | +2.579 | +13.9% | [-0.00, +5.69] | WATCH | +7% to +18% (development, pre-registered, not adopted) |
-| receiving_yards | rookie | 54 (31) | 27.65 | +2.831 | +10.2% | [-3.81, +8.76] | WATCH | monitored (no study band) |
-| receiving_yards | none_of_the_three | 277 (42) | 42.25 | -0.241 | -0.6% | [-4.20, +3.65] | OK |  |
-| receptions | new_team_first4 | 16 (14) | 1.94 | +0.214 | +11.0% | [-0.71, +1.10] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
-| receptions | backup | 177 (42) | 1.71 | +0.239 | +14.0% | [+0.02, +0.48] | WATCH | +7% to +18% (development, pre-registered, not adopted) |
-| receptions | rookie | 54 (31) | 2.46 | +0.039 | +1.6% | [-0.51, +0.63] | OK | monitored (no study band) |
-| receptions | none_of_the_three | 277 (42) | 3.69 | +0.063 | +1.7% | [-0.23, +0.34] | OK |  |
-| rushing_yards | new_team_first4 | 7 (7) | 19.43 | +11.550 | +59.5% | [+3.27, +19.75] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
-| rushing_yards | backup | 68 (41) | 42.69 | -2.046 | -4.8% | [-9.71, +5.10] | OK | +7% to +18% (development, pre-registered, not adopted) |
-| rushing_yards | rookie | 11 (11) | 38.36 | -10.183 | -26.5% | [-24.77, +6.07] | INSUFFICIENT | monitored (no study band) |
-| rushing_yards | none_of_the_three | 64 (40) | 59.70 | -1.963 | -3.3% | [-9.43, +5.33] | OK |  |
-| targets | new_team_first4 | 16 (14) | 2.75 | +0.370 | +13.5% | [-0.61, +1.29] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
-| targets | backup | 177 (42) | 2.61 | +0.376 | +14.4% | [+0.10, +0.72] | WATCH | +7% to +18% (development, pre-registered, not adopted) |
-| targets | rookie | 54 (31) | 3.80 | +0.213 | +5.6% | [-0.47, +0.90] | OK | monitored (no study band) |
-| targets | none_of_the_three | 277 (42) | 5.55 | -0.021 | -0.4% | [-0.39, +0.34] | OK |  |
+| passing_yards | none_of_the_three | 98 (54) | 234.14 | -4.834 | -2.1% | [-20.55, +12.57] | OK |  |
+| receiving_yards | new_team_first4 | 18 (16) | 18.44 | +4.628 | +25.1% | [-4.07, +11.77] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| receiving_yards | backup | 234 (56) | 19.41 | +1.805 | +9.3% | [-1.14, +4.55] | OK | +7% to +18% (development, pre-registered, not adopted) |
+| receiving_yards | rookie | 73 (41) | 29.63 | +1.171 | +4.0% | [-4.01, +6.84] | OK | monitored (no study band) |
+| receiving_yards | none_of_the_three | 365 (56) | 42.48 | +0.032 | +0.1% | [-3.52, +3.10] | OK |  |
+| receptions | new_team_first4 | 18 (16) | 1.89 | +0.225 | +11.9% | [-0.62, +1.02] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| receptions | backup | 234 (56) | 1.74 | +0.207 | +11.9% | [-0.01, +0.42] | WATCH | +7% to +18% (development, pre-registered, not adopted) |
+| receptions | rookie | 73 (41) | 2.55 | -0.011 | -0.4% | [-0.46, +0.41] | OK | monitored (no study band) |
+| receptions | none_of_the_three | 365 (56) | 3.71 | +0.086 | +2.3% | [-0.11, +0.33] | OK |  |
+| rushing_yards | new_team_first4 | 8 (8) | 17.00 | +13.430 | +79.0% | [+6.30, +21.06] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| rushing_yards | backup | 90 (54) | 42.66 | -2.946 | -6.9% | [-8.80, +2.98] | OK | +7% to +18% (development, pre-registered, not adopted) |
+| rushing_yards | rookie | 16 (15) | 38.44 | -4.244 | -11.0% | [-17.98, +8.31] | INSUFFICIENT | monitored (no study band) |
+| rushing_yards | none_of_the_three | 88 (54) | 56.65 | +1.320 | +2.3% | [-5.05, +7.29] | OK |  |
+| targets | new_team_first4 | 18 (16) | 2.67 | +0.432 | +16.2% | [-0.47, +1.31] | INSUFFICIENT | +14% to +37% (development, pre-registered, not adopted) |
+| targets | backup | 234 (56) | 2.71 | +0.283 | +10.5% | [-0.01, +0.57] | WATCH | +7% to +18% (development, pre-registered, not adopted) |
+| targets | rookie | 73 (41) | 3.88 | +0.185 | +4.8% | [-0.42, +0.70] | OK | monitored (no study band) |
+| targets | none_of_the_three | 365 (56) | 5.52 | +0.071 | +1.3% | [-0.23, +0.41] | OK |  |
 
-Pooled relative bias (family-n weighted): new_team_first4 +30.1% (n=83); backup +8.1% (n=882); rookie +12.5% (n=260); none_of_the_three -2.2% (n=1540)
+Pooled relative bias (family-n weighted): new_team_first4 +39.3% (n=100); backup +5.8% (n=1166); rookie +9.8% (n=349); none_of_the_three -0.8% (n=2036)
 
 **Rung Brier at the incumbent's listed thresholds (lower is better)**
 
@@ -102,8 +102,6 @@ Pooled relative bias (family-n weighted): new_team_first4 +30.1% (n=83); backup 
 | receptions | 663 (12) | 0.1436 | 0.2065 | -0.0629 [-0.0837, -0.0392] | 0.1746 | 0.1436 |
 | rushing_yards | 344 (13) | 0.1501 | 0.1634 | -0.0132 [-0.0550, +0.0182] | 0.1634 | 0.1501 |
 
-**DNP (void) rate by pre-game participation call**: CONFIRMED_ACTIVE 0.0% (n=64); CONFIRMED_OUT 100.0% (n=132); LIKELY_ACTIVE 2.0% (n=2282); LIKELY_OUT 71.4% (n=14); UNCERTAIN 16.0% (n=225); UNVERIFIED 4.5% (n=66)
+**DNP (void) rate by pre-game participation call**: CONFIRMED_ACTIVE 0.0% (n=64); CONFIRMED_OUT 100.0% (n=187); LIKELY_ACTIVE 2.4% (n=3086); LIKELY_OUT 76.5% (n=17); UNCERTAIN 16.3% (n=283); UNVERIFIED 4.5% (n=66)
 
-**Settled by gate status**: PASS n=2268 MAE=8.408; REVIEW n=289 MAE=10.404
-
-**Availability capture** (last run): mean coverage 1.0, participation calls {'LIKELY_ACTIVE': 169, 'CONFIRMED_OUT': 13, 'UNCERTAIN': 21, 'LIKELY_OUT': 1}
+**Settled by gate status**: PASS n=3039 MAE=8.243; REVIEW n=342 MAE=9.684
