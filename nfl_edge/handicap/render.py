@@ -8,6 +8,8 @@ at the JSON for the rest. Two editorial rules:
 """
 from __future__ import annotations
 
+import math
+
 
 def _pct(x, nd=1):
     return "--" if x is None else f"{100 * x:.{nd}f}"
@@ -19,6 +21,34 @@ def _num(x, nd=2):
 
 def _sign(x, nd=3):
     return "--" if x is None else f"{x:+.{nd}f}"
+
+
+def _team_spread_from_home_handicap(value, home: str, away: str) -> str:
+    """Named favourite -points. Input is a HOME betting handicap, not a raw margin."""
+    try:
+        v = float(value)
+    except (ValueError, TypeError):
+        return "--"
+    if not math.isfinite(v) or not home or not away or home == away:
+        return "--"
+    if abs(v) < 0.05:
+        return "Pick'em"
+    leader = home if v < 0 else away
+    return f"{leader} -{abs(v):.1f}".removesuffix(".0")
+
+
+def _team_spread_from_home_margin(value, home: str, away: str) -> str:
+    """Named projected winner -points, for a HOME-minus-AWAY model margin."""
+    try:
+        v = float(value)
+    except (ValueError, TypeError):
+        return "--"
+    if not math.isfinite(v) or not home or not away or home == away:
+        return "--"
+    if abs(v) < 0.05:
+        return "Pick'em"
+    leader = home if v > 0 else away
+    return f"{leader} -{abs(v):.1f}".removesuffix(".0")
 
 
 def render_markdown(packet: dict, max_players_per_game: int = 8,
@@ -705,7 +735,7 @@ def _game_script_section(gs: dict | None, g: dict, *, compact: bool) -> list:
     a(f"_{gs.get('hierarchy')}. {gs.get('authority')}._")
     a("")
     mb = gs.get("market_baseline") or {}
-    a(f"**Market baseline** — spread (home) {_num(mb.get('spread_home'))} · total {_num(mb.get('total'))}")
+    a(f"**Market baseline** — spread {_team_spread_from_home_handicap(mb.get('spread_home'), g['home_team'], g['away_team'])} · total {_num(mb.get('total'))}")
     for mv in (mb.get("game_line_moves") or [])[:4]:
         a(f"- move `{mv.get('ticker')}` {_sign(mv.get('move'))}")
     a("")
@@ -714,7 +744,7 @@ def _game_script_section(gs: dict | None, g: dict, *, compact: bool) -> list:
         a(f"**Game environment / team volume / player opportunity** — UNAVAILABLE: {env.get('reason')}")
         a("")
     else:
-        a(f"**Game environment** (simulation, mean and middle 50%) — home margin {_r(env.get('home_margin'))} · "
+        a(f"**Game environment** (simulation, mean and middle 50%) — projected spread {_team_spread_from_home_margin((env.get('home_margin') or {}).get('mean'), g['home_team'], g['away_team'])} · raw home-minus-away margin {_r(env.get('home_margin'))} · "
           f"total {_r(env.get('total'))} · P(one score) {_pct(env.get('p_one_score'))}% · "
           f"P(17+ blowout) {_pct(env.get('p_blowout_17plus'))}% · P(total 10+ over centre) {_pct(env.get('p_total_10_over_centre'))}%")
         a(f"_Score state: {env.get('score_state')}_")
@@ -826,7 +856,7 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
     a("")
     a("| | market (research-implied) | model |")
     a("|---|---|---|")
-    a(f"| spread (home) | {_num(mi.get('implied_spread'))} | {_num(mo.get('model_spread'))} |")
+    a(f"| model / market spread (favoured team - points) | {_team_spread_from_home_handicap(mi.get('implied_spread'), g['home_team'], g['away_team'])} | {_team_spread_from_home_handicap(mo.get('model_spread'), g['home_team'], g['away_team'])} |")
     a(f"| total | {_num(mi.get('implied_total_median'))} | {_num(mo.get('model_total'))} |")
     hs = (mi.get("implied_score") or {})
     ms = (mo.get("model_score") or {})
@@ -840,7 +870,7 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
     a("")
     if g.get("market_implied_by_period"):
         a("Period market-implied: " + " · ".join(
-            f"**{p}** spread {_num(v.get('implied_spread'))} / total {_num(v.get('implied_total_median'))}"
+            f"**{p}** spread {_team_spread_from_home_handicap(v.get('implied_spread'), g['home_team'], g['away_team'])} / total {_num(v.get('implied_total_median'))}"
             for p, v in g["market_implied_by_period"].items()))
         a("")
     L.extend(_game_script_section(g.get("game_script_inputs"), g, compact=compact))
@@ -1045,7 +1075,7 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
     if sv.get("run_id"):
         c = sv.get("center") or {}
         a(f"_run {sv.get('run_id')} · generated {sv.get('generated_at')} · centre {c.get('source')} "
-          f"(home {_num(c.get('spread_home'), 1)}, total {_num(c.get('total'), 1)}) · "
+          f"(spread {_team_spread_from_home_handicap(c.get('spread_home'), g['home_team'], g['away_team'])}, total {_num(c.get('total'), 1)}) · "
           f"{', '.join(f'{k} {v}' for k, v in sorted((sv.get('counts_by_support_state') or {}).items()))}_")
         a("")
         a(sv.get("note") or "")
