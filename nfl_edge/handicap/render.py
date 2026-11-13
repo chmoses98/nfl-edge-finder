@@ -8,7 +8,7 @@ at the JSON for the rest. Two editorial rules:
 """
 from __future__ import annotations
 
-import math
+from nfl_edge.spread_notation import team_spread_from_home_handicap, team_spread_from_home_margin
 
 
 def _pct(x, nd=1):
@@ -23,32 +23,9 @@ def _sign(x, nd=3):
     return "--" if x is None else f"{x:+.{nd}f}"
 
 
-def _team_spread_from_home_handicap(value, home: str, away: str) -> str:
-    """Named favourite -points. Input is a HOME betting handicap, not a raw margin."""
-    try:
-        v = float(value)
-    except (ValueError, TypeError):
-        return "--"
-    if not math.isfinite(v) or not home or not away or home == away:
-        return "--"
-    if abs(v) < 0.05:
-        return "Pick'em"
-    leader = home if v < 0 else away
-    return f"{leader} -{abs(v):.1f}".removesuffix(".0")
-
-
-def _team_spread_from_home_margin(value, home: str, away: str) -> str:
-    """Named projected winner -points, for a HOME-minus-AWAY model margin."""
-    try:
-        v = float(value)
-    except (ValueError, TypeError):
-        return "--"
-    if not math.isfinite(v) or not home or not away or home == away:
-        return "--"
-    if abs(v) < 0.05:
-        return "Pick'em"
-    leader = home if v > 0 else away
-    return f"{leader} -{abs(v):.1f}".removesuffix(".0")
+# Display-only spread labels; see nfl_edge/spread_notation.py for the two native sign conventions.
+_team_spread_from_home_handicap = team_spread_from_home_handicap
+_team_spread_from_home_margin = team_spread_from_home_margin
 
 
 def render_markdown(packet: dict, max_players_per_game: int = 8,
@@ -856,7 +833,7 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
     a("")
     a("| | market (research-implied) | model |")
     a("|---|---|---|")
-    a(f"| model / market spread (favoured team - points) | {_team_spread_from_home_handicap(mi.get('implied_spread'), g['home_team'], g['away_team'])} | {_team_spread_from_home_handicap(mo.get('model_spread'), g['home_team'], g['away_team'])} |")
+    a(f"| spread (favourite -points) | {_team_spread_from_home_handicap(mi.get('implied_spread'), g['home_team'], g['away_team'])} | {_team_spread_from_home_handicap(mo.get('model_spread'), g['home_team'], g['away_team'])} |")
     a(f"| total | {_num(mi.get('implied_total_median'))} | {_num(mo.get('model_total'))} |")
     hs = (mi.get("implied_score") or {})
     ms = (mo.get("model_score") or {})
@@ -1075,7 +1052,7 @@ def _render_game(g: dict, max_players: int, max_markets=None, compact: bool = Fa
     if sv.get("run_id"):
         c = sv.get("center") or {}
         a(f"_run {sv.get('run_id')} · generated {sv.get('generated_at')} · centre {c.get('source')} "
-          f"(spread {_team_spread_from_home_handicap(c.get('spread_home'), g['home_team'], g['away_team'])}, total {_num(c.get('total'), 1)}) · "
+          f"(spread {_team_spread_from_home_margin(c.get('spread_home'), g['home_team'], g['away_team'])} = home-minus-away margin {_num(c.get('spread_home'), 1)}, total {_num(c.get('total'), 1)}) · "
           f"{', '.join(f'{k} {v}' for k, v in sorted((sv.get('counts_by_support_state') or {}).items()))}_")
         a("")
         a(sv.get("note") or "")

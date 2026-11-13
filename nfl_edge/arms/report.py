@@ -1,6 +1,7 @@
 """Render the three-arm scorecard, the player autopsy and the funnel as Markdown. Derived, regenerable, no authority."""
 from __future__ import annotations
 
+from nfl_edge.spread_notation import team_spread_from_home_margin, teams_from_game_id
 from nfl_edge.arms import registry as R
 from nfl_edge.arms.scorecard import ARMS, INSUFFICIENT
 
@@ -36,19 +37,28 @@ def _banner(sc) -> list:
 
 def render_game_rows(rows) -> list:
     """The prominent per-game table: CURRENT vs DATA_ONLY vs HYBRID centres, actual, snapshot market and close."""
-    L = ["| game | kickoff | T-min | arm | margin | total | actual margin | actual total | mkt@snap margin/total | close margin/total |",
+    L = ["_Margins are HOME minus AWAY points (positive = home); each is also named in standard notation, "
+         "e.g. `TOR -1.7` = TOR projected to win by 1.7, final `PHI -3` = PHI won by 3._", "",
+         "| game | kickoff | T-min | arm | margin | total | actual margin | actual total | mkt@snap margin/total | close margin/total |",
          "|---|---|---|---|---|---|---|---|---|---|"]
     for r in sorted(rows, key=lambda r: (str(r.get("kickoff_at")), str(r.get("game_id")))):
         act, mk, cl = r.get("actual") or {}, r.get("market_at_snapshot") or {}, r.get("close") or {}
+        ha = teams_from_game_id(r.get("game_id"))
+
+        def nm(v, nd, final=False, ha=ha):
+            raw = _f(v, nd)
+            if ha is None or v is None:
+                return raw
+            return f"{raw} ({team_spread_from_home_margin(v, ha[0], ha[1], decimals=0 if final else 1)})"
         for i, arm in enumerate(ARMS):
             a = (r.get("arms") or {}).get(arm) or {}
             L.append(f"| {r.get('game_id') if i == 0 else ''} | {str(r.get('kickoff_at'))[:16] if i == 0 else ''} | "
                      f"{_f(r.get('minutes_to_kickoff'), 0) if i == 0 else ''} | {SHORT[arm]} | "
-                     f"{_f(a.get('projected_home_margin'), 2) if a.get('status') != R.UNAVAILABLE else a.get('status')} | "
+                     f"{nm(a.get('projected_home_margin'), 2) if a.get('status') != R.UNAVAILABLE else a.get('status')} | "
                      f"{_f(a.get('projected_total'), 2) if a.get('status') != R.UNAVAILABLE else '-'} | "
-                     f"{_f(act.get('margin'), 0) if i == 0 else ''} | {_f(act.get('total'), 0) if i == 0 else ''} | "
-                     f"{(_f(mk.get('margin'), 1) + '/' + _f(mk.get('total'), 1) + ' (' + str(mk.get('source')) + ')') if i == 0 else ''} | "
-                     f"{(_f(cl.get('margin'), 1) + '/' + _f(cl.get('total'), 1) + ' (' + str(cl.get('status')) + ')') if i == 0 else ''} |")
+                     f"{nm(act.get('margin'), 0, final=True) if i == 0 else ''} | {_f(act.get('total'), 0) if i == 0 else ''} | "
+                     f"{(nm(mk.get('margin'), 1) + '/' + _f(mk.get('total'), 1) + ' (' + str(mk.get('source')) + ')') if i == 0 else ''} | "
+                     f"{(nm(cl.get('margin'), 1) + '/' + _f(cl.get('total'), 1) + ' (' + str(cl.get('status')) + ')') if i == 0 else ''} |")
     return L
 
 

@@ -70,7 +70,7 @@ def test_the_header_facts_are_present(md):
 
 
 def test_market_and_model_views_are_shown_side_by_side(md):
-    for row in ("spread (home)", "total", "score", "win prob"):
+    for row in ("spread (favourite -points)", "total", "score", "win prob"):
         assert row in md
     assert "market (research-implied)" in md and "| model |" in md
     assert "Period market-implied" in md, "period markets are missing"

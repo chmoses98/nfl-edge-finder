@@ -23,6 +23,7 @@ Three rules run through the whole module and are worth stating once:
 """
 from __future__ import annotations
 
+from nfl_edge.spread_notation import team_spread_from_home_handicap
 import glob
 import gzip
 import hashlib
@@ -861,7 +862,9 @@ def key_questions(game: dict) -> list:
     if gm.get("implied_spread") is not None and (game.get("model_view") or {}).get("model_spread") is not None:
         d = game["model_view"]["model_spread"] - gm["implied_spread"]
         if abs(d) >= 1.0:
-            q.append(f"Model and market differ by {d:+.1f} points of spread. Does that come from one team's "
+            h, w = game.get("home_team"), game.get("away_team")
+            q.append(f"Model ({team_spread_from_home_handicap(game['model_view']['model_spread'], h, w)}) and market "
+                     f"({team_spread_from_home_handicap(gm['implied_spread'], h, w)}) differ by {abs(d):.1f} points of spread. Does that come from one team's "
                      f"rating, from the total, or from a single ladder rung driving the reconstruction?")
     if not q:
         q.append("Nothing in this game is flagged. Is there a reason to have an opinion here at all, or is "
