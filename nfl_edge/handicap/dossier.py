@@ -17,6 +17,7 @@ never removes one.
 """
 from __future__ import annotations
 
+from nfl_edge.spread_notation import team_spread_from_home_margin
 import csv
 import io
 import json
@@ -308,7 +309,7 @@ def _evidence_from_base(d: dict) -> dict:
         _ev(ix, "ENV:rest", "environment", "MEASURED", f"rest days: home {r.get('home_rest_days')}, away {r.get('away_rest_days')}", adjusted=None, values=r)
     _ev(ix, "ENV:weather", "environment", "MEASURED", f"venue {d['venue']}; weather {d['weather']}", adjusted=None, values=d["weather"])
     m = d["market"]
-    _ev(ix, "ENV:market", "environment", "MEASURED", f"market centre (midpoints, not executable): home margin {m['implied_home_margin_median']}, total {m['implied_total_median']}, win probability {m['win_probability']}", adjusted=None, values=m)
+    _ev(ix, "ENV:market", "environment", "MEASURED", f"market centre (midpoints, not executable): spread {team_spread_from_home_margin(m['implied_home_margin_median'], d.get('home'), d.get('away'))} (home-minus-away margin {m['implied_home_margin_median']}), total {m['implied_total_median']}, win probability {m['win_probability']}", adjusted=None, values=m)
     for t, v in (d["team_volume"].get("teams") or {}).items():
         _ev(ix, f"TV:{t}", "scripts", "SIMULATION", f"{t} simulated plays {v['plays_mean']}, pass rate {v['pass_rate_mean']}; by final margin: {v.get('by_final_margin')}", adjusted=None, values=v)
     for s in d["script_candidates"]:

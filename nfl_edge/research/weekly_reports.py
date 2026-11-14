@@ -14,6 +14,7 @@ nothing.
 """
 from __future__ import annotations
 
+from nfl_edge.spread_notation import final_margin_label, team_spread_from_home_margin
 from collections import Counter
 
 AUTHORITY_LINE = ("> RESEARCH ONLY. Nothing in this report selects, sizes, gates or authorises a wager, changes a model, "
@@ -213,15 +214,18 @@ def render_script_autopsy(doc: dict) -> str:
     a("")
     a("_Labels read the play-by-play score progression and the PREGAME market favourite / total only; no label reads a wager._")
     a("")
-    a("| game | primary script | labels | final | market margin / total | margin err | total err | plays H/A | pass att H/A |")
+    a("_Final and market spreads use standard notation (`PHI -3` = PHI won / favoured by 3). "
+      "Margin error = final home-minus-away margin minus market home-minus-away margin._")
+    a("")
+    a("| game | primary script | labels | final | market spread / total | margin err | total err | plays H/A | pass att H/A |")
     a("|---|---|---|---|---|---|---|---|---|")
     for g in doc["games"]:
         if g.get("status") != "OK":
             a(f"| {g['game_id']} | {g.get('status')} | | | | | | | |")
             continue
         f, mk, e, v = g["flow"], g["market"], g["errors"], g["volume"]
-        a(f"| {g['game_id']} | {g['primary_label']} | {', '.join(g['labels'])} | {int(f['final_home'])}-{int(f['final_away'])} | "
-          f"{_n(mk.get('home_margin'), 1)} / {_n(mk.get('total'), 1)} | {_n(e.get('margin'), 1)} | {_n(e.get('total'), 1)} | "
+        a(f"| {g['game_id']} | {g['primary_label']} | {', '.join(g['labels'])} | {g['home']} {int(f['final_home'])}-{int(f['final_away'])} {g['away']} ({final_margin_label(f['final_home'], f['final_away'], g['home'], g['away'])}) | "
+          f"{team_spread_from_home_margin(mk.get('home_margin'), g['home'], g['away'])} / {_n(mk.get('total'), 1)} | {_n(e.get('margin'), 1)} | {_n(e.get('total'), 1)} | "
           f"{(v.get(g['home']) or {}).get('plays', '—')}/{(v.get(g['away']) or {}).get('plays', '—')} | "
           f"{(v.get(g['home']) or {}).get('pass_att', '—')}/{(v.get(g['away']) or {}).get('pass_att', '—')} |")
     a("")
